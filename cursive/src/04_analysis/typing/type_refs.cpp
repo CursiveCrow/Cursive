@@ -542,6 +542,7 @@ const TypePath& ModalRefPath(const ModalRef& modal_ref) {
       [](const auto& node) -> const TypePath& {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, TypePath>) {
+          SPEC_RULE("ModalRefPath(TypePath(p))");
           return node;
         } else {
           return node.path;

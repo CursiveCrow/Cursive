@@ -1,0 +1,17 @@
+modal Issue980PlainModal {
+    @Ready {
+        value: i32
+    }
+}
+
+type Issue980PlainState = Issue980PlainModal@Ready
+
+procedure accept_plain_state(value: Issue980PlainState) -> i32 {
+    let _ = value
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

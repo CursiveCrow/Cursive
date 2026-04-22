@@ -200,6 +200,12 @@ inline TypeModalRef MakeTypeModalRef(
 inline const TypePath& TypeModalRefPath(const TypeModalRef& modal_ref) {
     return std::visit(
         [](const auto& node) -> const TypePath& {
+            using T = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<T, TypePathType>) {
+                if (node.generic_args.empty()) {
+                    SPEC_RULE("ModalRefPath(TypePath(p))");
+                }
+            }
             return node.path;
         },
         modal_ref);

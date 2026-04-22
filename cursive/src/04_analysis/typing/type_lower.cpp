@@ -243,9 +243,11 @@ LowerTypeResult LowerType(const ScopeContext& ctx,
           return {true, std::nullopt,
                   MakeTypeRefine(base.type, node.predicate)};
         } else if constexpr (std::is_same_v<T, ast::TypeModalState>) {
+          const auto& modal_path = ast::TypeModalRefPath(node.modal_ref);
+          const auto& modal_args = ast::TypeModalRefArgs(node.modal_ref);
           std::vector<TypeRef> args;
-          args.reserve(node.generic_args.size());
-          for (const auto& arg : node.generic_args) {
+          args.reserve(modal_args.size());
+          for (const auto& arg : modal_args) {
             const auto lower_result = LowerType(ctx, arg);
             if (!lower_result.ok) {
               return lower_result;
@@ -253,7 +255,7 @@ LowerTypeResult LowerType(const ScopeContext& ctx,
             args.push_back(lower_result.type);
           }
           return {true, std::nullopt,
-                  MakeTypeModalState(node.path, node.state, std::move(args))};
+                  MakeTypeModalState(modal_path, node.state, std::move(args))};
         } else if constexpr (std::is_same_v<T, ast::TypePathType>) {
           // §5.2.9, §13.1: Generic type instantiation lowering
           // Per WF-Apply (§5.2.3), type arguments MUST be preserved for ALL

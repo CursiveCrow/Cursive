@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "00_core/assert_spec.h"
 #include "00_core/int128.h"
 #include "cursive/src/02_source/ast/nodes/ast_fwd.h"
 #include "cursive/src/02_source/ast/nodes/ast_enums.h"
@@ -192,6 +193,7 @@ inline const TypePath& ModalRefPath(const ModalRef& modal_ref) {
       [](const auto& node) -> const TypePath& {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, TypePath>) {
+          SPEC_RULE("ModalRefPath(TypePath(p))");
           return node;
         } else {
           return node.path;
