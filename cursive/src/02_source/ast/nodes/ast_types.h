@@ -226,6 +226,7 @@ inline const std::vector<std::shared_ptr<Type>>& TypeModalRefArgs(
                 }
                 return node.generic_args;
             } else {
+                SPEC_RULE("ModalRefArgs(TypeApply(_, args))");
                 return node.args;
             }
         },

@@ -562,6 +562,7 @@ const std::vector<TypeRef>& ModalRefArgs(const ModalRef& modal_ref) {
           SPEC_RULE("ModalRefArgs(TypePath(_))");
           return kEmptyArgs;
         } else {
+          SPEC_RULE("ModalRefArgs(TypeApply(_, args))");
           return node.args;
         }
       },

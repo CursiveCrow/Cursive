@@ -1318,6 +1318,7 @@ static const StaticRuleMeta kStaticRules[] = {
     {"Modal-StateName-Err", "DeclJudg", std::nullopt, "04_analysis/typing/item/modal_decl.cpp", std::string_view("∃ i. S_i = M\nc = Code(Modal-StateName-Err)")},
     {"Modal-WF", "DeclJudg", std::nullopt, "04_analysis/typing/item/modal_decl.cpp", std::string_view("n ≥ 1\n∀ i ∈ 1..n, S_i unique\n∀ i, Γ ⊢ Payload(M, S_i) wf\n∀ i, S_i ≠ M")},
     {"ModalFieldType", "PatternLowerJudg", std::nullopt, "05_codegen/lower/pattern/pattern_common.cpp", std::nullopt},
+    {"ModalRefArgs(TypeApply(_, args))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},
     {"ModalRefArgs(TypePath(_))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},
     {"ModalRefPath(TypeApply(p, _))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},
     {"ModalRefPath(TypePath(p))", "ParseJudgment", std::nullopt, "02_source/ast/ast_common.h", std::nullopt},

@@ -212,6 +212,7 @@ inline const std::vector<TypePtr>& ModalRefArgs(const ModalRef& modal_ref) {
           SPEC_RULE("ModalRefArgs(TypePath(_))");
           return kEmptyArgs;
         } else {
+          SPEC_RULE("ModalRefArgs(TypeApply(_, args))");
           return node.generic_args;
         }
       },
