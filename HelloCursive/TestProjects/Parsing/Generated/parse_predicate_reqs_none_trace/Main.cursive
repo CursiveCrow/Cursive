@@ -4,6 +4,12 @@ class PredicateReqsPlainClass {
     procedure metric(~) -> i32
 }
 
+class PredicateReqsBoundClass<T>
+|: Drop(T); FfiSafe(probe::predicateemptydep::ExternalBox<T>)
+{
+    procedure metric(~) -> i32
+}
+
 record PredicateReqsPlainRecord {
     value: i32
 }
@@ -13,7 +19,7 @@ record PredicateReqsGenericRecord<T> {
 }
 
 record PredicateReqsBoundRecord<T>
-|: Bitcopy(T); Clone(T)
+|: Bitcopy(T); Clone(T); Drop(T); FfiSafe(probe::predicateemptydep::ExternalBox<T>)
 {
     value: T
 }
@@ -23,16 +29,39 @@ enum PredicateReqsPlainEnum {
     Done
 }
 
+enum PredicateReqsBoundEnum<T>
+|: Clone(T); Drop(probe::predicateemptydep::ExternalBox<T>)
+{
+    Box(T)
+}
+
 modal PredicateReqsPlainModal {
     @Ready {
         value: i32
     }
 }
 
+modal PredicateReqsBoundModal<T>
+|: Bitcopy(T); FfiSafe(T)
+{
+    @Ready {
+        value: T
+    }
+}
+
 type PredicateReqsPlainAlias = PredicateReqsPlainRecord
 type PredicateReqsExternalAlias = probe::predicateemptydep::ExternalBox<i32>
+type PredicateReqsBoundAlias<T>
+|: Clone(T); FfiSafe(probe::predicateemptydep::ExternalBox<T>)
+= probe::predicateemptydep::ExternalBox<T>
 
 procedure predicateReqsPlainProcedure(value: PredicateReqsPlainAlias) -> PredicateReqsPlainAlias {
+    return value
+}
+
+procedure predicateReqsBoundProcedure<T>(value: T) -> T
+|: Bitcopy(T); Drop(probe::predicateemptydep::ExternalBox<T>)
+{
     return value
 }
 

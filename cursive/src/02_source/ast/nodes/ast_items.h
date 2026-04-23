@@ -46,6 +46,7 @@
 #include "cursive/src/02_source/ast/ast_common.h"
 #include "cursive/src/02_source/ast/nodes/ast_attributes.h"
 #include "cursive/src/02_source/ast/nodes/ast_stmts.h"
+#include "cursive/src/02_source/ast/nodes/ast_types.h"
 
 namespace cursive::ast
 {
@@ -247,6 +248,46 @@ namespace cursive::ast
         return kEmpty;
     }
 
+    inline std::string PredicateReqsPathPayload(const TypePath& path) {
+        std::string payload;
+        for (std::size_t i = 0; i < path.size(); ++i) {
+            if (i > 0) {
+                payload += "::";
+            }
+            payload += path[i];
+        }
+        return payload;
+    }
+
+    inline std::string PredicateReqsTypePayload(const TypePtr& type) {
+        if (!type) {
+            return "none";
+        }
+
+        return std::visit(
+            [&](const auto& node) -> std::string {
+                using T = std::decay_t<decltype(node)>;
+                if constexpr (std::is_same_v<T, TypePrim>) {
+                    return "TypePrim:" + std::string(node.name);
+                } else if constexpr (std::is_same_v<T, TypePathType>) {
+                    return "TypePath:" + PredicateReqsPathPayload(node.path);
+                } else if constexpr (std::is_same_v<T, TypeApply>) {
+                    return "TypeApply:" + PredicateReqsPathPayload(node.path) +
+                           ":args=" + std::to_string(node.args.size());
+                } else if constexpr (std::is_same_v<T, TypeString>) {
+                    return "TypeString";
+                } else if constexpr (std::is_same_v<T, TypeBytes>) {
+                    return "TypeBytes";
+                } else if constexpr (std::is_same_v<T, TypeTuple>) {
+                    return "TypeTuple:elems=" +
+                           std::to_string(node.elements.size());
+                } else {
+                    return "TypeOther";
+                }
+            },
+            type->node);
+    }
+
     inline std::string PredicateReqsPayload(
         const char* predicate_opt,
         const std::vector<PredicateReq>& predicates) {
@@ -261,6 +302,13 @@ namespace cursive::ast
                 payload += ",";
             }
             payload += predicates[i].pred;
+        }
+        payload += ";predicate_types=";
+        for (std::size_t i = 0; i < predicates.size(); ++i) {
+            if (i > 0) {
+                payload += ",";
+            }
+            payload += PredicateReqsTypePayload(predicates[i].type);
         }
         return payload;
     }
