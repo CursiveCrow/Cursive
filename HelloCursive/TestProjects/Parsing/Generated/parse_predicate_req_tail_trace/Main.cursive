@@ -6,9 +6,23 @@ record TailExactSemicolon<T>
     value: T
 }
 
+record TailExactRecursive<T>
+|: Bitcopy(T); Clone(T); Drop(probe::predicatetaildep::ExternalBox<T>)
+{
+    value: T
+}
+
 record TailExactNewline<T>
 |: Drop(T)
 FfiSafe(T)
+{
+    value: T
+}
+
+record TailExactNewlineRecursive<T>
+|: Bitcopy(T)
+Clone(T)
+FfiSafe(probe::predicatetaildep::ExternalBox<T>)
 {
     value: T
 }
@@ -21,6 +35,22 @@ record TailSingleTrailing<T>
 
 record TailEnd<T> |: Clone(T) {
     value: T
+}
+
+enum TailEnum<T>
+|: Clone(T); Drop(probe::predicatetaildep::ExternalBox<T>)
+{
+    One(T)
+}
+
+type TailAlias<T>
+|: Bitcopy(T); Clone(probe::predicatetaildep::ExternalBox<T>)
+= probe::predicatetaildep::ExternalBox<T>
+
+procedure tailProcedure<T>(value: T) -> T
+|: Clone(T); Drop(probe::predicatetaildep::ExternalBox<T>)
+{
+    return value
 }
 
 public procedure main(move ctx: Context) -> i32 {

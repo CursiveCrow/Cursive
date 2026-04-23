@@ -17,6 +17,7 @@
 
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "00_core/assert_spec.h"
@@ -109,6 +110,80 @@ bool StartsPredicateReq(Parser parser) {
   return IsPunc(after_name, "(");
 }
 
+ParseElemResult<WherePredicate> ParsePredicateReq(Parser parser) {
+  Parser pred_start = parser;
+  const Token* pred_tok = Tok(parser);
+  if (!pred_tok || !IsIdentTok(*pred_tok)) {
+    EmitParseSyntaxErr(parser, TokSpan(parser));
+  }
+  ParseElemResult<Identifier> pred_name = ParseIdent(parser);
+  Parser after_name = pred_name.parser;
+
+  if (!IsPredicateReqName(pred_name.elem) || !IsPunc(after_name, "(")) {
+    SPEC_RULE("Parse-PredicateReq-Err");
+    EmitParseSyntaxErr(after_name, TokSpan(after_name));
+
+    WherePredicate pred;
+    pred.predicate = pred_name.elem;
+    pred.type = MakeTypePrim(SpanBetween(pred_start, after_name), "!");
+    pred.span = SpanBetween(pred_start, after_name);
+    return {after_name, pred};
+  }
+
+  SPEC_RULE("Parse-PredicateReq-Predicate");
+  Advance(after_name);
+
+  ParseElemResult<std::shared_ptr<Type>> ty = ParseType(after_name);
+  Parser after_type = ty.parser;
+
+  if (!IsPunc(after_type, ")")) {
+    EmitParseSyntaxErr(after_type, TokSpan(after_type));
+  } else {
+    Advance(after_type);
+  }
+
+  WherePredicate pred;
+  pred.predicate = pred_name.elem;
+  pred.type = ty.elem;
+  pred.span = SpanBetween(pred_start, after_type);
+  return {after_type, pred};
+}
+
+ParseElemResult<std::vector<WherePredicate>> ParsePredicateReqListTail(
+    Parser parser,
+    std::vector<WherePredicate> predicates) {
+  if (!IsPredicateReqTerminator(parser)) {
+    RecordPredicateReqTailRule("Parse-PredicateReqListTail-End",
+                               TokSpan(parser), predicates.size());
+    return {parser, std::move(predicates)};
+  }
+
+  const Token* terminator = Tok(parser);
+  Parser after_term = parser;
+  Advance(after_term);
+
+  const Token* next_tok = Tok(after_term);
+  if (!next_tok || !IsIdentTok(*next_tok)) {
+    RecordPredicateReqTailRule(
+        "Parse-PredicateReqListTail-TrailingTerminator",
+        SpanBetween(parser, after_term), predicates.size(),
+        terminator ? PredicateReqTerminatorLabel(*terminator)
+                   : std::string_view{});
+    return {after_term, std::move(predicates)};
+  }
+
+  ParseElemResult<WherePredicate> pred = ParsePredicateReq(after_term);
+  predicates.push_back(pred.elem);
+  ParseElemResult<std::vector<WherePredicate>> tail =
+      ParsePredicateReqListTail(pred.parser, std::move(predicates));
+  RecordPredicateReqTailRule(
+      "Parse-PredicateReqListTail-Cons", SpanBetween(parser, tail.parser),
+      tail.elem.size(),
+      terminator ? PredicateReqTerminatorLabel(*terminator)
+                 : std::string_view{});
+  return tail;
+}
+
 ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseImpl(Parser parser) {
   // Skip any newlines before clause start.
   while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
@@ -141,84 +216,16 @@ ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseImpl(Parser pars
     Advance(next);
   }
 
+  ParseElemResult<WherePredicate> first = ParsePredicateReq(next);
+  std::vector<WherePredicate> predicates;
+  predicates.push_back(first.elem);
+
+  ParseElemResult<std::vector<WherePredicate>> tail =
+      ParsePredicateReqListTail(first.parser, std::move(predicates));
+
   WhereClause clause;
-
-  // Parse first predicate
-  auto parse_predicate = [&](Parser p) -> ParseElemResult<WherePredicate> {
-    Parser pred_start = p;
-    const Token* pred_tok = Tok(p);
-    if (!pred_tok || !IsIdentTok(*pred_tok)) {
-      EmitParseSyntaxErr(p, TokSpan(p));
-    }
-    ParseElemResult<Identifier> pred_name = ParseIdent(p);
-    Parser after_name = pred_name.parser;
-
-    if (!IsPredicateReqName(pred_name.elem) || !IsPunc(after_name, "(")) {
-      SPEC_RULE("Parse-PredicateReq-Err");
-      EmitParseSyntaxErr(after_name, TokSpan(after_name));
-
-      WherePredicate pred;
-      pred.predicate = pred_name.elem;
-      pred.type = MakeTypePrim(SpanBetween(pred_start, after_name), "!");
-      pred.span = SpanBetween(pred_start, after_name);
-      return {after_name, pred};
-    }
-
-    SPEC_RULE("Parse-PredicateReq-Predicate");
-    Advance(after_name);
-
-    ParseElemResult<std::shared_ptr<Type>> ty = ParseType(after_name);
-    Parser after_type = ty.parser;
-
-    if (!IsPunc(after_type, ")")) {
-      EmitParseSyntaxErr(after_type, TokSpan(after_type));
-    } else {
-      Advance(after_type);
-    }
-
-    WherePredicate pred;
-    pred.predicate = pred_name.elem;
-    pred.type = ty.elem;
-    pred.span = SpanBetween(pred_start, after_type);
-    return {after_type, pred};
-  };
-
-  ParseElemResult<WherePredicate> first = parse_predicate(next);
-  clause.predicates.push_back(first.elem);
-  next = first.parser;
-
-  // Parse additional predicates separated by terminators
-  while (true) {
-    if (!IsPredicateReqTerminator(next)) {
-      RecordPredicateReqTailRule("Parse-PredicateReqListTail-End",
-                                 TokSpan(next), clause.predicates.size());
-      break;
-    }
-
-    const Token* terminator = Tok(next);
-    Parser after_term = next;
-    Advance(after_term);
-
-    const Token* next_tok = Tok(after_term);
-    if (!next_tok || !IsIdentTok(*next_tok)) {
-      RecordPredicateReqTailRule(
-          "Parse-PredicateReqListTail-TrailingTerminator",
-          SpanBetween(next, after_term), clause.predicates.size(),
-          terminator ? PredicateReqTerminatorLabel(*terminator)
-                     : std::string_view{});
-      next = after_term;
-      break;
-    }
-
-    ParseElemResult<WherePredicate> pred = parse_predicate(after_term);
-    clause.predicates.push_back(pred.elem);
-    RecordPredicateReqTailRule(
-        "Parse-PredicateReqListTail-Cons", SpanBetween(next, pred.parser),
-        clause.predicates.size(),
-        terminator ? PredicateReqTerminatorLabel(*terminator)
-                   : std::string_view{});
-    next = pred.parser;
-  }
+  clause.predicates = std::move(tail.elem);
+  next = tail.parser;
 
   clause.span = SpanBetween(start, next);
   return {next, clause};
