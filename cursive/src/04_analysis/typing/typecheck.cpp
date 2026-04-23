@@ -338,7 +338,7 @@ static void EmitDuplicateSymbolDiags(
 // Check if main procedure has generic parameters
 static bool MainGeneric(const ast::ProcedureDecl& decl) {
   SPEC_RULE("MainGeneric");
-  return decl.generic_params.has_value() && !decl.generic_params->params.empty();
+  return !ast::TypeParamsOpt(decl.generic_params).empty();
 }
 
 // Check if main procedure has valid signature: (move ctx: Context) -> i32

@@ -269,8 +269,7 @@ static bool IsContextBundleTypeImpl(const ScopeContext& ctx,
       [&](const auto& decl) -> bool {
         using D = std::decay_t<decltype(decl)>;
         if constexpr (std::is_same_v<D, ast::TypeAliasDecl>) {
-          if (decl.generic_params.has_value() &&
-              !decl.generic_params->params.empty()) {
+          if (!ast::TypeParamsOpt(decl.generic_params).empty()) {
             return false;
           }
           return decl.type && IsContextBundleTypeImpl(ctx, *decl.type, visiting);
@@ -326,8 +325,7 @@ static bool IsAliasNormalizedContextTypeImpl(
 
   bool is_context = false;
   if (const auto* alias = std::get_if<ast::TypeAliasDecl>(resolved.decl)) {
-    if (!alias->generic_params.has_value() ||
-        alias->generic_params->params.empty()) {
+    if (ast::TypeParamsOpt(alias->generic_params).empty()) {
       is_context =
           alias->type &&
           IsAliasNormalizedContextTypeImpl(ctx, *alias->type, visiting);
@@ -626,4 +624,3 @@ bool TypeContainsCapability(const TypeRef& type) {
 }
 
 }  // namespace cursive::analysis
-

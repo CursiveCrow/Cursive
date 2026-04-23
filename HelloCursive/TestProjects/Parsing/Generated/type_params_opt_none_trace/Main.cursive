@@ -1,0 +1,37 @@
+class TypeParamsOptPlainClass {
+    procedure metric(~) -> i32
+}
+
+record TypeParamsOptPlainRecord {
+    value: i32
+}
+
+record TypeParamsOptGenericRecord<T> {
+    value: T
+}
+
+enum TypeParamsOptPlainEnum {
+    Ready
+    Done
+}
+
+modal TypeParamsOptPlainModal {
+    @Ready {
+        value: i32
+    }
+}
+
+type TypeParamsOptPlainAlias = TypeParamsOptPlainRecord
+type TypeParamsOptAppliedAlias = TypeParamsOptGenericRecord<i32>
+
+procedure typeParamsOptPlainProcedure(value: TypeParamsOptPlainAlias) -> TypeParamsOptPlainAlias {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let plain: TypeParamsOptPlainRecord = TypeParamsOptPlainRecord { value: 7 }
+    let roundtrip: TypeParamsOptPlainAlias = typeParamsOptPlainProcedure(plain)
+    let _ = roundtrip
+    return 0
+}

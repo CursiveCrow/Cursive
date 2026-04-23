@@ -251,17 +251,14 @@ ClassDeclResult TypeClassDecl(
   result.self_type = MakeTypePath({"Self"});
 
   // Process generic parameters
-  GenericParamsResult gen_params;
-  if (decl.generic_params.has_value()) {
-    gen_params = ProcessGenericParams(ctx, decl.generic_params->params);
-    if (!gen_params.ok) {
-      result.ok = false;
-      result.diag_id = gen_params.diag_id;
-      return result;
-    }
-    for (const auto& gp : gen_params.params) {
-      result.generic_params.push_back(gp.name);
-    }
+  GenericParamsResult gen_params = ProcessGenericParams(ctx, decl.generic_params);
+  if (!gen_params.ok) {
+    result.ok = false;
+    result.diag_id = gen_params.diag_id;
+    return result;
+  }
+  for (const auto& gp : gen_params.params) {
+    result.generic_params.push_back(gp.name);
   }
 
   // Process where clauses
@@ -617,16 +614,14 @@ ClassDeclResult TypeClassDeclSignature(
   result.self_type = MakeTypePath({"Self"});
 
   // Process generic parameters
-  if (decl.generic_params.has_value()) {
-    const auto gen_params = ProcessGenericParams(ctx, decl.generic_params->params);
-    if (!gen_params.ok) {
-      result.ok = false;
-      result.diag_id = gen_params.diag_id;
-      return result;
-    }
-    for (const auto& gp : gen_params.params) {
-      result.generic_params.push_back(gp.name);
-    }
+  const auto gen_params = ProcessGenericParams(ctx, decl.generic_params);
+  if (!gen_params.ok) {
+    result.ok = false;
+    result.diag_id = gen_params.diag_id;
+    return result;
+  }
+  for (const auto& gp : gen_params.params) {
+    result.generic_params.push_back(gp.name);
   }
 
   // Superclasses

@@ -545,6 +545,10 @@ GenericParamsResult ProcessGenericParams(
     const ScopeContext& ctx,
     const std::vector<ast::TypeParam>& params);
 
+GenericParamsResult ProcessGenericParams(
+    const ScopeContext& ctx,
+    const std::optional<ast::GenericParams>& params_opt);
+
 GenericArgsCheckResult CheckGenericArgs(
     const ScopeContext& ctx,
     const std::vector<GenericParamInfo>& params,

@@ -128,6 +128,12 @@ GenericParamsResult ProcessGenericParams(
   return result;
 }
 
+GenericParamsResult ProcessGenericParams(
+    const ScopeContext& ctx,
+    const std::optional<ast::GenericParams>& params_opt) {
+  return ProcessGenericParams(ctx, ast::TypeParamsOpt(params_opt));
+}
+
 // =============================================================================
 // EXPORTED: CheckGenericArgs
 // =============================================================================

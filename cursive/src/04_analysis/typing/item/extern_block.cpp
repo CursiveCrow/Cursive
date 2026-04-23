@@ -329,7 +329,7 @@ static bool BuildExternProcInfo(const ScopeContext& ctx,
     return false;
   }
 
-  if (proc.generic_params.has_value() && !proc.generic_params->params.empty()) {
+  if (!ast::TypeParamsOpt(proc.generic_params).empty()) {
     SPEC_RULE("ExternProc-Generic-Err");
     diag_id = "ExternProc-Generic-Err";
     return false;

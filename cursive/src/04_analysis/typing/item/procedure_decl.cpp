@@ -195,7 +195,7 @@ static bool MainSigOk(const ScopeContext& ctx, const ast::ProcedureDecl& decl) {
 
 // Check if main procedure has generics (not allowed)
 static bool MainGeneric(const ast::ProcedureDecl& decl) {
-  return decl.generic_params.has_value();
+  return !ast::TypeParamsOpt(decl.generic_params).empty();
 }
 
 static core::Span SpanOfStmt(const ast::Stmt& stmt) {
@@ -1705,8 +1705,7 @@ static std::optional<std::string_view> ValidateProcedureFfiAttributes(
     if (!assembly || assembly->kind != "library") {
       return "E-SYS-3357";
     }
-    if (decl.generic_params.has_value() &&
-        !decl.generic_params->params.empty()) {
+    if (!ast::TypeParamsOpt(decl.generic_params).empty()) {
       return "E-TYP-2634";
     }
     if (decl.params.empty() || !decl.params.front().type ||
@@ -1912,14 +1911,11 @@ ProcedureDeclResult TypeProcedureDecl(
   }
 
   // Process generic parameters
-  GenericParamsResult gen_params;
-  if (decl.generic_params.has_value()) {
-    gen_params = ProcessGenericParams(ctx, decl.generic_params->params);
-    if (!gen_params.ok) {
-      result.ok = false;
-      result.diag_id = gen_params.diag_id;
-      return result;
-    }
+  GenericParamsResult gen_params = ProcessGenericParams(ctx, decl.generic_params);
+  if (!gen_params.ok) {
+    result.ok = false;
+    result.diag_id = gen_params.diag_id;
+    return result;
   }
 
   // Process where clauses
@@ -2291,13 +2287,11 @@ ProcedureDeclResult TypeProcedureDeclSignature(
   }
 
   // Process generic parameters
-  if (decl.generic_params.has_value()) {
-    const auto gen_params = ProcessGenericParams(ctx, decl.generic_params->params);
-    if (!gen_params.ok) {
-      result.ok = false;
-      result.diag_id = gen_params.diag_id;
-      return result;
-    }
+  const auto gen_params = ProcessGenericParams(ctx, decl.generic_params);
+  if (!gen_params.ok) {
+    result.ok = false;
+    result.diag_id = gen_params.diag_id;
+    return result;
   }
 
   // Build signature

@@ -42,6 +42,7 @@
 #include <variant>
 #include <vector>
 
+#include "00_core/spec_trace.h"
 #include "cursive/src/02_source/ast/ast_common.h"
 #include "cursive/src/02_source/ast/nodes/ast_attributes.h"
 #include "cursive/src/02_source/ast/nodes/ast_stmts.h"
@@ -169,6 +170,32 @@ namespace cursive::ast
         std::vector<TypeParam> params;
         core::Span span;
     };
+
+    inline const std::vector<TypeParam>& EmptyTypeParamList() {
+        static const std::vector<TypeParam> kEmpty;
+        return kEmpty;
+    }
+
+    inline const std::vector<TypeParam>& TypeParamsOpt(
+        const std::optional<GenericParams>& params_opt) {
+        if (params_opt.has_value()) {
+            if (core::Conformance::Enabled()) {
+                core::Conformance::Record(
+                    "TypeParamsOpt(ps)",
+                    params_opt->span,
+                    "params_opt=some;param_count=" +
+                        std::to_string(params_opt->params.size()));
+            }
+            return params_opt->params;
+        }
+        if (core::Conformance::Enabled()) {
+            core::Conformance::Record(
+                "TypeParamsOpt(?)",
+                core::Span{},
+                "params_opt=none;param_count=0");
+        }
+        return EmptyTypeParamList();
+    }
 
     // Generic arguments list: <Foo, Bar>
     // Note: Arguments use commas as separators

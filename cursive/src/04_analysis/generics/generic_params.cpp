@@ -284,9 +284,10 @@ GenericParamsResult ValidateGenericParams(
   SPEC_RULE("Validate-GenericParams");
 
   GenericParamsResult result;
+  const auto& params = ast::TypeParamsOpt(params_opt);
 
   // No parameters is valid
-  if (!params_opt || params_opt->params.empty()) {
+  if (params.empty()) {
     return result;
   }
 
@@ -312,8 +313,8 @@ GenericParamsResult ValidateGenericParams(
   }
 
   // Parse each parameter
-  result.type_params.reserve(params_opt->params.size());
-  for (const auto& param : params_opt->params) {
+  result.type_params.reserve(params.size());
+  for (const auto& param : params) {
     result.type_params.push_back(ParseTypeParam(ctx, param));
   }
 
@@ -326,15 +327,16 @@ ParamUniquenessResult CheckParamUniqueness(
   SPEC_RULE("Check-ParamUniqueness");
 
   ParamUniquenessResult result;
+  const auto& params = ast::TypeParamsOpt(params_opt);
 
-  if (!params_opt || params_opt->params.empty()) {
+  if (params.empty()) {
     return result;
   }
 
   // SPEC: E-TYP-2304 "Duplicate type parameter name"
   std::set<std::string> seen_names;
 
-  for (const auto& param : params_opt->params) {
+  for (const auto& param : params) {
     if (seen_names.find(param.name) != seen_names.end()) {
       result.ok = false;
       result.diag_id = "E-TYP-2304";
@@ -412,8 +414,9 @@ DefaultValueResult ValidateDefaultValues(
   SPEC_RULE("Validate-DefaultValues");
 
   DefaultValueResult result;
+  const auto& params = ast::TypeParamsOpt(params_opt);
 
-  if (!params_opt || params_opt->params.empty()) {
+  if (params.empty()) {
     return result;
   }
 
@@ -423,7 +426,7 @@ DefaultValueResult ValidateDefaultValues(
 
   bool seen_default = false;
 
-  for (const auto& param : params_opt->params) {
+  for (const auto& param : params) {
     bool has_default = param.default_type != nullptr;
 
     if (seen_default && !has_default) {
@@ -478,12 +481,13 @@ Scope BuildParamScope(
   // Each type parameter is bound as a type entity
 
   Scope scope;
+  const auto& params = ast::TypeParamsOpt(params_opt);
 
-  if (!params_opt || params_opt->params.empty()) {
+  if (params.empty()) {
     return scope;
   }
 
-  for (const auto& param : params_opt->params) {
+  for (const auto& param : params) {
     // Create an entity for the type parameter
     Entity entity;
     entity.kind = EntityKind::Type;
@@ -524,12 +528,13 @@ bool IsValidConstParamType(const TypeRef& type) {
 
 std::size_t RequiredParamCount(
     const std::optional<ast::GenericParams>& params_opt) {
-  if (!params_opt || params_opt->params.empty()) {
+  const auto& params = ast::TypeParamsOpt(params_opt);
+  if (params.empty()) {
     return 0;
   }
 
   std::size_t count = 0;
-  for (const auto& param : params_opt->params) {
+  for (const auto& param : params) {
     if (!param.default_type) {
       ++count;
     }
@@ -539,18 +544,16 @@ std::size_t RequiredParamCount(
 
 std::size_t TotalParamCount(
     const std::optional<ast::GenericParams>& params_opt) {
-  if (!params_opt) {
-    return 0;
-  }
-  return params_opt->params.size();
+  return ast::TypeParamsOpt(params_opt).size();
 }
 
 bool HasDefaultParams(const std::optional<ast::GenericParams>& params_opt) {
-  if (!params_opt || params_opt->params.empty()) {
+  const auto& params = ast::TypeParamsOpt(params_opt);
+  if (params.empty()) {
     return false;
   }
 
-  for (const auto& param : params_opt->params) {
+  for (const auto& param : params) {
     if (param.default_type) {
       return true;
     }

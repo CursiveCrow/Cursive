@@ -437,14 +437,11 @@ ModalDeclResult TypeModalDecl(
   type_path.push_back(decl.name);
 
   // Process generic parameters
-  GenericParamsResult gen_params;
-  if (decl.generic_params.has_value()) {
-    gen_params = ProcessGenericParams(ctx, decl.generic_params->params);
-    if (!gen_params.ok) {
-      result.ok = false;
-      result.diag_id = gen_params.diag_id;
-      return result;
-    }
+  GenericParamsResult gen_params = ProcessGenericParams(ctx, decl.generic_params);
+  if (!gen_params.ok) {
+    result.ok = false;
+    result.diag_id = gen_params.diag_id;
+    return result;
   }
   const auto self_generic_args = ModalSelfGenericArgs(gen_params);
   result.self_type = MakeTypePath(type_path, self_generic_args);
@@ -918,14 +915,11 @@ ModalDeclResult TypeModalDeclSignature(
   type_path.push_back(decl.name);
 
   // Process generic parameters
-  GenericParamsResult gen_params;
-  if (decl.generic_params.has_value()) {
-    gen_params = ProcessGenericParams(ctx, decl.generic_params->params);
-    if (!gen_params.ok) {
-      result.ok = false;
-      result.diag_id = gen_params.diag_id;
-      return result;
-    }
+  GenericParamsResult gen_params = ProcessGenericParams(ctx, decl.generic_params);
+  if (!gen_params.ok) {
+    result.ok = false;
+    result.diag_id = gen_params.diag_id;
+    return result;
   }
   const auto self_generic_args = ModalSelfGenericArgs(gen_params);
   result.self_type = MakeTypePath(type_path, self_generic_args);
