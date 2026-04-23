@@ -58,6 +58,15 @@ ResolveResult<ast::TypeBound> ResolveTypeBound(
   }
 
   result.value.class_path = resolved.value;
+  result.value.generic_args.clear();
+  result.value.generic_args.reserve(bound.generic_args.size());
+  for (const auto& arg : bound.generic_args) {
+    const auto resolved_arg = ResolveType(ctx, arg);
+    if (!resolved_arg.ok) {
+      return {false, resolved_arg.diag_id, resolved_arg.span, {}};
+    }
+    result.value.generic_args.push_back(resolved_arg.value);
+  }
   SPEC_RULE("ResolveTypeBound");
   return result;
 }

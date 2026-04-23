@@ -33,7 +33,7 @@ namespace cursive::analysis {
 // Validated type parameter information
 struct TypeParamInfo {
   std::string name;
-  std::vector<TypePath> class_bounds;  // <: bounds as resolved paths
+  std::vector<ast::TypeBound> class_bounds;  // <: bounds with resolved paths and args
   std::optional<TypeRef> default_type;
   core::Span span;
 };
@@ -145,4 +145,3 @@ std::size_t TotalParamCount(const std::optional<ast::GenericParams>& params_opt)
 bool HasDefaultParams(const std::optional<ast::GenericParams>& params_opt);
 
 }  // namespace cursive::analysis
-

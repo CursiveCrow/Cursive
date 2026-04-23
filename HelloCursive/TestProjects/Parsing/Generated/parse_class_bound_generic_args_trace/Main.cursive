@@ -1,0 +1,40 @@
+class PlainBound {
+}
+
+class UnaryBound<T> {
+}
+
+class BinaryBound<L; R> {
+}
+
+type LocalAlias<T> = T
+
+procedure plain_bound_case<T <: PlainBound>(value: i32) -> i32 {
+    let _ = value
+    return 1
+}
+
+procedure unary_bound_case<T <: UnaryBound<i32>>(value: i32) -> i32 {
+    let _ = value
+    return 2
+}
+
+procedure binary_bound_case<T; U <: BinaryBound<T, UnaryBound<LocalAlias<i32> > > >(value: i32) -> i32 {
+    let _ = value
+    return 3
+}
+
+procedure nested_bound_case<T; U <: BinaryBound<UnaryBound<T>, BinaryBound<i32, bool> > >(value: i32) -> i32 {
+    let _ = value
+    return 4
+}
+
+procedure qualified_bound_case<T <: probe::classbounddep::ExternalBound<i32>>(value: i32) -> i32 {
+    let _ = value
+    return 5
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

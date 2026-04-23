@@ -85,7 +85,15 @@ GenericParamsResult ProcessGenericParams(
         result.diag_id = "E-TYP-2305";
         return result;
       }
-      info.class_bounds.push_back(bound.class_path);
+      for (const auto& arg : bound.generic_args) {
+        const auto lowered_arg = LowerType(ctx, arg);
+        if (!lowered_arg.ok) {
+          result.ok = false;
+          result.diag_id = lowered_arg.diag_id;
+          return result;
+        }
+      }
+      info.class_bounds.push_back(bound);
     }
 
     // Process default type if present
@@ -161,7 +169,7 @@ GenericArgsCheckResult CheckGenericArgs(
 
     // Check class bounds
     for (const auto& bound : param.class_bounds) {
-      if (!TypeImplementsClass(ctx, arg, bound)) {
+      if (!TypeImplementsClass(ctx, arg, bound.class_path)) {
         SPEC_RULE("GenArgs-BoundNotSatisfied");
         result.ok = false;
         result.diag_id = "E-TYP-2302";

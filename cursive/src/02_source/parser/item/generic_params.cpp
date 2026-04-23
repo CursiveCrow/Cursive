@@ -25,6 +25,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
+#include "02_source/parser/type/type_parse_internal.h"
 
 namespace cursive::ast {
 
@@ -58,6 +59,25 @@ std::string GenericParamsPayload(std::string_view params_opt,
   return payload;
 }
 
+std::string ClassBoundPayload(const ClassPath& path,
+                              std::string_view args_opt,
+                              std::size_t arg_count) {
+  std::string payload;
+  payload.reserve(args_opt.size() + 96);
+  payload += "path=";
+  for (std::size_t i = 0; i < path.size(); ++i) {
+    if (i > 0) {
+      payload += "::";
+    }
+    payload += path[i];
+  }
+  payload += ";args_opt=";
+  payload += args_opt;
+  payload += ";arg_count=";
+  payload += std::to_string(arg_count);
+  return payload;
+}
+
 void RecordGenericParamsRule(std::string_view rule_id,
                              const core::Span& span,
                              std::string_view params_opt,
@@ -69,6 +89,18 @@ void RecordGenericParamsRule(std::string_view rule_id,
   core::Conformance::Record(rule_id, span,
                             GenericParamsPayload(params_opt, param_count,
                                                  terminator));
+}
+
+void RecordClassBoundRule(std::string_view rule_id,
+                          const core::Span& span,
+                          const ClassPath& path,
+                          std::string_view args_opt,
+                          std::size_t arg_count) {
+  if (!core::Conformance::Enabled()) {
+    return;
+  }
+  core::Conformance::Record(rule_id, span,
+                            ClassBoundPayload(path, args_opt, arg_count));
 }
 
 }  // namespace
@@ -90,38 +122,18 @@ void RecordGenericParamsRule(std::string_view rule_id,
 ParseElemResult<std::vector<TypeBound>> ParseTypeBounds(Parser parser) {
   auto parse_class_bound = [&](Parser p) -> ParseElemResult<TypeBound> {
     ParseElemResult<ClassPath> class_path = ParseClassPath(p);
-    Parser next = class_path.parser;
-
-    // class_bound ::= type_path generic_args?
-    // Generic arguments are consumed here to match syntax, but TypeBound
-    // currently records only the class path.
-    if (IsOp(next, "<")) {
-      Parser arg = next;
-      Advance(arg);  // consume '<'
-
-      if (!IsOp(arg, ">")) {
-        ParseElemResult<std::shared_ptr<Type>> first_arg = ParseType(arg);
-        arg = first_arg.parser;
-        while (IsPunc(arg, ",")) {
-          Advance(arg);
-          ParseElemResult<std::shared_ptr<Type>> next_arg = ParseType(arg);
-          arg = next_arg.parser;
-        }
-      } else {
-        EmitParseSyntaxErr(arg, TokSpan(arg));
-      }
-
-      if (!IsOp(arg, ">")) {
-        EmitParseSyntaxErr(arg, TokSpan(arg));
-      } else {
-        Advance(arg);
-      }
-      next = arg;
-    }
+    ParseGenericArgsResult args = ParseGenericArgsOpt(class_path.parser);
 
     TypeBound bound;
     bound.class_path = class_path.elem;
-    return {next, bound};
+    if (args.args.has_value()) {
+      bound.generic_args = std::move(*args.args);
+    }
+    RecordClassBoundRule("Parse-ClassBound", SpanBetween(p, args.parser),
+                         bound.class_path,
+                         bound.generic_args.empty() ? "none" : "some",
+                         bound.generic_args.size());
+    return {args.parser, std::move(bound)};
   };
 
   std::vector<TypeBound> bounds;

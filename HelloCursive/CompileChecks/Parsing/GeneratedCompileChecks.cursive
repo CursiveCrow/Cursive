@@ -139,6 +139,16 @@ procedure run_parse_generic_params_empty_rejected(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "parse_generic_params_empty_rejected")
 }
 
+procedure run_parse_class_bound_generic_args_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet --conformance parse_class_bound_generic_args_trace.log ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\Main.cursive > build\\main\\logs\\compile_checks\\parse_class_bound_generic_args_trace.json 2> build\\main\\logs\\compile_checks\\parse_class_bound_generic_args_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-ClassBound\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-ClassBound.*PlainBound.*args_opt.*none.*arg_count.*0\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-ClassBound.*UnaryBound.*args_opt.*some.*arg_count.*1\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-ClassBound.*BinaryBound.*args_opt.*some.*arg_count.*2\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-ClassBound.*probe::classbounddep::ExternalBound.*args_opt.*some.*arg_count.*1\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-GenericArgsOpt-Yes\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-GenericArgsOpt-Yes.*arg_count.*2\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "parse_class_bound_generic_args_trace")
+}
+
+procedure run_parse_class_bound_generic_args_empty_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_empty_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\parse_class_bound_generic_args_empty_rejected.json 2> build\\main\\logs\\compile_checks\\parse_class_bound_generic_args_empty_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\parse_class_bound_generic_args_empty_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "parse_class_bound_generic_args_empty_rejected")
+}
+
 public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue5131_attr_spec_trailing_comma_multiline: i32 = run_issue5131_attr_spec_trailing_comma_multiline(ctx)
     if (status_run_issue5131_attr_spec_trailing_comma_multiline != 0) {
@@ -278,6 +288,16 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_parse_generic_params_empty_rejected: i32 = run_parse_generic_params_empty_rejected(ctx)
     if (status_parse_generic_params_empty_rejected != 0) {
         return status_parse_generic_params_empty_rejected
+    }
+
+    let status_parse_class_bound_generic_args_trace: i32 = run_parse_class_bound_generic_args_trace(ctx)
+    if (status_parse_class_bound_generic_args_trace != 0) {
+        return status_parse_class_bound_generic_args_trace
+    }
+
+    let status_parse_class_bound_generic_args_empty_rejected: i32 = run_parse_class_bound_generic_args_empty_rejected(ctx)
+    if (status_parse_class_bound_generic_args_empty_rejected != 0) {
+        return status_parse_class_bound_generic_args_empty_rejected
     }
 
     return 0

@@ -229,7 +229,7 @@ struct TypeAliasDeclResult {
 
 struct GenericParamInfo {
   std::string name;
-  std::vector<ast::ClassPath> class_bounds;
+  std::vector<ast::TypeBound> class_bounds;
   TypeRef default_type;
 };
 

@@ -371,7 +371,7 @@ TypeParamInfo ParseTypeParam(
 
   // Process bounds: T <: Class1, Class2
   for (const auto& bound : param.bounds) {
-    info.class_bounds.push_back(bound.class_path);
+    info.class_bounds.push_back(bound);
   }
 
   // Process default type if present
@@ -559,4 +559,3 @@ bool HasDefaultParams(const std::optional<ast::GenericParams>& params_opt) {
 }
 
 }  // namespace cursive::analysis
-

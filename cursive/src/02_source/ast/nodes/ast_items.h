@@ -144,10 +144,11 @@ namespace cursive::ast
     // Generics System (C0X Extension)
     // ===========================================================================
 
-    // Type bound: T <: Clone
+    // Type bound: T <: Class or T <: Class<Args...>
     struct TypeBound
     {
         ClassPath class_path;
+        std::vector<TypePtr> generic_args;
     };
 
     // Type parameter: T <: Clone = DefaultType
