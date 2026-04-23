@@ -169,6 +169,21 @@ procedure run_row1175_class_method_field_name_conflict_rejected(ctx: Context) ->
     return testsupport::runCompileCheckCommand(ctx, command, "row1175_class_method_field_name_conflict_rejected")
 }
 
+procedure run_row1176_field_names_projection_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance row1176_field_names_projection_trace.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1176_field_names_projection_trace\\Main.cursive > build\\main\\logs\\compile_checks\\row1176_field_names_projection_trace.json 2> build\\main\\logs\\compile_checks\\row1176_field_names_projection_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"FieldNames\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1176_field_names_projection_trace\\build\\probe\\logs\\conformance\\row1176_field_names_projection_trace.log >nul & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1176_field_names_projection_trace")
+}
+
+procedure run_row1176_class_duplicate_field_names_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1176_class_duplicate_field_names_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1176_class_duplicate_field_names_rejected.json 2> build\\main\\logs\\compile_checks\\row1176_class_duplicate_field_names_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2408\\\"\" build\\main\\logs\\compile_checks\\row1176_class_duplicate_field_names_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1176_class_duplicate_field_names_rejected")
+}
+
+procedure run_row1176_class_field_method_name_conflict_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1176_class_field_method_name_conflict_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1176_class_field_method_name_conflict_rejected.json 2> build\\main\\logs\\compile_checks\\row1176_class_field_method_name_conflict_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2505\\\"\" build\\main\\logs\\compile_checks\\row1176_class_field_method_name_conflict_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1176_class_field_method_name_conflict_rejected")
+}
+
 public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue32_decimal_to_int_rejected: i32 = run_issue32_decimal_to_int_rejected(ctx)
     if (status_run_issue32_decimal_to_int_rejected != 0) {
@@ -338,6 +353,21 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_row1175_class_method_field_name_conflict_rejected: i32 = run_row1175_class_method_field_name_conflict_rejected(ctx)
     if (status_row1175_class_method_field_name_conflict_rejected != 0) {
         return status_row1175_class_method_field_name_conflict_rejected
+    }
+
+    let status_row1176_field_names_projection_trace: i32 = run_row1176_field_names_projection_trace(ctx)
+    if (status_row1176_field_names_projection_trace != 0) {
+        return status_row1176_field_names_projection_trace
+    }
+
+    let status_row1176_class_duplicate_field_names_rejected: i32 = run_row1176_class_duplicate_field_names_rejected(ctx)
+    if (status_row1176_class_duplicate_field_names_rejected != 0) {
+        return status_row1176_class_duplicate_field_names_rejected
+    }
+
+    let status_row1176_class_field_method_name_conflict_rejected: i32 = run_row1176_class_field_method_name_conflict_rejected(ctx)
+    if (status_row1176_class_field_method_name_conflict_rejected != 0) {
+        return status_row1176_class_field_method_name_conflict_rejected
     }
 
     return 0

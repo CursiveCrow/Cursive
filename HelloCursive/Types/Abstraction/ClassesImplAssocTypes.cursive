@@ -20,6 +20,13 @@ public class MethodNameProjectionSurface {
     procedure method_beta(~, input: i32) -> i32
 }
 
+public class FieldNameProjectionSurface {
+    primary: i32
+    secondary: i32
+    type Output = i32
+    procedure field_total(~) -> i32
+}
+
 public record ScalarSurface <: MetricSurface, AssocSurface, BiasSurface {
     public base: i32
 
@@ -45,6 +52,15 @@ public record MethodNameProjectionImpl <: MethodNameProjectionSurface {
 
     public procedure method_beta(~, input: i32) -> i32 {
         return self.marker + input
+    }
+}
+
+public record FieldNameProjectionImpl <: FieldNameProjectionSurface {
+    public primary: i32
+    public secondary: i32
+
+    public procedure field_total(~) -> i32 {
+        return self.primary + self.secondary
     }
 }
 
@@ -126,6 +142,9 @@ procedure ClassMetricLabel(value: i32) -> string@View {
     if (value == 16) {
         return "16"
     }
+    if (value == 19) {
+        return "19"
+    }
     return "other"
 }
 
@@ -143,6 +162,8 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     LogScalarSurfaceState(ctx.fs, scope, "obligation_surface", "constructed", "obligation resolution surface prepared")
     let method_names_surface: MethodNameProjectionImpl = MethodNameProjectionImpl { marker: 7 }
     LogScalarSurfaceState(ctx.fs, scope, "method_names_surface", "constructed", "method-name projection surface prepared")
+    let field_names_surface: FieldNameProjectionImpl = FieldNameProjectionImpl { primary: 8, secondary: 11 }
+    LogScalarSurfaceState(ctx.fs, scope, "field_names_surface", "constructed", "field-name projection surface prepared")
 
     [[log(label: "types-log-runtime_phase_move")]]
     [[log(label: "types-log-transition_move")]]
@@ -169,30 +190,37 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     let method_names_input: i32 = 2
     let method_names_metric: i32 = method_names_surface~>method_alpha() + method_names_surface~>method_beta(method_names_input)
     [[log(label: "types-log-transition_move")]]
+    [[log(label: "types-log-transition_move")]]
+    let field_names_metric: i32 = field_names_surface~>field_total()
+    [[log(label: "types-log-transition_move")]]
     let observed_declarations_step: string@View = "observed-class-declarations-metric"
     let observed_impl_step: string@View = "observed-impl-blocks-metric"
     let observed_associated_type_step: string@View = "observed-associated-type-definitions-metric"
     let observed_associated_method_step: string@View = "observed-associated-method-signatures-metric"
     let observed_obligation_step: string@View = "observed-obligation-resolution-metric"
     let observed_method_names_step: string@View = "observed-method-names-projection-metric"
+    let observed_field_names_step: string@View = "observed-field-names-projection-metric"
     let expected_declarations: string@View = "2"
     let expected_impl: string@View = "4"
     let expected_associated_type: string@View = "5"
     let expected_associated_method: string@View = "7"
     let expected_obligation: string@View = "11"
     let expected_method_names: string@View = "16"
+    let expected_field_names: string@View = "19"
     let declarations_metric_label: string@View = ClassMetricLabel(class_decl_metric)
     let impl_metric_label: string@View = ClassMetricLabel(impl_metric)
     let associated_type_metric_label: string@View = ClassMetricLabel(assoc_metric)
     let associated_method_metric_label: string@View = ClassMetricLabel(assoc_method_metric)
     let obligation_metric_label: string@View = ClassMetricLabel(obligation_metric)
     let method_names_metric_label: string@View = ClassMetricLabel(method_names_metric)
+    let field_names_metric_label: string@View = ClassMetricLabel(field_names_metric)
     let declarations_metric_passed: bool = class_decl_metric == 2
     let impl_metric_passed: bool = impl_metric == 4
     let associated_type_metric_passed: bool = assoc_metric == 5
     let associated_method_metric_passed: bool = assoc_method_metric == 7
     let obligation_metric_passed: bool = obligation_metric == 11
     let method_names_metric_passed: bool = method_names_metric == 16
+    let field_names_metric_passed: bool = field_names_metric == 19
 
     let declarations_metric_passed_log_actual = [[log(label: "observed-class-declarations-metric", expected: "2")]] declarations_metric_label
     let declarations_metric_passed_with_log: bool = declarations_metric_passed && (declarations_metric_passed_log_actual == expected_declarations)
@@ -206,6 +234,8 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     let obligation_metric_passed_with_log: bool = obligation_metric_passed && (obligation_metric_passed_log_actual == expected_obligation)
     let method_names_metric_passed_log_actual = [[log(label: "observed-method-names-projection-metric", expected: "16")]] method_names_metric_label
     let method_names_metric_passed_with_log: bool = method_names_metric_passed && (method_names_metric_passed_log_actual == expected_method_names)
+    let field_names_metric_passed_log_actual = [[log(label: "observed-field-names-projection-metric", expected: "19")]] field_names_metric_label
+    let field_names_metric_passed_with_log: bool = field_names_metric_passed && (field_names_metric_passed_log_actual == expected_field_names)
     [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunClassesImplAssocTypesItem(
@@ -309,6 +339,23 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
         )
     }
 
+    if (item_index == 6) {
+        return RunClassesImplAssocTypesItem(
+            ctx,
+            scope,
+            "FieldNamesProjection",
+            "class FieldNames projection over abstract fields with associated type and method neighbors",
+            "validated field-name projection",
+            "field-names-projection",
+            "invoke concrete implementation over both class-declared fields while non-field class items remain separate",
+            "19",
+            "19",
+            "not-19",
+            move field_names_metric_passed_with_log,
+            "field names projection check failed"
+        )
+    }
+
     return RunClassesImplAssocTypesItem(
         ctx,
         scope,
@@ -357,6 +404,11 @@ procedure RunClassesImplAssocTypes(ctx: Context) -> i32 {
     let status_MethodNamesProjection: i32 = VerifyClassesImplAssocTypesItem(ctx, scope, 5, "MethodNamesProjection")
     if (status_MethodNamesProjection != 0) {
         return status_MethodNamesProjection
+    }
+
+    let status_FieldNamesProjection: i32 = VerifyClassesImplAssocTypesItem(ctx, scope, 6, "FieldNamesProjection")
+    if (status_FieldNamesProjection != 0) {
+        return status_FieldNamesProjection
     }
 
     [[log(label: "types-log-checkpoint")]]

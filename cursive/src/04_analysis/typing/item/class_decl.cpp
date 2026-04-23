@@ -87,13 +87,13 @@ static std::vector<IdKey> MethodNames(const std::vector<ast::ClassItem>& items) 
   return names;
 }
 
-static std::vector<IdKey> FieldNames(const std::vector<ast::ClassItem>& items) {
+static std::vector<IdKey> FieldNames(
+    const std::vector<ast::ClassFieldDecl>& fields) {
   SPEC_RULE("FieldNames");
   std::vector<IdKey> names;
-  for (const auto& item : items) {
-    if (const auto* field = std::get_if<ast::ClassFieldDecl>(&item)) {
-      names.push_back(IdKeyOf(field->name));
-    }
+  names.reserve(fields.size());
+  for (const auto& field : fields) {
+    names.push_back(IdKeyOf(field.name));
   }
   return names;
 }
@@ -485,7 +485,7 @@ ClassDeclResult TypeClassDecl(
 
   // Process abstract fields
   const auto fields = CollectFields(decl.items);
-  const auto field_names = FieldNames(decl.items);
+  const auto field_names = FieldNames(fields);
   const auto abstract_states = CollectAbstractStates(decl.items);
   if (!DistinctClassMemberNameKeys(field_names)) {
     SPEC_RULE("Class-AbstractField-Dup");
@@ -731,7 +731,7 @@ ClassDeclResult TypeClassDeclSignature(
 
   // Collect field signatures
   const auto fields = CollectFields(decl.items);
-  const auto field_names = FieldNames(decl.items);
+  const auto field_names = FieldNames(fields);
   const auto abstract_states = CollectAbstractStates(decl.items);
   if (!DistinctClassMemberNameKeys(field_names)) {
     SPEC_RULE("Class-AbstractField-Dup");
