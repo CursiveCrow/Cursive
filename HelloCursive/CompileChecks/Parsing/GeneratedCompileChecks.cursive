@@ -199,6 +199,21 @@ procedure run_parse_predicate_req_tail_double_terminator_rejected(ctx: Context) 
     return testsupport::runCompileCheckCommand(ctx, command, "parse_predicate_req_tail_double_terminator_rejected")
 }
 
+procedure run_row1189_overloaded_lt_colon_forms_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet --conformance row1189_overloaded_lt_colon_forms_trace.log ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\Main.cursive > build\\main\\logs\\compile_checks\\row1189_overloaded_lt_colon_forms_trace.json 2> build\\main\\logs\\compile_checks\\row1189_overloaded_lt_colon_forms_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-Implements-None\" ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\build\\probe\\logs\\conformance\\row1189_overloaded_lt_colon_forms_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-Implements-Yes\" ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\build\\probe\\logs\\conformance\\row1189_overloaded_lt_colon_forms_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-ClassList-Cons\" ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\build\\probe\\logs\\conformance\\row1189_overloaded_lt_colon_forms_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-ClassListTail-Comma\" ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\build\\probe\\logs\\conformance\\row1189_overloaded_lt_colon_forms_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-Superclass-None\" ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\build\\probe\\logs\\conformance\\row1189_overloaded_lt_colon_forms_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-Superclass-Yes\" ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\build\\probe\\logs\\conformance\\row1189_overloaded_lt_colon_forms_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-SuperclassBounds-Cons\" ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\build\\probe\\logs\\conformance\\row1189_overloaded_lt_colon_forms_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-SuperclassBoundsTail-Plus\" ..\\TestProjects\\Parsing\\Generated\\row1189_overloaded_lt_colon_forms_trace\\build\\probe\\logs\\conformance\\row1189_overloaded_lt_colon_forms_trace.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1189_overloaded_lt_colon_forms_trace")
+}
+
+procedure run_row1189_record_implements_plus_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\row1189_record_implements_plus_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1189_record_implements_plus_rejected.json 2> build\\main\\logs\\compile_checks\\row1189_record_implements_plus_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\row1189_record_implements_plus_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1189_record_implements_plus_rejected")
+}
+
+procedure run_row1189_class_superclasses_comma_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet ..\\TestProjects\\Parsing\\Generated\\row1189_class_superclasses_comma_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1189_class_superclasses_comma_rejected.json 2> build\\main\\logs\\compile_checks\\row1189_class_superclasses_comma_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SRC-0520\\\"\" build\\main\\logs\\compile_checks\\row1189_class_superclasses_comma_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1189_class_superclasses_comma_rejected")
+}
+
 public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue5131_attr_spec_trailing_comma_multiline: i32 = run_issue5131_attr_spec_trailing_comma_multiline(ctx)
     if (status_run_issue5131_attr_spec_trailing_comma_multiline != 0) {
@@ -398,6 +413,21 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_parse_predicate_req_tail_double_terminator_rejected: i32 = run_parse_predicate_req_tail_double_terminator_rejected(ctx)
     if (status_parse_predicate_req_tail_double_terminator_rejected != 0) {
         return status_parse_predicate_req_tail_double_terminator_rejected
+    }
+
+    let status_row1189_overloaded_lt_colon_forms_trace: i32 = run_row1189_overloaded_lt_colon_forms_trace(ctx)
+    if (status_row1189_overloaded_lt_colon_forms_trace != 0) {
+        return status_row1189_overloaded_lt_colon_forms_trace
+    }
+
+    let status_row1189_record_implements_plus_rejected: i32 = run_row1189_record_implements_plus_rejected(ctx)
+    if (status_row1189_record_implements_plus_rejected != 0) {
+        return status_row1189_record_implements_plus_rejected
+    }
+
+    let status_row1189_class_superclasses_comma_rejected: i32 = run_row1189_class_superclasses_comma_rejected(ctx)
+    if (status_row1189_class_superclasses_comma_rejected != 0) {
+        return status_row1189_class_superclasses_comma_rejected
     }
 
     return 0

@@ -184,6 +184,11 @@ procedure run_row1176_class_field_method_name_conflict_rejected(ctx: Context) ->
     return testsupport::runCompileCheckCommand(ctx, command, "row1176_class_field_method_name_conflict_rejected")
 }
 
+procedure run_row1189_implements_vs_supers_acceptance(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1189_implements_vs_supers_acceptance\\Main.cursive > build\\main\\logs\\compile_checks\\row1189_implements_vs_supers_acceptance.json 2> build\\main\\logs\\compile_checks\\row1189_implements_vs_supers_acceptance.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1189_implements_vs_supers_acceptance")
+}
+
 public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue32_decimal_to_int_rejected: i32 = run_issue32_decimal_to_int_rejected(ctx)
     if (status_run_issue32_decimal_to_int_rejected != 0) {
@@ -368,6 +373,11 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_row1176_class_field_method_name_conflict_rejected: i32 = run_row1176_class_field_method_name_conflict_rejected(ctx)
     if (status_row1176_class_field_method_name_conflict_rejected != 0) {
         return status_row1176_class_field_method_name_conflict_rejected
+    }
+
+    let status_row1189_implements_vs_supers_acceptance: i32 = run_row1189_implements_vs_supers_acceptance(ctx)
+    if (status_row1189_implements_vs_supers_acceptance != 0) {
+        return status_row1189_implements_vs_supers_acceptance
     }
 
     return 0
