@@ -1,0 +1,45 @@
+import probe::predicateemptydep
+
+class PredicateReqsPlainClass {
+    procedure metric(~) -> i32
+}
+
+record PredicateReqsPlainRecord {
+    value: i32
+}
+
+record PredicateReqsGenericRecord<T> {
+    value: T
+}
+
+record PredicateReqsBoundRecord<T>
+|: Bitcopy(T); Clone(T)
+{
+    value: T
+}
+
+enum PredicateReqsPlainEnum {
+    Ready
+    Done
+}
+
+modal PredicateReqsPlainModal {
+    @Ready {
+        value: i32
+    }
+}
+
+type PredicateReqsPlainAlias = PredicateReqsPlainRecord
+type PredicateReqsExternalAlias = probe::predicateemptydep::ExternalBox<i32>
+
+procedure predicateReqsPlainProcedure(value: PredicateReqsPlainAlias) -> PredicateReqsPlainAlias {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let plain: PredicateReqsPlainRecord = PredicateReqsPlainRecord { value: 7 }
+    let roundtrip: PredicateReqsPlainAlias = predicateReqsPlainProcedure(plain)
+    let _ = roundtrip
+    return 0
+}

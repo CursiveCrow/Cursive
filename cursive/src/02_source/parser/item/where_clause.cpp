@@ -266,6 +266,8 @@ ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseImpl(Parser 
 
   const bool legacy_where = IsKw(parser, "where");
   if (!legacy_where && !IsOp(parser, "|:")) {
+    const std::optional<PredicateClause> none = std::nullopt;
+    (void)PredicateReqs(none, TokSpan(parser));
     return {parser, std::nullopt};
   }
 
@@ -273,6 +275,8 @@ ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseImpl(Parser 
     Parser after_clause = parser;
     Advance(after_clause);
     if (!StartsPredicateReq(after_clause)) {
+      const std::optional<PredicateClause> none = std::nullopt;
+      (void)PredicateReqs(none, SpanBetween(parser, after_clause));
       return {parser, std::nullopt};
     }
   }
@@ -301,7 +305,9 @@ ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseImpl(Parser 
 
   PredicateClause clause = std::move(tail.elem);
   RecordPredicateClauseRule(SpanBetween(start, next), clause);
-  return {next, clause};
+  std::optional<PredicateClause> clause_opt = std::move(clause);
+  (void)PredicateReqs(clause_opt, SpanBetween(start, next));
+  return {next, std::move(clause_opt)};
 }
 
 }  // namespace

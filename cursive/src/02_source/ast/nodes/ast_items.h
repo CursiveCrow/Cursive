@@ -242,6 +242,50 @@ namespace cursive::ast
     // Predicate clause: PredicateClause = [PredicateReq]
     using PredicateClause = std::vector<PredicateReq>;
 
+    inline const std::vector<PredicateReq>& EmptyPredicateReqList() {
+        static const std::vector<PredicateReq> kEmpty;
+        return kEmpty;
+    }
+
+    inline std::string PredicateReqsPayload(
+        const char* predicate_opt,
+        const std::vector<PredicateReq>& predicates) {
+        std::string payload;
+        payload += "predicate_opt=";
+        payload += predicate_opt;
+        payload += ";predicate_count=";
+        payload += std::to_string(predicates.size());
+        payload += ";predicate_names=";
+        for (std::size_t i = 0; i < predicates.size(); ++i) {
+            if (i > 0) {
+                payload += ",";
+            }
+            payload += predicates[i].pred;
+        }
+        return payload;
+    }
+
+    inline const std::vector<PredicateReq>& PredicateReqs(
+        const std::optional<PredicateClause>& predicate_clause_opt,
+        std::optional<core::Span> span = std::nullopt) {
+        if (predicate_clause_opt.has_value()) {
+            if (core::Conformance::Enabled()) {
+                core::Conformance::Record(
+                    "PredicateReqs(W)",
+                    span,
+                    PredicateReqsPayload("some", *predicate_clause_opt));
+            }
+            return *predicate_clause_opt;
+        }
+        if (core::Conformance::Enabled()) {
+            core::Conformance::Record(
+                "PredicateReqs(?)",
+                span,
+                PredicateReqsPayload("none", EmptyPredicateReqList()));
+        }
+        return EmptyPredicateReqList();
+    }
+
     // ===========================================================================
     // Contract System (C0X Extension)
     // ===========================================================================
