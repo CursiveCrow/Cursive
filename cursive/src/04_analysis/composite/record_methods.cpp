@@ -189,6 +189,17 @@ static TypeDeclLookupResult LookupTypeDeclByPath(const ScopeContext& ctx,
     return direct_lookup;
   }
 
+  if (path.size() > 1) {
+    ast::Path without_root;
+    without_root.reserve(path.size() - 1);
+    for (std::size_t i = 1; i < path.size(); ++i) {
+      without_root.push_back(path[i]);
+    }
+    if (const auto local_lookup = lookup_full(without_root); local_lookup.decl) {
+      return local_lookup;
+    }
+  }
+
   if (path.size() != 1) {
     return {};
   }
