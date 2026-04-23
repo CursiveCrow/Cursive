@@ -329,6 +329,7 @@ ParseElemResult<GenericParams> ParseGenericParams(Parser parser) {
   GenericParams params_node;
   params_node.params = std::move(tail.elem);
   params_node.span = SpanBetween(start, next);
+  TypeParamNames(params_node.params, params_node.span);
   RecordGenericParamsRule("Parse-GenericParams", params_node.span, "required",
                           params_node.params.size());
   return {next, std::move(params_node)};

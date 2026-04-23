@@ -177,9 +177,42 @@ namespace cursive::ast
         return kEmpty;
     }
 
+    inline std::string TypeParamNamesPayload(
+        const std::vector<Identifier>& names) {
+        std::string payload;
+        payload += "name_count=";
+        payload += std::to_string(names.size());
+        payload += ";names=";
+        for (std::size_t i = 0; i < names.size(); ++i) {
+            if (i > 0) {
+                payload += ",";
+            }
+            payload += names[i];
+        }
+        return payload;
+    }
+
+    inline std::vector<Identifier> TypeParamNames(
+        const std::vector<TypeParam>& params,
+        std::optional<core::Span> span = std::nullopt) {
+        std::vector<Identifier> names;
+        names.reserve(params.size());
+        for (const auto& param : params) {
+            names.push_back(param.name);
+        }
+        if (core::Conformance::Enabled()) {
+            core::Conformance::Record(
+                "TypeParamNames(params)",
+                span,
+                TypeParamNamesPayload(names));
+        }
+        return names;
+    }
+
     inline std::string TypeParamsOptPayload(
         const char* params_opt,
         const std::vector<TypeParam>& params) {
+        std::vector<Identifier> names = TypeParamNames(params);
         std::string payload;
         payload += "params_opt=";
         payload += params_opt;
@@ -192,7 +225,7 @@ namespace cursive::ast
             if (i > 0) {
                 payload += ",";
             }
-            payload += params[i].name;
+            payload += names[i];
             if (params[i].default_type) {
                 ++default_count;
             }

@@ -139,6 +139,16 @@ procedure run_parse_generic_params_empty_rejected(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "parse_generic_params_empty_rejected")
 }
 
+procedure run_type_param_names_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet --conformance type_param_names_trace.log ..\\TestProjects\\Parsing\\Generated\\type_param_names_trace\\Main.cursive > build\\main\\logs\\compile_checks\\type_param_names_trace.json 2> build\\main\\logs\\compile_checks\\type_param_names_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"TypeParamNames(params)\" ..\\TestProjects\\Parsing\\Generated\\type_param_names_trace\\build\\probe\\logs\\conformance\\type_param_names_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamNames(params).*name_count.*1.*names.*Solo\" ..\\TestProjects\\Parsing\\Generated\\type_param_names_trace\\build\\probe\\logs\\conformance\\type_param_names_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamNames(params).*name_count.*2.*names.*T.*U\" ..\\TestProjects\\Parsing\\Generated\\type_param_names_trace\\build\\probe\\logs\\conformance\\type_param_names_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamNames(params).*name_count.*2.*names.*Seed.*External\" ..\\TestProjects\\Parsing\\Generated\\type_param_names_trace\\build\\probe\\logs\\conformance\\type_param_names_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamNames(params).*name_count.*2.*names.*Left.*Right\" ..\\TestProjects\\Parsing\\Generated\\type_param_names_trace\\build\\probe\\logs\\conformance\\type_param_names_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamNames(params).*name_count.*2.*names.*Payload.*ErrorPayload\" ..\\TestProjects\\Parsing\\Generated\\type_param_names_trace\\build\\probe\\logs\\conformance\\type_param_names_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamNames(params).*name_count.*1.*names.*Item\" ..\\TestProjects\\Parsing\\Generated\\type_param_names_trace\\build\\probe\\logs\\conformance\\type_param_names_trace.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "type_param_names_trace")
+}
+
+procedure run_type_param_names_duplicate_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance type_param_names_duplicate_rejected.log ..\\TestProjects\\Parsing\\Generated\\type_param_names_duplicate_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\type_param_names_duplicate_rejected.json 2> build\\main\\logs\\compile_checks\\type_param_names_duplicate_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2304\\\"\" build\\main\\logs\\compile_checks\\type_param_names_duplicate_rejected.json >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamNames(params).*name_count.*2.*names.*Dup.*Dup\" ..\\TestProjects\\Parsing\\Generated\\type_param_names_duplicate_rejected\\build\\probe\\logs\\conformance\\type_param_names_duplicate_rejected.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "type_param_names_duplicate_rejected")
+}
+
 procedure run_type_params_opt_none_trace(ctx: Context) -> i32 {
     let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance type_params_opt_none_trace.log ..\\TestProjects\\Parsing\\Generated\\type_params_opt_none_trace\\Main.cursive > build\\main\\logs\\compile_checks\\type_params_opt_none_trace.json 2> build\\main\\logs\\compile_checks\\type_params_opt_none_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"TypeParamsOpt(?)\" ..\\TestProjects\\Parsing\\Generated\\type_params_opt_none_trace\\build\\probe\\logs\\conformance\\type_params_opt_none_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamsOpt(?).*params_opt=none.*param_count=0\" ..\\TestProjects\\Parsing\\Generated\\type_params_opt_none_trace\\build\\probe\\logs\\conformance\\type_params_opt_none_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"TypeParamsOpt(ps)\" ..\\TestProjects\\Parsing\\Generated\\type_params_opt_none_trace\\build\\probe\\logs\\conformance\\type_params_opt_none_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"TypeParamsOpt(ps).*params_opt=some.*param_count=1\" ..\\TestProjects\\Parsing\\Generated\\type_params_opt_none_trace\\build\\probe\\logs\\conformance\\type_params_opt_none_trace.log >nul"
     return testsupport::runCompileCheckCommand(ctx, command, "type_params_opt_none_trace")
@@ -308,6 +318,16 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_parse_generic_params_empty_rejected: i32 = run_parse_generic_params_empty_rejected(ctx)
     if (status_parse_generic_params_empty_rejected != 0) {
         return status_parse_generic_params_empty_rejected
+    }
+
+    let status_type_param_names_trace: i32 = run_type_param_names_trace(ctx)
+    if (status_type_param_names_trace != 0) {
+        return status_type_param_names_trace
+    }
+
+    let status_type_param_names_duplicate_rejected: i32 = run_type_param_names_duplicate_rejected(ctx)
+    if (status_type_param_names_duplicate_rejected != 0) {
+        return status_type_param_names_duplicate_rejected
     }
 
     let status_type_params_opt_none_trace: i32 = run_type_params_opt_none_trace(ctx)

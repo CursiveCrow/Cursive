@@ -1,0 +1,49 @@
+import probe::typeparamnamesdep
+
+class TypeParamNamesSurface<Solo> {
+    procedure metric(~, value: Solo) -> Solo
+}
+
+record TypeParamNamesBox<T> {
+    value: T
+}
+
+record TypeParamNamesPair<T; U> {
+    left: T
+    right: U
+}
+
+record TypeParamNamesDefault<Seed; External = probe::typeparamnamesdep::ExternalBox<Seed>> {
+    value: Seed
+    external: External
+}
+
+enum TypeParamNamesChoice<Left; Right> {
+    LeftValue(Left)
+    RightValue(Right)
+}
+
+modal TypeParamNamesModal<Payload; ErrorPayload = Payload> {
+    @Ready {
+        value: Payload
+    }
+    @Failed {
+        error: ErrorPayload
+    }
+}
+
+type TypeParamNamesAlias<Key; Value = TypeParamNamesBox<Key>> = TypeParamNamesPair<Key, Value>
+
+procedure typeParamNamesIdentity<Item>(value: Item) -> Item {
+    return value
+}
+
+procedure typeParamNamesChoose<T; U = T>(left: T, right: U) -> T {
+    let _ = right
+    return left
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
