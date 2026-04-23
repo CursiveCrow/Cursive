@@ -1,12 +1,12 @@
-procedure read_value(box: probe::methoddep::MethodBox<i32>) -> i32 {
+procedure read_value(box: probe::methoddep::MethodBoxI32) -> i32 {
     return box~>value_metric()
 }
 
-procedure read_mirror(box: probe::methoddep::MethodBox<i32>) -> i32 {
+procedure read_mirror(box: probe::methoddep::MethodBoxI32) -> i32 {
     return box~>mirror_metric()
 }
 
-procedure read_alias(box: probe::methoddep::NamedBox<i32>) -> i32 {
+procedure read_alias(box: probe::methoddep::NamedMethodBoxI32) -> i32 {
     return box~>alias_metric()
 }
 
