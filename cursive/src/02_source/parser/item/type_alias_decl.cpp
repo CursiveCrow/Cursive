@@ -101,6 +101,10 @@ ParseItemResult ParseTypeAliasDecl(Parser parser, Visibility vis,
   decl.span = SpanBetween(start, parser);
   decl.doc = {};
 
+  RecordGenericPredicateOwnerClause("TypeAliasDecl", decl.name,
+                                    decl.generic_params,
+                                    decl.predicate_clause_opt, decl.span);
+
   return {parser, decl};
 }
 

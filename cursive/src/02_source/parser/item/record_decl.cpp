@@ -612,6 +612,10 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
     decl.span = SpanBetween(start, parser);
     decl.doc = {};
 
+    RecordGenericPredicateOwnerClause("RecordDecl", decl.name,
+                                      decl.generic_params,
+                                      decl.predicate_clause_opt, decl.span);
+
     return {parser, decl};
   }
 

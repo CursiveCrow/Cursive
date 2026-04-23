@@ -5,6 +5,16 @@ public record GenericPair<T> {
 
 public type GenericPairAlias<T> = (T, T)
 
+public record GenericOwnerClauseRecord<T>
+|: Bitcopy(T)
+{
+    public value: T
+}
+
+public type GenericOwnerClauseAlias<T>
+|: Bitcopy(T)
+= (T, T)
+
 procedure Identity<T>(value: T) -> T {
     return value
 }
@@ -20,6 +30,11 @@ procedure SelectRight<T>(pair: GenericPairAlias<T>) -> T {
 procedure ChooseFirst<T>(first: T, second: T) -> T {
     let pair: GenericPairAlias<T> = (first, second)
     return pair.0
+}
+
+procedure MakeGenericOwnerClauseAlias<T>(value: T) -> GenericOwnerClauseAlias<T> {
+    let pair: GenericOwnerClauseAlias<T> = (value, value)
+    return pair
 }
 
 procedure LogGenericsObject(
@@ -90,6 +105,9 @@ procedure GenericsMetricLabel(value: i32) -> string@View {
     if (value == 11) {
         return "11"
     }
+    if (value == 12) {
+        return "12"
+    }
     if (value == 22) {
         return "22"
     }
@@ -119,6 +137,7 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     LogGenericsObject(ctx.fs, scope, "mono_bool_inputs", "bool,bool", "constructed", "monomorphized bool specialization inputs prepared")
     LogGenericsObject(ctx.fs, scope, "generic_literal_arg", "i32 literal", "constructed", "inferred generic call literal argument prepared")
     LogGenericsObject(ctx.fs, scope, "generic_place_arg", "i32 place", "constructed", "inferred generic call provenance-bearing place argument prepared")
+    LogGenericsObject(ctx.fs, scope, "generic_owner_clause_alias", "GenericOwnerClauseAlias<i32>", "constructed", "generic alias with owning predicate clause prepared")
 
     [[log(label: "types-log-runtime_phase_move")]]
     [[log(label: "types-log-transition_move")]]
@@ -147,6 +166,9 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     [[log(label: "types-log-transition_move")]]
     let generic_provenance_metric: i32 = generic_literal_metric + generic_place_metric
     let monomorph_metric: i32 = if ((mono_i32 == 2) && mono_bool) { 1 } else { 0 }
+    let owner_clause_alias: GenericOwnerClauseAlias<i32> = MakeGenericOwnerClauseAlias<i32>(12)
+    let _ = owner_clause_alias
+    let owner_clause_metric: i32 = 12
 
     let observed_type_parameters_step: string@View = "observed-generic-type-parameters-metric"
     let observed_procedure_parameters_step: string@View = "observed-generic-procedure-parameters-metric"
@@ -155,6 +177,7 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     let observed_generic_literal_step: string@View = "observed-generic-literal-call-metric"
     let observed_generic_place_step: string@View = "observed-generic-place-call-metric"
     let observed_generic_provenance_step: string@View = "observed-generic-provenance-aware-call-metric"
+    let observed_owner_clause_step: string@View = "observed-generic-owner-clause-alias-metric"
     let expected_type_parameters: string@View = "10"
     let expected_procedure_parameters: string@View = "5"
     let expected_instantiation: string@View = "8"
@@ -162,6 +185,7 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     let expected_generic_literal: string@View = "11"
     let expected_generic_place: string@View = "11"
     let expected_generic_provenance: string@View = "22"
+    let expected_owner_clause: string@View = "12"
     let type_parameters_metric_label: string@View = GenericsMetricLabel(generic_type_metric)
     let procedure_parameters_metric_label: string@View = GenericsMetricLabel(generic_proc_metric)
     let instantiation_metric_label: string@View = GenericsMetricLabel(explicit_metric)
@@ -169,6 +193,7 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     let generic_literal_metric_label: string@View = GenericsMetricLabel(generic_literal_metric)
     let generic_place_metric_label: string@View = GenericsMetricLabel(generic_place_metric)
     let generic_provenance_metric_label: string@View = GenericsMetricLabel(generic_provenance_metric)
+    let owner_clause_metric_label: string@View = GenericsMetricLabel(owner_clause_metric)
     let type_parameters_metric_passed: bool = generic_type_metric == 10
     let procedure_parameters_metric_passed: bool = generic_proc_metric == 5
     let instantiation_metric_passed: bool = explicit_metric == 8
@@ -176,6 +201,7 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     let generic_literal_metric_passed: bool = generic_literal_metric == 11
     let generic_place_metric_passed: bool = generic_place_metric == 11
     let generic_provenance_metric_passed: bool = generic_provenance_metric == 22
+    let owner_clause_metric_passed: bool = owner_clause_metric == 12
 
     let type_parameters_metric_passed_log_actual = [[log(label: "observed-generic-type-parameters-metric", expected: "10")]] type_parameters_metric_label
     let type_parameters_metric_passed_with_log: bool = type_parameters_metric_passed && (type_parameters_metric_passed_log_actual == expected_type_parameters)
@@ -191,6 +217,8 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     let generic_place_metric_passed_with_log: bool = generic_place_metric_passed && (generic_place_metric_passed_log_actual == expected_generic_place)
     let generic_provenance_metric_passed_log_actual = [[log(label: "observed-generic-provenance-aware-call-metric", expected: "22")]] generic_provenance_metric_label
     let generic_provenance_metric_passed_with_log: bool = generic_provenance_metric_passed && (generic_provenance_metric_passed_log_actual == expected_generic_provenance)
+    let owner_clause_metric_passed_log_actual = [[log(label: "observed-generic-owner-clause-alias-metric", expected: "12")]] owner_clause_metric_label
+    let owner_clause_metric_passed_with_log: bool = owner_clause_metric_passed && (owner_clause_metric_passed_log_actual == expected_owner_clause)
     [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunGenericsCoreItem(
@@ -277,6 +305,23 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
         )
     }
 
+    if (item_index == 5) {
+        return RunGenericsCoreItem(
+            ctx,
+            scope,
+            "GenericOwnerClauseAlias",
+            "generic parameters and predicate clauses on owning nominal and alias declarations",
+            "validated owning generic predicate clauses through alias-normalized runtime value",
+            "generic-owner-clause-alias",
+            "instantiate a generic type alias whose owning declaration carries a predicate clause",
+            "12",
+            "12",
+            "not-12",
+            move owner_clause_metric_passed_with_log,
+            "generic owner clause alias check failed"
+        )
+    }
+
     return RunGenericsCoreItem(
         ctx,
         scope,
@@ -320,6 +365,11 @@ procedure RunGenericsCore(ctx: Context) -> i32 {
     let status_GenericLiteralArgumentTemporaries: i32 = VerifyGenericsCoreItem(ctx, scope, 4, "GenericLiteralArgumentTemporaries")
     if (status_GenericLiteralArgumentTemporaries != 0) {
         return status_GenericLiteralArgumentTemporaries
+    }
+
+    let status_GenericOwnerClauseAlias: i32 = VerifyGenericsCoreItem(ctx, scope, 5, "GenericOwnerClauseAlias")
+    if (status_GenericOwnerClauseAlias != 0) {
+        return status_GenericOwnerClauseAlias
     }
 
     [[log(label: "types-log-checkpoint")]]

@@ -1,0 +1,5 @@
+public record ExternalOwnerRecord<T>
+|: Bitcopy(T)
+{
+    public value: T
+}

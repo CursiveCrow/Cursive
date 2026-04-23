@@ -1,0 +1,43 @@
+import probe::ownerdep
+
+record OwnerNoClause {
+    value: i32
+}
+
+record OwnerRecord<T; U = T>
+|: Bitcopy(T); Clone(U)
+{
+    left: T
+    right: U
+}
+
+enum OwnerEnum<T>
+|: Bitcopy(T)
+{
+    Value(T)
+}
+
+modal OwnerModal<T>
+|: Bitcopy(T)
+{
+    @Ready {
+        value: T
+    }
+}
+
+class OwnerClass<T>
+|: Bitcopy(T)
+{
+    procedure get(~, value: T) -> T
+}
+
+type OwnerAlias<T>
+|: Bitcopy(T)
+= OwnerRecord<T, T>
+
+type OwnerPlainAlias = OwnerNoClause
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

@@ -39,6 +39,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -365,6 +366,57 @@ namespace cursive::ast
                 PredicateReqsPayload("none", EmptyPredicateReqList()));
         }
         return EmptyPredicateReqList();
+    }
+
+    inline void RecordGenericPredicateOwnerClause(
+        std::string_view owner_kind,
+        const Identifier& name,
+        const std::optional<GenericParams>& generic_params_opt,
+        const std::optional<PredicateClause>& predicate_clause_opt,
+        const core::Span& span) {
+        if (!core::Conformance::Enabled()) {
+            return;
+        }
+
+        std::string payload;
+        payload.reserve(160);
+        payload += "owner=";
+        payload.append(owner_kind.data(), owner_kind.size());
+        payload += ";name=";
+        payload += name;
+        payload += ";generic_params=";
+        payload += generic_params_opt.has_value() ? "some" : "none";
+        payload += ";param_count=";
+        payload += std::to_string(generic_params_opt.has_value()
+                                      ? generic_params_opt->params.size()
+                                      : 0);
+        payload += ";param_names=";
+        if (generic_params_opt.has_value()) {
+            for (std::size_t i = 0; i < generic_params_opt->params.size(); ++i) {
+                if (i > 0) {
+                    payload += ",";
+                }
+                payload += generic_params_opt->params[i].name;
+            }
+        }
+        payload += ";predicate_clause=";
+        payload += predicate_clause_opt.has_value() ? "some" : "none";
+        payload += ";predicate_count=";
+        payload += std::to_string(predicate_clause_opt.has_value()
+                                      ? predicate_clause_opt->size()
+                                      : 0);
+        payload += ";predicate_names=";
+        if (predicate_clause_opt.has_value()) {
+            for (std::size_t i = 0; i < predicate_clause_opt->size(); ++i) {
+                if (i > 0) {
+                    payload += ",";
+                }
+                payload += (*predicate_clause_opt)[i].pred;
+            }
+        }
+
+        core::Conformance::Record(
+            "GenericParamsAndPredicateClausesOnOwnerDecl", span, payload);
     }
 
     // ===========================================================================
