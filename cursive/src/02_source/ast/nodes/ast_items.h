@@ -157,6 +157,8 @@ namespace cursive::ast
         Identifier name;
         std::vector<TypeBound> bounds; // <: bound list
         TypePtr default_type;          // optional = default (may be null)
+        // Parser-produced params carry nullopt for the spec's `⊥` variance.
+        std::optional<Variance> variance;
         core::Span span;
     };
 

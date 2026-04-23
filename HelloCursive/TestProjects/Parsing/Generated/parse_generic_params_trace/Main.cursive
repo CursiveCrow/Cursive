@@ -16,9 +16,17 @@ record ParseGenericParamsBox<T> {
     value: T
 }
 
+record ParseTypeParamVariancePlain<Plain> {
+    value: Plain
+}
+
 record ParseGenericParamsPair<T; U> {
     left: T
     right: U
+}
+
+record ParseTypeParamVarianceBounded<Bounded <: ParseGenericParamsSurface> {
+    value: Bounded
 }
 
 record ParseGenericParamsBounded<T <: ParseGenericParamsSurface; U = T> {
@@ -34,6 +42,11 @@ record ParseGenericParamsDefaultApply<T; U = ParseGenericParamsBox<T>> {
 record ParseGenericParamsExternalDefault<T; U = probe::parsingparamsdep::ParseGenericParamsExternalBox<T>> {
     value: T
     external: U
+}
+
+record ParseTypeParamVarianceExternalDefault<Seed; ExternalDefault = probe::parsingparamsdep::ParseGenericParamsExternalBox<Seed>> {
+    value: Seed
+    external: ExternalDefault
 }
 
 enum ParseGenericParamsEnum<T; U> {

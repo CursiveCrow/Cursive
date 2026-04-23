@@ -82,6 +82,7 @@ ParseElemResult<TypeParam> ParseAsyncTypeParam(Parser parser) {
   param.name = name.elem;
   param.bounds = {};
   param.default_type = default_type;
+  param.variance = std::nullopt;
   param.span = SpanBetween(start, next);
   return {next, param};
 }

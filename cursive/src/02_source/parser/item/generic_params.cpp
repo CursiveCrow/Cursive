@@ -59,6 +59,39 @@ std::string GenericParamsPayload(std::string_view params_opt,
   return payload;
 }
 
+std::string_view VariancePayload(const std::optional<Variance>& variance) {
+  if (!variance.has_value()) {
+    return "none";
+  }
+
+  switch (*variance) {
+    case Variance::Covariant:
+      return "Covariant";
+    case Variance::Contravariant:
+      return "Contravariant";
+    case Variance::Invariant:
+      return "Invariant";
+    case Variance::Bivariant:
+      return "Bivariant";
+  }
+
+  return "unknown";
+}
+
+std::string TypeParamPayload(const TypeParam& param) {
+  std::string payload;
+  payload.reserve(param.name.size() + 96);
+  payload += "name=";
+  payload += param.name;
+  payload += ";bound_count=";
+  payload += std::to_string(param.bounds.size());
+  payload += ";default_opt=";
+  payload += param.default_type ? "some" : "none";
+  payload += ";variance=";
+  payload += VariancePayload(param.variance);
+  return payload;
+}
+
 std::string ClassBoundPayload(const ClassPath& path,
                               std::string_view args_opt,
                               std::size_t arg_count) {
@@ -101,6 +134,13 @@ void RecordClassBoundRule(std::string_view rule_id,
   }
   core::Conformance::Record(rule_id, span,
                             ClassBoundPayload(path, args_opt, arg_count));
+}
+
+void RecordTypeParamRule(const TypeParam& param) {
+  if (!core::Conformance::Enabled()) {
+    return;
+  }
+  core::Conformance::Record("TypeParam", param.span, TypeParamPayload(param));
 }
 
 }  // namespace
@@ -193,7 +233,9 @@ ParseElemResult<TypeParam> ParseTypeParam(Parser parser) {
   param.name = name.elem;
   param.bounds = bounds.elem;
   param.default_type = default_type;
+  param.variance = std::nullopt;
   param.span = SpanBetween(start, after_bounds);
+  RecordTypeParamRule(param);
 
   return {after_bounds, param};
 }
