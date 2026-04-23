@@ -41,6 +41,7 @@
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/contracts/contract_check.h"
+#include "04_analysis/generics/generic_params.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/records.h"
@@ -266,6 +267,13 @@ static bool HasDropMethod(const std::vector<const ast::MethodDecl*>& methods) {
   return false;
 }
 
+static ScopeContext BindRecordTypeScope(const ScopeContext& ctx,
+                                        const ast::RecordDecl& record) {
+  ScopeContext record_ctx = ctx;
+  record_ctx.scopes = BindTypeParams(ctx, record.generic_params);
+  return record_ctx;
+}
+
 // Visibility ranking
 static int VisRank(ast::Visibility vis) {
   switch (vis) {
@@ -445,6 +453,7 @@ RecordDeclResult TypeRecordDecl(
     result.diag_id = gen_params.diag_id;
     return result;
   }
+  const ScopeContext record_type_ctx = BindRecordTypeScope(ctx, decl);
 
   // Process where clauses
   std::vector<std::string> type_param_names;
@@ -506,7 +515,7 @@ RecordDeclResult TypeRecordDecl(
   }
 
   TypeSubst record_assoc_subst;
-  if (!CollectRecordAssociatedTypeBindings(ctx, decl, result.self_type,
+  if (!CollectRecordAssociatedTypeBindings(record_type_ctx, decl, result.self_type,
                                            record_assoc_subst,
                                            result.diag_id)) {
     result.ok = false;
@@ -528,7 +537,7 @@ RecordDeclResult TypeRecordDecl(
       return result;
     }
 
-    const auto lowered = LowerTypeWithWF(ctx, field.type);
+    const auto lowered = LowerTypeWithWF(record_type_ctx, field.type);
     if (!lowered.ok) {
       result.ok = false;
       result.diag_id = lowered.diag_id;
@@ -672,7 +681,8 @@ RecordDeclResult TypeRecordDecl(
     }
     const auto& class_decl = class_it->second;
     TypeSubst class_assoc_subst;
-    if (!BuildClassAssociatedTypeBindings(ctx, decl, class_decl, result.self_type,
+    if (!BuildClassAssociatedTypeBindings(record_type_ctx, decl, class_decl,
+                                          result.self_type,
                                           record_assoc_subst, class_assoc_subst,
                                           result.diag_id)) {
       result.ok = false;
@@ -798,7 +808,7 @@ RecordDeclResult TypeRecordDecl(
             entry.method->params, entry.method->return_type_opt,
             &class_assoc_subst);
         const auto impl_sig = BuildMethodSignature(
-            ctx, result.self_type, impl_method->receiver,
+            record_type_ctx, result.self_type, impl_method->receiver,
             impl_method->params, impl_method->return_type_opt,
             &class_assoc_subst);
         if (!class_sig.ok || !impl_sig.ok) {
@@ -902,7 +912,7 @@ RecordDeclResult TypeRecordDecl(
 
     // Build method signature
     const auto sig = BuildMethodSignature(
-        ctx, result.self_type, method->receiver,
+        record_type_ctx, result.self_type, method->receiver,
         method->params, method->return_type_opt, &record_assoc_subst);
     if (!sig.ok) {
       result.ok = false;
@@ -955,17 +965,19 @@ RecordDeclResult TypeRecordDecl(
       }
 
       ExprTypeFn type_expr = [&](const ast::ExprPtr& inner) {
-        return TypeExpr(ctx, type_ctx, inner, env);
+        return TypeExpr(record_type_ctx, type_ctx, inner, env);
       };
       IdentTypeFn type_ident = [&](std::string_view name) -> ExprTypeResult {
-        return TypeIdentifierExpr(ctx, ast::IdentifierExpr{std::string(name)}, env);
+        return TypeIdentifierExpr(record_type_ctx,
+                                  ast::IdentifierExpr{std::string(name)}, env);
       };
       PlaceTypeFn type_place = [&](const ast::ExprPtr& inner) {
-        return TypePlace(ctx, type_ctx, inner, env);
+        return TypePlace(record_type_ctx, type_ctx, inner, env);
       };
 
       const auto body_result = TypeBlock(
-          ctx, type_ctx, *method->body, env, type_expr, type_ident, type_place, &env);
+          record_type_ctx, type_ctx, *method->body, env, type_expr, type_ident,
+          type_place, &env);
       if (!body_result.ok) {
         result.ok = false;
         result.diag_id = body_result.diag_id;
@@ -1030,6 +1042,7 @@ RecordDeclResult TypeRecordDeclSignature(
     result.diag_id = gen_params.diag_id;
     return result;
   }
+  const ScopeContext record_type_ctx = BindRecordTypeScope(ctx, decl);
 
   // Check field names distinct
   const auto fields = GetFields(decl);
@@ -1049,7 +1062,7 @@ RecordDeclResult TypeRecordDeclSignature(
   }
 
   TypeSubst record_assoc_subst;
-  if (!CollectRecordAssociatedTypeBindings(ctx, decl, result.self_type,
+  if (!CollectRecordAssociatedTypeBindings(record_type_ctx, decl, result.self_type,
                                            record_assoc_subst,
                                            result.diag_id)) {
     result.ok = false;
@@ -1071,7 +1084,7 @@ RecordDeclResult TypeRecordDeclSignature(
       return result;
     }
 
-    const auto lowered = LowerTypeWithWF(ctx, field.type);
+    const auto lowered = LowerTypeWithWF(record_type_ctx, field.type);
     if (!lowered.ok) {
       result.ok = false;
       result.diag_id = lowered.diag_id;
@@ -1107,7 +1120,7 @@ RecordDeclResult TypeRecordDeclSignature(
     }
 
     const auto sig = BuildMethodSignature(
-        ctx, result.self_type, method->receiver,
+        record_type_ctx, result.self_type, method->receiver,
         method->params, method->return_type_opt, &record_assoc_subst);
     if (!sig.ok) {
       result.ok = false;
