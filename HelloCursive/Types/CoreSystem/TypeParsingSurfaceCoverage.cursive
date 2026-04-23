@@ -2,6 +2,23 @@ record TypeParsingPathProbe {
     value: i32
 }
 
+class TypeParsingSelfVarSurface {
+    procedure combine(~, other: const Self) -> i32
+    procedure bumped(~) -> Self
+}
+
+record TypeParsingSelfVarBox <: TypeParsingSelfVarSurface {
+    value: i32
+
+    procedure combine(~, other: const Self) -> i32 {
+        return self.value + other.value
+    }
+
+    procedure bumped(~) -> Self {
+        return TypeParsingSelfVarBox { value: self.value + 1 }
+    }
+}
+
 type TypeParsingGenericPair<T> = (T, T)
 
 type ParseTypePermConst = const i32
@@ -33,6 +50,9 @@ procedure TypeParsingSurfaceMetricLabel(value: i32) -> string@View {
     if (value == 93) {
         return "93"
     }
+    if (value == 118) {
+        return "118"
+    }
     return "other"
 }
 
@@ -45,6 +65,9 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
     let fn_value: ParseTypeFn = TypeParsingSurfaceAdd
     let text_value: ParseTypeString = "parse"
     let path_value: ParseTypePath = TypeParsingPathProbe { value: 9 }
+    let selfvar_left: TypeParsingSelfVarBox = TypeParsingSelfVarBox { value: 7 }
+    let selfvar_right: TypeParsingSelfVarBox = TypeParsingSelfVarBox { value: 10 }
+    let selfvar_bumped: TypeParsingSelfVarBox = selfvar_left~>bumped()
     let generic_left_metric: i32 = 12
     let generic_right_metric: i32 = 13
     let generic_nested_metric: i32 = 14
@@ -80,6 +103,11 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
     let raw_metric: i32 = ptr_metric
     let text_metric: i32 = string::length(text_value) as i32
     let path_metric: i32 = path_value.value
+    let selfvar_metric: i32 = selfvar_left~>combine(selfvar_right) + selfvar_bumped.value
+    let selfvar_runtime_ok: bool = selfvar_metric == 25
+    let selfvar_runtime_log: bool =
+        [[log(label: "types-core-selfvar-typepath-runtime", expected: true)]]
+        selfvar_runtime_ok
     let generic_args_opt_none_runtime_ok: bool = path_metric == 9
     let generic_args_opt_none_runtime_log: bool =
         [[log(label: "types-core-parse-generic-args-opt-none-runtime", expected: true)]]
@@ -115,12 +143,15 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
         raw_metric +
         text_metric +
         path_metric +
+        selfvar_metric +
         refine_metric +
         permission_metric +
         dynamic_metric
 
     let parse_surface_ok: bool =
-        (total_metric == 93) &&
+        (total_metric == 118) &&
+        selfvar_runtime_ok &&
+        (selfvar_runtime_log == true) &&
         slice_coercion_ok &&
         generic_args_opt_none_runtime_ok &&
         (generic_args_opt_none_runtime_log == true) &&
@@ -133,12 +164,12 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
         [[log(label: "types-core-type-parsing-surface", expected: true)]]
         parse_surface_ok
 
-    let metric: i32 = if ((parse_surface_ok_log == true) && parse_surface_ok) { 93 } else { 0 }
+    let metric: i32 = if ((parse_surface_ok_log == true) && parse_surface_ok) { 118 } else { 0 }
     let metric_label: string@View = TypeParsingSurfaceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-types-core-type-parsing-surface-metric", expected: "93")]]
+        [[log(label: "observed-types-core-type-parsing-surface-metric", expected: "118")]]
         metric_label
-    if (metric_log_actual != "93") {
+    if (metric_log_actual != "118") {
         [[log(label: "types-log-item_fail")]]
         return 1
     }

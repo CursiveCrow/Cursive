@@ -274,7 +274,7 @@ ClassDeclResult TypeClassDecl(
   result.class_path = class_path;
 
   // Self type (abstract within class)
-  result.self_type = MakeTypePath({"Self"});
+  result.self_type = SelfVarType();
 
   // Process generic parameters
   GenericParamsResult gen_params = ProcessGenericParams(ctx, decl.generic_params);
@@ -645,7 +645,7 @@ ClassDeclResult TypeClassDeclSignature(
   result.class_path = class_path;
 
   // Self type
-  result.self_type = MakeTypePath({"Self"});
+  result.self_type = SelfVarType();
 
   // Process generic parameters
   const auto gen_params = ProcessGenericParams(ctx, decl.generic_params);

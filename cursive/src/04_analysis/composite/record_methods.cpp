@@ -175,7 +175,7 @@ static bool IsExplicitSelfReceiverType(const TypeRef& type) {
     return false;
   }
   if (const auto* path = std::get_if<TypePathType>(&type->node)) {
-    return path->path.size() == 1 && path->path[0] == "Self";
+    return IsSelfVarPath(path->path);
   }
   if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
     return IsExplicitSelfReceiverType(perm->base);

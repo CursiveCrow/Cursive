@@ -1,0 +1,24 @@
+class Row1179SelfVarSurface {
+    procedure combine(~, other: const Self) -> i32;
+    procedure advanced(~) -> Self;
+}
+
+record Row1179SelfVarImpl <: Row1179SelfVarSurface {
+    value: i32
+
+    procedure combine(~, other: const Self) -> i32 {
+        return self.value + other.value
+    }
+
+    procedure advanced(~) -> Self {
+        return Row1179SelfVarImpl { value: self.value + 1 }
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let left: Row1179SelfVarImpl = Row1179SelfVarImpl { value: 4 }
+    let right: Row1179SelfVarImpl = Row1179SelfVarImpl { value: 9 }
+    let advanced: Row1179SelfVarImpl = left~>advanced()
+    return left~>combine(right) + advanced.value
+}

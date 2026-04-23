@@ -284,6 +284,9 @@ TypeRef MakeTypeModalState(TypePath path,
                            std::vector<TypeRef> generic_args = {});
 TypeRef MakeTypePath(TypePath path);
 TypeRef MakeTypePath(TypePath path, std::vector<TypeRef> generic_args);
+TypePath SelfVarPath();
+TypeRef SelfVarType();
+bool IsSelfVarPath(const TypePath& path);
 TypeRef MakeTypeApply(TypePath path, std::vector<TypeRef> args);
 TypeRef MakeTypeOpaque(TypePath class_path,
                        const ast::Type* origin,

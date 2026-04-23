@@ -120,10 +120,6 @@ static inline void SpecDefsTypeWF() {
   SPEC_DEF("WF-Async-Path-Err", "5.2.12");
 }
 
-static bool IsSelfTypePath(const TypePath& path) {
-  return path.size() == 1 && IdEq(path[0], "Self");
-}
-
 static bool IsSelfAssociatedTypePath(const TypePath& path) {
   return path.size() == 2 && IdEq(path[0], "Self");
 }
@@ -278,7 +274,7 @@ static TypeWfResult TypeWFImpl(const ScopeContext& ctx, const TypeRef& type) {
             SPEC_RULE("WF-Path");
             return {true, std::nullopt};
           }
-          if (IsSelfTypePath(node.path)) {
+          if (IsSelfVarPath(node.path)) {
             SPEC_RULE("WF-Path");
             return {true, std::nullopt};
           }

@@ -426,7 +426,7 @@ static TypeRef SubstSelfType(const TypeRef& self, const TypeRef& type) {
       [&](const auto& node) -> TypeRef {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, TypePathType>) {
-          if (node.path.size() == 1 && node.path[0] == "Self") {
+          if (IsSelfVarPath(node.path)) {
             return self;
           }
           if (node.generic_args.empty()) {
@@ -549,7 +549,7 @@ struct MethodSig {
 static MethodSig MethodSigSelf(const ScopeContext& ctx,
                                const ast::ClassMethodDecl& method) {
   MethodSig sig;
-  const auto self = MakeTypePath({"Self"});
+  const auto self = SelfVarType();
 
   if (const auto* shorthand =
           std::get_if<ast::ReceiverShorthand>(&method.receiver)) {
@@ -1007,7 +1007,7 @@ bool VTableEligible(const ast::ClassMethodDecl& method) {
         if (std::holds_alternative<ast::TypePathType>(type->node)) {
           // Direct Self by value - not vtable eligible
           const auto* path = std::get_if<ast::TypePathType>(&type->node);
-          if (path && path->path.size() == 1 && path->path[0] == "Self") {
+          if (path && IsSelfVarPath(path->path)) {
             return false;
           }
         }

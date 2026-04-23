@@ -89,7 +89,7 @@ TypeRef SubstSelfType(const TypeRef& self_type,
 
         if constexpr (std::is_same_v<T, TypePathType>) {
           // Check if this is "Self"
-          if (node.path.size() == 1 && node.path[0] == "Self") {
+          if (IsSelfVarPath(node.path)) {
             return self_type;
           }
           // Check if this is "Self::AssocType"

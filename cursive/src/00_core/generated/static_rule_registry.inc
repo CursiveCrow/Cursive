@@ -2470,6 +2470,7 @@ static const StaticRuleMeta kStaticRules[] = {
     {"Select-Err", "LinkJudg", std::nullopt, "01_project/load_project.cpp", std::string_view("(target = ⊥ ∧ |As| ≠ 1 ∧ |{A ∈ As | A.kind = \"executable\"}| ≠ 1) ∨ (target ≠ ⊥ ∧ ¬ ∃ A ∈ As. A.name = target)\nc = Code(Assembly-Select-Err)")},
     {"Select-Only", "LinkJudg", std::nullopt, "01_project/load_project.cpp", std::string_view("|As| = 1\ntarget = ⊥\nAs = [A_0]")},
     {"Select-Only-Exe", "LinkJudg", std::nullopt, "01_project/load_project.cpp", std::string_view("|As| > 1\ntarget = ⊥\n|{A ∈ As | A.kind = \"executable\"}| = 1\nA_e ∈ As\nA_e.kind = \"executable\"")},
+    {"SelfVar", "TypeInfJudg", std::nullopt, "04_analysis/typing/type_refs.cpp", std::nullopt},
     {"SetPoison-Err", "LLVMEmitJudg", std::nullopt, "05_codegen/llvm/llvm_ir_panic.cpp", std::string_view("SetPoison(m) undefined")},
     {"Shadow-Ok", "ResolvePathJudg", std::nullopt, "04_analysis/resolve/scopes_intro.cpp", std::nullopt},
     {"Shadow-Reserved-Gen-Err", "StmtJudg", std::nullopt, "04_analysis/typing/stmt/stmt_common.cpp", std::nullopt},

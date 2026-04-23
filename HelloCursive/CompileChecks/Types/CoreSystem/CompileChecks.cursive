@@ -24,5 +24,17 @@ public procedure runCompileChecks(ctx: Context) -> i32 {
 
     let modal_ref_type_path_command: string@View =
         "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue984_modal_ref_type_type_path_identity.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue984_modal_ref_type_type_path_identity\\Main.cursive > build\\main\\logs\\compile_checks\\issue984_modal_ref_type_type_path_identity.json 2> build\\main\\logs\\compile_checks\\issue984_modal_ref_type_type_path_identity.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalRefType(TypePath(p))\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\issue984_modal_ref_type_type_path_identity\\build\\probe\\logs\\conformance\\issue984_modal_ref_type_type_path_identity.log >nul"
-    return testsupport::runCompileCheckCommand(ctx, modal_ref_type_path_command, "issue984_modal_ref_type_type_path_identity")
+    let modal_ref_type_path_status: i32 = testsupport::runCompileCheckCommand(ctx, modal_ref_type_path_command, "issue984_modal_ref_type_type_path_identity")
+    if (modal_ref_type_path_status != 0) {
+        return modal_ref_type_path_status
+    }
+
+    let row1179_selfvar_trace_command: string@View =
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance row1179_selfvar_trace.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1179_selfvar_trace\\Main.cursive > build\\main\\logs\\compile_checks\\row1179_selfvar_trace.json 2> build\\main\\logs\\compile_checks\\row1179_selfvar_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"SelfVar\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1179_selfvar_trace\\build\\probe\\logs\\conformance\\row1179_selfvar_trace.log >nul & if errorlevel 1 exit /b 1"
+    let row1179_selfvar_trace_status: i32 = testsupport::runCompileCheckCommand(ctx, row1179_selfvar_trace_command, "row1179_selfvar_trace")
+    if (row1179_selfvar_trace_status != 0) {
+        return row1179_selfvar_trace_status
+    }
+
+    return 0
 }

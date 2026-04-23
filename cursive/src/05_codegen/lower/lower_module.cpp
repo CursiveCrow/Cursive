@@ -312,7 +312,7 @@ analysis::TypeRef SubstSelfType(const analysis::TypeRef& self,
       [&](const auto& node) -> analysis::TypeRef {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, analysis::TypePathType>) {
-          if (node.path.size() == 1 && node.path[0] == "Self") {
+          if (analysis::IsSelfVarPath(node.path)) {
             return self;
           }
           return type;

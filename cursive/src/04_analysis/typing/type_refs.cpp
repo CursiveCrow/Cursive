@@ -775,6 +775,19 @@ TypeRef MakeTypePath(TypePath path, std::vector<TypeRef> generic_args) {
   return MakeType(TypePathType{std::move(path), std::move(generic_args)});
 }
 
+TypePath SelfVarPath() {
+  SPEC_RULE("SelfVar");
+  return TypePath{"Self"};
+}
+
+TypeRef SelfVarType() {
+  return MakeTypePath(SelfVarPath());
+}
+
+bool IsSelfVarPath(const TypePath& path) {
+  return path.size() == 1 && path.front() == "Self";
+}
+
 TypeRef MakeTypeApply(TypePath path, std::vector<TypeRef> args) {
   SpecDefsTypeRepr();
   SPEC_RULE("TypeRef-TypeApply");
