@@ -370,6 +370,19 @@ EnumDeclResult TypeEnumDecl(
       return result;
     }
 
+    const auto field_table = ClassFieldTable(ctx, impl_path);
+    if (!field_table.ok) {
+      result.ok = false;
+      result.diag_id = field_table.diag_id;
+      return result;
+    }
+    if (!field_table.fields.empty()) {
+      SPEC_RULE("Impl-Field-Missing");
+      result.ok = false;
+      result.diag_id = "Impl-Field-Missing";
+      return result;
+    }
+
     for (const auto& entry : method_table.methods) {
       if (!entry.method) {
         continue;

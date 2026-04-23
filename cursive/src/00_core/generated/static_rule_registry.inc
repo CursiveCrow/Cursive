@@ -738,7 +738,7 @@ static const StaticRuleMeta kStaticRules[] = {
     {"IllFormed", "DeclJudg", std::nullopt, "04_analysis/conformance/conformance.cpp", std::nullopt},
     {"Impl-AssocType-Missing", "DeclJudg", std::nullopt, "04_analysis/typing/item/record_decl.cpp", std::string_view("a ∈ A_abs(Cl)\n¬(T binds a for Cl)")},
     {"Impl-Duplicate-Err", "DeclJudg", std::nullopt, "04_analysis/typing/item/enum_decl.cpp", std::nullopt},
-    {"Impl-Field-Missing", "DeclJudg", std::nullopt, "04_analysis/typing/item/record_decl.cpp", std::string_view("f : T_c ∈ ClassFieldTable(Cl)\n¬ ∃ T_i. f : T_i ∈ Fields(T)")},
+    {"Impl-Field-Missing", "DeclJudg", std::nullopt, "04_analysis/typing/item/enum_decl.cpp", std::string_view("f : T_c ∈ ClassFieldTable(Cl)\n¬ ∃ T_i. f : T_i ∈ Fields(T)")},
     {"Impl-Field-Type-Err", "DeclJudg", std::nullopt, "04_analysis/typing/item/record_decl.cpp", std::string_view("f : T_c ∈ ClassFieldTable(Cl)\nf : T_i ∈ Fields(T)\n¬(Γ ⊢ T_i <: T_c)")},
     {"Impl-Missing-Method", "DeclJudg", std::nullopt, "04_analysis/typing/item/enum_decl.cpp", std::string_view("m ∈ ClassMethodTable(Cl)\nm.body = ⊥\nMethodByName(T, m.name) = ⊥")},
     {"Impl-Sig-Err", "DeclJudg", std::nullopt, "04_analysis/typing/item/record_decl.cpp", std::string_view("m ∈ ClassMethodTable(Cl)\nm.body = ⊥\nMethodByName(T, m.name) = m'\n¬ SigMatch(T, m', m)")},

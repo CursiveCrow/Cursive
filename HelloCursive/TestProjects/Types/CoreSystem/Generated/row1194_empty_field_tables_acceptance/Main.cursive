@@ -1,0 +1,21 @@
+public class Marker {
+}
+
+public modal class ModalMarker {
+    @Ready {
+    }
+}
+
+public enum EnumMarker <: Marker {
+    Ready
+}
+
+public modal ModalReady <: Marker, ModalMarker {
+    @Ready {
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

@@ -797,6 +797,23 @@ ModalDeclResult TypeModalDecl(
       return result;
     }
 
+    const auto field_table = ClassFieldTable(ctx, impl_path);
+    if (!field_table.ok) {
+      result.ok = false;
+      result.diag_id = field_table.diag_id;
+      return result;
+    }
+    if (!field_table.fields.empty()) {
+      SPEC_RULE("Impl-Field-Missing");
+      result.ok = false;
+      result.diag_id = "Impl-Field-Missing";
+      result.diag_detail =
+          "modal type '" + decl.name +
+          "' cannot satisfy required class field '" +
+          field_table.fields.front()->name + "'";
+      return result;
+    }
+
     if (!IsModalClass(class_it->second)) {
       continue;
     }
