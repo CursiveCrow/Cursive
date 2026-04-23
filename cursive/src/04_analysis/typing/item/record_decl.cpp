@@ -41,7 +41,6 @@
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/contracts/contract_check.h"
-#include "04_analysis/generics/generic_params.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/records.h"
@@ -270,7 +269,23 @@ static bool HasDropMethod(const std::vector<const ast::MethodDecl*>& methods) {
 static ScopeContext BindRecordTypeScope(const ScopeContext& ctx,
                                         const ast::RecordDecl& record) {
   ScopeContext record_ctx = ctx;
-  record_ctx.scopes = BindTypeParams(ctx, record.generic_params);
+  if (!record.generic_params.has_value()) {
+    return record_ctx;
+  }
+  Scope param_scope;
+  for (const auto& param : record.generic_params->params) {
+    Entity entity;
+    entity.kind = EntityKind::Type;
+    entity.source = EntitySource::Decl;
+    entity.origin_opt = std::nullopt;
+    entity.target_opt = param.name;
+    param_scope[IdKeyOf(param.name)] = std::move(entity);
+  }
+  ScopeList scopes;
+  scopes.reserve(ctx.scopes.size() + 1);
+  scopes.push_back(std::move(param_scope));
+  scopes.insert(scopes.end(), ctx.scopes.begin(), ctx.scopes.end());
+  record_ctx.scopes = std::move(scopes);
   return record_ctx;
 }
 
