@@ -189,29 +189,58 @@ static TypeDeclLookupResult LookupTypeDeclByPath(const ScopeContext& ctx,
     return direct_lookup;
   }
 
-  if (path.size() > 1) {
-    ast::Path without_root;
-    without_root.reserve(path.size() - 1);
-    for (std::size_t i = 1; i < path.size(); ++i) {
-      without_root.push_back(path[i]);
-    }
-    if (const auto local_lookup = lookup_full(without_root); local_lookup.decl) {
-      return local_lookup;
+  ast::Path current_qualified = ctx.current_module;
+  current_qualified.insert(current_qualified.end(), path.begin(), path.end());
+  if (const auto current_lookup = lookup_full(current_qualified);
+      current_lookup.decl) {
+    return current_lookup;
+  }
+
+  if (path.size() == 1 && !ctx.current_module.empty()) {
+    ast::Path root_qualified;
+    root_qualified.push_back(ctx.current_module.front());
+    root_qualified.push_back(path.front());
+    if (const auto root_lookup = lookup_full(root_qualified); root_lookup.decl) {
+      return root_lookup;
     }
   }
 
-  if (path.size() != 1) {
+  std::optional<ast::Path> unique_match;
+  for (const auto& [key, _decl] : ctx.sigma.types) {
+    if (key.empty()) {
+      continue;
+    }
+    if (!IdEq(key.back(), path.back())) {
+      continue;
+    }
+    if (key.size() < path.size()) {
+      continue;
+    }
+
+    bool suffix_match = true;
+    for (std::size_t i = 0; i < path.size(); ++i) {
+      const auto key_index = key.size() - path.size() + i;
+      if (!IdEq(key[key_index], path[i])) {
+        suffix_match = false;
+        break;
+      }
+    }
+    if (!suffix_match) {
+      continue;
+    }
+
+    ast::Path candidate(key.begin(), key.end());
+    if (unique_match.has_value()) {
+      return {};
+    }
+    unique_match = std::move(candidate);
+  }
+
+  if (!unique_match.has_value()) {
     return {};
   }
 
-  const auto ent = ResolveTypeName(ctx, path[0]);
-  if (!ent.has_value() || !ent->origin_opt.has_value()) {
-    return {};
-  }
-
-  ast::Path resolved = *ent->origin_opt;
-  resolved.push_back(ent->target_opt.has_value() ? *ent->target_opt : path[0]);
-  return lookup_full(resolved);
+  return lookup_full(*unique_match);
 }
 
 static AliasExpandResult ExpandTypeAliasApply(const ScopeContext& ctx,
