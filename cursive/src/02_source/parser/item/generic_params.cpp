@@ -43,25 +43,32 @@ ParseElemResult<ClassPath> ParseClassPath(Parser parser);
 namespace {
 
 std::string GenericParamsPayload(std::string_view params_opt,
-                                 std::size_t param_count) {
+                                 std::size_t param_count,
+                                 std::string_view terminator = {}) {
   std::string payload;
-  payload.reserve(params_opt.size() + 56);
+  payload.reserve(params_opt.size() + terminator.size() + 80);
   payload += "params_opt=";
   payload += params_opt;
   payload += ";param_count=";
   payload += std::to_string(param_count);
+  if (!terminator.empty()) {
+    payload += ";terminator=";
+    payload += terminator;
+  }
   return payload;
 }
 
 void RecordGenericParamsRule(std::string_view rule_id,
                              const core::Span& span,
                              std::string_view params_opt,
-                             std::size_t param_count) {
+                             std::size_t param_count,
+                             std::string_view terminator = {}) {
   if (!core::Conformance::Enabled()) {
     return;
   }
   core::Conformance::Record(rule_id, span,
-                            GenericParamsPayload(params_opt, param_count));
+                            GenericParamsPayload(params_opt, param_count,
+                                                 terminator));
 }
 
 }  // namespace
@@ -201,8 +208,11 @@ ParseElemResult<std::vector<TypeParam>> ParseTypeParamTail(
     Parser parser,
     std::vector<TypeParam> params) {
   if (!IsPunc(parser, ";")) {
+    const Token* terminator = Tok(parser);
     RecordGenericParamsRule("Parse-TypeParamTail-End", TokSpan(parser),
-                            "tail_end", params.size());
+                            "tail_end", params.size(),
+                            terminator ? std::string_view(terminator->lexeme)
+                                       : std::string_view{});
     return {parser, std::move(params)};
   }
 
