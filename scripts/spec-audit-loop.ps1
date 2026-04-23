@@ -25,9 +25,9 @@ Options:
   --recover-stale-in-progress
                          Recover exactly one in_progress row when used with --row-line
   --row-line <N>         CSV logical line to recover with --recover-stale-in-progress
-  --model <MODEL>        Override the Codex model (default: $SPEC_AUDIT_MODEL or gpt-5.4)
+  --model <MODEL>        Override the Codex model (default: $SPEC_AUDIT_MODEL or gpt-5.5)
   --reasoning-effort <LEVEL>
-                         Override Codex reasoning effort (default: $SPEC_AUDIT_REASONING_EFFORT or high)
+                         Override Codex reasoning effort (default: $SPEC_AUDIT_REASONING_EFFORT or xhigh)
   --profile <PROFILE>    Optional Codex profile to pass to each exec call
   -h, --help             Show this help and exit
 
@@ -280,8 +280,8 @@ $script:Once = $false
 $script:RecoverStaleInProgress = $false
 $script:RecoverRowLine = ''
 $script:MaxIterations = if ($env:SPEC_AUDIT_MAX_ITERATIONS) { $env:SPEC_AUDIT_MAX_ITERATIONS } else { '0' }
-$script:Model = if ($env:SPEC_AUDIT_MODEL) { $env:SPEC_AUDIT_MODEL } else { 'gpt-5.4' }
-$script:ReasoningEffort = if ($env:SPEC_AUDIT_REASONING_EFFORT) { $env:SPEC_AUDIT_REASONING_EFFORT } else { 'high' }
+$script:Model = if ($env:SPEC_AUDIT_MODEL) { $env:SPEC_AUDIT_MODEL } else { 'gpt-5.5' }
+$script:ReasoningEffort = if ($env:SPEC_AUDIT_REASONING_EFFORT) { $env:SPEC_AUDIT_REASONING_EFFORT } else { 'xhigh' }
 $script:Profile = if ($env:SPEC_AUDIT_PROFILE) { $env:SPEC_AUDIT_PROFILE } else { '' }
 
 $cliArgs = @($args)
@@ -773,6 +773,16 @@ function Build-IterationPrompt {
         '- Ignore rows whose `implemented` value is `in_progress`; those rows are already assigned.',
         '- All changes for this row are isolated in the assigned worktree above.',
         '- The launcher is the sole owner of validation after your row-item commit is created.',
+        '- Do not use temporary fixes, fallbacks, wrappers, shims, stubs, placeholders, compatibility shortcuts, or avoidance of the correct compiler work. A row fix must be the durable, spec-aligned implementation.',
+        '- If implementing the selected row exposes another spec conformance issue that is required for this row to work correctly, fix that issue as part of the same row result instead of working around it. Only treat an issue as unrelated when it is not required for the selected row''s correct implementation, tests, lowering, codegen, runtime behavior, or diagnostics.',
+        '- Do not mark a row complete if any part of its implementation or proof relies on a fallback path, placeholder behavior, temporary accommodation, or intentionally incomplete compiler behavior.',
+        '- Add or extend comprehensive row-specific coverage in `HelloCursive` that would have failed before the fix.',
+        '- All executable regression tests for updated rows must live under the `HelloCursive` project. Do not add new row-specific tests outside `HelloCursive`.',
+        '- A single sentinel fixture is not enough for a row fix unless the row has only one observable behavior. Cover the full affected behavior surface: positive acceptance, negative/diagnostic rejection, default/edge cases, cross-module or generic variants, conformance-trace evidence, and runtime/semantic assertions as applicable.',
+        '- Follow the existing `HelloCursive` organization and style: place runtime/semantic/conformance exercises in the relevant feature assembly/module and route them into the full `HelloCursive` executable; place compiler-diagnostic fixtures under `HelloCursive/TestProjects/...`; expose compile-time negative/diagnostic checks through `HelloCursive/CompileChecks` when the expected result is a compiler diagnostic.',
+        '- Include lowering/codegen/runtime coverage when the row can affect lowered representation, generated layout, emitted calls, dispatch, or runtime behavior. If a stage truly cannot be affected by the row, state that explicitly in `SPEC_AUDIT_NOTE` and in the commit body.',
+        '- Prefer extending existing feature routers, compile-check groups, generated-check style, and runtime log comparison style over inventing a new test shape.',
+        '- Name the exact `HelloCursive` test files/functions, stage coverage, and pre-fix failure mechanisms in `SPEC_AUDIT_NOTE` and in the commit `Tested:` trailer.',
         '- Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.',
         '- Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `CompileChecks/Main.cursive`, `CompileChecks/build/compilechecks/bin/compilechecks.exe`, `setup_extern.ps1`, or any equivalent command from the worktree.',
         '- Do not create or rely on worktree-local `build/`, `extern/`, or other generated validation artifacts.',
@@ -837,8 +847,13 @@ function Build-FailureRetryPrompt {
         '- Do not switch to a different row.',
         '- Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.',
         '- If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.',
+        '- Keep or add comprehensive row-specific regression coverage in `HelloCursive` only, following the existing full-executable feature module / `TestProjects` / `CompileChecks` structure and style.',
+        '- If launcher verification failed because the row proof was missing or misplaced, add the missing `HelloCursive` test and name it in `SPEC_AUDIT_NOTE` plus the commit `Tested:` trailer.',
+        '- If launcher verification failed during full logged `HelloCursive` build, run, or runtime log validation, fix the row coverage or implementation so the whole project remains a complete conformance regression suite.',
         '- Fix only the issues surfaced by the launcher-side verification failure below.',
-        '- Keep retry edits scoped to the selected row. If the failure is unrelated to the selected row, report `SPEC_AUDIT_STATUS: blocked`.',
+        '- Do not use temporary fixes, fallbacks, wrappers, shims, stubs, placeholders, compatibility shortcuts, or avoidance of the correct compiler work. Fix the root conformance or compiler-quality issue.',
+        '- If launcher verification surfaces another spec conformance issue required for this selected row to be correct, fix that issue as part of this retry instead of working around it. Only treat a failure as unrelated when it is not required for the selected row''s correct implementation, tests, lowering, codegen, runtime behavior, or diagnostics.',
+        '- Keep retry edits scoped to the selected row and row-required corollary conformance fixes. If the failure is unrelated to the selected row under that definition, report `SPEC_AUDIT_STATUS: blocked`.',
         '- Create exactly one new follow-up commit in the same assigned worktree for this retry turn, then end.',
         '- End with the same `SPEC_AUDIT_STATUS`, `SPEC_AUDIT_ITEM`, and `SPEC_AUDIT_NOTE` footer lines as usual.',
         '',
@@ -1629,6 +1644,79 @@ function Run-MainRepoWindowsBuild {
             Pop-Location
         }
 
+        Push-Location $helloDir
+        try {
+            $helloRuntimeLogDir = Join-Path $helloDir 'build\main\logs\runtime'
+            New-Item -ItemType Directory -Force -Path $helloRuntimeLogDir | Out-Null
+            $helloRuntimeLog = Join-Path $helloRuntimeLogDir 'spec-audit-runtime-validation.log'
+            Remove-Item -LiteralPath $helloRuntimeLog -Force -ErrorAction SilentlyContinue
+
+            'COMMAND_LABEL=hello-cursive-full-build' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            "HelloCursiveCompilerPath=$compilerPath" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            "HelloCursiveRuntimeLog=$helloRuntimeLog" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            $previousEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                $null = & $compilerPath --incremental off --diag-json --quiet --log-file $helloRuntimeLog 'Main\Main.cursive' 2>&1 |
+                    Tee-Object -FilePath $script:MainBuildLogFile -Append
+                $helloFullBuildExitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousEap
+            }
+            "COMMAND_EXIT=$helloFullBuildExitCode" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            if ($helloFullBuildExitCode -ne 0) {
+                'FAILED_COMMAND_LABEL=hello-cursive-full-build' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                return $false
+            }
+
+            $helloMainExe = Join-Path $helloDir 'build\main\bin\main.exe'
+            if (-not (Test-Path -LiteralPath $helloMainExe)) {
+                'FAILED_COMMAND_LABEL=hello-cursive-full-exe' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                return $false
+            }
+
+            'COMMAND_LABEL=hello-cursive-full-run' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            $null = & $helloMainExe 2>&1 | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            $helloFullRunExitCode = $LASTEXITCODE
+            "COMMAND_EXIT=$helloFullRunExitCode" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            if ($helloFullRunExitCode -ne 0) {
+                'FAILED_COMMAND_LABEL=hello-cursive-full-run' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                return $false
+            }
+
+            'COMMAND_LABEL=hello-cursive-full-log-validate' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            if (-not (Test-Path -LiteralPath $helloRuntimeLog)) {
+                'FAILED_COMMAND_LABEL=hello-cursive-full-log-missing' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                return $false
+            }
+
+            $helloRuntimeLogText = Get-Content -LiteralPath $helloRuntimeLog -Raw -ErrorAction Stop
+            $helloRuntimeLogLines = if ([string]::IsNullOrEmpty($helloRuntimeLogText)) {
+                0
+            } else {
+                ($helloRuntimeLogText -split "`r?`n").Count
+            }
+            $helloRuntimeCmpPass = [regex]::Matches($helloRuntimeLogText, 'cmp(?:=|%3D)pass').Count
+            $helloRuntimeCmpFail = [regex]::Matches($helloRuntimeLogText, 'cmp(?:=|%3D)fail').Count
+            $helloRuntimeErrorLines = [regex]::Matches($helloRuntimeLogText, '(?im)(?:level(?:=|%3D)error|\[error\])').Count
+            "HelloCursiveRuntimeLog=$helloRuntimeLog" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            "HelloCursiveRuntimeLogLines=$helloRuntimeLogLines" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            "HelloCursiveRuntimeCmpPass=$helloRuntimeCmpPass" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            "HelloCursiveRuntimeCmpFail=$helloRuntimeCmpFail" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            "HelloCursiveRuntimeErrorLines=$helloRuntimeErrorLines" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            $helloRuntimeValidationExit = 0
+            if ($helloRuntimeLogLines -le 0 -or $helloRuntimeCmpPass -le 0 -or $helloRuntimeCmpFail -ne 0 -or $helloRuntimeErrorLines -ne 0) {
+                $helloRuntimeValidationExit = 1
+            }
+            "COMMAND_EXIT=$helloRuntimeValidationExit" | Tee-Object -FilePath $script:MainBuildLogFile -Append
+            if ($helloRuntimeValidationExit -ne 0) {
+                'FAILED_COMMAND_LABEL=hello-cursive-full-log-validate' | Tee-Object -FilePath $script:MainBuildLogFile -Append
+                return $false
+            }
+        } finally {
+            Pop-Location
+        }
+
         return $true
     } finally {
         Pop-Location
@@ -1693,7 +1781,7 @@ function Integrate-VerifiedCommitIntoMainRepo {
 
     Add-Content -LiteralPath $script:CommitMessageFile -Value ''
     Add-Content -LiteralPath $script:CommitMessageFile -Value ("Tested: cmake --build --preset $($script:WindowsPreset) --target $($script:WindowsTarget)")
-    Add-Content -LiteralPath $script:CommitMessageFile -Value ("Tested: HelloCursive/CompileChecks compilechecks.exe -CompilerPath $($script:VerifiedCompilerPath)")
+    Add-Content -LiteralPath $script:CommitMessageFile -Value ("Tested: Windows build; HelloCursive/CompileChecks build/run; full logged HelloCursive build/run with runtime log validation -CompilerPath $($script:VerifiedCompilerPath)")
 
     Update-ClaimLedgerStage 'staging' 'staging verified main-repo changes'
     try {

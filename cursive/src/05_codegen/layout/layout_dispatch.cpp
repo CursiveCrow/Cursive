@@ -1044,6 +1044,14 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
     SPEC_RULE("Size-Slice");
     return 2 * kPtrSize;
   }
+  if (const auto async_sig = cursive::analysis::AsyncSigOf(ctx, type)) {
+    SPEC_RULE("Size-Async");
+    const auto layout = AsyncLayoutFromSig(ctx, *async_sig);
+    if (!layout.has_value()) {
+      return std::nullopt;
+    }
+    return layout->size;
+  }
   if (const auto* str = std::get_if<cursive::analysis::TypeString>(&type->node)) {
     if (!str->state.has_value()) {
       SPEC_RULE("Size-String-Modal");
@@ -1124,11 +1132,14 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
     }
     return layout->size;
   }
-  if (const auto* path = std::get_if<cursive::analysis::TypePathType>(&type->node)) {
-    if (IsRuntimeHandleModalPath(path->path)) {
+  if (const auto* path = cursive::analysis::AppliedTypePath(*type)) {
+    const auto* generic_args = cursive::analysis::AppliedTypeArgs(*type);
+    const std::vector<cursive::analysis::TypeRef> empty_args;
+    const auto& args = generic_args ? *generic_args : empty_args;
+    if (IsRuntimeHandleModalPath(*path)) {
       return kPtrSize;
     }
-    const auto it = ctx.sigma.types.find(path->path);
+    const auto it = ctx.sigma.types.find(*path);
     if (it == ctx.sigma.types.end()) {
       return std::nullopt;
     }
@@ -1165,7 +1176,7 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
       cursive::analysis::TypeRef inst = *lowered;
       if (alias->generic_params &&
           !alias->generic_params->params.empty()) {
-        const auto subst = BuildDeclSubstitution(alias->generic_params, path->generic_args);
+        const auto subst = BuildDeclSubstitution(alias->generic_params, args);
         if (!subst.has_value()) {
           return std::nullopt;
         }
@@ -1227,6 +1238,14 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
   if (std::holds_alternative<cursive::analysis::TypeSlice>(type->node)) {
     SPEC_RULE("Align-Slice");
     return kPtrAlign;
+  }
+  if (const auto async_sig = cursive::analysis::AsyncSigOf(ctx, type)) {
+    SPEC_RULE("Align-Async");
+    const auto layout = AsyncLayoutFromSig(ctx, *async_sig);
+    if (!layout.has_value()) {
+      return std::nullopt;
+    }
+    return layout->align;
   }
   if (const auto* str = std::get_if<cursive::analysis::TypeString>(&type->node)) {
     if (!str->state.has_value()) {
@@ -1304,11 +1323,14 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
     }
     return layout->align;
   }
-  if (const auto* path = std::get_if<cursive::analysis::TypePathType>(&type->node)) {
-    if (IsRuntimeHandleModalPath(path->path)) {
+  if (const auto* path = cursive::analysis::AppliedTypePath(*type)) {
+    const auto* generic_args = cursive::analysis::AppliedTypeArgs(*type);
+    const std::vector<cursive::analysis::TypeRef> empty_args;
+    const auto& args = generic_args ? *generic_args : empty_args;
+    if (IsRuntimeHandleModalPath(*path)) {
       return kPtrAlign;
     }
-    const auto it = ctx.sigma.types.find(path->path);
+    const auto it = ctx.sigma.types.find(*path);
     if (it == ctx.sigma.types.end()) {
       return std::nullopt;
     }
@@ -1345,7 +1367,7 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
       cursive::analysis::TypeRef inst = *lowered;
       if (alias->generic_params &&
           !alias->generic_params->params.empty()) {
-        const auto subst = BuildDeclSubstitution(alias->generic_params, path->generic_args);
+        const auto subst = BuildDeclSubstitution(alias->generic_params, args);
         if (!subst.has_value()) {
           return std::nullopt;
         }

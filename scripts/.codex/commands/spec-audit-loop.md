@@ -1,5 +1,5 @@
 ---
-description: "Fix one audited spec-conformance item in an assigned worktree, add row proof, and stop for launcher integration."
+description: "Fix one audited spec-conformance item in an assigned worktree, add comprehensive HelloCursive proof, and stop for launcher integration."
 ---
 
 Work one audit item at a time.
@@ -21,8 +21,16 @@ Execution contract:
    - Your correction must be *complete and comprehensive*, maintaining extremely high code quality standards for correctness, cleanliness, and performance.
    - Any new files must adhere to the project's organization schema.
    - Your fix must not introduce alternative or further spec deviation.
-9. Add or extend the smallest HelloCursive or static-conformance test that would have failed before the fix.
-   - Name the exact test file/function in your final `SPEC_AUDIT_NOTE`.
+   - Do not use temporary fixes, fallbacks, wrappers, shims, stubs, placeholders, compatibility shortcuts, or avoidance of the correct compiler work. A row fix must be the durable, spec-aligned implementation.
+   - If implementing the selected row exposes another spec conformance issue that is required for this row to work correctly, fix that issue as part of the same row result instead of working around it. Only treat an issue as unrelated when it is not required for the selected row's correct implementation, tests, lowering, codegen, runtime behavior, or diagnostics.
+   - Do not mark a row complete if any part of its implementation or proof relies on a fallback path, placeholder behavior, temporary accommodation, or intentionally incomplete compiler behavior.
+9. Add or extend comprehensive row-specific coverage in `HelloCursive` that would have failed before the fix.
+   - All executable regression tests for updated rows must live under the `HelloCursive` project. Do not add new row-specific tests outside `HelloCursive`.
+   - A single sentinel fixture is not enough for a row fix unless the row has only one observable behavior. Cover the full affected behavior surface: positive acceptance, negative/diagnostic rejection, default/edge cases, cross-module or generic variants, conformance-trace evidence, and runtime/semantic assertions as applicable.
+   - Follow the existing `HelloCursive` organization and style: place runtime/semantic/conformance exercises in the relevant feature assembly/module and route them into the full `HelloCursive` executable; place compiler-diagnostic fixtures under `HelloCursive/TestProjects/...`; expose compile-time negative/diagnostic checks through `HelloCursive/CompileChecks` when the expected result is a compiler diagnostic.
+   - Include lowering/codegen/runtime coverage when the row can affect lowered representation, generated layout, emitted calls, dispatch, or runtime behavior. If a stage truly cannot be affected by the row, state that explicitly in `SPEC_AUDIT_NOTE` and in the commit body.
+   - Prefer extending existing feature routers, compile-check groups, generated-check style, and runtime log comparison style over inventing a new test shape.
+   - Name the exact `HelloCursive` test files/functions and stage coverage in your final `SPEC_AUDIT_NOTE`.
    - Explain the pre-fix failure mechanism in your final `SPEC_AUDIT_NOTE` and commit `Tested:` trailer.
    - For heading-only or ambiguous rows, explain why executable proof is not appropriate.
 10. Multiple audit agents may be active at once.
@@ -51,9 +59,10 @@ Execution contract:
 15. The launcher is the sole owner of verification.
 16. The launcher will verify the row after integrating your committed row result by running:
     - `cmake --build --preset windows-debug --target cursive_out`
-    - `HelloCursive/RunHelloCursive.ps1 -CompilerPath <freshly built compiler>`
+    - `HelloCursive/CompileChecks` build and `CompileChecks/build/compilechecks/bin/compilechecks.exe` with `CURSIVE_COMPILER_UNDER_TEST=<freshly built compiler>`
+    - full `HelloCursive` build with runtime logging enabled, full `HelloCursive/build/main/bin/main.exe` execution, and runtime log validation that rejects compare failures or error-level entries
 17. If you believe the row cannot survive that existing launcher-owned verification, treat the row as blocked and explain why in `SPEC_AUDIT_NOTE`.
-18. Create exactly one git commit for this worker turn. The commit message must identify which audit item was corrected, follow the repository Lore commit protocol, and include a `Tested:` trailer naming the row-specific test file/function plus the pre-fix failure mechanism it proves.
+18. Create exactly one git commit for this worker turn. The commit message must identify which audit item was corrected, follow the repository Lore commit protocol, and include a `Tested:` trailer naming the `HelloCursive` row-specific test files/functions, the stage coverage they provide, and the pre-fix failure mechanisms they prove.
 19. End the final response with exactly these trailing status lines and nothing after them:
    - `SPEC_AUDIT_STATUS: continue` when one item was fixed and verified, or when an ambiguity was recorded and the launcher should integrate the row result and move to the next row
    - `SPEC_AUDIT_STATUS: complete` when the selected row item was fixed and verified and no remaining actionable row exists outside `{complete, ambiguous, in_progress}`
@@ -61,4 +70,4 @@ Execution contract:
    - `SPEC_AUDIT_ITEM: <rule name> @ <spec location>` or `SPEC_AUDIT_ITEM: none`
    - `SPEC_AUDIT_NOTE: <single-line summary>`
 
-Do not claim completion unless the row item is committed and ready for launcher-side main-repo Windows build and HelloCursive verification.
+Do not claim completion unless the row item is committed and ready for launcher-side main-repo Windows build plus full logged HelloCursive conformance verification.

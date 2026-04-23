@@ -2946,6 +2946,24 @@ namespace cursive::codegen
 
     llvm::Type *ll_ty = nullptr;
 
+    if (current_ctx_ && current_ctx_->sigma)
+    {
+      const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+      if (const auto async_sig = analysis::AsyncSigOf(scope, type))
+      {
+        SPEC_RULE("LLVMTy-Async");
+        std::vector<analysis::TypeRef> async_args;
+        async_args.reserve(4);
+        async_args.push_back(async_sig->out);
+        async_args.push_back(async_sig->in);
+        async_args.push_back(async_sig->result);
+        async_args.push_back(async_sig->err);
+        ll_ty = BuildAsyncLLVMType(*this, async_args);
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+    }
+
     if (const auto *prim = std::get_if<analysis::TypePrim>(&type->node))
     {
       SPEC_RULE("LLVMTy-Prim");
@@ -15108,16 +15126,16 @@ namespace cursive::codegen
             }
             return analysis::LookupModalDecl(scope, state->path);
           }
-          const auto *path = std::get_if<analysis::TypePathType>(&type->node);
+          const auto *path = analysis::AppliedTypePath(*type);
           if (!path)
           {
             return nullptr;
           }
           if (out_path)
           {
-            *out_path = path->path;
+            *out_path = *path;
           }
-          return analysis::LookupModalDecl(scope, path->path);
+          return analysis::LookupModalDecl(scope, *path);
         };
 
         auto find_modal_state = [](const ast::ModalDecl &decl,
@@ -15898,17 +15916,19 @@ namespace cursive::codegen
                           ? std::get_if<analysis::TypeModalState>(&stripped_subject->node)
                           : nullptr;
                   const auto *subject_modal_path =
-                      stripped_subject
-                          ? std::get_if<analysis::TypePathType>(&stripped_subject->node)
-                          : nullptr;
+                      stripped_subject ? analysis::AppliedTypePath(*stripped_subject)
+                                       : nullptr;
+                  const auto *subject_modal_path_args =
+                      stripped_subject ? analysis::AppliedTypeArgs(*stripped_subject)
+                                       : nullptr;
                   std::vector<analysis::TypeRef> subject_modal_args;
                   if (subject_modal_state)
                   {
                     subject_modal_args = subject_modal_state->generic_args;
                   }
-                  else if (subject_modal_path)
+                  else if (subject_modal_path && subject_modal_path_args)
                   {
-                    subject_modal_args = subject_modal_path->generic_args;
+                    subject_modal_args = *subject_modal_path_args;
                   }
                   const auto modal_layout = ModalLayoutOf(scope, *modal_decl, subject_modal_args);
                   const bool subject_is_modal_state = (subject_modal_state != nullptr);
@@ -20997,14 +21017,27 @@ namespace cursive::codegen
       }
     }
     llvm::Type *source_llvm_ty = source_type ? GetLLVMType(source_type) : nullptr;
+    IRBindVar bind_for_slot = bind;
+    if (!bind_for_slot.type && source_type)
+    {
+      bind_for_slot.type = source_type;
+    }
     std::optional<BindSlot> bind_slot_info;
     if (current_ctx_)
     {
-      bind_slot_info = ResolveBindSlot(bind, *current_ctx_);
+      bind_slot_info = ResolveBindSlot(bind_for_slot, *current_ctx_);
       if (!bind_slot_info.has_value())
       {
-        current_ctx_->ReportCodegenFailure();
-        return;
+        if (!ty || ty->isVoidTy())
+        {
+          current_ctx_->ReportCodegenFailure();
+          return;
+        }
+        BindSlot fallback_slot;
+        fallback_slot.kind = BindSlot::Kind::Alloca;
+        fallback_slot.name = bind.name;
+        fallback_slot.type = bind_for_slot.type;
+        bind_slot_info = std::move(fallback_slot);
       }
     }
     if (async_state_ && async_state_->info &&

@@ -689,6 +689,34 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     return false;
   };
 
+  auto implicit_panic_out_arg = [&]() -> llvm::Value* {
+    llvm::Value* slot = emitter.GetLocal(std::string(kPanicOutName));
+    if (!slot) {
+      if (llvm::Value* hosted = emitter.GetHostedSessionPanicPtr()) {
+        return hosted;
+      }
+      llvm::Function* current_func =
+          builder->GetInsertBlock() ? builder->GetInsertBlock()->getParent() : nullptr;
+      llvm::Type* panic_ty = emitter.GetLLVMType(PanicRecordType());
+      if (!current_func || !panic_ty) {
+        return nullptr;
+      }
+      llvm::IRBuilder<> entry_builder(&current_func->getEntryBlock(),
+                                      current_func->getEntryBlock().begin());
+      llvm::AllocaInst* panic_record =
+          entry_builder.CreateAlloca(panic_ty, nullptr, "__c0_implicit_panic_record");
+      builder->CreateStore(llvm::Constant::getNullValue(panic_ty), panic_record);
+      return panic_record;
+    }
+    if (auto* alloca = llvm::dyn_cast<llvm::AllocaInst>(slot)) {
+      return builder->CreateLoad(alloca->getAllocatedType(), alloca);
+    }
+    if (!slot->getType()->isPointerTy()) {
+      return nullptr;
+    }
+    return builder->CreateLoad(emitter.GetOpaquePtr(), slot);
+  };
+
   auto recover_pointer_value_arg = [&](std::size_t index,
                                        llvm::Type* target_ty) -> llvm::Value* {
     if (!source_args || index >= source_args->size()) {
@@ -800,11 +828,14 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     }
 
     unsigned idx = *abi.param_indices[i];
-    if (idx >= call_args.size() || i >= args.size()) {
+    if (idx >= call_args.size()) {
       continue;
     }
 
-    llvm::Value* arg = args[i];
+    llvm::Value* arg = i < args.size() ? args[i] : nullptr;
+    if (!arg && params[i].name == std::string(kPanicOutName)) {
+      arg = implicit_panic_out_arg();
+    }
     if (!arg) {
       continue;
     }
@@ -934,6 +965,18 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
   // Every emitted LLVM parameter must be materialized explicitly. If a slot is
   // still missing here, the lowered call signature is undefined.
   for (std::size_t i = 0; i < call_args.size(); ++i) {
+    if (!call_args[i]) {
+      for (std::size_t param_index = 0; param_index < params.size(); ++param_index) {
+        if (param_index >= abi.param_indices.size() ||
+            !abi.param_indices[param_index].has_value() ||
+            *abi.param_indices[param_index] != i ||
+            params[param_index].name != std::string(kPanicOutName)) {
+          continue;
+        }
+        call_args[i] = implicit_panic_out_arg();
+        break;
+      }
+    }
     if (!call_args[i]) {
       report_codegen_failure("missing-call-arg", i);
       return nullptr;

@@ -15,9 +15,9 @@ Options:
   --recover-stale-in-progress
                          Recover exactly one in_progress row when used with --row-line
   --row-line <N>         CSV logical line to recover with --recover-stale-in-progress
-  --model <MODEL>        Override the Codex model (default: $SPEC_AUDIT_MODEL or gpt-5.4)
+  --model <MODEL>        Override the Codex model (default: $SPEC_AUDIT_MODEL or gpt-5.5)
   --reasoning-effort <LEVEL>
-                         Override Codex reasoning effort (default: $SPEC_AUDIT_REASONING_EFFORT or high)
+                         Override Codex reasoning effort (default: $SPEC_AUDIT_REASONING_EFFORT or xhigh)
   --profile <PROFILE>    Optional Codex profile to pass to each exec call
   -h, --help             Show this help and exit
 
@@ -45,8 +45,8 @@ ONCE=0
 RECOVER_STALE_IN_PROGRESS=0
 RECOVER_ROW_LINE=""
 MAX_ITERATIONS="${SPEC_AUDIT_MAX_ITERATIONS:-0}"
-MODEL="${SPEC_AUDIT_MODEL:-gpt-5.4}"
-REASONING_EFFORT="${SPEC_AUDIT_REASONING_EFFORT:-high}"
+MODEL="${SPEC_AUDIT_MODEL:-gpt-5.5}"
+REASONING_EFFORT="${SPEC_AUDIT_REASONING_EFFORT:-xhigh}"
 PROFILE="${SPEC_AUDIT_PROFILE:-}"
 
 log() {
@@ -83,6 +83,18 @@ to_windows_path() {
 
 run_windows_powershell() {
   local script="$1"
+  if command -v powershell.exe >/dev/null 2>&1 &&
+    powershell.exe -NoProfile -Command '$PSVersionTable.PSVersion.ToString()' >/dev/null 2>&1; then
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$script"
+    return
+  fi
+
+  local system_powershell="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+  if [[ -x /init && -f "$system_powershell" ]]; then
+    /init "$system_powershell" powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$script"
+    return
+  fi
+
   require_cmd powershell.exe
   powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$script"
 }
@@ -642,6 +654,16 @@ Iteration instruction:
 - Ignore rows whose `implemented` value is `in_progress`; those rows are already assigned.
 - All changes for this row are isolated in the assigned worktree above.
 - The launcher is the sole owner of validation after your row-item commit is created.
+- Do not use temporary fixes, fallbacks, wrappers, shims, stubs, placeholders, compatibility shortcuts, or avoidance of the correct compiler work. A row fix must be the durable, spec-aligned implementation.
+- If implementing the selected row exposes another spec conformance issue that is required for this row to work correctly, fix that issue as part of the same row result instead of working around it. Only treat an issue as unrelated when it is not required for the selected row's correct implementation, tests, lowering, codegen, runtime behavior, or diagnostics.
+- Do not mark a row complete if any part of its implementation or proof relies on a fallback path, placeholder behavior, temporary accommodation, or intentionally incomplete compiler behavior.
+- Add or extend comprehensive row-specific coverage in `HelloCursive` that would have failed before the fix.
+- All executable regression tests for updated rows must live under the `HelloCursive` project. Do not add new row-specific tests outside `HelloCursive`.
+- A single sentinel fixture is not enough for a row fix unless the row has only one observable behavior. Cover the full affected behavior surface: positive acceptance, negative/diagnostic rejection, default/edge cases, cross-module or generic variants, conformance-trace evidence, and runtime/semantic assertions as applicable.
+- Follow the existing `HelloCursive` organization and style: place runtime/semantic/conformance exercises in the relevant feature assembly/module and route them into the full `HelloCursive` executable; place compiler-diagnostic fixtures under `HelloCursive/TestProjects/...`; expose compile-time negative/diagnostic checks through `HelloCursive/CompileChecks` when the expected result is a compiler diagnostic.
+- Include lowering/codegen/runtime coverage when the row can affect lowered representation, generated layout, emitted calls, dispatch, or runtime behavior. If a stage truly cannot be affected by the row, state that explicitly in `SPEC_AUDIT_NOTE` and in the commit body.
+- Prefer extending existing feature routers, compile-check groups, generated-check style, and runtime log comparison style over inventing a new test shape.
+- Name the exact `HelloCursive` test files/functions, stage coverage, and pre-fix failure mechanisms in `SPEC_AUDIT_NOTE` and in the commit `Tested:` trailer.
 - Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.
 - Do not run `cmake`, `ctest`, `ninja`, `make`, `gmake`, `msbuild`, `scripts/build_cursive_all.sh`, `CompileChecks/Main.cursive`, `CompileChecks/build/compilechecks/bin/compilechecks.exe`, `setup_extern.ps1`, or any equivalent command from the worktree.
 - Do not create or rely on worktree-local `build/`, `extern/`, or other generated validation artifacts.
@@ -727,8 +749,13 @@ Rules for this retry:
 - Do not switch to a different row.
 - Do not run any build, configure, test, package, bootstrap, or verification command from the assigned worktree.
 - If you invoke Python from a shell command, use `python3`; this environment does not guarantee a `python` alias.
+- Keep or add comprehensive row-specific regression coverage in `HelloCursive` only, following the existing full-executable feature module / `TestProjects` / `CompileChecks` structure and style.
+- If launcher verification failed because the row proof was missing or misplaced, add the missing `HelloCursive` test and name it in `SPEC_AUDIT_NOTE` plus the commit `Tested:` trailer.
+- If launcher verification failed during full logged `HelloCursive` build, run, or runtime log validation, fix the row coverage or implementation so the whole project remains a complete conformance regression suite.
 - Fix only the issues surfaced by the launcher-side verification failure below.
-- Keep retry edits scoped to the selected row. If the failure is unrelated to the selected row, report `SPEC_AUDIT_STATUS: blocked`.
+- Do not use temporary fixes, fallbacks, wrappers, shims, stubs, placeholders, compatibility shortcuts, or avoidance of the correct compiler work. Fix the root conformance or compiler-quality issue.
+- If launcher verification surfaces another spec conformance issue required for this selected row to be correct, fix that issue as part of this retry instead of working around it. Only treat a failure as unrelated when it is not required for the selected row's correct implementation, tests, lowering, codegen, runtime behavior, or diagnostics.
+- Keep retry edits scoped to the selected row and row-required corollary conformance fixes. If the failure is unrelated to the selected row under that definition, report `SPEC_AUDIT_STATUS: blocked`.
 - Create exactly one new follow-up commit in the same assigned worktree for this retry turn, then end.
 - End with the same `SPEC_AUDIT_STATUS`, `SPEC_AUDIT_ITEM`, and `SPEC_AUDIT_NOTE` footer lines as usual.
 
@@ -1421,16 +1448,16 @@ Write-Host \"CompilerPath=\$compilerPath\"
 Write-Host \"CompilerLastWriteTimeUtc=\$([DateTime]::SpecifyKind(\$compilerInfo.LastWriteTimeUtc, [DateTimeKind]::Utc).ToString('o'))\"
 Set-Location (Join-Path '$(escape_powershell_literal "$hello_dir_windows")' 'CompileChecks')
 \$compileChecksDir = (Get-Location).Path
-Write-Host "COMMAND_LABEL=hello-cursive-compilechecks-build"
-Write-Host "HelloCursiveCompilerPath=\$compilerPath"
+Write-Host \"COMMAND_LABEL=hello-cursive-compilechecks-build\"
+Write-Host \"HelloCursiveCompilerPath=\$compilerPath\"
 & \$compilerPath --incremental off --diag-json --quiet Main.cursive
 \$helloBuildExit = \$LASTEXITCODE
-Write-Host "COMMAND_EXIT=\$helloBuildExit"
+Write-Host \"COMMAND_EXIT=\$helloBuildExit\"
 if (\$helloBuildExit -ne 0) {
     Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-compilechecks-build'
     exit \$helloBuildExit
 }
-Write-Host "COMMAND_LABEL=hello-cursive-compilechecks-run"
+Write-Host \"COMMAND_LABEL=hello-cursive-compilechecks-run\"
 \$compileChecksExe = Join-Path \$compileChecksDir 'build\compilechecks\bin\compilechecks.exe'
 \$previousCompilerUnderTest = \$env:CURSIVE_COMPILER_UNDER_TEST
 \$env:CURSIVE_COMPILER_UNDER_TEST = \$compilerPath
@@ -1444,11 +1471,64 @@ try {
         \$env:CURSIVE_COMPILER_UNDER_TEST = \$previousCompilerUnderTest
     }
 }
-Write-Host "COMMAND_EXIT=\$helloExit"
+Write-Host \"COMMAND_EXIT=\$helloExit\"
 if (\$helloExit -ne 0) {
     Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-compilechecks-run'
     exit \$helloExit
 }
+Set-Location '$(escape_powershell_literal "$hello_dir_windows")'
+\$helloRuntimeLogDir = Join-Path '$(escape_powershell_literal "$hello_dir_windows")' 'build\main\logs\runtime'
+New-Item -ItemType Directory -Force -Path \$helloRuntimeLogDir | Out-Null
+\$helloRuntimeLog = Join-Path \$helloRuntimeLogDir 'spec-audit-runtime-validation.log'
+Remove-Item -LiteralPath \$helloRuntimeLog -Force -ErrorAction SilentlyContinue
+Write-Host 'COMMAND_LABEL=hello-cursive-full-build'
+Write-Host \"HelloCursiveCompilerPath=\$compilerPath\"
+Write-Host \"HelloCursiveRuntimeLog=\$helloRuntimeLog\"
+& \$compilerPath --incremental off --diag-json --quiet --log-file \$helloRuntimeLog 'Main\Main.cursive'
+\$helloFullBuildExit = \$LASTEXITCODE
+Write-Host \"COMMAND_EXIT=\$helloFullBuildExit\"
+if (\$helloFullBuildExit -ne 0) {
+    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-full-build'
+    exit \$helloFullBuildExit
+}
+\$helloMainExe = Join-Path '$(escape_powershell_literal "$hello_dir_windows")' 'build\main\bin\main.exe'
+if (-not (Test-Path -LiteralPath \$helloMainExe)) {
+    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-full-exe'
+    exit 1
+}
+Write-Host 'COMMAND_LABEL=hello-cursive-full-run'
+& \$helloMainExe
+\$helloFullRunExit = \$LASTEXITCODE
+Write-Host \"COMMAND_EXIT=\$helloFullRunExit\"
+if (\$helloFullRunExit -ne 0) {
+    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-full-run'
+    exit \$helloFullRunExit
+}
+Write-Host 'COMMAND_LABEL=hello-cursive-full-log-validate'
+if (-not (Test-Path -LiteralPath \$helloRuntimeLog)) {
+    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-full-log-missing'
+    exit 1
+}
+\$helloRuntimeLogText = Get-Content -LiteralPath \$helloRuntimeLog -Raw -ErrorAction Stop
+\$helloRuntimeLogLines = if ([string]::IsNullOrEmpty(\$helloRuntimeLogText)) { 0 } else { (\$helloRuntimeLogText -split '\r?\n').Count }
+\$helloRuntimeCmpPass = [regex]::Matches(\$helloRuntimeLogText, 'cmp(?:=|%3D)pass').Count
+\$helloRuntimeCmpFail = [regex]::Matches(\$helloRuntimeLogText, 'cmp(?:=|%3D)fail').Count
+\$helloRuntimeErrorLines = [regex]::Matches(\$helloRuntimeLogText, '(?im)(?:level(?:=|%3D)error|\[error\])').Count
+Write-Host \"HelloCursiveRuntimeLog=\$helloRuntimeLog\"
+Write-Host \"HelloCursiveRuntimeLogLines=\$helloRuntimeLogLines\"
+Write-Host \"HelloCursiveRuntimeCmpPass=\$helloRuntimeCmpPass\"
+Write-Host \"HelloCursiveRuntimeCmpFail=\$helloRuntimeCmpFail\"
+Write-Host \"HelloCursiveRuntimeErrorLines=\$helloRuntimeErrorLines\"
+\$helloRuntimeValidationExit = 0
+if (\$helloRuntimeLogLines -le 0 -or \$helloRuntimeCmpPass -le 0 -or \$helloRuntimeCmpFail -ne 0 -or \$helloRuntimeErrorLines -ne 0) {
+    \$helloRuntimeValidationExit = 1
+}
+Write-Host \"COMMAND_EXIT=\$helloRuntimeValidationExit\"
+if (\$helloRuntimeValidationExit -ne 0) {
+    Write-Host 'FAILED_COMMAND_LABEL=hello-cursive-full-log-validate'
+    exit \$helloRuntimeValidationExit
+}
+"
 
   log "Verifying main-repo Windows build and HelloCursive with configured preset: $WINDOWS_PRESET"
   : > "$main_build_log_file"
@@ -1507,7 +1587,7 @@ integrate_verified_commit_into_main_repo() {
 
   {
     printf '\nTested: cmake --build --preset %s --target %s\n' "$WINDOWS_PRESET" "$WINDOWS_TARGET"
-    printf 'Tested: HelloCursive/CompileChecks compilechecks.exe -CompilerPath %s\n' "$VERIFIED_COMPILER_PATH"
+    printf 'Tested: Windows build; HelloCursive/CompileChecks build/run; full logged HelloCursive build/run with runtime log validation -CompilerPath %s\n' "$VERIFIED_COMPILER_PATH"
   } >> "$commit_message_file"
 
   update_claim_ledger_stage "staging" "staging verified main-repo changes"
