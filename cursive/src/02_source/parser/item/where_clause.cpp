@@ -139,6 +139,15 @@ std::string PredicateReqPayload(const PredicateReq& req) {
   return payload;
 }
 
+std::string PredicateClausePayload(const PredicateClause& predicates) {
+  std::string payload;
+  payload.reserve(96);
+  payload += "ast_node=PredicateClause;representation=list;";
+  payload += "fields=[PredicateReq];span_field=absent;predicate_count=";
+  payload += std::to_string(predicates.size());
+  return payload;
+}
+
 void RecordPredicateReqRule(std::string_view rule_id,
                             const core::Span& span,
                             const PredicateReq& req) {
@@ -146,6 +155,15 @@ void RecordPredicateReqRule(std::string_view rule_id,
     return;
   }
   core::Conformance::Record(rule_id, span, PredicateReqPayload(req));
+}
+
+void RecordPredicateClauseRule(const core::Span& span,
+                               const PredicateClause& predicates) {
+  if (!core::Conformance::Enabled()) {
+    return;
+  }
+  core::Conformance::Record("PredicateClause", span,
+                            PredicateClausePayload(predicates));
 }
 
 bool StartsPredicateReq(Parser parser) {
@@ -240,7 +258,7 @@ ParseElemResult<std::vector<PredicateReq>> ParsePredicateReqListTail(
   return tail;
 }
 
-ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseImpl(Parser parser) {
+ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseImpl(Parser parser) {
   // Skip any newlines before clause start.
   while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
     Advance(parser);
@@ -279,21 +297,20 @@ ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseImpl(Parser pars
   ParseElemResult<std::vector<PredicateReq>> tail =
       ParsePredicateReqListTail(first.parser, std::move(predicates));
 
-  WhereClause clause;
-  clause.predicates = std::move(tail.elem);
   next = tail.parser;
 
-  clause.span = SpanBetween(start, next);
+  PredicateClause clause = std::move(tail.elem);
+  RecordPredicateClauseRule(SpanBetween(start, next), clause);
   return {next, clause};
 }
 
 }  // namespace
 
-ParseElemResult<std::optional<WhereClause>> ParseWhereClauseOpt(Parser parser) {
+ParseElemResult<std::optional<PredicateClause>> ParseWhereClauseOpt(Parser parser) {
   return ParsePredicateClauseImpl(parser);
 }
 
-ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseOpt(
+ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseOpt(
     Parser parser) {
   return ParsePredicateClauseImpl(parser);
 }

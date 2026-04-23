@@ -47,7 +47,7 @@ ParseElemResult<std::shared_ptr<Block>> ParseBlock(Parser parser);
 // Forward declarations for generic params and where clause parsing
 ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(
     Parser parser);
-ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseOpt(
+ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseOpt(
     Parser parser);
 ParseElemResult<AttrOpt> ParseAttributeListOpt(Parser parser);
 ParseElemResult<std::optional<ContractClause>> ParseContractClauseOpt(
@@ -445,7 +445,7 @@ ParseItemResult ParseModalDecl(Parser parser, Visibility vis,
   parser = impls.parser;
 
   // Parse optional predicate clause
-  ParseElemResult<std::optional<WhereClause>> predicate_clause_opt =
+  ParseElemResult<std::optional<PredicateClause>> predicate_clause_opt =
       ParsePredicateClauseOpt(parser);
   parser = predicate_clause_opt.parser;
 

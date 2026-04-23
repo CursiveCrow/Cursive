@@ -60,7 +60,7 @@ namespace cursive::ast
   // Forward declarations for generic params and where clause parsing
   ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(
       Parser parser);
-  ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseOpt(
+  ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseOpt(
       Parser parser);
 
   // Forward declaration from signature.cpp
@@ -587,7 +587,7 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
     parser = impls.parser;
 
     // Parse optional predicate clause
-    ParseElemResult<std::optional<WhereClause>> predicate_clause_opt =
+    ParseElemResult<std::optional<PredicateClause>> predicate_clause_opt =
         ParsePredicateClauseOpt(parser);
     parser = predicate_clause_opt.parser;
 

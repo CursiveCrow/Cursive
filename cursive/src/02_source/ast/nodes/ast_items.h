@@ -21,7 +21,7 @@
 //   ErrorItem     - parse-error sentinel item
 //
 // Supporting structures:
-//   GenericParams, TypeParam, TypeBound, WhereClause, PredicateReq
+//   GenericParams, TypeParam, TypeBound, PredicateClause, PredicateReq
 //   ContractClause, ForeignContractClause, TypeInvariant
 //   Param, Receiver (ReceiverShorthand, ReceiverExplicit)
 //   FieldDecl, MethodDecl, RecordMember
@@ -185,12 +185,8 @@ namespace cursive::ast
         TypePtr type;    // Type being constrained
     };
 
-    // Predicate clause: |: Bitcopy(T), Clone(U)
-    struct WhereClause
-    {
-        std::vector<PredicateReq> predicates;
-        core::Span span;
-    };
+    // Predicate clause: PredicateClause = [PredicateReq]
+    using PredicateClause = std::vector<PredicateReq>;
 
     // ===========================================================================
     // Contract System (C0X Extension)
@@ -242,7 +238,7 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
-        std::optional<WhereClause> predicate_clause_opt;
+        std::optional<PredicateClause> predicate_clause_opt;
         std::vector<Param> params;
         TypePtr return_type_opt; // may be null if not specified
         std::optional<ContractClause> contract;
@@ -292,7 +288,7 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
-        std::optional<WhereClause> where_clause;
+        std::optional<PredicateClause> where_clause;
         std::vector<Param> params;
         TypePtr return_type_opt;
         std::optional<ContractClause> contract;
@@ -360,7 +356,7 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
-        std::optional<WhereClause> predicate_clause_opt;
+        std::optional<PredicateClause> predicate_clause_opt;
         std::vector<ClassPath> implements; // <: implemented classes
         std::vector<RecordMember> members;
         std::optional<TypeInvariant> invariant_opt;
@@ -405,7 +401,7 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
-        std::optional<WhereClause> predicate_clause_opt;
+        std::optional<PredicateClause> predicate_clause_opt;
         std::vector<ClassPath> implements;
         std::vector<VariantDecl> variants;
         std::optional<TypeInvariant> invariant_opt;
@@ -478,7 +474,7 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
-        std::optional<WhereClause> predicate_clause_opt;
+        std::optional<PredicateClause> predicate_clause_opt;
         std::vector<ClassPath> implements;
         std::vector<StateBlock> states;
         std::optional<TypeInvariant> invariant_opt;
@@ -570,7 +566,7 @@ namespace cursive::ast
         bool modal = false; // modal class flag
         Identifier name;
         std::optional<GenericParams> generic_params;
-        std::optional<WhereClause> predicate_clause_opt;
+        std::optional<PredicateClause> predicate_clause_opt;
         std::vector<ClassPath> supers; // <: super classes
         std::vector<ClassItem> items;
         core::Span span;
@@ -589,7 +585,7 @@ namespace cursive::ast
         Visibility vis;
         Identifier name;
         std::optional<GenericParams> generic_params;
-        std::optional<WhereClause> predicate_clause_opt;
+        std::optional<PredicateClause> predicate_clause_opt;
         TypePtr type;
         core::Span span;
         DocList doc;

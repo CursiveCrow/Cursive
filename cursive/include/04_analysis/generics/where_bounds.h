@@ -108,7 +108,7 @@ struct InferredBounds {
 // and class bounds: where T <: Comparable
 WhereParseResult ParseWhereClause(
     const ScopeContext& ctx,
-    const std::optional<ast::WhereClause>& where_opt);
+    const std::optional<ast::PredicateClause>& where_opt);
 
 // =============================================================================
 // Bound Validation Functions

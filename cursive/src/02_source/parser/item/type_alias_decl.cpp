@@ -39,7 +39,7 @@ ParseElemResult<std::shared_ptr<Type>> ParseType(Parser parser);
 // Forward declarations for generic params and where clause parsing
 ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(
     Parser parser);
-ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseOpt(
+ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseOpt(
     Parser parser);
 
 // =============================================================================
@@ -76,7 +76,7 @@ ParseItemResult ParseTypeAliasDecl(Parser parser, Visibility vis,
   parser = gen_params.parser;
 
   // Parse optional predicate clause (constraints on generic parameters)
-  ParseElemResult<std::optional<WhereClause>> predicate_clause_opt =
+  ParseElemResult<std::optional<PredicateClause>> predicate_clause_opt =
       ParsePredicateClauseOpt(parser);
   parser = predicate_clause_opt.parser;
 

@@ -48,7 +48,7 @@ namespace cursive::ast
     SignatureResult ParseSignature(Parser parser);
     ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(
         Parser parser);
-    ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseOpt(
+    ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseOpt(
         Parser parser);
     ParseElemResult<std::optional<ContractClause>> ParseContractClauseOpt(
         Parser parser);
@@ -71,11 +71,11 @@ namespace cursive::ast
         SignatureResult sig = ParseSignature(parser);
         parser = sig.parser;
 
-        std::optional<WhereClause> predicate_clause_opt = std::nullopt;
+        std::optional<PredicateClause> predicate_clause_opt = std::nullopt;
         std::optional<ContractClause> contract_opt = std::nullopt;
         if (!comptime_prefix)
         {
-            ParseElemResult<std::optional<WhereClause>> predicate_clause =
+            ParseElemResult<std::optional<PredicateClause>> predicate_clause =
                 ParsePredicateClauseOpt(parser);
             parser = predicate_clause.parser;
             predicate_clause_opt = predicate_clause.elem;

@@ -50,7 +50,7 @@ SignatureResult ParseSignature(Parser parser);
 ParseElemResult<AttrOpt> ParseAttributeListOpt(Parser parser);
 ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(
     Parser parser);
-ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseOpt(
+ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseOpt(
     Parser parser);
 ParseElemResult<std::optional<ContractClause>> ParseContractClauseOpt(
     Parser parser);
@@ -158,9 +158,9 @@ ParseElemResult<ExternProcDecl> ParseExternProcDecl(Parser parser) {
   parser = sig.parser;
 
   // Parse optional generic constraint clause.
-  std::optional<WhereClause> where_clause_opt = std::nullopt;
+  std::optional<PredicateClause> where_clause_opt = std::nullopt;
   if (StartsWherePredicateClause(parser)) {
-    ParseElemResult<std::optional<WhereClause>> where_clause =
+    ParseElemResult<std::optional<PredicateClause>> where_clause =
         ParsePredicateClauseOpt(parser);
     parser = where_clause.parser;
     where_clause_opt = where_clause.elem;

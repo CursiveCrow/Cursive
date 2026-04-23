@@ -114,11 +114,11 @@ bool ContractMayNeedProjectFiles(
 }
 
 bool WhereClauseMayNeedProjectFiles(
-    const std::optional<ast::WhereClause>& where_opt) {
+    const std::optional<ast::PredicateClause>& where_opt) {
   if (!where_opt.has_value()) {
     return false;
   }
-  for (const auto& pred : where_opt->predicates) {
+  for (const auto& pred : *where_opt) {
     if (TypeMayNeedProjectFiles(pred.type)) {
       return true;
     }

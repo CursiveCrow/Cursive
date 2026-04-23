@@ -119,7 +119,7 @@ const std::optional<ast::GenericParams>* TypeParamsOf(const ScopeContext& ctx,
       it->second);
 }
 
-const std::optional<ast::WhereClause>* TypePredicateClauseOf(
+const std::optional<ast::PredicateClause>* TypePredicateClauseOf(
     const ScopeContext& ctx,
     const TypePath& path) {
   SpecDefsTypeLookup();
@@ -134,7 +134,7 @@ const std::optional<ast::WhereClause>* TypePredicateClauseOf(
   }
 
   return std::visit(
-      [](const auto& decl) -> const std::optional<ast::WhereClause>* {
+      [](const auto& decl) -> const std::optional<ast::PredicateClause>* {
         return &decl.predicate_clause_opt;
       },
       it->second);

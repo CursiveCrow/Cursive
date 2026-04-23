@@ -1380,7 +1380,7 @@ static std::optional<std::string_view> ValidateProcedureTypeArgConstraints(
     return std::nullopt;
   }
 
-  for (const auto& wp : proc.predicate_clause_opt->predicates) {
+  for (const auto& wp : *proc.predicate_clause_opt) {
     if (!IsPredicateReqName(wp.pred)) {
       return std::optional<std::string_view>{"E-TYP-2302"};
     }

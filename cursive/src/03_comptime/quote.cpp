@@ -824,12 +824,12 @@ bool BuildGenericParamsInPlace(std::optional<ast::GenericParams>& params_opt,
   return true;
 }
 
-bool BuildWhereClauseInPlace(std::optional<ast::WhereClause>& clause_opt,
+bool BuildWhereClauseInPlace(std::optional<ast::PredicateClause>& clause_opt,
                              CtEnv& env) {
   if (!clause_opt.has_value()) {
     return true;
   }
-  for (auto& predicate : clause_opt->predicates) {
+  for (auto& predicate : *clause_opt) {
     if (!BuildTypeInPlace(predicate.type, env)) {
       return false;
     }

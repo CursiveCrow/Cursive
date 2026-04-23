@@ -230,6 +230,25 @@ std::string GetTypeName(const TypeRef& type) {
 // Forward declaration of CheckFfiSafe
 bool CheckFfiSafe(const TypeRef& type);
 
+core::Span PredicateClauseSpan(const ast::PredicateClause& predicates) {
+  core::Span span;
+  bool initialized = false;
+  for (const auto& pred : predicates) {
+    if (!pred.type) {
+      continue;
+    }
+    if (!initialized) {
+      span = pred.type->span;
+      initialized = true;
+      continue;
+    }
+    span.end_offset = pred.type->span.end_offset;
+    span.end_line = pred.type->span.end_line;
+    span.end_col = pred.type->span.end_col;
+  }
+  return span;
+}
+
 // Check if a type is FfiSafe (C ABI compatible)
 // SPEC: CursiveSpecification.md FfiSafe rules
 bool CheckFfiSafe(const TypeRef& type) {
@@ -323,23 +342,23 @@ bool IsPredName(const std::string& name) {
 
 WhereParseResult ParseWhereClause(
     const ScopeContext& ctx,
-    const std::optional<ast::WhereClause>& where_opt) {
+    const std::optional<ast::PredicateClause>& where_opt) {
   SpecDefsWhereBounds();
   SPEC_RULE("Parse-WhereClause");
 
   WhereParseResult result;
 
   // No where clause is valid
-  if (!where_opt || where_opt->predicates.empty()) {
+  if (!where_opt || where_opt->empty()) {
     return result;
   }
 
   // SPEC: CursiveSpecification.md (Parse-PredicateClauseOpt-Yes) rule
   // predicate_clause = [PredicateReq]
 
-  result.clause.span = where_opt->span;
+  result.clause.span = PredicateClauseSpan(*where_opt);
 
-  for (const auto& pred : where_opt->predicates) {
+  for (const auto& pred : *where_opt) {
     // SPEC: PredicateReq = <pred, type>
     auto pred_kind = ParsePredicateName(pred.pred);
     if (!pred_kind) {
@@ -351,7 +370,7 @@ WhereParseResult ParseWhereClause(
     PredicateBound bound;
     bound.predicate = *pred_kind;
     bound.type = LowerAstType(ctx, pred.type);
-    bound.span = pred.type ? pred.type->span : where_opt->span;
+    bound.span = pred.type ? pred.type->span : result.clause.span;
     result.clause.bounds.push_back(bound);
   }
 

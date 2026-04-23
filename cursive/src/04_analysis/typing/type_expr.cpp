@@ -2124,12 +2124,12 @@ static CheckResult CheckQuoteGenericParamsSplices(
 static CheckResult CheckQuoteWhereClauseSplices(
     const ScopeContext& ctx,
     const StmtTypeContext& type_ctx,
-    const std::optional<ast::WhereClause>& clause_opt,
+    const std::optional<ast::PredicateClause>& clause_opt,
     const TypeEnv& env) {
   if (!clause_opt.has_value()) {
     return OkCheckResult();
   }
-  for (const auto& predicate : clause_opt->predicates) {
+  for (const auto& predicate : *clause_opt) {
     auto checked = CheckQuoteTypeSplices(ctx, type_ctx, predicate.type, env);
     if (!checked.ok) {
       return checked;

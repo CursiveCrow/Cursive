@@ -28,7 +28,7 @@ const std::optional<ast::GenericParams>* TypeParamsOf(const ScopeContext& ctx,
                                                       const TypePath& path);
 
 // Type declaration predicate-clause lookup by TypePath
-const std::optional<ast::WhereClause>* TypePredicateClauseOf(
+const std::optional<ast::PredicateClause>* TypePredicateClauseOf(
     const ScopeContext& ctx,
     const TypePath& path);
 

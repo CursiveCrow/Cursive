@@ -258,27 +258,27 @@ ResolveResult<ast::PredicateReq> ResolvePredicate(
 //     pred = T <: C -> Gamma |- ResolveClassPath(C) => ok
 //   -> Gamma |- ResolveWhereClause(predicates) => ok
 
-ResolveResult<ast::WhereClause> ResolveWhereClause(
+ResolveResult<ast::PredicateClause> ResolveWhereClause(
     ResolveContext& ctx,
-    const ast::WhereClause& where_clause) {
+    const ast::PredicateClause& where_clause) {
   SpecDefsResolveGenerics();
-  ResolveResult<ast::WhereClause> result;
+  ResolveResult<ast::PredicateClause> result;
   result.ok = true;
   result.value = where_clause;
-  result.value.predicates.clear();
-  result.value.predicates.reserve(where_clause.predicates.size());
+  result.value.clear();
+  result.value.reserve(where_clause.size());
 
-  if (where_clause.predicates.empty()) {
+  if (where_clause.empty()) {
     SPEC_RULE("ResolveWhereClause-Empty");
     return result;
   }
 
-  for (const auto& pred : where_clause.predicates) {
+  for (const auto& pred : where_clause) {
     const auto resolved = ResolvePredicate(ctx, pred);
     if (!resolved.ok) {
       return {false, resolved.diag_id, resolved.span, {}};
     }
-    result.value.predicates.push_back(resolved.value);
+    result.value.push_back(resolved.value);
     SPEC_RULE("ResolveWhereClause-Cons");
   }
 
@@ -291,11 +291,11 @@ ResolveResult<ast::WhereClause> ResolveWhereClause(
 // -----------------------------------------------------------------------------
 // Resolves an optional where clause.
 
-ResolveResult<std::optional<ast::WhereClause>> ResolveWhereClauseOpt(
+ResolveResult<std::optional<ast::PredicateClause>> ResolveWhereClauseOpt(
     ResolveContext& ctx,
-    const std::optional<ast::WhereClause>& where_opt) {
+    const std::optional<ast::PredicateClause>& where_opt) {
   SpecDefsResolveGenerics();
-  ResolveResult<std::optional<ast::WhereClause>> result;
+  ResolveResult<std::optional<ast::PredicateClause>> result;
   result.ok = true;
 
   if (!where_opt.has_value()) {

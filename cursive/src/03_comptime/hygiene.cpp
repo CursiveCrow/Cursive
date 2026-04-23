@@ -188,12 +188,12 @@ void CollectGenericParamsNames(const std::optional<ast::GenericParams>& params_o
   }
 }
 
-void CollectWhereClauseNames(const std::optional<ast::WhereClause>& clause_opt,
+void CollectWhereClauseNames(const std::optional<ast::PredicateClause>& clause_opt,
                              HygieneContext& ctx) {
   if (!clause_opt.has_value()) {
     return;
   }
-  for (const auto& predicate : clause_opt->predicates) {
+  for (const auto& predicate : *clause_opt) {
     CollectTypeNames(predicate.type, ctx);
   }
 }
@@ -608,7 +608,7 @@ void CollectBlockNames(const Block& block, HygieneContext& ctx) {
 }
 
 void CollectMethodLikeNames(const std::optional<ast::GenericParams>& generic_params,
-                            const std::optional<ast::WhereClause>* where_clause_opt,
+                            const std::optional<ast::PredicateClause>* where_clause_opt,
                             const std::vector<ast::Param>& params,
                             const TypePtr& return_type_opt,
                             const std::optional<ast::ContractClause>& contract,
@@ -1354,12 +1354,12 @@ void RenameGenericParams(std::optional<ast::GenericParams>& params_opt,
   }
 }
 
-void RenameWhereClause(std::optional<ast::WhereClause>& clause_opt,
+void RenameWhereClause(std::optional<ast::PredicateClause>& clause_opt,
                        HygieneContext& ctx) {
   if (!clause_opt.has_value() || !ctx.ok) {
     return;
   }
-  for (auto& predicate : clause_opt->predicates) {
+  for (auto& predicate : *clause_opt) {
     RenameType(predicate.type, ctx);
   }
 }
@@ -1384,7 +1384,7 @@ void BindParams(std::vector<ast::Param>& params,
 }
 
 void RenameMethodLike(std::optional<ast::GenericParams>& generic_params,
-                      std::optional<ast::WhereClause>* where_clause_opt,
+                      std::optional<ast::PredicateClause>* where_clause_opt,
                       std::vector<ast::Param>& params,
                       TypePtr& return_type_opt,
                       std::optional<ast::ContractClause>& contract,

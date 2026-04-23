@@ -273,7 +273,7 @@ struct TypeParam;
 struct GenericParams;
 struct GenericArgs;
 struct PredicateReq;
-struct WhereClause;
+using PredicateClause = std::vector<PredicateReq>;
 
 // ===========================================================================
 // Contract System

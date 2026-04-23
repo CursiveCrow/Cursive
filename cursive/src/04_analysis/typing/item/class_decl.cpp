@@ -271,7 +271,7 @@ ClassDeclResult TypeClassDecl(
       type_param_names.push_back(gp.name);
     }
     const auto where_result = ProcessWhereClause(
-        ctx, decl.predicate_clause_opt->predicates, type_param_names);
+        ctx, *decl.predicate_clause_opt, type_param_names);
     if (!where_result.ok) {
       result.ok = false;
       result.diag_id = where_result.diag_id;

@@ -33,9 +33,9 @@ ResolveResult<std::optional<ast::GenericParams>> ResolveGenericParamsOpt(
 ResolveResult<std::optional<ast::ContractClause>> ResolveContractOpt(
     ResolveContext& ctx,
     const std::optional<ast::ContractClause>& contract_opt);
-ResolveResult<std::optional<ast::WhereClause>> ResolveWhereClauseOpt(
+ResolveResult<std::optional<ast::PredicateClause>> ResolveWhereClauseOpt(
     ResolveContext& ctx,
-    const std::optional<ast::WhereClause>& where_opt);
+    const std::optional<ast::PredicateClause>& where_opt);
 ResolveResult<std::optional<ast::TypeInvariant>> ResolveInvariantOpt(
     ResolveContext& ctx,
     const std::optional<ast::TypeInvariant>& invariant_opt);

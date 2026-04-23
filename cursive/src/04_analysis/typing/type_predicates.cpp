@@ -204,12 +204,12 @@ static bool AstTypeMentionsParam(const std::shared_ptr<ast::Type>& type,
       type->node);
 }
 
-static bool HasFfiSafeReq(const std::optional<ast::WhereClause>& where_clause_opt,
+static bool HasFfiSafeReq(const std::optional<ast::PredicateClause>& where_clause_opt,
                           std::string_view param_name) {
   if (!where_clause_opt.has_value()) {
     return false;
   }
-  for (const auto& pred : where_clause_opt->predicates) {
+  for (const auto& pred : *where_clause_opt) {
     if (!IdEq(pred.pred, "FfiSafe") || !pred.type) {
       continue;
     }
@@ -224,13 +224,13 @@ static bool HasFfiSafeReq(const std::optional<ast::WhereClause>& where_clause_op
   return false;
 }
 
-static bool HasGpuSafeReq(const std::optional<ast::WhereClause>& where_clause_opt,
+static bool HasGpuSafeReq(const std::optional<ast::PredicateClause>& where_clause_opt,
                          std::string_view param_name) {
   SPEC_RULE("HasGpuSafeReq");
   if (!where_clause_opt.has_value()) {
     return false;
   }
-  for (const auto& pred : where_clause_opt->predicates) {
+  for (const auto& pred : *where_clause_opt) {
     if (!IdEq(pred.pred, "GpuSafe") || !pred.type) {
       continue;
     }
@@ -389,7 +389,7 @@ static std::vector<std::string> GpuSafeEnumTypeParamsInPayloads(
 
 static bool GenericParamsMissingFfiSafeReqs(
     const std::optional<ast::GenericParams>& generic_params_opt,
-    const std::optional<ast::WhereClause>& where_clause_opt,
+    const std::optional<ast::PredicateClause>& where_clause_opt,
     const std::vector<std::string>& used_params) {
   if (!generic_params_opt.has_value() || used_params.empty()) {
     return false;
@@ -404,7 +404,7 @@ static bool GenericParamsMissingFfiSafeReqs(
 
 static bool GenericParamsMissingGpuSafeReqs(
     const std::optional<ast::GenericParams>& generic_params_opt,
-    const std::optional<ast::WhereClause>& where_clause_opt,
+    const std::optional<ast::PredicateClause>& where_clause_opt,
     const std::vector<std::string>& used_params) {
   SPEC_RULE("GpuSafePredicateClauseOk");
   if (!generic_params_opt.has_value() || used_params.empty()) {
