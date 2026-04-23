@@ -76,14 +76,53 @@ static LowerTypeResult LowerTypeWithWF(const ScopeContext& ctx,
   return lowered;
 }
 
-// Check if method names are distinct
-static bool DistinctMethodNames(const std::vector<ast::ClassMethodDecl>& methods) {
-  if (methods.size() < 2) {
+static std::vector<IdKey> MethodNames(const std::vector<ast::ClassItem>& items) {
+  SPEC_RULE("MethodNames");
+  std::vector<IdKey> names;
+  for (const auto& item : items) {
+    if (const auto* method = std::get_if<ast::ClassMethodDecl>(&item)) {
+      names.push_back(IdKeyOf(method->name));
+    }
+  }
+  return names;
+}
+
+static std::vector<IdKey> FieldNames(const std::vector<ast::ClassItem>& items) {
+  SPEC_RULE("FieldNames");
+  std::vector<IdKey> names;
+  for (const auto& item : items) {
+    if (const auto* field = std::get_if<ast::ClassFieldDecl>(&item)) {
+      names.push_back(IdKeyOf(field->name));
+    }
+  }
+  return names;
+}
+
+static bool DistinctClassMemberNameKeys(const std::vector<IdKey>& names) {
+  if (names.size() < 2) {
     return true;
   }
-  std::unordered_set<std::string> names;
-  for (const auto& method : methods) {
-    if (!names.insert(method.name).second) {
+  std::unordered_set<IdKey> seen;
+  for (const auto& name : names) {
+    if (!seen.insert(name).second) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool DisjointClassMemberNameKeys(const std::vector<IdKey>& lhs,
+                                        const std::vector<IdKey>& rhs) {
+  if (lhs.empty() || rhs.empty()) {
+    return true;
+  }
+  std::unordered_set<IdKey> seen;
+  seen.reserve(lhs.size());
+  for (const auto& name : lhs) {
+    seen.insert(name);
+  }
+  for (const auto& name : rhs) {
+    if (seen.find(name) != seen.end()) {
       return false;
     }
   }
@@ -98,19 +137,6 @@ static bool DistinctAssocTypeNames(const std::vector<ast::AssociatedTypeDecl>& t
   std::unordered_set<std::string> names;
   for (const auto& t : types) {
     if (!names.insert(t.name).second) {
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool DistinctFieldNames(const std::vector<ast::ClassFieldDecl>& fields) {
-  if (fields.size() < 2) {
-    return true;
-  }
-  std::unordered_set<std::string> names;
-  for (const auto& field : fields) {
-    if (!names.insert(field.name).second) {
       return false;
     }
   }
@@ -299,10 +325,11 @@ ClassDeclResult TypeClassDecl(
 
   // Collect and check methods
   const auto methods = CollectMethods(decl.items);
-  if (!DistinctMethodNames(methods)) {
+  const auto method_names = MethodNames(decl.items);
+  if (!DistinctClassMemberNameKeys(method_names)) {
     SPEC_RULE("WF-Class-Method-Duplicate");
     result.ok = false;
-    result.diag_id = "Class-Method-Dup";
+    result.diag_id = "E-TYP-2500";
     return result;
   }
 
@@ -425,7 +452,7 @@ ClassDeclResult TypeClassDecl(
   if (!DistinctAssocTypeNames(assoc_types)) {
     SPEC_RULE("WF-Class-AssocType-Duplicate");
     result.ok = false;
-    result.diag_id = "Class-Name-Conflict";
+    result.diag_id = "E-TYP-2504";
     return result;
   }
 
@@ -458,11 +485,18 @@ ClassDeclResult TypeClassDecl(
 
   // Process abstract fields
   const auto fields = CollectFields(decl.items);
+  const auto field_names = FieldNames(decl.items);
   const auto abstract_states = CollectAbstractStates(decl.items);
-  if (!DistinctFieldNames(fields)) {
+  if (!DistinctClassMemberNameKeys(field_names)) {
     SPEC_RULE("Class-AbstractField-Dup");
     result.ok = false;
-    result.diag_id = "Class-AbstractField-Dup";
+    result.diag_id = "E-TYP-2408";
+    return result;
+  }
+  if (!DisjointClassMemberNameKeys(method_names, field_names)) {
+    SPEC_RULE("Class-Name-Conflict");
+    result.ok = false;
+    result.diag_id = "E-TYP-2505";
     return result;
   }
   if (!DistinctAbstractStateNames(abstract_states)) {
@@ -510,7 +544,7 @@ ClassDeclResult TypeClassDecl(
       if (seen.find(key) != seen.end()) {
         SPEC_RULE("Class-Name-Conflict");
         result.ok = false;
-        result.diag_id = "Class-Name-Conflict";
+        result.diag_id = "E-TYP-2505";
         return result;
       }
       seen.insert(key);
@@ -520,7 +554,7 @@ ClassDeclResult TypeClassDecl(
       if (seen.find(key) != seen.end()) {
         SPEC_RULE("Class-Name-Conflict");
         result.ok = false;
-        result.diag_id = "Class-Name-Conflict";
+        result.diag_id = "E-TYP-2505";
         return result;
       }
       seen.insert(key);
@@ -530,7 +564,7 @@ ClassDeclResult TypeClassDecl(
       if (seen.find(key) != seen.end()) {
         SPEC_RULE("Class-Name-Conflict");
         result.ok = false;
-        result.diag_id = "Class-Name-Conflict";
+        result.diag_id = "E-TYP-2505";
         return result;
       }
       seen.insert(key);
@@ -631,10 +665,11 @@ ClassDeclResult TypeClassDeclSignature(
 
   // Collect method signatures
   const auto methods = CollectMethods(decl.items);
-  if (!DistinctMethodNames(methods)) {
+  const auto method_names = MethodNames(decl.items);
+  if (!DistinctClassMemberNameKeys(method_names)) {
     SPEC_RULE("WF-Class-Method-Duplicate");
     result.ok = false;
-    result.diag_id = "Class-Method-Dup";
+    result.diag_id = "E-TYP-2500";
     return result;
   }
 
@@ -696,11 +731,18 @@ ClassDeclResult TypeClassDeclSignature(
 
   // Collect field signatures
   const auto fields = CollectFields(decl.items);
+  const auto field_names = FieldNames(decl.items);
   const auto abstract_states = CollectAbstractStates(decl.items);
-  if (!DistinctFieldNames(fields)) {
+  if (!DistinctClassMemberNameKeys(field_names)) {
     SPEC_RULE("Class-AbstractField-Dup");
     result.ok = false;
-    result.diag_id = "Class-AbstractField-Dup";
+    result.diag_id = "E-TYP-2408";
+    return result;
+  }
+  if (!DisjointClassMemberNameKeys(method_names, field_names)) {
+    SPEC_RULE("Class-Name-Conflict");
+    result.ok = false;
+    result.diag_id = "E-TYP-2505";
     return result;
   }
   if (!DistinctAbstractStateNames(abstract_states)) {

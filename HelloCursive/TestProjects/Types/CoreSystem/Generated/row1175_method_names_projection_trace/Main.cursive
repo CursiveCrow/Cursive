@@ -1,0 +1,24 @@
+class Row1175ProjectionSurface {
+    marker: i32
+    type Output = i32
+    procedure first(~) -> i32;
+    procedure second(~, input: i32) -> i32;
+}
+
+record Row1175ProjectionImpl <: Row1175ProjectionSurface {
+    marker: i32
+
+    procedure first(~) -> i32 {
+        return self.marker
+    }
+
+    procedure second(~, input: i32) -> i32 {
+        return self.marker + input
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: Row1175ProjectionImpl = Row1175ProjectionImpl { marker: 3 }
+    return value~>first() + value~>second(4)
+}
