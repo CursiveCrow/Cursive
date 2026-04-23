@@ -72,16 +72,19 @@
 
 #include "04_analysis/composite/record_methods.h"
 
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/composite/classes.h"
+#include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_lower.h"
 
 namespace cursive::analysis {
 
@@ -103,6 +106,115 @@ static inline void SpecDefsRecordMethods() {
   SPEC_DEF("StripPerm", "5.2.12");
   SPEC_DEF("AddrOfOk", "5.2.12");
   SPEC_DEF("IsPlace", "3.3.3");
+}
+
+struct AliasNormalizeResult {
+  bool ok = true;
+  std::optional<std::string_view> diag_id;
+  TypeRef type;
+};
+
+struct AliasExpandResult {
+  bool ok = true;
+  std::optional<std::string_view> diag_id;
+  bool expanded = false;
+  TypeRef type;
+};
+
+static const ast::TypeAliasDecl* LookupTypeAliasDecl(const ScopeContext& ctx,
+                                                     const TypePath& path) {
+  if (path.empty()) {
+    return nullptr;
+  }
+  if (path.size() > 1) {
+    ast::Path full;
+    full.reserve(path.size());
+    for (const auto& seg : path) {
+      full.push_back(seg);
+    }
+    const auto it = ctx.sigma.types.find(PathKeyOf(full));
+    if (it == ctx.sigma.types.end()) {
+      return nullptr;
+    }
+    return std::get_if<ast::TypeAliasDecl>(&it->second);
+  }
+
+  const auto ent = ResolveTypeName(ctx, path[0]);
+  if (!ent.has_value() || !ent->origin_opt.has_value()) {
+    return nullptr;
+  }
+
+  ast::Path resolved = *ent->origin_opt;
+  const std::string resolved_name =
+      ent->target_opt.has_value() ? *ent->target_opt : path[0];
+  resolved.push_back(resolved_name);
+  const auto resolved_it = ctx.sigma.types.find(PathKeyOf(resolved));
+  if (resolved_it == ctx.sigma.types.end()) {
+    return nullptr;
+  }
+  return std::get_if<ast::TypeAliasDecl>(&resolved_it->second);
+}
+
+static AliasExpandResult ExpandTypeAliasApply(const ScopeContext& ctx,
+                                              const TypePathType& applied) {
+  AliasExpandResult result;
+  const auto* alias = LookupTypeAliasDecl(ctx, applied.path);
+  if (!alias) {
+    return result;
+  }
+
+  const auto lowered = LowerType(ctx, alias->type);
+  if (!lowered.ok) {
+    result.ok = false;
+    result.diag_id = lowered.diag_id;
+    return result;
+  }
+
+  if (!alias->generic_params.has_value()) {
+    if (!applied.generic_args.empty()) {
+      return result;
+    }
+    result.type = lowered.type;
+    result.expanded = true;
+    return result;
+  }
+
+  const auto& params = alias->generic_params->params;
+  if (applied.generic_args.size() > params.size()) {
+    return result;
+  }
+
+  const auto subst = BuildSubstitution(params, applied.generic_args);
+  result.type = InstantiateType(lowered.type, subst);
+  result.expanded = result.type != nullptr;
+  return result;
+}
+
+static AliasNormalizeResult NormalizeMethodBaseType(const ScopeContext& ctx,
+                                                    const TypeRef& type) {
+  AliasNormalizeResult out;
+  out.type = type;
+  for (int i = 0; i < 16; ++i) {
+    if (!out.type) {
+      return out;
+    }
+    const auto* path = AppliedTypePath(*out.type);
+    const auto* args = AppliedTypeArgs(*out.type);
+    if (!path || !args) {
+      return out;
+    }
+    const auto expanded = ExpandTypeAliasApply(ctx, TypePathType{*path, *args});
+    if (!expanded.ok) {
+      out.ok = false;
+      out.diag_id = expanded.diag_id;
+      return out;
+    }
+    if (!expanded.expanded) {
+      return out;
+    }
+    out.type = StripPerm(expanded.type);
+  }
+  return out;
 }
 
 static Permission LowerReceiverPerm(ast::ReceiverPerm perm) {
@@ -665,13 +777,23 @@ StaticMethodLookup LookupMethodStatic(const ScopeContext& ctx,
     }
   }
 
-  const auto* path_type = std::get_if<TypePathType>(&lookup_base->node);
+  const auto normalized = NormalizeMethodBaseType(ctx, lookup_base);
+  if (!normalized.ok) {
+    result.diag_id = normalized.diag_id;
+    return result;
+  }
+  if (normalized.type) {
+    lookup_base = normalized.type;
+  }
+  result.normalized_base = lookup_base;
+
+  const auto* path = lookup_base ? AppliedTypePath(*lookup_base) : nullptr;
   const ast::RecordDecl* record = nullptr;
   std::vector<ast::ClassPath> implements;
-  if (path_type) {
+  if (path) {
     ast::Path syntax_path;
-    syntax_path.reserve(path_type->path.size());
-    for (const auto& comp : path_type->path) {
+    syntax_path.reserve(path->size());
+    for (const auto& comp : *path) {
       syntax_path.push_back(comp);
     }
     const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
@@ -679,6 +801,7 @@ StaticMethodLookup LookupMethodStatic(const ScopeContext& ctx,
       if (const auto* record_decl = std::get_if<ast::RecordDecl>(&it->second)) {
         record = record_decl;
         implements = record_decl->implements;
+        result.record_path = *path;
       } else if (const auto* enum_decl =
                      std::get_if<ast::EnumDecl>(&it->second)) {
         implements = enum_decl->implements;

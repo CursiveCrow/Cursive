@@ -1,0 +1,18 @@
+public record MethodBox<T; Mirror = T> {
+    public value: T
+    public mirror: Mirror
+
+    public procedure value_metric(~) -> T {
+        return self.value
+    }
+
+    public procedure mirror_metric(~) -> Mirror {
+        return self.mirror
+    }
+
+    public procedure alias_metric(~) -> T {
+        return self.value
+    }
+}
+
+public type NamedBox<T> = MethodBox<T>

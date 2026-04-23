@@ -1,0 +1,18 @@
+using probe::methoddep::{MethodBox, NamedBox}
+
+procedure read_value(box: MethodBox<i32>) -> i32 {
+    return box~>value_metric()
+}
+
+procedure read_mirror(box: MethodBox<i32>) -> i32 {
+    return box~>mirror_metric()
+}
+
+procedure read_alias(box: NamedBox<i32>) -> i32 {
+    return box~>alias_metric()
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

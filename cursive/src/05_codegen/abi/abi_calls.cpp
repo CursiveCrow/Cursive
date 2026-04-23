@@ -347,12 +347,11 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
   // (MethodSymbol-Record)
   // LookupMethod(T, name) = m and m = MethodDecl(_) -> Mangle(m) => sym
   if (lookup.record_method) {
-    const auto* path_type = std::get_if<analysis::TypePathType>(&stripped->node);
-    if (!path_type) {
+    if (lookup.record_path.empty()) {
       return std::nullopt;
     }
     SPEC_RULE("MethodSymbol-Record");
-    return MangleMethod(path_type->path, *lookup.record_method);
+    return MangleMethod(lookup.record_path, *lookup.record_method);
   }
 
   // (MethodSymbol-Default)
@@ -360,7 +359,10 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
   // -> Mangle(DefaultImpl(T, m)) => sym
   if (lookup.class_method && lookup.class_method->body_opt) {
     SPEC_RULE("MethodSymbol-Default");
-    return MangleDefaultImpl(stripped, lookup.owner_class, lookup.class_method->name);
+    const auto default_base = lookup.normalized_base ? lookup.normalized_base
+                                                     : stripped;
+    return MangleDefaultImpl(default_base, lookup.owner_class,
+                             lookup.class_method->name);
   }
 
   return std::nullopt;

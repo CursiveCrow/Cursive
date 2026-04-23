@@ -24,7 +24,26 @@ record DescribableBeta <: Describable {
     }
 }
 
+record DescribableGeneric<Tag> <: Describable {
+    base: i32
+    marker: Tag
+
+    procedure describe_value(~) -> i32 {
+        return self.base * 4
+    }
+}
+
+type DescribableGenericAlias<Tag> = DescribableGeneric<Tag>
+
 procedure InvokeDescribable(obj: $Describable) -> i32 {
+    return obj~>describe_value()
+}
+
+procedure InvokeGenericStatic(obj: DescribableGeneric<i32>) -> i32 {
+    return obj~>describe_value()
+}
+
+procedure InvokeGenericAliasStatic(obj: DescribableGenericAlias<i32>) -> i32 {
     return obj~>describe_value()
 }
 
@@ -38,8 +57,14 @@ procedure DynDispatchMetricLabel(value: i32) -> string@View {
     if (value == 15) {
         return "15"
     }
+    if (value == 20) {
+        return "20"
+    }
     if (value == 25) {
         return "25"
+    }
+    if (value == 60) {
+        return "60"
     }
     return "other"
 }
@@ -76,10 +101,49 @@ public procedure RunDynamicDispatchAlphaBetaExercise(ctx: Context) -> i32 {
     return 0
 }
 
+public procedure RunDynamicDispatchGenericAliasExercise(ctx: Context) -> i32 {
+    [[log(label: "types-log-item_begin")]]
+
+    let generic: DescribableGeneric<i32> = DescribableGeneric<i32> { base: 5, marker: 0 }
+    let alias_value: DescribableGenericAlias<i32> = DescribableGeneric<i32> { base: 5, marker: 0 }
+
+    let generic_static_result: i32 = InvokeGenericStatic(generic)
+    let generic_static_log: i32 = [[log(label: "observed-dyn-dispatch-generic-static", expected: 20)]] generic_static_result
+    let generic_static_ok: bool = generic_static_log == 20
+
+    let alias_static_result: i32 = InvokeGenericAliasStatic(alias_value)
+    let alias_static_log: i32 = [[log(label: "observed-dyn-dispatch-generic-alias-static", expected: 20)]] alias_static_result
+    let alias_static_ok: bool = alias_static_log == 20
+
+    let generic_dyn: $Describable = generic
+    let dyn_result: i32 = InvokeDescribable(generic_dyn)
+    let dyn_log: i32 = [[log(label: "observed-dyn-dispatch-generic-dynamic", expected: 20)]] dyn_result
+    let dyn_ok: bool = dyn_log == 20
+
+    let combined: i32 = generic_static_result + alias_static_result + dyn_result
+    let combined_log: i32 = [[log(label: "observed-dyn-dispatch-generic-combined", expected: 60)]] combined
+    let combined_ok: bool = combined_log == 60
+
+    let all_ok: bool = generic_static_ok && alias_static_ok && dyn_ok && combined_ok
+    let all_ok_log: bool = [[log(label: "dyn-dispatch-generic-alias-runtime", expected: true)]] all_ok
+
+    if (all_ok_log != true) {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}
+
 procedure RunDynamicDispatchExercises(ctx: Context) -> i32 {
     let status_alpha_beta: i32 = RunDynamicDispatchAlphaBetaExercise(ctx)
     if (status_alpha_beta != 0) {
         return status_alpha_beta
+    }
+
+    let status_generic_alias: i32 = RunDynamicDispatchGenericAliasExercise(ctx)
+    if (status_generic_alias != 0) {
+        return status_generic_alias
     }
 
     return 0

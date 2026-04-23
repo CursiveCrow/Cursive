@@ -76,8 +76,10 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
 struct StaticMethodLookup {
   bool ok = false;
   std::optional<std::string_view> diag_id;
+  TypeRef normalized_base;
   const ast::MethodDecl* record_method = nullptr;
   const ast::ClassMethodDecl* class_method = nullptr;
+  TypePath record_path;
   ast::ClassPath owner_class;
 };
 
