@@ -19,6 +19,8 @@
 
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "00_core/assert_spec.h"
@@ -37,6 +39,32 @@ bool IsPunc(const Parser& parser, std::string_view p);
 // Forward declaration for type parsing
 ParseElemResult<std::shared_ptr<Type>> ParseType(Parser parser);
 ParseElemResult<ClassPath> ParseClassPath(Parser parser);
+
+namespace {
+
+std::string GenericParamsPayload(std::string_view params_opt,
+                                 std::size_t param_count) {
+  std::string payload;
+  payload.reserve(params_opt.size() + 56);
+  payload += "params_opt=";
+  payload += params_opt;
+  payload += ";param_count=";
+  payload += std::to_string(param_count);
+  return payload;
+}
+
+void RecordGenericParamsRule(std::string_view rule_id,
+                             const core::Span& span,
+                             std::string_view params_opt,
+                             std::size_t param_count) {
+  if (!core::Conformance::Enabled()) {
+    return;
+  }
+  core::Conformance::Record(rule_id, span,
+                            GenericParamsPayload(params_opt, param_count));
+}
+
+}  // namespace
 
 // =============================================================================
 // ParseTypeBounds - Parse type bounds: <: Class1, Class2
@@ -152,48 +180,69 @@ ParseElemResult<TypeParam> ParseTypeParam(Parser parser) {
 }
 
 // =============================================================================
-// ParseGenericParamsOpt - Parse optional generic parameters
+// ParseTypeParamTail - Parse type parameter tail after the first parameter
 // =============================================================================
 //
-// SPEC: Parse-GenericParamsOpt-None
-//   ¬ IsOp(Tok(P), "<")
+// SPEC: Parse-TypeParamTail-End
+//   ¬ IsPunc(Tok(P), ";")
 //   ──────────────────────────────────────────────
-//   Γ ⊢ ParseGenericParamsOpt(P) ⇓ (P, ⊥)
+//   Γ ⊢ ParseTypeParamTail(P, ps) ⇓ (P, ps)
+//
+// SPEC: Parse-TypeParamTail-Cons
+//   IsPunc(Tok(P), ";")    Γ ⊢ ParseTypeParam(Advance(P)) ⇓ (P_1, p)
+//   Γ ⊢ ParseTypeParamTail(P_1, ps ++ [p]) ⇓ (P_2, ps')
+//   ────────────────────────────────────────────────────────────────────
+//   Γ ⊢ ParseTypeParamTail(P, ps) ⇓ (P_2, ps')
+//
+// CRITICAL: Parameters are separated by SEMICOLONS (;), not commas!
+// This is different from generic arguments which use commas.
+
+ParseElemResult<std::vector<TypeParam>> ParseTypeParamTail(
+    Parser parser,
+    std::vector<TypeParam> params) {
+  if (!IsPunc(parser, ";")) {
+    RecordGenericParamsRule("Parse-TypeParamTail-End", TokSpan(parser),
+                            "tail_end", params.size());
+    return {parser, std::move(params)};
+  }
+
+  Parser after_semicolon = parser;
+  Advance(after_semicolon);
+  ParseElemResult<TypeParam> param = ParseTypeParam(after_semicolon);
+  params.push_back(param.elem);
+  ParseElemResult<std::vector<TypeParam>> tail =
+      ParseTypeParamTail(param.parser, std::move(params));
+  RecordGenericParamsRule("Parse-TypeParamTail-Cons",
+                          SpanBetween(parser, tail.parser), "tail_cons",
+                          tail.elem.size());
+  return tail;
+}
+
+// =============================================================================
+// ParseGenericParams - Parse required generic parameters
+// =============================================================================
 //
 // SPEC: Parse-GenericParams
 //   IsOp(Tok(P), "<")    Γ ⊢ ParseTypeParam(Advance(P)) ⇓ (P_1, p_1)
 //   Γ ⊢ ParseTypeParamTail(P_1, [p_1]) ⇓ (P_2, ps)    IsOp(Tok(P_2), ">")
 //   ────────────────────────────────────────────────────────────────────
 //   Γ ⊢ ParseGenericParams(P) ⇓ (Advance(P_2), ps)
-//
-// CRITICAL: Parameters are separated by SEMICOLONS (;), not commas!
-// This is different from generic arguments which use commas.
 
-ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(
-    Parser parser) {
-  if (!IsOp(parser, "<")) {
-    return {parser, std::nullopt};
-  }
-
-  SPEC_RULE("Parse-Generic-Params");
+ParseElemResult<GenericParams> ParseGenericParams(Parser parser) {
   Parser start = parser;
   Parser next = parser;
-  Advance(next);  // consume <
-
-  GenericParams params;
-
-  // Parse first type param
-  ParseElemResult<TypeParam> first = ParseTypeParam(next);
-  params.params.push_back(first.elem);
-  next = first.parser;
-
-  // Parse additional params separated by ; (SEMICOLON!)
-  while (IsPunc(next, ";")) {
+  if (!IsOp(next, "<")) {
+    EmitParseSyntaxErr(next, TokSpan(next));
+  } else {
     Advance(next);
-    ParseElemResult<TypeParam> param = ParseTypeParam(next);
-    params.params.push_back(param.elem);
-    next = param.parser;
   }
+
+  ParseElemResult<TypeParam> first = ParseTypeParam(next);
+  std::vector<TypeParam> params;
+  params.push_back(first.elem);
+  ParseElemResult<std::vector<TypeParam>> tail =
+      ParseTypeParamTail(first.parser, std::move(params));
+  next = tail.parser;
 
   // Detect Rust-style comma separators in generic parameter lists
   if (IsPunc(next, ",")) {
@@ -207,15 +256,48 @@ ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(
     }
   }
 
-  // Expect >
   if (!IsOp(next, ">")) {
     EmitParseSyntaxErr(next, TokSpan(next));
   } else {
     Advance(next);
   }
 
-  params.span = SpanBetween(start, next);
-  return {next, params};
+  GenericParams params_node;
+  params_node.params = std::move(tail.elem);
+  params_node.span = SpanBetween(start, next);
+  RecordGenericParamsRule("Parse-GenericParams", params_node.span, "required",
+                          params_node.params.size());
+  return {next, std::move(params_node)};
+}
+
+// =============================================================================
+// ParseGenericParamsOpt - Parse optional generic parameters
+// =============================================================================
+//
+// SPEC: Parse-GenericParamsOpt-None
+//   ¬ IsOp(Tok(P), "<")
+//   ──────────────────────────────────────────────
+//   Γ ⊢ ParseGenericParamsOpt(P) ⇓ (P, ⊥)
+//
+// SPEC: Parse-GenericParamsOpt-Yes
+//   Γ ⊢ ParseGenericParams(P) ⇓ (P_1, params)
+//   ──────────────────────────────────────────────
+//   Γ ⊢ ParseGenericParamsOpt(P) ⇓ (P_1, params)
+
+ParseElemResult<std::optional<GenericParams>> ParseGenericParamsOpt(
+    Parser parser) {
+  if (!IsOp(parser, "<")) {
+    RecordGenericParamsRule("Parse-GenericParamsOpt-None", TokSpan(parser),
+                            "none", 0);
+    return {parser, std::nullopt};
+  }
+
+  ParseElemResult<GenericParams> params = ParseGenericParams(parser);
+  RecordGenericParamsRule("Parse-GenericParamsOpt-Yes",
+                          SpanBetween(parser, params.parser), "some",
+                          params.elem.params.size());
+
+  return {params.parser, std::move(params.elem)};
 }
 
 }  // namespace cursive::ast

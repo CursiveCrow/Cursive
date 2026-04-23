@@ -1,0 +1,59 @@
+import probe::parsingparamsdep
+
+class ParseGenericParamsSurface {
+    procedure metric(~) -> i32
+}
+
+class ParseGenericParamsClass<T; U = T> {
+    procedure choose(~, value: T, fallback: U) -> T
+}
+
+record ParseGenericParamsPlain {
+    value: i32
+}
+
+record ParseGenericParamsBox<T> {
+    value: T
+}
+
+record ParseGenericParamsPair<T; U> {
+    left: T
+    right: U
+}
+
+record ParseGenericParamsBounded<T <: ParseGenericParamsSurface; U = T> {
+    value: T
+    fallback: U
+}
+
+record ParseGenericParamsDefaultApply<T; U = ParseGenericParamsBox<T>> {
+    value: T
+    wrapped: U
+}
+
+record ParseGenericParamsExternalDefault<T; U = probe::parsingparamsdep::ParseGenericParamsExternalBox<T>> {
+    value: T
+    external: U
+}
+
+enum ParseGenericParamsEnum<T; U> {
+    Left(T)
+    Right(U)
+}
+
+type ParseGenericParamsAlias<T; U = T> = ParseGenericParamsPair<T, U>
+type ParseGenericParamsExternalAlias<T> = probe::parsingparamsdep::ParseGenericParamsExternalBox<T>
+
+procedure parseGenericParamsIdentity<T>(value: T) -> T {
+    return value
+}
+
+procedure parseGenericParamsChoose<T; U = T>(left: T, right: U) -> T {
+    let _ = right
+    return left
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

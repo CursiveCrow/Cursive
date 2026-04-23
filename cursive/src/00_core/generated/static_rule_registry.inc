@@ -1651,7 +1651,6 @@ static const StaticRuleMeta kStaticRules[] = {
     {"Parse-Frame-Explicit", "ParseJudgment", std::nullopt, "02_source/parser/stmt/frame_stmt.cpp", std::string_view("IsIdent(Tok(P))\nIsPunc(Tok(Advance(P)), \".\")\nIsKw(Tok(Advance(Advance(P))), `frame`)\nname = Lexeme(Tok(P))\nΓ ⊢ ParseBlock(Advance(Advance(Advance(P)))) ⇓ (P_1, b)")},
     {"Parse-Frame-Stmt", "ParseJudgment", std::nullopt, "02_source/parser/stmt/frame_stmt.cpp", std::string_view("IsKw(Tok(P), `frame`)\nΓ ⊢ ParseBlock(Advance(P)) ⇓ (P_1, b)")},
     {"Parse-Func-Type", "ParseJudgment", std::nullopt, "02_source/parser/type/function_type.cpp", std::string_view("IsPunc(Tok(P), \"(\")\nΓ ⊢ ParseParamTypeList(Advance(P)) ⇓ (P_1, params)\nIsPunc(Tok(P_1), \")\")\nIsOp(Tok(Advance(P_1)), \"->\")\nΓ ⊢ ParseType(Advance(Advance(P_1))) ⇓ (P_2, ret)")},
-    {"Parse-Generic-Params", "ParseJudgment", std::nullopt, "02_source/parser/item/generic_params.cpp", std::nullopt},
     {"Parse-Ident", "ParseJudgment", std::nullopt, "02_source/parser/parser_paths.cpp", std::string_view("IsIdent(Tok(P))")},
     {"Parse-Ident-Err", "ParseJudgment", std::nullopt, "02_source/parser/parser_paths.cpp", std::string_view("¬ IsIdent(Tok(P))\nc = Code(Parse-Syntax-Err)\nΓ ⊢ Emit(c, Tok(P).span)")},
     {"Parse-Identifier-Expr", "ParseJudgment", std::nullopt, "02_source/parser/expr/identifier.cpp", std::string_view("IsIdent(Tok(P))\n¬ IsOp(Tok(Advance(P)), \"::\")\n¬ IsOp(Tok(Advance(P)), \"@\")\n¬ IsPunc(Tok(Advance(P)), \"{\")")},
