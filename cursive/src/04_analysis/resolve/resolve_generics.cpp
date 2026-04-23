@@ -224,15 +224,15 @@ ResolveResult<std::optional<ast::GenericParams>> ResolveGenericParamsOpt(
 // -----------------------------------------------------------------------------
 // ResolvePredicate
 // -----------------------------------------------------------------------------
-// Resolves a where clause predicate: Bitcopy(T), Clone(T), etc.
-// Implements (Resolve-WherePred-Predicate):
+// Resolves a predicate requirement pair: PredicateReq(pred, ty).
+// Implements (ResolvePredicateReq-Predicate):
 //   Gamma |- ResolveType(ty) => ty'
 
-ResolveResult<ast::WherePredicate> ResolvePredicate(
+ResolveResult<ast::PredicateReq> ResolvePredicate(
     ResolveContext& ctx,
-    const ast::WherePredicate& pred) {
+    const ast::PredicateReq& pred) {
   SpecDefsResolveGenerics();
-  ResolveResult<ast::WherePredicate> result;
+  ResolveResult<ast::PredicateReq> result;
   result.ok = true;
   result.value = pred;
 

@@ -272,7 +272,7 @@ struct TypeBound;
 struct TypeParam;
 struct GenericParams;
 struct GenericArgs;
-struct WherePredicate;
+struct PredicateReq;
 struct WhereClause;
 
 // ===========================================================================

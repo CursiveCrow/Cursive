@@ -210,7 +210,7 @@ static bool HasFfiSafeReq(const std::optional<ast::WhereClause>& where_clause_op
     return false;
   }
   for (const auto& pred : where_clause_opt->predicates) {
-    if (!IdEq(pred.predicate, "FfiSafe") || !pred.type) {
+    if (!IdEq(pred.pred, "FfiSafe") || !pred.type) {
       continue;
     }
     const auto* path = std::get_if<ast::TypePathType>(&pred.type->node);
@@ -231,7 +231,7 @@ static bool HasGpuSafeReq(const std::optional<ast::WhereClause>& where_clause_op
     return false;
   }
   for (const auto& pred : where_clause_opt->predicates) {
-    if (!IdEq(pred.predicate, "GpuSafe") || !pred.type) {
+    if (!IdEq(pred.pred, "GpuSafe") || !pred.type) {
       continue;
     }
     const auto* path = std::get_if<ast::TypePathType>(&pred.type->node);

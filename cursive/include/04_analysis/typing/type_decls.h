@@ -431,7 +431,7 @@ TypeAliasDeclResult TypeTypeAliasDeclSignature(
 // Where clause processing
 WhereClauseResult ProcessWhereClause(
     const ScopeContext& ctx,
-    const std::vector<ast::WherePredicate>& predicates,
+    const std::vector<ast::PredicateReq>& predicates,
     const std::vector<std::string>& type_param_names);
 
 // =============================================================================

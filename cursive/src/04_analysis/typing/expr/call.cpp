@@ -1329,14 +1329,14 @@ static bool ExpandTypeArgsWithDefaults(
   return true;
 }
 
-static bool IsWherePredicateName(std::string_view name) {
+static bool IsPredicateReqName(std::string_view name) {
   return IdEq(name, "Bitcopy") || IdEq(name, "Clone") ||
          IdEq(name, "Drop") || IdEq(name, "FfiSafe");
 }
 
-static bool WherePredicateSatisfied(const ScopeContext& ctx,
-                                    std::string_view pred,
-                                    const TypeRef& type) {
+static bool PredicateReqSatisfied(const ScopeContext& ctx,
+                                  std::string_view pred,
+                                  const TypeRef& type) {
   if (IdEq(pred, "Bitcopy")) {
     return BitcopyType(ctx, type);
   }
@@ -1381,7 +1381,7 @@ static std::optional<std::string_view> ValidateProcedureTypeArgConstraints(
   }
 
   for (const auto& wp : proc.predicate_clause_opt->predicates) {
-    if (!IsWherePredicateName(wp.predicate)) {
+    if (!IsPredicateReqName(wp.pred)) {
       return std::optional<std::string_view>{"E-TYP-2302"};
     }
     const auto lowered = LowerType(ctx, wp.type);
@@ -1389,7 +1389,7 @@ static std::optional<std::string_view> ValidateProcedureTypeArgConstraints(
       return lowered.diag_id;
     }
     const auto instantiated = InstantiateType(lowered.type, subst);
-    if (!WherePredicateSatisfied(ctx, wp.predicate, instantiated)) {
+    if (!PredicateReqSatisfied(ctx, wp.pred, instantiated)) {
       return std::optional<std::string_view>{"E-TYP-2302"};
     }
   }

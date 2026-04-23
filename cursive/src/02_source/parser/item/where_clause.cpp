@@ -17,7 +17,9 @@
 
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "00_core/assert_spec.h"
@@ -94,6 +96,58 @@ void RecordPredicateReqTailRule(std::string_view rule_id,
                                                     terminator));
 }
 
+std::string PredicateReqPathPayload(const TypePath& path) {
+  std::string payload;
+  for (std::size_t i = 0; i < path.size(); ++i) {
+    if (i > 0) {
+      payload += "::";
+    }
+    payload += path[i];
+  }
+  return payload;
+}
+
+std::string PredicateReqTypePayload(const TypePtr& type) {
+  if (!type) {
+    return "none";
+  }
+
+  return std::visit(
+      [&](const auto& node) -> std::string {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, TypePrim>) {
+          return "TypePrim:" + std::string(node.name);
+        } else if constexpr (std::is_same_v<T, TypePathType>) {
+          return "TypePath:" + PredicateReqPathPayload(node.path);
+        } else if constexpr (std::is_same_v<T, TypeApply>) {
+          return "TypeApply:" + PredicateReqPathPayload(node.path) +
+                 ":args=" + std::to_string(node.args.size());
+        } else {
+          return "other";
+        }
+      },
+      type->node);
+}
+
+std::string PredicateReqPayload(const PredicateReq& req) {
+  std::string payload;
+  payload.reserve(req.pred.size() + 96);
+  payload += "ast_node=PredicateReq;fields=pred,type;pred=";
+  payload += req.pred;
+  payload += ";type=";
+  payload += PredicateReqTypePayload(req.type);
+  return payload;
+}
+
+void RecordPredicateReqRule(std::string_view rule_id,
+                            const core::Span& span,
+                            const PredicateReq& req) {
+  if (!core::Conformance::Enabled()) {
+    return;
+  }
+  core::Conformance::Record(rule_id, span, PredicateReqPayload(req));
+}
+
 bool StartsPredicateReq(Parser parser) {
   while (Tok(parser) && Tok(parser)->kind == TokenKind::Newline) {
     Advance(parser);
@@ -110,7 +164,7 @@ bool StartsPredicateReq(Parser parser) {
   return IsPunc(after_name, "(");
 }
 
-ParseElemResult<WherePredicate> ParsePredicateReq(Parser parser) {
+ParseElemResult<PredicateReq> ParsePredicateReq(Parser parser) {
   Parser pred_start = parser;
   const Token* pred_tok = Tok(parser);
   if (!pred_tok || !IsIdentTok(*pred_tok)) {
@@ -123,10 +177,11 @@ ParseElemResult<WherePredicate> ParsePredicateReq(Parser parser) {
     SPEC_RULE("Parse-PredicateReq-Err");
     EmitParseSyntaxErr(after_name, TokSpan(after_name));
 
-    WherePredicate pred;
-    pred.predicate = pred_name.elem;
+    PredicateReq pred;
+    pred.pred = pred_name.elem;
     pred.type = MakeTypePrim(SpanBetween(pred_start, after_name), "!");
-    pred.span = SpanBetween(pred_start, after_name);
+    RecordPredicateReqRule("Parse-PredicateReq-Err",
+                           SpanBetween(pred_start, after_name), pred);
     return {after_name, pred};
   }
 
@@ -142,16 +197,17 @@ ParseElemResult<WherePredicate> ParsePredicateReq(Parser parser) {
     Advance(after_type);
   }
 
-  WherePredicate pred;
-  pred.predicate = pred_name.elem;
+  PredicateReq pred;
+  pred.pred = pred_name.elem;
   pred.type = ty.elem;
-  pred.span = SpanBetween(pred_start, after_type);
+  RecordPredicateReqRule("Parse-PredicateReq-Predicate",
+                         SpanBetween(pred_start, after_type), pred);
   return {after_type, pred};
 }
 
-ParseElemResult<std::vector<WherePredicate>> ParsePredicateReqListTail(
+ParseElemResult<std::vector<PredicateReq>> ParsePredicateReqListTail(
     Parser parser,
-    std::vector<WherePredicate> predicates) {
+    std::vector<PredicateReq> predicates) {
   if (!IsPredicateReqTerminator(parser)) {
     RecordPredicateReqTailRule("Parse-PredicateReqListTail-End",
                                TokSpan(parser), predicates.size());
@@ -172,9 +228,9 @@ ParseElemResult<std::vector<WherePredicate>> ParsePredicateReqListTail(
     return {after_term, std::move(predicates)};
   }
 
-  ParseElemResult<WherePredicate> pred = ParsePredicateReq(after_term);
+  ParseElemResult<PredicateReq> pred = ParsePredicateReq(after_term);
   predicates.push_back(pred.elem);
-  ParseElemResult<std::vector<WherePredicate>> tail =
+  ParseElemResult<std::vector<PredicateReq>> tail =
       ParsePredicateReqListTail(pred.parser, std::move(predicates));
   RecordPredicateReqTailRule(
       "Parse-PredicateReqListTail-Cons", SpanBetween(parser, tail.parser),
@@ -216,11 +272,11 @@ ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseImpl(Parser pars
     Advance(next);
   }
 
-  ParseElemResult<WherePredicate> first = ParsePredicateReq(next);
-  std::vector<WherePredicate> predicates;
+  ParseElemResult<PredicateReq> first = ParsePredicateReq(next);
+  std::vector<PredicateReq> predicates;
   predicates.push_back(first.elem);
 
-  ParseElemResult<std::vector<WherePredicate>> tail =
+  ParseElemResult<std::vector<PredicateReq>> tail =
       ParsePredicateReqListTail(first.parser, std::move(predicates));
 
   WhereClause clause;

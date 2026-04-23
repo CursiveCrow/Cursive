@@ -45,7 +45,7 @@ namespace {
 
 static inline void SpecDefsWhereBounds() {
   SPEC_DEF("WhereClause", "C0X.13.3");
-  SPEC_DEF("WherePredicate", "C0X.13.3");
+  SPEC_DEF("PredicateReq", "C0X.13.3");
   SPEC_DEF("PredOk", "C0X.13.3");
   SPEC_DEF("T-Constraint-Sat", "C0X.13.3");
   SPEC_DEF("PredicateName", "C0X.13.3");
@@ -334,14 +334,14 @@ WhereParseResult ParseWhereClause(
     return result;
   }
 
-  // SPEC: CursiveSpecification.md (Parse-WhereClauseOpt-Yes) rule
-  // where_clause = [where_predicate]
+  // SPEC: CursiveSpecification.md (Parse-PredicateClauseOpt-Yes) rule
+  // predicate_clause = [PredicateReq]
 
   result.clause.span = where_opt->span;
 
   for (const auto& pred : where_opt->predicates) {
-    // SPEC: where_predicate = PredicateName(Type)
-    auto pred_kind = ParsePredicateName(pred.predicate);
+    // SPEC: PredicateReq = <pred, type>
+    auto pred_kind = ParsePredicateName(pred.pred);
     if (!pred_kind) {
       result.ok = false;
       result.diag_id = "E-TYP-2302";
@@ -351,7 +351,7 @@ WhereParseResult ParseWhereClause(
     PredicateBound bound;
     bound.predicate = *pred_kind;
     bound.type = LowerAstType(ctx, pred.type);
-    bound.span = pred.span;
+    bound.span = pred.type ? pred.type->span : where_opt->span;
     result.clause.bounds.push_back(bound);
   }
 
@@ -739,4 +739,3 @@ std::vector<Bound> MergeBounds(const std::vector<std::vector<Bound>>& bound_list
 }
 
 }  // namespace cursive::analysis
-

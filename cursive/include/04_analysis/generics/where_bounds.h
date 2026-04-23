@@ -2,14 +2,14 @@
 // File: 04_analysis/generics/where_bounds.h
 // Construct: Where Clause Parsing and Bound Validation
 // Spec Section: CursiveSpecification.md Section 13.3 "Type Bounds"
-// Spec Rules: WhereClause, WherePredicate, PredOk, T-Constraint-Sat
+// Spec Rules: WhereClause, PredicateReq, PredOk, T-Constraint-Sat
 // =============================================================================
 //
 // This file declares functions for parsing where clauses and validating
 // that type arguments satisfy their bounds.
 //
-// CRITICAL: Where clause syntax is Predicate(Type), NOT Type: Predicate
-//           Example: where Bitcopy(T)  NOT where T: Bitcopy
+// CRITICAL: Predicate clause syntax is Predicate(Type), NOT Type: Predicate
+//           Example: |: Bitcopy(T)  NOT where T: Bitcopy
 //
 // Available predicates: Bitcopy, Clone, Drop, FfiSafe
 //

@@ -43,7 +43,7 @@ static inline void SpecDefsWhereClause() {
 
 WhereClauseResult ProcessWhereClause(
     const ScopeContext& ctx,
-    const std::vector<ast::WherePredicate>& predicates,
+    const std::vector<ast::PredicateReq>& predicates,
     const std::vector<std::string>& type_params) {
   SpecDefsWhereClause();
   WhereClauseResult result;
@@ -52,8 +52,8 @@ WhereClauseResult ProcessWhereClause(
 
   for (const auto& predicate : predicates) {
     // Verify predicate name is valid
-    if (predicate.predicate != "Bitcopy" && predicate.predicate != "Clone" &&
-        predicate.predicate != "Drop" && predicate.predicate != "FfiSafe") {
+    if (predicate.pred != "Bitcopy" && predicate.pred != "Clone" &&
+        predicate.pred != "Drop" && predicate.pred != "FfiSafe") {
       SPEC_RULE("WhereClause-PredicateNotFound");
       result.ok = false;
       result.diag_id = "E-TYP-2302";

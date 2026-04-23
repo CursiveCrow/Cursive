@@ -1,0 +1,10 @@
+record PredicateReqInvalidRecovery<T>
+|: Bitcopy(T); Copyish(T)
+{
+    value: T
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

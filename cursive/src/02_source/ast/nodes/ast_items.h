@@ -21,7 +21,7 @@
 //   ErrorItem     - parse-error sentinel item
 //
 // Supporting structures:
-//   GenericParams, TypeParam, TypeBound, WhereClause, WherePredicate
+//   GenericParams, TypeParam, TypeBound, WhereClause, PredicateReq
 //   ContractClause, ForeignContractClause, TypeInvariant
 //   Param, Receiver (ReceiverShorthand, ReceiverExplicit)
 //   FieldDecl, MethodDecl, RecordMember
@@ -178,18 +178,17 @@ namespace cursive::ast
         core::Span span;
     };
 
-    // Where clause predicate: Bitcopy(T)
-    struct WherePredicate
+    // Predicate requirement: PredicateReq = <pred, type>
+    struct PredicateReq
     {
-        Identifier predicate; // Predicate name (Bitcopy, Clone, Drop, FfiSafe)
-        TypePtr type;         // Type being constrained
-        core::Span span;
+        Identifier pred; // Predicate name (Bitcopy, Clone, Drop, FfiSafe)
+        TypePtr type;    // Type being constrained
     };
 
-    // Where clause: where Bitcopy(T), Clone(U)
+    // Predicate clause: |: Bitcopy(T), Clone(U)
     struct WhereClause
     {
-        std::vector<WherePredicate> predicates;
+        std::vector<PredicateReq> predicates;
         core::Span span;
     };
 
