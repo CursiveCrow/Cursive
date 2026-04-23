@@ -1,0 +1,27 @@
+import probe::bindtypeparamdep
+
+record BindEnvelope<Inner; Projected = Inner> {
+    value: Inner
+    projected: Projected
+}
+
+record CrossModuleBind<Seed; External = probe::bindtypeparamdep::ExternalBox<Seed>> {
+    seed: Seed
+    external: External
+}
+
+type BindAlias<Left; Right = Left> = BindEnvelope<Left, Right>
+
+procedure bindIdentity<Item>(value: Item) -> Item {
+    return value
+}
+
+procedure bindChoose<First; Second = First>(first: First, second: Second) -> First {
+    let _ = second
+    return first
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

@@ -209,6 +209,7 @@ static const StaticRuleMeta kStaticRules[] = {
     {"BindSlot-Param-ByValue", "GlobalsJudg", std::nullopt, "05_codegen/globals/binding_storage.cpp", std::string_view("ProcParams(Γ) = params\nParamEntry(params, x) = ⟨mode, T⟩\nΓ ⊢ ABIParam(mode, T) ⇓ `ByValue`")},
     {"BindSlot-Region", "GlobalsJudg", std::nullopt, "05_codegen/globals/binding_storage.cpp", std::string_view("BindRegionTarget(x) = r")},
     {"BindSlot-Static", "GlobalsJudg", std::nullopt, "05_codegen/globals/binding_storage.cpp", std::string_view("Γ ⊢ ResolveValueName(x) ⇓ ent\nent.origin_opt = mp\nname = (ent.target_opt if present, else x)\nPathOfModule(mp) = path\nStaticSymPath(path, name) = sym\nΓ ⊢ StateRef(sym) ⇓ slot")},
+    {"BindTypeParams", "DeclJudg", std::nullopt, "04_analysis/generics/generic_params.cpp", std::nullopt},
     {"BindValid", "CleanupJudg", std::nullopt, "05_codegen/cleanup/cleanup.cpp", std::nullopt},
     {"BindValid-Check", "GlobalsJudg", std::nullopt, "05_codegen/globals/binding_storage.cpp", std::nullopt},
     {"BindValid-DropIfValid", "GlobalsJudg", std::nullopt, "05_codegen/globals/binding_storage.cpp", std::nullopt},

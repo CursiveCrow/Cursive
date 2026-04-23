@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <charconv>
 #include <set>
+#include <sstream>
 #include <string_view>
 
 #include "00_core/assert_spec.h"
@@ -71,6 +72,63 @@ const std::set<std::string> kConstParamTypes = {
 // Check if a type name is a valid const generic parameter type
 bool IsIntegralTypeName(const std::string& name) {
   return kConstParamTypes.find(name) != kConstParamTypes.end();
+}
+
+Entity MakeTypeParamEntity(const ast::TypeParam& param) {
+  Entity entity;
+  entity.kind = EntityKind::Type;
+  entity.source = EntitySource::Decl;
+  entity.origin_opt = std::nullopt;
+  entity.target_opt = param.name;
+  return entity;
+}
+
+std::string BindTypeParamsPayload(
+    const ScopeContext& ctx,
+    const std::vector<ast::TypeParam>& params,
+    std::size_t result_scope_count) {
+  std::ostringstream payload;
+  payload << "gamma_scope_count=" << ctx.scopes.size()
+          << ";param_count=" << params.size()
+          << ";result_scope_count=" << result_scope_count
+          << ";bindings=";
+
+  for (std::size_t i = 0; i < params.size(); ++i) {
+    if (i > 0) {
+      payload << ",";
+    }
+    payload << params[i].name << ":P_" << (i + 1);
+  }
+
+  payload << ";param_names=";
+  for (std::size_t i = 0; i < params.size(); ++i) {
+    if (i > 0) {
+      payload << ",";
+    }
+    payload << params[i].name;
+  }
+
+  return payload.str();
+}
+
+void RecordBindTypeParamsRule(
+    const ScopeContext& ctx,
+    const std::optional<ast::GenericParams>& params_opt,
+    std::size_t result_scope_count) {
+  if (!core::Conformance::Enabled()) {
+    return;
+  }
+
+  std::optional<core::Span> span;
+  if (params_opt.has_value()) {
+    span = params_opt->span;
+  }
+
+  core::Conformance::Record(
+      "BindTypeParams(Gamma, params)",
+      span,
+      BindTypeParamsPayload(ctx, ast::TypeParamsOpt(params_opt),
+                            result_scope_count));
 }
 
 bool ParseI64Literal(std::string_view text, std::int64_t& out) {
@@ -476,6 +534,7 @@ Scope BuildParamScope(
     const std::optional<ast::GenericParams>& params_opt) {
   SpecDefsGenericParams();
   SPEC_RULE("Build-ParamScope");
+  (void)ctx;
 
   // SPEC: BindTypeParams(Gamma, params)
   // Each type parameter is bound as a type entity
@@ -488,20 +547,46 @@ Scope BuildParamScope(
   }
 
   for (const auto& param : params) {
-    // Create an entity for the type parameter
-    Entity entity;
-    entity.kind = EntityKind::Type;
-    entity.source = EntitySource::Decl;
-    // Type parameters don't have an origin module path - they're local
-    entity.origin_opt = std::nullopt;
-    entity.target_opt = param.name;
-
     // Bind the parameter name in the scope
     IdKey key = IdKeyOf(param.name);
-    scope[key] = entity;
+    scope[key] = MakeTypeParamEntity(param);
   }
 
   return scope;
+}
+
+ScopeList BindTypeParams(
+    const ScopeContext& ctx,
+    const ast::GenericParams& params) {
+  SpecDefsGenericParams();
+  SPEC_RULE("BindTypeParams");
+
+  std::optional<ast::GenericParams> params_opt = params;
+  ScopeList scopes;
+  scopes.reserve(ctx.scopes.size() + 1);
+  scopes.push_back(BuildParamScope(ctx, params_opt));
+  scopes.insert(scopes.end(), ctx.scopes.begin(), ctx.scopes.end());
+  RecordBindTypeParamsRule(ctx, params_opt, scopes.size());
+  return scopes;
+}
+
+ScopeList BindTypeParams(
+    const ScopeContext& ctx,
+    const std::optional<ast::GenericParams>& params_opt) {
+  SpecDefsGenericParams();
+  SPEC_RULE("BindTypeParams");
+
+  if (!params_opt.has_value()) {
+    RecordBindTypeParamsRule(ctx, params_opt, ctx.scopes.size());
+    return ctx.scopes;
+  }
+
+  ScopeList scopes;
+  scopes.reserve(ctx.scopes.size() + 1);
+  scopes.push_back(BuildParamScope(ctx, params_opt));
+  scopes.insert(scopes.end(), ctx.scopes.begin(), ctx.scopes.end());
+  RecordBindTypeParamsRule(ctx, params_opt, scopes.size());
+  return scopes;
 }
 
 // =============================================================================

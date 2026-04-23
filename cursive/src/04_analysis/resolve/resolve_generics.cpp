@@ -18,8 +18,8 @@
 #include "04_analysis/resolve/resolver.h"
 
 #include "00_core/assert_spec.h"
+#include "04_analysis/generics/generic_params.h"
 #include "04_analysis/resolve/scopes.h"
-#include "04_analysis/resolve/scopes_intro.h"
 
 namespace cursive::analysis {
 
@@ -168,16 +168,8 @@ ResolveResult<ast::GenericParams> ResolveGenericParams(
     return result;
   }
 
-  // First pass: introduce all type parameter names into scope
-  for (const auto& param : params.params) {
-    IntroResult intro = Intro(*ctx.ctx, param.name,
-                              Entity{EntityKind::Type, std::nullopt,
-                                     std::nullopt, EntitySource::Decl});
-    if (!intro.ok) {
-      return {false, intro.diag_id, param.span, {}};
-    }
-    SPEC_RULE("ResolveGenericParams-Intro");
-  }
+  ctx.ctx->scopes = BindTypeParams(*ctx.ctx, params);
+  SPEC_RULE("ResolveGenericParams-Intro");
 
   // Second pass: resolve bounds and defaults
   for (const auto& param : params.params) {

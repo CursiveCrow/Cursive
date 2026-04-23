@@ -159,6 +159,16 @@ procedure run_type_params_opt_some_trace(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "type_params_opt_some_trace")
 }
 
+procedure run_bind_type_params_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance bind_type_params_trace.log ..\\TestProjects\\Parsing\\Generated\\bind_type_params_trace\\Main.cursive > build\\main\\logs\\compile_checks\\bind_type_params_trace.json 2> build\\main\\logs\\compile_checks\\bind_type_params_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"BindTypeParams(Gamma, params)\" ..\\TestProjects\\Parsing\\Generated\\bind_type_params_trace\\build\\probe\\logs\\conformance\\bind_type_params_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"BindTypeParams(Gamma, params).*param_count.*2.*bindings.*Inner:P_1.*Projected:P_2\" ..\\TestProjects\\Parsing\\Generated\\bind_type_params_trace\\build\\probe\\logs\\conformance\\bind_type_params_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"BindTypeParams(Gamma, params).*param_count.*2.*bindings.*Seed:P_1.*External:P_2\" ..\\TestProjects\\Parsing\\Generated\\bind_type_params_trace\\build\\probe\\logs\\conformance\\bind_type_params_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"BindTypeParams(Gamma, params).*param_count.*1.*bindings.*Item:P_1\" ..\\TestProjects\\Parsing\\Generated\\bind_type_params_trace\\build\\probe\\logs\\conformance\\bind_type_params_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"BindTypeParams(Gamma, params).*param_count.*2.*bindings.*First:P_1.*Second:P_2\" ..\\TestProjects\\Parsing\\Generated\\bind_type_params_trace\\build\\probe\\logs\\conformance\\bind_type_params_trace.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "bind_type_params_trace")
+}
+
+procedure run_bind_type_params_duplicate_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance bind_type_params_duplicate_rejected.log ..\\TestProjects\\Parsing\\Generated\\bind_type_params_duplicate_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\bind_type_params_duplicate_rejected.json 2> build\\main\\logs\\compile_checks\\bind_type_params_duplicate_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2304\\\"\" build\\main\\logs\\compile_checks\\bind_type_params_duplicate_rejected.json >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"BindTypeParams(Gamma, params).*param_count.*2.*bindings.*Dup:P_1.*Dup:P_2\" ..\\TestProjects\\Parsing\\Generated\\bind_type_params_duplicate_rejected\\build\\probe\\logs\\conformance\\bind_type_params_duplicate_rejected.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "bind_type_params_duplicate_rejected")
+}
+
 procedure run_parse_class_bound_generic_args_trace(ctx: Context) -> i32 {
     let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --phase1-only --diag-json --quiet --conformance parse_class_bound_generic_args_trace.log ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\Main.cursive > build\\main\\logs\\compile_checks\\parse_class_bound_generic_args_trace.json 2> build\\main\\logs\\compile_checks\\parse_class_bound_generic_args_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-ClassBound\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-ClassBound.*PlainBound.*args_opt.*none.*arg_count.*0\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-ClassBound.*UnaryBound.*args_opt.*some.*arg_count.*1\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-ClassBound.*BinaryBound.*args_opt.*some.*arg_count.*2\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-ClassBound.*probe::classbounddep::ExternalBound.*args_opt.*some.*arg_count.*1\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Parse-GenericArgsOpt-Yes\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"Parse-GenericArgsOpt-Yes.*arg_count.*2\" ..\\TestProjects\\Parsing\\Generated\\parse_class_bound_generic_args_trace\\build\\probe\\logs\\conformance\\parse_class_bound_generic_args_trace.log >nul"
     return testsupport::runCompileCheckCommand(ctx, command, "parse_class_bound_generic_args_trace")
@@ -338,6 +348,16 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_type_params_opt_some_trace: i32 = run_type_params_opt_some_trace(ctx)
     if (status_type_params_opt_some_trace != 0) {
         return status_type_params_opt_some_trace
+    }
+
+    let status_bind_type_params_trace: i32 = run_bind_type_params_trace(ctx)
+    if (status_bind_type_params_trace != 0) {
+        return status_bind_type_params_trace
+    }
+
+    let status_bind_type_params_duplicate_rejected: i32 = run_bind_type_params_duplicate_rejected(ctx)
+    if (status_bind_type_params_duplicate_rejected != 0) {
+        return status_bind_type_params_duplicate_rejected
     }
 
     let status_parse_class_bound_generic_args_trace: i32 = run_parse_class_bound_generic_args_trace(ctx)

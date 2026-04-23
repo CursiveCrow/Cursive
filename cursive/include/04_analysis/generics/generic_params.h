@@ -127,6 +127,18 @@ Scope BuildParamScope(
     const ScopeContext& ctx,
     const std::optional<ast::GenericParams>& params_opt);
 
+// Extend Gamma with the type-parameter binding scope.
+// The returned scope list preserves the original Gamma scopes and places the
+// parameter bindings in the innermost position.
+// SPEC: BindTypeParams(Gamma, params)
+ScopeList BindTypeParams(
+    const ScopeContext& ctx,
+    const ast::GenericParams& params);
+
+ScopeList BindTypeParams(
+    const ScopeContext& ctx,
+    const std::optional<ast::GenericParams>& params_opt);
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
