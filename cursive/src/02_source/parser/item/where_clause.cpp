@@ -16,6 +16,7 @@
 #include "02_source/parser/parser.h"
 
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "00_core/assert_spec.h"
@@ -53,6 +54,43 @@ namespace {
 bool IsPredicateReqName(std::string_view name) {
   return name == "Bitcopy" || name == "Clone" || name == "Drop" ||
          name == "FfiSafe";
+}
+
+bool IsPredicateReqTerminator(Parser parser) {
+  return Tok(parser) && (Tok(parser)->kind == TokenKind::Newline ||
+                         IsPunc(parser, ";"));
+}
+
+std::string PredicateReqTailPayload(std::size_t predicate_count,
+                                    std::string_view terminator = {}) {
+  std::string payload;
+  payload.reserve(terminator.size() + 48);
+  payload += "predicate_count=";
+  payload += std::to_string(predicate_count);
+  if (!terminator.empty()) {
+    payload += ";terminator=";
+    payload += terminator;
+  }
+  return payload;
+}
+
+std::string_view PredicateReqTerminatorLabel(const Token& token) {
+  if (token.kind == TokenKind::Newline) {
+    return "\\n";
+  }
+  return token.lexeme;
+}
+
+void RecordPredicateReqTailRule(std::string_view rule_id,
+                                const core::Span& span,
+                                std::size_t predicate_count,
+                                std::string_view terminator = {}) {
+  if (!core::Conformance::Enabled()) {
+    return;
+  }
+  core::Conformance::Record(rule_id, span,
+                            PredicateReqTailPayload(predicate_count,
+                                                    terminator));
 }
 
 bool StartsPredicateReq(Parser parser) {
@@ -151,30 +189,35 @@ ParseElemResult<std::optional<WhereClause>> ParsePredicateClauseImpl(Parser pars
 
   // Parse additional predicates separated by terminators
   while (true) {
-    Parser after_term = next;
-    bool consumed = false;
-    while (Tok(after_term) &&
-           (Tok(after_term)->kind == TokenKind::Newline ||
-            IsPunc(after_term, ";"))) {
-      Advance(after_term);
-      consumed = true;
-    }
-
-    if (!consumed) {
+    if (!IsPredicateReqTerminator(next)) {
+      RecordPredicateReqTailRule("Parse-PredicateReqListTail-End",
+                                 TokSpan(next), clause.predicates.size());
       break;
     }
 
+    const Token* terminator = Tok(next);
+    Parser after_term = next;
+    Advance(after_term);
+
     const Token* next_tok = Tok(after_term);
-    if (next_tok && IsIdentTok(*next_tok)) {
-      ParseElemResult<WherePredicate> pred = parse_predicate(after_term);
-      clause.predicates.push_back(pred.elem);
-      next = pred.parser;
-      continue;
+    if (!next_tok || !IsIdentTok(*next_tok)) {
+      RecordPredicateReqTailRule(
+          "Parse-PredicateReqListTail-TrailingTerminator",
+          SpanBetween(next, after_term), clause.predicates.size(),
+          terminator ? PredicateReqTerminatorLabel(*terminator)
+                     : std::string_view{});
+      next = after_term;
+      break;
     }
 
-    // Trailing terminator allowed.
-    next = after_term;
-    break;
+    ParseElemResult<WherePredicate> pred = parse_predicate(after_term);
+    clause.predicates.push_back(pred.elem);
+    RecordPredicateReqTailRule(
+        "Parse-PredicateReqListTail-Cons", SpanBetween(next, pred.parser),
+        clause.predicates.size(),
+        terminator ? PredicateReqTerminatorLabel(*terminator)
+                   : std::string_view{});
+    next = pred.parser;
   }
 
   clause.span = SpanBetween(start, next);

@@ -1,0 +1,29 @@
+import probe::predicatetaildep
+
+record TailExactSemicolon<T>
+|: Bitcopy(T); Clone(probe::predicatetaildep::ExternalBox<T>)
+{
+    value: T
+}
+
+record TailExactNewline<T>
+|: Drop(T)
+FfiSafe(T)
+{
+    value: T
+}
+
+record TailSingleTrailing<T>
+|: Bitcopy(T);
+{
+    value: T
+}
+
+record TailEnd<T> |: Clone(T) {
+    value: T
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

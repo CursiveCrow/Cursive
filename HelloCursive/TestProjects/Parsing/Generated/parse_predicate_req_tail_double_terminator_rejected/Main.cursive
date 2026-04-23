@@ -1,0 +1,12 @@
+record DoubleTerminatorBeforePredicate<T>
+|: Bitcopy(T);
+
+Clone(T)
+{
+    value: T
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
