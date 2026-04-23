@@ -1,0 +1,35 @@
+import probe::typeparamoptdep
+
+class LocalBound {
+}
+
+record TypeParamsOptSomeBox<T> {
+    value: T
+}
+
+record TypeParamsOptSomePair<T; U> {
+    left: T
+    right: U
+}
+
+record TypeParamsOptSomeBounded<T <: LocalBound; U> {
+    value: T
+    fallback: U
+}
+
+type TypeParamsOptSomeAlias<T; U> = TypeParamsOptSomePair<T, U>
+type TypeParamsOptSomeExternalAlias<T> = probe::typeparamoptdep::ExternalBox<T>
+
+procedure typeParamsOptSomeIdentity<T>(value: T) -> T {
+    return value
+}
+
+procedure typeParamsOptSomeChoose<T; U = i32>(value: T, fallback: U) -> U {
+    let _ = value
+    return fallback
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

@@ -176,6 +176,34 @@ namespace cursive::ast
         return kEmpty;
     }
 
+    inline std::string TypeParamsOptPayload(
+        const char* params_opt,
+        const std::vector<TypeParam>& params) {
+        std::string payload;
+        payload += "params_opt=";
+        payload += params_opt;
+        payload += ";param_count=";
+        payload += std::to_string(params.size());
+        payload += ";param_names=";
+        std::size_t default_count = 0;
+        std::size_t bound_count = 0;
+        for (std::size_t i = 0; i < params.size(); ++i) {
+            if (i > 0) {
+                payload += ",";
+            }
+            payload += params[i].name;
+            if (params[i].default_type) {
+                ++default_count;
+            }
+            bound_count += params[i].bounds.size();
+        }
+        payload += ";default_count=";
+        payload += std::to_string(default_count);
+        payload += ";bound_count=";
+        payload += std::to_string(bound_count);
+        return payload;
+    }
+
     inline const std::vector<TypeParam>& TypeParamsOpt(
         const std::optional<GenericParams>& params_opt) {
         if (params_opt.has_value()) {
@@ -183,8 +211,7 @@ namespace cursive::ast
                 core::Conformance::Record(
                     "TypeParamsOpt(ps)",
                     params_opt->span,
-                    "params_opt=some;param_count=" +
-                        std::to_string(params_opt->params.size()));
+                    TypeParamsOptPayload("some", params_opt->params));
             }
             return params_opt->params;
         }
@@ -192,7 +219,7 @@ namespace cursive::ast
             core::Conformance::Record(
                 "TypeParamsOpt(?)",
                 core::Span{},
-                "params_opt=none;param_count=0");
+                TypeParamsOptPayload("none", EmptyTypeParamList()));
         }
         return EmptyTypeParamList();
     }

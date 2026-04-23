@@ -1,0 +1,8 @@
+public record ExternalBox<T> {
+    value: T
+}
+
+public record ExternalPair<T; U> {
+    left: T
+    right: U
+}
