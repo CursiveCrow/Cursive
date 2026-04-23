@@ -314,6 +314,13 @@ ResolveResult<std::vector<ast::RecordMember>> ResolveRecordMemberList(
           } else if constexpr (std::is_same_v<T, ast::MethodDecl>) {
             auto out = node;
             Scope proc_scope;
+            if (record.generic_params.has_value()) {
+              for (const auto& type_param : record.generic_params->params) {
+                proc_scope.emplace(IdKeyOf(type_param.name),
+                                   Entity{EntityKind::Type, std::nullopt,
+                                          std::nullopt, EntitySource::Decl});
+              }
+            }
             for (const auto& param : node.params) {
               proc_scope.emplace(IdKeyOf(param.name),
                                  Entity{EntityKind::Value, std::nullopt,
