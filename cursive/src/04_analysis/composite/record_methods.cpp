@@ -155,6 +155,54 @@ static const ast::TypeAliasDecl* LookupTypeAliasDecl(const ScopeContext& ctx,
   return std::get_if<ast::TypeAliasDecl>(&resolved_it->second);
 }
 
+struct TypeDeclLookupResult {
+  const TypeDecl* decl = nullptr;
+  TypePath resolved_path;
+};
+
+static TypeDeclLookupResult LookupTypeDeclByPath(const ScopeContext& ctx,
+                                                 const TypePath& path) {
+  if (path.empty()) {
+    return {};
+  }
+
+  auto lookup_full = [&](const ast::Path& full) -> TypeDeclLookupResult {
+    const auto it = ctx.sigma.types.find(PathKeyOf(full));
+    if (it == ctx.sigma.types.end()) {
+      return {};
+    }
+    TypeDeclLookupResult result;
+    result.decl = &it->second;
+    result.resolved_path.reserve(full.size());
+    for (const auto& seg : full) {
+      result.resolved_path.push_back(seg);
+    }
+    return result;
+  };
+
+  ast::Path direct;
+  direct.reserve(path.size());
+  for (const auto& seg : path) {
+    direct.push_back(seg);
+  }
+  if (const auto direct_lookup = lookup_full(direct); direct_lookup.decl) {
+    return direct_lookup;
+  }
+
+  if (path.size() != 1) {
+    return {};
+  }
+
+  const auto ent = ResolveTypeName(ctx, path[0]);
+  if (!ent.has_value() || !ent->origin_opt.has_value()) {
+    return {};
+  }
+
+  ast::Path resolved = *ent->origin_opt;
+  resolved.push_back(ent->target_opt.has_value() ? *ent->target_opt : path[0]);
+  return lookup_full(resolved);
+}
+
 static AliasExpandResult ExpandTypeAliasApply(const ScopeContext& ctx,
                                               const TypePathType& applied) {
   AliasExpandResult result;
@@ -791,22 +839,17 @@ StaticMethodLookup LookupMethodStatic(const ScopeContext& ctx,
   const ast::RecordDecl* record = nullptr;
   std::vector<ast::ClassPath> implements;
   if (path) {
-    ast::Path syntax_path;
-    syntax_path.reserve(path->size());
-    for (const auto& comp : *path) {
-      syntax_path.push_back(comp);
-    }
-    const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
-    if (it != ctx.sigma.types.end()) {
-      if (const auto* record_decl = std::get_if<ast::RecordDecl>(&it->second)) {
+    const auto type_decl_lookup = LookupTypeDeclByPath(ctx, *path);
+    if (const auto* type_decl = type_decl_lookup.decl) {
+      if (const auto* record_decl = std::get_if<ast::RecordDecl>(type_decl)) {
         record = record_decl;
         implements = record_decl->implements;
-        result.record_path = *path;
+        result.record_path = type_decl_lookup.resolved_path;
       } else if (const auto* enum_decl =
-                     std::get_if<ast::EnumDecl>(&it->second)) {
+                     std::get_if<ast::EnumDecl>(type_decl)) {
         implements = enum_decl->implements;
       } else if (const auto* modal_decl =
-                     std::get_if<ast::ModalDecl>(&it->second)) {
+                     std::get_if<ast::ModalDecl>(type_decl)) {
         implements = modal_decl->implements;
       }
     }
