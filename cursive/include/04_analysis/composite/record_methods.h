@@ -56,6 +56,9 @@ struct ArgsOkResult {
   std::optional<std::string_view> diag_id;
 };
 
+std::vector<const ast::MethodDecl*> RecordMethods(
+    const ast::RecordDecl& record);
+
 ArgsOkResult ArgsOk(const ScopeContext& ctx,
                     const std::vector<ast::Param>& params,
                     const std::vector<ast::Arg>& args,
@@ -76,8 +79,11 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
 struct StaticMethodLookup {
   bool ok = false;
   std::optional<std::string_view> diag_id;
+  const ast::RecordDecl* record_decl = nullptr;
   const ast::MethodDecl* record_method = nullptr;
   const ast::ClassMethodDecl* class_method = nullptr;
+  TypePath record_path;
+  std::vector<TypeRef> record_generic_args;
   ast::ClassPath owner_class;
 };
 

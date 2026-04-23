@@ -1303,6 +1303,7 @@ static const StaticRuleMeta kStaticRules[] = {
     {"MethodSymbol-ModalState-Method", "ABICallJudg", std::nullopt, "05_codegen/abi/abi_calls.cpp", std::nullopt},
     {"MethodSymbol-ModalState-Transition", "ABICallJudg", std::nullopt, "05_codegen/abi/abi_calls.cpp", std::nullopt},
     {"MethodSymbol-Record", "ABICallJudg", std::nullopt, "05_codegen/abi/abi_calls.cpp", std::nullopt},
+    {"Methods", "DeclJudg", std::nullopt, "04_analysis/composite/record_methods.cpp", std::nullopt},
     {"MixedScript-Err", "ParseJudgment", std::nullopt, "02_source/lexer/lexer_security.cpp", std::string_view("∃ x ∈ IdentifierLexemes(S). MixedScript(x)\nc = Code(MixedScript-Err)")},
     {"Mod-Done", "ParseJudgment", std::nullopt, "02_source/parser/parse_modules.cpp", std::string_view("")},
     {"Mod-Scan", "ParseJudgment", std::nullopt, "02_source/parser/parse_modules.cpp", std::string_view("U = f :: fs\nΓ ⊢ ReadBytes(f) ⇓ B\nΓ ⊢ LoadSource(f, B) ⇓ S_f\nΓ ⊢ ParseFile(S_f) ⇓ F")},

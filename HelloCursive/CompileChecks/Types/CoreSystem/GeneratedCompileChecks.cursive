@@ -224,6 +224,16 @@ procedure run_row1194_empty_field_tables_acceptance(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "row1194_empty_field_tables_acceptance")
 }
 
+procedure run_row1195_methods_typepath_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance row1195_methods_typepath_trace.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1195_methods_typepath_trace\\Main.cursive > build\\main\\logs\\compile_checks\\row1195_methods_typepath_trace.json 2> build\\main\\logs\\compile_checks\\row1195_methods_typepath_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"Methods\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1195_methods_typepath_trace\\build\\probe\\logs\\conformance\\row1195_methods_typepath_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"T-Record-MethodCall\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1195_methods_typepath_trace\\build\\probe\\logs\\conformance\\row1195_methods_typepath_trace.log >nul & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1195_methods_typepath_trace")
+}
+
+procedure run_row1195_methods_typepath_missing_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance row1195_methods_typepath_missing_rejected.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1195_methods_typepath_missing_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1195_methods_typepath_missing_rejected.json 2> build\\main\\logs\\compile_checks\\row1195_methods_typepath_missing_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"LookupMethod-NotFound\\\"\" build\\main\\logs\\compile_checks\\row1195_methods_typepath_missing_rejected.json >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Methods\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1195_methods_typepath_missing_rejected\\build\\probe\\logs\\conformance\\row1195_methods_typepath_missing_rejected.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"LookupMethod-NotFound\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1195_methods_typepath_missing_rejected\\build\\probe\\logs\\conformance\\row1195_methods_typepath_missing_rejected.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1195_methods_typepath_missing_rejected")
+}
+
 public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue32_decimal_to_int_rejected: i32 = run_issue32_decimal_to_int_rejected(ctx)
     if (status_run_issue32_decimal_to_int_rejected != 0) {
@@ -448,6 +458,16 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_row1194_empty_field_tables_acceptance: i32 = run_row1194_empty_field_tables_acceptance(ctx)
     if (status_row1194_empty_field_tables_acceptance != 0) {
         return status_row1194_empty_field_tables_acceptance
+    }
+
+    let status_row1195_methods_typepath_trace: i32 = run_row1195_methods_typepath_trace(ctx)
+    if (status_row1195_methods_typepath_trace != 0) {
+        return status_row1195_methods_typepath_trace
+    }
+
+    let status_row1195_methods_typepath_missing_rejected: i32 = run_row1195_methods_typepath_missing_rejected(ctx)
+    if (status_row1195_methods_typepath_missing_rejected != 0) {
+        return status_row1195_methods_typepath_missing_rejected
     }
 
     return 0

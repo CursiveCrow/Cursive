@@ -33,6 +33,7 @@
 #include "04_analysis/caps/cap_system.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/record_methods.h"
+#include "04_analysis/generics/generic_params.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/keys/key_paths.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
@@ -1406,8 +1407,8 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
   // Get the type path for method lookup
   TypePath type_path;
-  if (const auto* path_type = std::get_if<TypePathType>(&lookup_base->node)) {
-    type_path = path_type->path;
+  if (const auto* applied_path = AppliedTypePath(*lookup_base)) {
+    type_path = *applied_path;
   } else if (const auto* modal = std::get_if<TypeModalState>(&lookup_base->node)) {
     type_path = modal->path;
   } else if (const auto* dynamic = std::get_if<TypeDynamic>(&lookup_base->node)) {
@@ -2135,6 +2136,41 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     return result;
   }
 
+  LowerTypeFn method_lower_type = lower_type;
+  if (record_method && lookup.record_decl) {
+    ScopeContext record_method_ctx = ctx;
+    record_method_ctx.scopes =
+        cursive::analysis::BindTypeParams(ctx, lookup.record_decl->generic_params);
+
+    std::optional<TypeSubst> record_subst;
+    if (lookup.record_decl->generic_params.has_value()) {
+      const auto& record_params = lookup.record_decl->generic_params->params;
+      if (lookup.record_generic_args.size() > record_params.size()) {
+        SPEC_RULE("LookupMethod-NotFound");
+        result.diag_id = "LookupMethod-NotFound";
+        return result;
+      }
+      record_subst = BuildSubstitution(record_params, lookup.record_generic_args);
+    } else if (!lookup.record_generic_args.empty()) {
+      SPEC_RULE("LookupMethod-NotFound");
+      result.diag_id = "LookupMethod-NotFound";
+      return result;
+    }
+
+    method_lower_type =
+        [record_method_ctx, record_subst](
+            const std::shared_ptr<ast::Type>& type) -> LowerTypeResult {
+      const auto lowered = LowerType(record_method_ctx, type);
+      if (!lowered.ok) {
+        return {false, lowered.diag_id, {}};
+      }
+      if (!record_subst.has_value()) {
+        return {true, std::nullopt, lowered.type};
+      }
+      return {true, std::nullopt, InstantiateType(lowered.type, *record_subst)};
+    };
+  }
+
   // Get method signature
   const ast::Receiver& receiver =
       record_method ? record_method->receiver : class_method->receiver;
@@ -2142,7 +2178,8 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
                                      : class_method->params;
 
   // Check receiver permission
-  const auto recv_type = RecvTypeForReceiver(ctx, lookup_base, receiver, lower_type);
+  const auto recv_type =
+      RecvTypeForReceiver(ctx, lookup_base, receiver, method_lower_type);
   if (!recv_type.ok) {
     result.diag_id = recv_type.diag_id;
     return result;
@@ -2159,13 +2196,15 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
   std::optional<TypeSubst> subst;
   const auto* generic_params =
-      (class_method && class_method->generic_params)
-          ? &class_method->generic_params->params
-          : nullptr;
+      (record_method && record_method->generic_params)
+          ? &record_method->generic_params->params
+          : ((class_method && class_method->generic_params)
+                 ? &class_method->generic_params->params
+                 : nullptr);
   if (generic_params && !generic_params->empty()) {
     const auto inferred = InferMethodSubst(
         ctx, *generic_params, params, expr.args, type_expr, &type_place,
-        lower_type);
+        method_lower_type);
     if (!inferred.ok) {
       result.diag_id = inferred.diag_id;
       return result;
@@ -2173,14 +2212,14 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     subst = inferred.subst;
     const auto args_ok =
         ArgsOkWithSubst(ctx, params, expr.args, type_expr, &type_place,
-                        lower_type, *subst, &check_expr);
+                        method_lower_type, *subst, &check_expr);
     if (!args_ok.ok) {
       result.diag_id = args_ok.diag_id;
       return result;
     }
   } else {
     const auto args_ok =
-        ArgsOk(ctx, params, expr.args, type_expr, &type_place, lower_type,
+        ArgsOk(ctx, params, expr.args, type_expr, &type_place, method_lower_type,
                &check_expr);
     if (!args_ok.ok) {
       result.diag_id = args_ok.diag_id;
@@ -2195,7 +2234,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   if (!ret_opt) {
     ret_type = {true, std::nullopt, MakeTypePrim("()")};
   } else {
-    ret_type = LowerType(ctx, ret_opt);
+    ret_type = method_lower_type(ret_opt);
   }
   if (!ret_type.ok) {
     result.diag_id = ret_type.diag_id;

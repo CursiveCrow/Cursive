@@ -271,12 +271,11 @@ std::string DispatchSym(const analysis::TypeRef& type,
 
   // (DispatchSym-Impl): Type implements the method
   if (lookup.record_method) {
-    const auto* path_type = stripped ? std::get_if<analysis::TypePathType>(&stripped->node) : nullptr;
-    if (!path_type) {
+    if (lookup.record_path.empty()) {
       return "";
     }
     SPEC_RULE("DispatchSym-Impl");
-    return MangleMethod(path_type->path, *lookup.record_method);
+    return MangleMethod(lookup.record_path, *lookup.record_method);
   }
 
   // (DispatchSym-Default-None): No implementation -> use default impl symbol
@@ -520,5 +519,4 @@ void AnchorDynDispatchRules() {
 }
 
 }  // namespace cursive::codegen
-
 

@@ -1,0 +1,21 @@
+public record MethodBox<T; Mirror = T> {
+    public value: T
+    public mirror: Mirror
+    public tag: i32
+
+    procedure tag_metric(~, delta: i32) -> i32 {
+        return self.tag + delta
+    }
+
+    procedure tag_seed(~) -> i32 {
+        return self.tag
+    }
+}
+
+public record PlainMethodProbe {
+    public seed: i32
+
+    procedure read(~) -> i32 {
+        return self.seed
+    }
+}

@@ -82,6 +82,7 @@
 #include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_lookup.h"
 
 namespace cursive::analysis {
 
@@ -156,14 +157,11 @@ static AddrOfOkResult AddrOfOk(const ast::ExprPtr& expr,
   return {false, "Index-NonIndexable"};
 }
 
-static const ast::MethodDecl* FindRecordMethod(const ast::RecordDecl& record,
-                                               std::string_view name) {
-  for (const auto& member : record.members) {
-    const auto* method = std::get_if<ast::MethodDecl>(&member);
-    if (!method) {
-      continue;
-    }
-    if (IdEq(method->name, name)) {
+static const ast::MethodDecl* MethodByName(
+    const std::vector<const ast::MethodDecl*>& methods,
+    std::string_view name) {
+  for (const auto* method : methods) {
+    if (method && IdEq(method->name, name)) {
       return method;
     }
   }
@@ -187,6 +185,21 @@ static bool IsExplicitSelfReceiverType(const TypeRef& type) {
 }
 
 }  // namespace
+
+std::vector<const ast::MethodDecl*> RecordMethods(
+    const ast::RecordDecl& record) {
+  SpecDefsRecordMethods();
+  SPEC_RULE("Methods");
+
+  std::vector<const ast::MethodDecl*> methods;
+  methods.reserve(record.members.size());
+  for (const auto& member : record.members) {
+    if (const auto* method = std::get_if<ast::MethodDecl>(&member)) {
+      methods.push_back(method);
+    }
+  }
+  return methods;
+}
 
 RecvTypeResult RecvTypeForReceiver(const ScopeContext& ctx,
                                    const TypeRef& base,
@@ -665,15 +678,13 @@ StaticMethodLookup LookupMethodStatic(const ScopeContext& ctx,
     }
   }
 
-  const auto* path_type = std::get_if<TypePathType>(&lookup_base->node);
+  const auto* method_type_path = AppliedTypePath(*lookup_base);
+  const auto* method_type_args = AppliedTypeArgs(*lookup_base);
   const ast::RecordDecl* record = nullptr;
   std::vector<ast::ClassPath> implements;
-  if (path_type) {
-    ast::Path syntax_path;
-    syntax_path.reserve(path_type->path.size());
-    for (const auto& comp : path_type->path) {
-      syntax_path.push_back(comp);
-    }
+  if (method_type_path) {
+    const ast::Path syntax_path(method_type_path->begin(),
+                                method_type_path->end());
     const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
     if (it != ctx.sigma.types.end()) {
       if (const auto* record_decl = std::get_if<ast::RecordDecl>(&it->second)) {
@@ -690,10 +701,16 @@ StaticMethodLookup LookupMethodStatic(const ScopeContext& ctx,
   }
 
   if (record) {
-    const auto* method = FindRecordMethod(*record, name);
+    const auto methods = RecordMethods(*record);
+    const auto* method = MethodByName(methods, name);
     if (method) {
       result.ok = true;
+      result.record_decl = record;
       result.record_method = method;
+      result.record_path = *method_type_path;
+      if (method_type_args) {
+        result.record_generic_args = *method_type_args;
+      }
       return result;
     }
   }
