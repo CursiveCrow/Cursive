@@ -55,6 +55,8 @@ static inline void SpecDefsClassDecl() {
   SPEC_DEF("WF-Class-Self", "5.3.1");
   SPEC_DEF("WF-Class-AssocType", "5.3.1");
   SPEC_DEF("WF-Class-Super", "5.3.1");
+  SPEC_DEF("ClassMethods", "14.3.3");
+  SPEC_DEF("MethodNames", "14.3.3");
   SPEC_DEF("Class-Name-Conflict", "5.3.1");
 }
 
@@ -76,17 +78,54 @@ static LowerTypeResult LowerTypeWithWF(const ScopeContext& ctx,
   return lowered;
 }
 
-// Check if method names are distinct
-static bool DistinctMethodNames(const std::vector<ast::ClassMethodDecl>& methods) {
-  if (methods.size() < 2) {
+static void TraceMethodNames(const ast::ClassDecl& decl,
+                             const std::vector<std::string_view>& names) {
+  if (!core::Conformance::Enabled()) {
+    return;
+  }
+
+  std::string payload = "class=";
+  payload += decl.name;
+  payload += ";method_count=";
+  payload += std::to_string(names.size());
+  payload += ";method_names=";
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    if (i > 0) {
+      payload += ",";
+    }
+    payload.append(names[i].data(), names[i].size());
+  }
+
+  core::Conformance::Record("MethodNames(Cl)", decl.span, payload);
+}
+
+static std::vector<std::string_view> MethodNames(
+    const ast::ClassDecl& decl,
+    const std::vector<ast::ClassMethodDecl>& methods) {
+  std::vector<std::string_view> names;
+  names.reserve(methods.size());
+  for (const auto& method : methods) {
+    names.push_back(method.name);
+  }
+  TraceMethodNames(decl, names);
+  return names;
+}
+
+// Check if MethodNames(Cl) is distinct.
+static bool DistinctMethodNames(
+    const ast::ClassDecl& decl,
+    const std::vector<ast::ClassMethodDecl>& methods) {
+  const auto method_names = MethodNames(decl, methods);
+  if (method_names.size() < 2) {
     return true;
   }
-  std::unordered_set<std::string> names;
-  for (const auto& method : methods) {
-    if (!names.insert(method.name).second) {
+  std::unordered_set<IdKey> seen;
+  for (const auto name : method_names) {
+    if (!seen.insert(IdKeyOf(name)).second) {
       return false;
     }
   }
+
   return true;
 }
 
@@ -299,10 +338,10 @@ ClassDeclResult TypeClassDecl(
 
   // Collect and check methods
   const auto methods = CollectMethods(decl.items);
-  if (!DistinctMethodNames(methods)) {
+  if (!DistinctMethodNames(decl, methods)) {
     SPEC_RULE("WF-Class-Method-Duplicate");
     result.ok = false;
-    result.diag_id = "Class-Method-Dup";
+    result.diag_id = "E-TYP-2500";
     return result;
   }
 
@@ -631,10 +670,10 @@ ClassDeclResult TypeClassDeclSignature(
 
   // Collect method signatures
   const auto methods = CollectMethods(decl.items);
-  if (!DistinctMethodNames(methods)) {
+  if (!DistinctMethodNames(decl, methods)) {
     SPEC_RULE("WF-Class-Method-Duplicate");
     result.ok = false;
-    result.diag_id = "Class-Method-Dup";
+    result.diag_id = "E-TYP-2500";
     return result;
   }
 

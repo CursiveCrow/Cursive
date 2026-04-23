@@ -56,6 +56,11 @@ public procedure runGroup(ctx: Context) -> i32 {
         return status_assoc_abstract
     }
 
+    let status_method_names: i32 = RunClassMethodNames(ctx)
+    if (status_method_names != 0) {
+        return status_method_names
+    }
+
     let status_opaque: i32 = RunOpaqueTypeExercises(ctx)
     if (status_opaque != 0) {
         return status_opaque

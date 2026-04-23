@@ -1,0 +1,73 @@
+using Abstraction::MethodNameProjectionSupport::ExternalMethodNameMetric
+
+public class MethodNameProjectionSurface {
+    type Output = i32
+
+    procedure default_metric(~) -> i32 {
+        return 3
+    }
+
+    procedure implemented_metric(~, input: i32) -> i32
+}
+
+public record MethodNameProjectionImpl <: MethodNameProjectionSurface {
+    public seed: i32
+
+    public procedure implemented_metric(~, input: i32) -> i32 {
+        return self.seed + input
+    }
+}
+
+procedure ClassMethodNamesMetricLabel(value: i32) -> string@View {
+    if (value == 36) {
+        return "36"
+    }
+    return "other"
+}
+
+public procedure RunClassMethodNames(ctx: Context) -> i32 {
+    let scope: string@View = "types::Abstraction::ClassMethodNames"
+    let _scope_ignore: string@View = scope
+    [[log(label: "types-log-item_begin")]]
+
+    let local_surface: MethodNameProjectionImpl = MethodNameProjectionImpl { seed: 11 }
+    let default_result: i32 = local_surface~>default_metric()
+    let implemented_result: i32 = local_surface~>implemented_metric(8)
+    let external_result: i32 = ExternalMethodNameMetric()
+    let combined: i32 = default_result + implemented_result + external_result
+
+    let default_log: i32 =
+        [[log(label: "observed-method-names-default-method", expected: 3)]]
+        default_result
+    let implemented_log: i32 =
+        [[log(label: "observed-method-names-implemented-method", expected: 19)]]
+        implemented_result
+    let external_log: i32 =
+        [[log(label: "observed-method-names-cross-module-methods", expected: 14)]]
+        external_result
+    let combined_log: i32 =
+        [[log(label: "observed-method-names-combined-metric", expected: 36)]]
+        combined
+
+    let runtime_ok: bool =
+        (default_log == 3) &&
+        (implemented_log == 19) &&
+        (external_log == 14) &&
+        (combined_log == 36)
+    let runtime_ok_log: bool =
+        [[log(label: "method-names-runtime", expected: true)]]
+        runtime_ok
+
+    let metric: i32 = if (runtime_ok_log == true) { 36 } else { 0 }
+    let metric_label: string@View = ClassMethodNamesMetricLabel(metric)
+    let metric_log: string@View =
+        [[log(label: "observed-method-names-runtime-metric", expected: "36")]]
+        metric_label
+    if (metric_log != "36") {
+        [[log(label: "types-log-item_fail")]]
+        return 1
+    }
+
+    [[log(label: "types-log-types_item_success")]]
+    return 0
+}

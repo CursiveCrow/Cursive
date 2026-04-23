@@ -4,6 +4,7 @@ import Parsing
 import Diagnostics
 import Backend
 import Types::CoreSystem
+import Types::Abstraction
 import Attributes::FfiAttributes
 import Attributes::AttributeDiagnostics
 import Operations
@@ -44,6 +45,11 @@ public procedure main(move ctx: Context) -> i32 {
     let status_types: i32 = CoreSystem::run(ctx)
     if (status_types != 0) {
         return 15
+    }
+
+    let status_type_abstraction: i32 = Abstraction::run(ctx)
+    if (status_type_abstraction != 0) {
+        return 20
     }
 
     let status_ffi_attributes: i32 = FfiAttributes::run(ctx)

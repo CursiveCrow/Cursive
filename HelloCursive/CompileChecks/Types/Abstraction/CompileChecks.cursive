@@ -1,0 +1,22 @@
+import testsupport
+
+procedure runMethodNamesDuplicateAbstractConcrete(ctx: Context) -> i32 {
+    let command: string@View =
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance method_names_duplicate_abstract_concrete.log ..\\TestProjects\\Types\\Abstraction\\Generated\\method_names_duplicate_abstract_concrete\\Main.cursive > build\\main\\logs\\compile_checks\\method_names_duplicate_abstract_concrete.json 2> build\\main\\logs\\compile_checks\\method_names_duplicate_abstract_concrete.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2500\\\"\" build\\main\\logs\\compile_checks\\method_names_duplicate_abstract_concrete.json >nul & if errorlevel 1 exit /b 1 & findstr /C:\"MethodNames(Cl)\" ..\\TestProjects\\Types\\Abstraction\\Generated\\method_names_duplicate_abstract_concrete\\build\\probe\\logs\\conformance\\method_names_duplicate_abstract_concrete.log >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"MethodNames(Cl).*class.*DuplicateMixedMethodNames.*method_count.*2.*method_names.*metric,metric\" ..\\TestProjects\\Types\\Abstraction\\Generated\\method_names_duplicate_abstract_concrete\\build\\probe\\logs\\conformance\\method_names_duplicate_abstract_concrete.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "method_names_duplicate_abstract_concrete")
+}
+
+procedure runMethodNamesDuplicateOverloadRejected(ctx: Context) -> i32 {
+    let command: string@View =
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance method_names_duplicate_overload_rejected.log ..\\TestProjects\\Types\\Abstraction\\Generated\\method_names_duplicate_overload_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\method_names_duplicate_overload_rejected.json 2> build\\main\\logs\\compile_checks\\method_names_duplicate_overload_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2500\\\"\" build\\main\\logs\\compile_checks\\method_names_duplicate_overload_rejected.json >nul & if errorlevel 1 exit /b 1 & findstr /R /C:\"MethodNames(Cl).*class.*DuplicateOverloadedMethodNames.*method_count.*2.*method_names.*project,project\" ..\\TestProjects\\Types\\Abstraction\\Generated\\method_names_duplicate_overload_rejected\\build\\probe\\logs\\conformance\\method_names_duplicate_overload_rejected.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "method_names_duplicate_overload_rejected")
+}
+
+public procedure runCompileChecks(ctx: Context) -> i32 {
+    let status_mixed: i32 = runMethodNamesDuplicateAbstractConcrete(ctx)
+    if (status_mixed != 0) {
+        return status_mixed
+    }
+
+    return runMethodNamesDuplicateOverloadRejected(ctx)
+}

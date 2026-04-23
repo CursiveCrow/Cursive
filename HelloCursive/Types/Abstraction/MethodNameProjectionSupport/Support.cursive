@@ -1,0 +1,21 @@
+public class ExternalMethodNameSurface {
+    procedure external_value(~) -> i32
+    procedure external_bonus(~, input: i32) -> i32 {
+        return input + 2
+    }
+}
+
+public record ExternalMethodNameImpl <: ExternalMethodNameSurface {
+    public seed: i32
+
+    public procedure external_value(~) -> i32 {
+        return self.seed
+    }
+}
+
+public procedure ExternalMethodNameMetric() -> i32 {
+    let sample: ExternalMethodNameImpl = ExternalMethodNameImpl { seed: 7 }
+    let direct_metric: i32 = sample~>external_value()
+    let default_metric: i32 = sample~>external_bonus(5)
+    return direct_metric + default_metric
+}

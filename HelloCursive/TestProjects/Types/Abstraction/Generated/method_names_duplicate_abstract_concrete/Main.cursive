@@ -1,0 +1,12 @@
+class DuplicateMixedMethodNames {
+    procedure metric(~) -> i32
+
+    procedure metric(~, input: i32) -> i32 {
+        return input
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}
