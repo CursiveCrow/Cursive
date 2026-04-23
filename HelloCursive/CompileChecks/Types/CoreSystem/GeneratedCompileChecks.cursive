@@ -194,6 +194,16 @@ procedure run_row1192_relation_forms_acceptance(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "row1192_relation_forms_acceptance")
 }
 
+procedure run_row1193_fields_typepath_trace(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance row1193_fields_typepath_trace.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1193_fields_typepath_trace\\Main.cursive > build\\main\\logs\\compile_checks\\row1193_fields_typepath_trace.json 2> build\\main\\logs\\compile_checks\\row1193_fields_typepath_trace.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"Fields\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1193_fields_typepath_trace\\build\\probe\\logs\\conformance\\row1193_fields_typepath_trace.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"T-Field-Record\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1193_fields_typepath_trace\\build\\probe\\logs\\conformance\\row1193_fields_typepath_trace.log >nul & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1193_fields_typepath_trace")
+}
+
+procedure run_row1193_impl_field_missing_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1193_impl_field_missing_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1193_impl_field_missing_rejected.json 2> build\\main\\logs\\compile_checks\\row1193_impl_field_missing_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"Impl-Field-Missing\\\"\" build\\main\\logs\\compile_checks\\row1193_impl_field_missing_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1193_impl_field_missing_rejected")
+}
+
 public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue32_decimal_to_int_rejected: i32 = run_issue32_decimal_to_int_rejected(ctx)
     if (status_run_issue32_decimal_to_int_rejected != 0) {
@@ -388,6 +398,16 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_row1192_relation_forms_acceptance: i32 = run_row1192_relation_forms_acceptance(ctx)
     if (status_row1192_relation_forms_acceptance != 0) {
         return status_row1192_relation_forms_acceptance
+    }
+
+    let status_row1193_fields_typepath_trace: i32 = run_row1193_fields_typepath_trace(ctx)
+    if (status_row1193_fields_typepath_trace != 0) {
+        return status_row1193_fields_typepath_trace
+    }
+
+    let status_row1193_impl_field_missing_rejected: i32 = run_row1193_impl_field_missing_rejected(ctx)
+    if (status_row1193_impl_field_missing_rejected != 0) {
+        return status_row1193_impl_field_missing_rejected
     }
 
     return 0

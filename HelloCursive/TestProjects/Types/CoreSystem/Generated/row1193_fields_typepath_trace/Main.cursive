@@ -1,0 +1,18 @@
+using probe::fielddep::{FieldBox, NamedBox}
+
+procedure read_value(box: FieldBox<i32>) -> i32 {
+    return box.value
+}
+
+procedure read_mirror(box: FieldBox<i32>) -> i32 {
+    return box.mirror
+}
+
+procedure read_alias(box: NamedBox<i32>) -> i32 {
+    return box.value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

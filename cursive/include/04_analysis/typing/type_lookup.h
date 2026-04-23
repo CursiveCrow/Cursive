@@ -6,8 +6,9 @@
 // =================================================================
 #pragma once
 
-#include <optional>
 #include <string_view>
+#include <optional>
+#include <vector>
 
 #include "02_source/ast/ast.h"
 #include "04_analysis/typing/context.h"
@@ -17,11 +18,11 @@ namespace cursive::analysis {
 
 // Record lookup by TypePath
 const ast::RecordDecl* LookupRecordDecl(const ScopeContext& ctx,
-                                           const TypePath& path);
+                                        const TypePath& path);
 
 // Enum lookup by TypePath
 const ast::EnumDecl* LookupEnumDecl(const ScopeContext& ctx,
-                                       const TypePath& path);
+                                    const TypePath& path);
 
 // Type declaration generic-parameter lookup by TypePath
 const std::optional<ast::GenericParams>* TypeParamsOf(const ScopeContext& ctx,
@@ -37,7 +38,7 @@ bool FieldExists(const ast::RecordDecl& record, std::string_view field_name);
 
 // Get field visibility
 ast::Visibility FieldVis(const ast::RecordDecl& record,
-                            std::string_view field_name);
+                         std::string_view field_name);
 
 // Check if a field is visible from current context
 bool FieldVisible(const ScopeContext& ctx,
@@ -48,6 +49,14 @@ bool FieldVisible(const ScopeContext& ctx,
 // Get field type (requires LowerType internally)
 std::optional<TypeRef> FieldType(const ast::RecordDecl& record,
                                  std::string_view field_name,
-                                 const ScopeContext& ctx);
+                                 const ScopeContext& ctx,
+                                 const std::vector<TypeRef>& generic_args = {});
+
+// Enumerate field members of a record declaration.
+std::vector<const ast::FieldDecl*> RecordFields(const ast::RecordDecl& record);
+
+// Look up a raw field declaration from a record declaration.
+const ast::FieldDecl* LookupFieldDecl(const ast::RecordDecl& record,
+                                      std::string_view field_name);
 
 }  // namespace cursive::analysis

@@ -23,6 +23,7 @@
 #include "04_analysis/modal/modal_widen.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_lower.h"
+#include "04_analysis/typing/type_lookup.h"
 #include "04_analysis/typing/types.h"
 
 namespace cursive::analysis {
@@ -554,34 +555,26 @@ static std::optional<std::pair<std::uint64_t, std::uint64_t>> LayoutOf(
       for (const auto& comp : *path) {
         syntax_path.push_back(comp);
       }
-    const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
-    if (it == ctx.sigma.types.end()) {
-      return std::nullopt;
-      }
-      if (const auto* record = std::get_if<ast::RecordDecl>(&it->second)) {
-        const auto subst =
-            BuildDeclSubstitution(record->generic_params,
-                                  generic_args ? *generic_args
-                                               : std::vector<TypeRef>{});
-      if (!subst.has_value()) {
+      const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
+      if (it == ctx.sigma.types.end()) {
         return std::nullopt;
       }
-      std::vector<TypeRef> fields;
-      for (const auto& member : record->members) {
-        if (const auto* field = std::get_if<ast::FieldDecl>(&member)) {
-          const auto lowered = LowerType(ctx, field->type);
-          if (!lowered.ok || !lowered.type) {
+      if (const auto* record = std::get_if<ast::RecordDecl>(&it->second)) {
+        std::vector<TypeRef> fields;
+        const std::vector<TypeRef> args =
+            generic_args ? *generic_args : std::vector<TypeRef>{};
+        for (const auto* field : RecordFields(*record)) {
+          if (!field) {
+            continue;
+          }
+          const auto field_type = FieldType(*record, field->name, ctx, args);
+          if (!field_type.has_value()) {
             return std::nullopt;
           }
-          TypeRef field_type = lowered.type;
-          if (!subst->empty()) {
-            field_type = InstantiateType(field_type, *subst);
-          }
-          fields.push_back(field_type);
+          fields.push_back(*field_type);
         }
+        return LayoutOfSeq(ctx, fields);
       }
-      return LayoutOfSeq(ctx, fields);
-    }
       if (const auto* enum_decl = std::get_if<ast::EnumDecl>(&it->second)) {
         return EnumDeclLayout(ctx, *enum_decl);
       }
@@ -591,23 +584,23 @@ static std::optional<std::pair<std::uint64_t, std::uint64_t>> LayoutOf(
                                             : std::vector<TypeRef>{});
       }
       if (const auto* alias = std::get_if<ast::TypeAliasDecl>(&it->second)) {
-      const auto lowered = LowerType(ctx, alias->type);
-      if (!lowered.ok) {
-        return std::nullopt;
-      }
+        const auto lowered = LowerType(ctx, alias->type);
+        if (!lowered.ok) {
+          return std::nullopt;
+        }
         TypeRef inst = lowered.type;
         if (alias->generic_params && !alias->generic_params->params.empty()) {
           const auto subst =
               BuildDeclSubstitution(alias->generic_params,
                                     generic_args ? *generic_args
                                                  : std::vector<TypeRef>{});
-        if (!subst.has_value()) {
-          return std::nullopt;
+          if (!subst.has_value()) {
+            return std::nullopt;
+          }
+          inst = InstantiateType(inst, *subst);
         }
-        inst = InstantiateType(inst, *subst);
+        return LayoutOf(ctx, inst);
       }
-      return LayoutOf(ctx, inst);
-    }
   }
   return std::nullopt;
 }

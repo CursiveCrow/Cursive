@@ -245,13 +245,14 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
   for (const auto& field_init : expr.fields) {
     provided.insert(IdKeyOf(field_init.name));
   }
-  for (const auto& member : record->members) {
-    if (const auto* field = std::get_if<ast::FieldDecl>(&member)) {
-      if (provided.find(IdKeyOf(field->name)) == provided.end()) {
-        SPEC_RULE("Record-FieldInit-Missing");
-        result.diag_id = "E-TYP-1902";
-        return result;
-      }
+  for (const auto* field : RecordFields(*record)) {
+    if (!field) {
+      continue;
+    }
+    if (provided.find(IdKeyOf(field->name)) == provided.end()) {
+      SPEC_RULE("Record-FieldInit-Missing");
+      result.diag_id = "E-TYP-1902";
+      return result;
     }
   }
 

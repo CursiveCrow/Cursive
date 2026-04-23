@@ -923,8 +923,7 @@ static bool CtAvailRecordFields(const ScopeContext& ctx,
                                 const std::vector<TypeRef>& args,
                                 std::set<std::string>& active_paths) {
   const auto param_names = GenericParamNamesForCt(decl.generic_params);
-  for (const auto& member : decl.members) {
-    const auto* field = std::get_if<ast::FieldDecl>(&member);
+  for (const auto* field : RecordFields(decl)) {
     if (!field || !field->type) {
       continue;
     }
@@ -1121,8 +1120,7 @@ static bool CtLiteralRecordFields(const ScopeContext& ctx,
                                   const std::vector<TypeRef>& args,
                                   std::set<std::string>& active_paths) {
   const auto param_names = GenericParamNamesForCt(decl.generic_params);
-  for (const auto& member : decl.members) {
-    const auto* field = std::get_if<ast::FieldDecl>(&member);
+  for (const auto* field : RecordFields(decl)) {
     if (!field || !field->type) {
       continue;
     }

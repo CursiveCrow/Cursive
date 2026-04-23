@@ -16,6 +16,8 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"
+#include "04_analysis/generics/generic_params.h"
+#include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_lower.h"
 
@@ -40,8 +42,8 @@ struct RecordFieldIndex {
 std::mutex g_record_field_index_mu;
 std::unordered_map<const ast::RecordDecl*, RecordFieldIndex> g_record_field_index;
 
-const ast::FieldDecl* LookupFieldDecl(const ast::RecordDecl& record,
-                                      std::string_view field_name) {
+const ast::FieldDecl* LookupFieldDeclImpl(const ast::RecordDecl& record,
+                                          std::string_view field_name) {
   const auto key = IdKeyOf(field_name);
   {
     std::lock_guard<std::mutex> lock(g_record_field_index_mu);
@@ -65,6 +67,13 @@ const ast::FieldDecl* LookupFieldDecl(const ast::RecordDecl& record,
   auto [it, _inserted] = g_record_field_index.emplace(&record, std::move(index));
   const auto field_it = it->second.by_name.find(key);
   return field_it != it->second.by_name.end() ? field_it->second : nullptr;
+}
+
+ScopeContext BindRecordFieldTypeScope(const ScopeContext& ctx,
+                                      const ast::RecordDecl& record) {
+  ScopeContext field_ctx = ctx;
+  field_ctx.scopes = BindTypeParams(ctx, record.generic_params);
+  return field_ctx;
 }
 
 }  // namespace
@@ -145,6 +154,22 @@ bool FieldExists(const ast::RecordDecl& record, std::string_view field_name) {
   return LookupFieldDecl(record, field_name) != nullptr;
 }
 
+std::vector<const ast::FieldDecl*> RecordFields(const ast::RecordDecl& record) {
+  std::vector<const ast::FieldDecl*> fields;
+  fields.reserve(record.members.size());
+  for (const auto& member : record.members) {
+    if (const auto* field = std::get_if<ast::FieldDecl>(&member)) {
+      fields.push_back(field);
+    }
+  }
+  return fields;
+}
+
+const ast::FieldDecl* LookupFieldDecl(const ast::RecordDecl& record,
+                                      std::string_view field_name) {
+  return LookupFieldDeclImpl(record, field_name);
+}
+
 ast::Visibility FieldVis(const ast::RecordDecl& record,
                          std::string_view field_name) {
   SpecDefsTypeLookup();
@@ -177,17 +202,34 @@ bool FieldVisible(const ScopeContext& ctx,
 
 std::optional<TypeRef> FieldType(const ast::RecordDecl& record,
                                  std::string_view field_name,
-                                 const ScopeContext& ctx) {
+                                 const ScopeContext& ctx,
+                                 const std::vector<TypeRef>& generic_args) {
   SpecDefsTypeLookup();
+  SPEC_RULE("Fields");
   const auto* field = LookupFieldDecl(record, field_name);
   if (!field) {
     return std::nullopt;
   }
-  const auto lowered = LowerType(ctx, field->type);
-  if (lowered.ok) {
-    return lowered.type;
+
+  const auto field_ctx = BindRecordFieldTypeScope(ctx, record);
+  const auto lowered = LowerType(field_ctx, field->type);
+  if (!lowered.ok || !lowered.type) {
+    return std::nullopt;
   }
-  return std::nullopt;
+
+  TypeRef field_type = lowered.type;
+  if (record.generic_params.has_value()) {
+    const auto& params = record.generic_params->params;
+    if (generic_args.size() > params.size()) {
+      return std::nullopt;
+    }
+    const auto subst = BuildSubstitution(params, generic_args);
+    field_type = InstantiateType(field_type, subst);
+  } else if (!generic_args.empty()) {
+    return std::nullopt;
+  }
+
+  return field_type;
 }
 
 }  // namespace cursive::analysis

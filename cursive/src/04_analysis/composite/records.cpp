@@ -59,6 +59,7 @@
 #include "04_analysis/caps/cap_system.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/resolve/scopes_lookup.h"
+#include "04_analysis/typing/type_lookup.h"
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_lower.h"
@@ -73,17 +74,6 @@ static inline void SpecDefsRecords() {
   SPEC_DEF("DefaultConstructible", "5.2.8");
   SPEC_DEF("RecordPath", "5.2.8");
   SPEC_DEF("RecordCallee", "5.2.8");
-}
-
-static std::vector<const ast::FieldDecl*> RecordFields(
-    const ast::RecordDecl& record) {
-  std::vector<const ast::FieldDecl*> fields;
-  for (const auto& member : record.members) {
-    if (const auto* field = std::get_if<ast::FieldDecl>(&member)) {
-      fields.push_back(field);
-    }
-  }
-  return fields;
 }
 
 static bool DefaultConstructible(
@@ -101,15 +91,6 @@ static ast::Path FullPath(const ast::ModulePath& path,
   ast::Path out = path;
   out.emplace_back(name);
   return out;
-}
-
-static const ast::RecordDecl* LookupRecordDecl(const ScopeContext& ctx,
-                                               const ast::Path& path) {
-  const auto it = ctx.sigma.types.find(PathKeyOf(path));
-  if (it == ctx.sigma.types.end()) {
-    return nullptr;
-  }
-  return std::get_if<ast::RecordDecl>(&it->second);
 }
 
 struct RecordCalleeResult {

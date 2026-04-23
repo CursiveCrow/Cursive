@@ -28,6 +28,7 @@
 #include "04_analysis/resolve/resolve_items.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/literals.h"
+#include "04_analysis/typing/type_lookup.h"
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
@@ -232,57 +233,6 @@ static std::optional<core::UInt128> ConstPatInt(const ast::PatternPtr& pattern) 
 // -----------------------------------------------------------------------------
 // Type Lookup Helpers
 // -----------------------------------------------------------------------------
-
-static const ast::RecordDecl* LookupRecordDecl(const ScopeContext& ctx,
-                                               const ast::TypePath& path) {
-  const auto it = ctx.sigma.types.find(PathKeyOf(path));
-  if (it == ctx.sigma.types.end()) {
-    return nullptr;
-  }
-  return std::get_if<ast::RecordDecl>(&it->second);
-}
-
-static const ast::EnumDecl* LookupEnumDecl(const ScopeContext& ctx,
-                                           const ast::TypePath& path) {
-  const auto it = ctx.sigma.types.find(PathKeyOf(path));
-  if (it == ctx.sigma.types.end()) {
-    return nullptr;
-  }
-  return std::get_if<ast::EnumDecl>(&it->second);
-}
-
-static const ast::FieldDecl* LookupFieldDecl(const ast::RecordDecl& record,
-                                             std::string_view name) {
-  for (const auto& member : record.members) {
-    const auto* field = std::get_if<ast::FieldDecl>(&member);
-    if (!field) {
-      continue;
-    }
-    if (IdKeyOf(field->name) == IdKeyOf(name)) {
-      return field;
-    }
-  }
-  return nullptr;
-}
-
-static bool FieldVisible(const ast::ModulePath& current,
-                         const ast::TypePath& record_path,
-                         const ast::FieldDecl& field) {
-  if (field.vis == ast::Visibility::Public ||
-      field.vis == ast::Visibility::Internal) {
-    return true;
-  }
-  if (record_path.empty()) {
-    return false;
-  }
-  ast::ModulePath module_path = record_path;
-  module_path.pop_back();
-  // Private and protected: visible in same module
-  if (module_path == current) {
-    return true;
-  }
-  return false;
-}
 
 static std::optional<TypeRef> EnumFieldType(
     const ast::VariantPayloadRecord& payload,
@@ -520,17 +470,17 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
           }
           std::vector<std::pair<std::string, TypeRef>> binds;
           for (const auto& field : node.fields) {
-            const auto* decl = LookupFieldDecl(*record, field.name);
-            if (!decl) {
+            if (!FieldExists(*record, field.name)) {
               SPEC_RULE("RecordPattern-UnknownField");
               return {false, "RecordPattern-UnknownField", {}};
             }
-            if (!FieldVisible(ctx.current_module, node.path, *decl)) {
+            if (!FieldVisible(ctx, *record, field.name, node.path)) {
               return {false, std::nullopt, {}};
             }
-            const auto lowered = LowerType(ctx, decl->type);
-            if (!lowered.ok) {
-              return {false, lowered.diag_id, {}};
+            const auto lowered =
+                FieldType(*record, field.name, ctx, path_type->generic_args);
+            if (!lowered.has_value()) {
+              return {false, std::nullopt, {}};
             }
             ast::PatternPtr pat = field.pattern_opt;
             if (!pat) {
@@ -538,7 +488,7 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
               implicit->node = ast::IdentifierPattern{field.name};
               pat = implicit;
             }
-            const auto sub = TypePatternAgainstTypeImpl(ctx, pat, lowered.type);
+            const auto sub = TypePatternAgainstTypeImpl(ctx, pat, *lowered);
             if (!sub.ok) {
               return sub;
             }
@@ -813,12 +763,9 @@ bool IrrefutablePattern(const ScopeContext& ctx,
             return false;
           }
           for (const auto& field : node.fields) {
-            const auto* decl = LookupFieldDecl(*record, field.name);
-            if (!decl) {
-              return false;
-            }
-            const auto lowered = LowerType(ctx, decl->type);
-            if (!lowered.ok) {
+            const auto field_type =
+                FieldType(*record, field.name, ctx, path_type->generic_args);
+            if (!field_type.has_value()) {
               return false;
             }
             ast::PatternPtr pat = field.pattern_opt;
@@ -827,7 +774,7 @@ bool IrrefutablePattern(const ScopeContext& ctx,
               implicit->node = ast::IdentifierPattern{field.name};
               pat = implicit;
             }
-            if (!IrrefutablePattern(ctx, pat, lowered.type)) {
+            if (!IrrefutablePattern(ctx, pat, *field_type)) {
               return false;
             }
           }

@@ -35,6 +35,7 @@
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_layout.h"
+#include "04_analysis/typing/type_lookup.h"
 #include "04_analysis/typing/type_stmt.h"
 #include "04_analysis/typing/types.h"
 #include "04_analysis/typing/subtyping.h"
@@ -731,17 +732,17 @@ RecordDeclResult TypeRecordDecl(
         result.diag_id = class_field_type.diag_id;
         return result;
       }
-      const auto impl_field_type = LowerTypeWithWF(ctx, impl_field->type);
-      if (!impl_field_type.ok) {
+      const auto impl_field_type = FieldType(decl, impl_field->name, ctx);
+      if (!impl_field_type.has_value()) {
         result.ok = false;
-        result.diag_id = impl_field_type.diag_id;
+        result.diag_id = "Impl-Field-Type-Err";
         return result;
       }
       const auto class_field_subst =
           SubstSelfType(result.self_type, class_field_type.type,
                         &class_assoc_subst);
       const auto impl_field_subst =
-          SubstSelfType(result.self_type, impl_field_type.type,
+          SubstSelfType(result.self_type, *impl_field_type,
                         &class_assoc_subst);
       const auto field_equiv =
           TypeEquiv(class_field_subst, impl_field_subst);

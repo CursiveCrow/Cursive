@@ -656,6 +656,7 @@ static const StaticRuleMeta kStaticRules[] = {
     {"FieldNames", "DeclJudg", std::nullopt, "04_analysis/typing/item/class_decl.cpp", std::nullopt},
     {"FieldVisOk", "DeclJudg", std::nullopt, "04_analysis/typing/item/item_common.cpp", std::nullopt},
     {"FieldVisOk-Err", "DeclJudg", std::nullopt, "04_analysis/typing/item/record_decl.cpp", std::string_view("R = RecordDecl(_, _, _, _, _, _, _, _, _, _)\n¬ FieldVisOk(R)\nc = Code(FieldVisOk-Err)")},
+    {"Fields", "TypeInfJudg", std::nullopt, "04_analysis/typing/type_lookup.cpp", std::nullopt},
     {"FileOrder-Rel-Fail", "LinkJudg", std::nullopt, "01_project/deterministic_order.cpp", std::string_view("relative(f, d) ⇑\nc = Code(FileOrder-Rel-Fail)")},
     {"Finalize-Archive", "LinkJudg", std::nullopt, "01_project/outputs.cpp", std::string_view("StaticLibrary(P)\nΓ ⊢ Archive(Objs, P) ⇓ ok")},
     {"Finalize-Link", "LinkJudg", std::nullopt, "01_project/outputs.cpp", std::string_view("Executable(P) ∨ SharedLibrary(P)\nΓ ⊢ Link(Objs, P) ⇓ ok")},

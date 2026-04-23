@@ -193,50 +193,6 @@ static AliasExpandResult NormalizeFieldBaseType(const ScopeContext& ctx,
   return out;
 }
 
-struct RecordFieldLookupResult {
-  TypeRef type;
-  const ast::FieldDecl* decl = nullptr;
-};
-
-static std::optional<RecordFieldLookupResult> LookupRecordField(
-    const ScopeContext& ctx,
-    const TypePath& path,
-    std::string_view field_name) {
-  (void)ctx;
-  // Find the record declaration in sigma
-  PathKey key;
-  for (const auto& seg : path) {
-    key.push_back(seg);
-  }
-
-  const auto it = ctx.sigma.types.find(key);
-  if (it == ctx.sigma.types.end()) {
-    return std::nullopt;
-  }
-
-  // Check if it's a record
-  const auto* record = std::get_if<ast::RecordDecl>(&it->second);
-  if (!record) {
-    return std::nullopt;
-  }
-
-  // Search for the field
-  for (const auto& member : record->members) {
-    if (const auto* field = std::get_if<ast::FieldDecl>(&member)) {
-      if (IdEq(field->name, std::string(field_name))) {
-        // Lower the field type
-        const auto result = LowerType(ctx, field->type);
-        if (result.ok) {
-          return RecordFieldLookupResult{result.type, field};
-        }
-        return std::nullopt;
-      }
-    }
-  }
-
-  return std::nullopt;
-}
-
 static const ast::EnumDecl* LookupEnumDeclByPath(const ScopeContext& ctx,
                                                   const TypePath& path) {
   PathKey key;
@@ -370,6 +326,7 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
 
     // Handle record path and type-application forms.
     if (const auto* path = AppliedTypePath(*stripped_base)) {
+      const auto* path_args = AppliedTypeArgs(*stripped_base);
       if (LookupEnumDeclByPath(ctx, *path) != nullptr) {
         SPEC_RULE("FieldAccess-Enum");
         result.diag_id = "FieldAccess-Unknown";
@@ -381,37 +338,49 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
         return result;
       }
 
-      const auto field_lookup = LookupRecordField(ctx, *path, expr.name);
-      if (!field_lookup.has_value()) {
+      const auto* record = LookupRecordDecl(ctx, *path);
+      if (!record) {
         SPEC_RULE("FieldAccess-Unknown");
         result.diag_id = "FieldAccess-Unknown";
         return result;
       }
-      if (const auto* record = LookupRecordDecl(ctx, *path);
-          record && !FieldVisible(ctx, *record, expr.name, *path)) {
-      SPEC_RULE("FieldAccess-NotVisible");
-      result.diag_id = "FieldAccess-NotVisible";
-      return result;
-    }
-    if (field_lookup->decl) {
-      EmitDeprecatedReferenceWarningFromAttrs(
-          field_lookup->decl->attrs, type_ctx,
-          expr.base ? std::optional<core::Span>(expr.base->span) : std::nullopt);
-    }
 
-    // Apply permission propagation
-    if (perm.has_value()) {
-      SPEC_RULE("T-Field-Record-Perm");
-      SPEC_RULE("T-FieldAccess-Perm");
-      result.ok = true;
-      result.type = MakeTypePerm(*perm, field_lookup->type);
-    } else {
-      SPEC_RULE("T-Field-Record");
-      SPEC_RULE("T-FieldAccess");
-      result.ok = true;
-      result.type = field_lookup->type;
-    }
-    return result;
+      const auto* field_decl = LookupFieldDecl(*record, expr.name);
+      if (!field_decl) {
+        SPEC_RULE("FieldAccess-Unknown");
+        result.diag_id = "FieldAccess-Unknown";
+        return result;
+      }
+      const auto field_type =
+          FieldType(*record, expr.name, ctx, path_args ? *path_args
+                                                       : std::vector<TypeRef>{});
+      if (!field_type.has_value()) {
+        SPEC_RULE("FieldAccess-Unknown");
+        result.diag_id = "FieldAccess-Unknown";
+        return result;
+      }
+      if (!FieldVisible(ctx, *record, expr.name, *path)) {
+        SPEC_RULE("FieldAccess-NotVisible");
+        result.diag_id = "FieldAccess-NotVisible";
+        return result;
+      }
+      EmitDeprecatedReferenceWarningFromAttrs(
+          field_decl->attrs, type_ctx,
+          expr.base ? std::optional<core::Span>(expr.base->span) : std::nullopt);
+
+      // Apply permission propagation
+      if (perm.has_value()) {
+        SPEC_RULE("T-Field-Record-Perm");
+        SPEC_RULE("T-FieldAccess-Perm");
+        result.ok = true;
+        result.type = MakeTypePerm(*perm, *field_type);
+      } else {
+        SPEC_RULE("T-Field-Record");
+        SPEC_RULE("T-FieldAccess");
+        result.ok = true;
+        result.type = *field_type;
+      }
+      return result;
   }
 
   // Handle modal state types
