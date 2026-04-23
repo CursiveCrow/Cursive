@@ -16,6 +16,7 @@
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/lower/expr/identifier.h"
 #include "05_codegen/lower/expr/range.h"
+#include "05_codegen/lower/pattern/ir_pattern.h"
 
 namespace cursive::codegen {
 
@@ -23,7 +24,7 @@ namespace {
 
 IRRange ToIRRange(const RangeVal& range) {
   IRRange out;
-  out.kind = range.kind;
+  out.kind = ToIRRangeKind(range.kind);
   out.lo = range.lo;
   out.hi = range.hi;
   return out;
@@ -195,7 +196,7 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
             check.base = base_result.value;
             check.range_value = range_result.value;
             if (range_kind.has_value()) {
-              check.range.kind = *range_kind;
+              check.range.kind = ToIRRangeKind(*range_kind);
             }
 
             IRValue slice_value = ctx.FreshTempValue("place_slice");
@@ -207,7 +208,7 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
             info.base = base_result.value;
             info.range_value = range_result.value;
             if (range_kind.has_value()) {
-              info.range.kind = *range_kind;
+              info.range.kind = ToIRRangeKind(*range_kind);
             }
             ctx.RegisterDerivedValue(slice_value, info);
 
@@ -807,14 +808,14 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
             check.base = base_value;
             check.range_value = range_result.value;
             if (range_kind.has_value()) {
-              check.range.kind = *range_kind;
+              check.range.kind = ToIRRangeKind(*range_kind);
             }
 
             IRCheckSliceLen len_check;
             len_check.base = base_value;
             len_check.range_value = range_result.value;
             if (range_kind.has_value()) {
-              len_check.range.kind = *range_kind;
+              len_check.range.kind = ToIRRangeKind(*range_kind);
             }
             len_check.value = value;
 
@@ -828,7 +829,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
             info.base = base_addr.value;
             info.range_value = range_result.value;
             if (range_kind.has_value()) {
-              info.range.kind = *range_kind;
+              info.range.kind = ToIRRangeKind(*range_kind);
             }
             ctx.RegisterDerivedValue(ptr_value, info);
 

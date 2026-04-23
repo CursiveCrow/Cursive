@@ -63,10 +63,10 @@
 #include "00_core/hash.h"
 #include "00_core/symbols.h"
 
-#include "cursive/src/02_source/ast/nodes/ast_attributes.h"
-#include "cursive/src/02_source/ast/nodes/ast_items.h"
-#include "cursive/src/02_source/ast/nodes/ast_patterns.h"
-#include "cursive/src/02_source/ast/nodes/ast_stmts.h"
+#include "02_source/ast/nodes/ast_attributes.h"
+#include "02_source/ast/nodes/ast_items.h"
+#include "02_source/ast/nodes/ast_patterns.h"
+#include "02_source/ast/nodes/ast_stmts.h"
 
 namespace cursive::codegen {
 

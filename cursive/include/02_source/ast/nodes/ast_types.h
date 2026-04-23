@@ -38,7 +38,7 @@
 #include <vector>
 
 #include "00_core/span.h"
-#include "cursive/src/02_source/ast/ast_common.h"
+#include "02_source/ast/ast_common.h"
 
 namespace cursive::ast {
 

@@ -1503,7 +1503,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
         : module_path(source.module_path),
           scope_stack(source.scope_stack),
           binding_states(source.binding_states),
-          derived_values(source.derived_values),
+          derived_values(source.values.derived_values),
           temp_sink(source.temp_sink),
           temp_depth(source.temp_depth),
           suppress_temp_at_depth(source.suppress_temp_at_depth),
@@ -1538,10 +1538,10 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
       // The LLVM emitter consults LowerCtx::derived_values for all procedures,
       // so discarding instantiated entries causes missing-materialization
       // failures for opaque values during codegen.
-      auto preserved_derived = std::move(target.derived_values);
-      target.derived_values = derived_values;
+      auto preserved_derived = std::move(target.values.derived_values);
+      target.values.derived_values = derived_values;
       for (auto& [name, info] : preserved_derived) {
-        target.derived_values.emplace(std::move(name), std::move(info));
+        target.values.derived_values.emplace(std::move(name), std::move(info));
       }
       target.temp_sink = temp_sink;
       target.temp_depth = temp_depth;
@@ -1578,7 +1578,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
   ctx.module_path.clear();
   ctx.scope_stack.clear();
   ctx.binding_states.clear();
-  ctx.derived_values.clear();
+  ctx.values.derived_values.clear();
   ctx.temp_sink = nullptr;
   ctx.temp_depth = 0;
   ctx.suppress_temp_at_depth.reset();
@@ -1599,11 +1599,11 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
   ctx.lowering_contract_postcondition = false;
 
   std::vector<std::string> inserted_value_type_keys;
-  auto* prev_value_type_insert_sink = ctx.value_type_insert_sink;
-  ctx.value_type_insert_sink = &inserted_value_type_keys;
+  auto* prev_value_type_insert_sink = ctx.values.value_type_insert_sink;
+  ctx.values.value_type_insert_sink = &inserted_value_type_keys;
 
   ProcIR ir = LowerProc(decl, module_path, ctx);
-  ctx.value_type_insert_sink = prev_value_type_insert_sink;
+  ctx.values.value_type_insert_sink = prev_value_type_insert_sink;
   snapshot.Restore(ctx);
   if (prev_value_type_insert_sink && !inserted_value_type_keys.empty()) {
     prev_value_type_insert_sink->insert(prev_value_type_insert_sink->end(),
@@ -1647,8 +1647,8 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
   // annotations and per-value type metadata.
   InstantiateIRTypes(ir.body, type_subst);
   for (const auto& name : inserted_value_type_keys) {
-    auto it = ctx.value_types.find(name);
-    if (it != ctx.value_types.end()) {
+    auto it = ctx.values.value_types.find(name);
+    if (it != ctx.values.value_types.end()) {
       it->second = instantiate(it->second);
     }
   }

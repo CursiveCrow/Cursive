@@ -10,48 +10,164 @@ The cursive spec is the source of truth. You will NOT make changes that cause th
 
 # **ANY EDIT TO THE SPEC MUST PRESERVE VALID UTF-8 AND MUST NOT INTRODUCE MOJIBAKE OR REPLACEMENT CHARACTERS.**
 
+## Cursive Design Contract
+
+Cursive is a general-purpose systems programming language optimized for
+machine-generated source code and human review.
+
+A conforming design change SHOULD preserve the following principles:
+
+1. One Correct Way.
+   Where possible, each semantic operation in Cursive MUST have exactly one accepted source form.
+   
+   A language feature SHOULD NOT introduce aliases, shorthand forms, optional equivalent spellings, or syntactic sugar that lower to the same AST form and have identical static and dynamic semantics.
+   
+   An alternate source form is permitted only when it changes at least one of:
+   
+   1. static semantics;
+   2. dynamic semantics;
+   3. authority or capability requirements;
+   4. ownership, movement, copying, or responsibility;
+   5. synchronization behavior;
+   6. suspension behavior;
+   7. ABI, layout, or foreign-boundary behavior;
+   8. diagnostic behavior in a way that is part of the language contract.
+   
+   Formatting whitespace and comments are not semantic source forms for this principle, but grammar-level alternatives are.
+
+1. Local Reasoning.
+   A reader SHOULD be able to determine the authority, mutability, ownership, copy/move/reference behavior, synchronization behavior, suspension behavior, and dynamic-check behavior of a construct from its local syntactic context and the directly referenced type/procedure signature.
+
+2. Explicit over Implicit.
+   Source constructs MUST NOT hide externally observable effects, synchronization, allocation, copying, dynamic verification, suspension, unsafe behavior, or authority acquisition.
+
+3. Static by Default.
+   Where both static and runtime mechanisms are possible, the static mechanism is the default. Runtime checks, runtime synchronization, dynamic dispatch, heap allocation, copying, and foreign trust boundaries require explicit source opt-in.
 
 ## Code Quality
+
 - Implementations must be correct, complete, and accurate to the specification in full detail.
 - Prefer correct, complete implementations over minimal ones.
-- Use appropriate data structures and algorithms — don't brute-force what has a known better solution.
+- Use appropriate data structures and algorithms; do not brute-force behavior that has a known better solution.
 - When fixing a bug, fix the root cause, not the symptom.
-- If something I asked for requires error handling or validation to work reliably, include it without asking.
+- If reliable behavior requires error handling, validation, diagnostics, or edge-case handling, include it without asking.
+- Do not weaken tests, delete assertions, or alter expected behavior to match an incomplete implementation.
 
-## Implementation Mandate
-- Do NOT simplify implementation details, reduce semantic coverage, or trade completeness for a smaller diff.
-- Do NOT prioritize deletion, reduced abstraction count, or "simpler" code shape over exact spec compliance.
-- Implement behavior, diagnostics, lowering, runtime interactions, and verification exactly as the specification defines them.
-- When existing code is incomplete, legacy, approximate, or incorrect, replace it with the full spec-correct implementation rather than preserving older behavior.
-- Time, fatigue, complexity, or convenience are never valid reasons to stop short of a complete and accurate implementation.
-- The language-guide material below is descriptive reference material; it does NOT authorize reducing compiler scope or simplifying compiler behavior.
+## No Shortcut Implementations
 
-Remember when implementing: The marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that I am genuinely impressed — not politely satisfied, actually impressed. Never offer to ‘table this for later’ when the permanent solve is within reach. Never leave a dangling thread when tying it off takes five more minutes. Never present a workaround when the real fix exists. The standard isn’t ‘good enough’ — it’s ‘holy shit, that’s done.’ Search before building. Test before shipping. Ship the complete thing. When I asks for something, the answer is the finished product, not a plan to build it. Time is not an excuse. Fatigue is not an excuse. Complexity is not an excuse. Boil the ocean.
+Implement requested behavior in the existing source of truth for that behavior.
+
+Do not satisfy a task by adding a shim, adapter, wrapper, redirect, proxy, compatibility layer, duplicate implementation, special-case branch, or parallel code path unless the specification explicitly calls for that architectural boundary.
+
+A change is incomplete or incorrect if it:
+
+- bypasses existing incomplete or incorrect logic instead of fixing it;
+- adds a new implementation of behavior that already exists elsewhere without replacing or reconciling the existing implementation;
+- special-cases the observed failing input, test, fixture, command, filename, or call path instead of implementing the general rule;
+- fixes downstream symptoms while leaving the upstream representation, parser, model, lowering, runtime, or API contract incorrect;
+- leaves two reachable implementations of the same behavior with divergent semantics;
+- preserves legacy behavior only because changing it would require touching more files;
+- adds redirects, aliases, or compatibility layers to avoid updating real call sites;
+- adds TODOs, placeholders, partial branches, temporary fallbacks, or dead paths instead of completing the implementation.
+
+Wrappers, adapters, facades, redirects, and compatibility layers are allowed only when they are the correct long-term architecture, required by an external boundary, or explicitly requested. If used, they must delegate to the canonical implementation and must not hide an incomplete implementation underneath.
+
+## Root-Cause Change Procedure
+
+Before editing, identify:
+
+- the canonical module, type, function, parser, lowering pass, runtime path, command, API, or data model responsible for the behavior;
+- the call sites and tests that currently exercise it;
+- the reason the existing implementation does not satisfy the specification.
+
+Make the change at the source of truth. Update existing callers to use the corrected behavior naturally. Do not route around the source of truth to make only the current task pass.
+
+If the existing abstraction is wrong, update or replace that abstraction. Do not layer a workaround on top of it.
+
+If multiple implementations already exist, reconcile them. Prefer one canonical implementation over duplicated behavior.
+
+## Completeness Standard
+
+Completeness means fully satisfying the requested specification within the real constraints of the repository.
+
+Do not intentionally scope down implementation detail, semantic coverage, diagnostics, validation, runtime behavior, verification, or documentation to reduce diff size, avoid difficult files, or finish faster.
+
+Do not expand into unrelated work merely to appear thorough. Complete the requested behavior and the directly necessary supporting work: tests, validation, error handling, diagnostics, documentation, and integration updates.
+
+When existing code is incomplete, legacy, approximate, or incorrect relative to the current authoritative specification, update or replace it with the spec-correct implementation. Do not preserve older behavior merely to avoid touching dependent code.
+
+Preserve legacy behavior only when explicitly required by the current specification, compatibility contract, migration plan, or tests that encode intentional behavior. If legacy behavior must remain, isolate it clearly and route shared semantics through the canonical implementation.
+
+## Generality Requirement
+
+Implement the general rule described by the specification, not only the currently visible examples or tests.
+
+Do not:
+
+- hard-code expected outputs;
+- special-case known fixtures;
+- branch on test names, filenames, exact strings, or incidental input shapes;
+- implement only the smallest subset needed by the current failing case;
+- add test-only code paths;
+- weaken assertions, delete tests, or change expected results to match incorrect behavior.
+
+When adding tests, include cases that would fail against a wrapper-only, redirect-only, special-case, or partial implementation.
+
+## Integration Requirement
+
+New behavior must be integrated into the existing architecture, not attached beside it.
+
+Prefer modifying the existing module, pass, API, command, or runtime path over creating a new one. Creating a new module is appropriate only when the existing architecture clearly lacks the required responsibility and the new module becomes the canonical owner of that responsibility.
+
+After the change:
+
+- existing public entry points should exercise the new behavior without special routing;
+- old incorrect paths should be removed, replaced, or made to delegate to the canonical implementation;
+- there should not be separate old and new behavior paths unless the specification requires versioned behavior;
+- documentation and tests should describe the canonical path, not a workaround path.
 
 ## Workflow Expectations
 
-- Think through structural work before editing. Build an internal model of the
-  intended system, its likely future needs, and its stable end-state shape
-  before committing to module, API, or folder changes.
-- Do not introduce temporary architecture, placeholder layering, or "for now"
-  structure that will predictably need to be renamed, collapsed, or moved in the
-  next pass.
-- Prefer the durable design directly, even when it requires more up-front
-  reasoning, as long as it stays consistent with the current authoritative docs
-  and real repo constraints.
-- Avoid churn. Do not create intermediate organization or naming that you
-  already know is wrong.
-- Search the authoritative docs before planning or editing.
+- Think through structural work before editing. Build an internal model of the intended system, its likely future needs, and its stable end-state shape before committing to module, API, or folder changes.
+- Search authoritative docs before planning or editing.
 - Prefer updating or reconciling docs when a task exposes contradiction or drift.
-- For design work, preserve the pure-Cursive direction even if older docs suggest
-  a dependency-based path.
-- For implementation work, follow the Cursive module/directory model from the
-  current specs, not older C++ module layouts.
+- Do not introduce temporary architecture, placeholder layering, or "for now" structure that will predictably need to be renamed, collapsed, or moved in the next pass.
+- Prefer the durable design directly, when it is consistent with current authoritative docs and real repo constraints.
+- Avoid churn. Do not create intermediate organization or naming that you already know is wrong.
+- For design work, preserve the pure-Cursive direction even if older docs suggest a dependency-based path.
+- For implementation work, follow the Cursive module/directory model from the current specs, not older C++ module layouts.
 - Do not invent commands or claim support for tools that are not present in the repo.
 - Do not silently work around blocked requirements; classify and report the block.
-- Finish tasks end-to-end when the repo state supports it. If the repo does not yet
-  support full execution or verification, say so directly.
-  
+- Finish tasks end-to-end when the repo state supports it. If the repo does not support full execution or verification, say so directly.
+
+## Verification Requirement
+
+Before considering the task complete:
+
+- run the relevant tests, build, type checks, linters, or verification commands that exist in the repo;
+- add or update tests for the new behavior and relevant edge cases;
+- verify that existing entry points exercise the corrected implementation;
+- verify that no stale duplicate implementation, fallback path, temporary shim, test-only special case, or redirect-only fix remains.
+
+In the final response, summarize:
+
+- the canonical implementation path that was changed;
+- why the change fixes the root cause rather than a symptom;
+- what tests or checks were run;
+- any remaining blockers, if applicable.
+
+## Priority Order
+
+When instructions appear to conflict, use this priority order:
+
+1. Current authoritative specification and user request.
+2. Correctness, semantic completeness, and root-cause implementation.
+3. Integration with the existing canonical architecture.
+4. Tests, validation, diagnostics, and documentation required to support the behavior.
+5. Minimal unnecessary churn.
+
+A small diff is valuable only when it is also correct, complete, integrated, and durable. Do not choose a smaller diff by adding indirection, preserving incorrect behavior, or bypassing the existing implementation.
+
 ---
 
 # Cursive User Guide

@@ -1,5 +1,5 @@
 // =============================================================================
-// MIGRATION MAPPING: unwind_ffi_surface.cpp (NEW FILE)
+// File: 04_analysis/ffi/unwind_surface.cpp
 // =============================================================================
 //
 // SPEC REFERENCE: CursiveSpecification.md Section 2.7 (lines 1683-1701)
@@ -9,31 +9,9 @@
 //   - Boundary Effects
 //   - Safety requirements for extern calls
 //
-// SOURCE FILES: This is new functionality for Phase 0
-//   - No direct bootstrap source - implemented from spec
-//
-// =============================================================================
-// IMPLEMENTED FUNCTIONS
-// =============================================================================
-//
-// 1. UnwindModeToString() - Convert UnwindMode enum to string
-// 2. ParseUnwindMode() - Parse UnwindMode from string
-// 3. HasExportAttribute() - Check for [[export]] attribute on procedure
-// 4. HasUnwindAttribute() - Extract [[unwind]] mode from procedure
-// 5. GetUnwindMode() - Get unwind mode (default: Abort)
-// 6. CollectFfiSurface() - Collect FFI surface info from module/file
-//
-// =============================================================================
-// SPEC RULE ANNOTATIONS
-// =============================================================================
-//
-// SPEC_RULE("FFIBoundary");           - When checking if procedure is FFI
-// SPEC_RULE("UnwindMode-Default");    - When returning default "abort"
-// SPEC_RULE("UnwindMode-Explicit");   - When extracting from attribute
-//
 // =============================================================================
 
-#include "01_project/unwind_ffi_surface.h"
+#include "04_analysis/ffi/unwind_surface.h"
 
 #include <string>
 #include <variant>
@@ -41,7 +19,7 @@
 #include "00_core/assert_spec.h"
 #include "04_analysis/attributes/attribute_registry.h"
 
-namespace cursive::project {
+namespace cursive::analysis {
 
 namespace {
 
@@ -238,4 +216,4 @@ FfiSurfaceInfo CollectFfiSurface(const ast::ASTFile& file) {
   return surface;
 }
 
-}  // namespace cursive::project
+}  // namespace cursive::analysis

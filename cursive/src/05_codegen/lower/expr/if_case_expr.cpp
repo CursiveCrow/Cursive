@@ -28,26 +28,27 @@
 #include "05_codegen/cleanup/unwind.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "05_codegen/lower/lower_pat.h"
+#include "05_codegen/lower/pattern/ir_pattern.h"
 
 namespace cursive::codegen {
 
 namespace {
 
 LowerCtx MakeBranchCtx(LowerCtx& base) {
-  auto saved_value_types = std::move(base.value_types);
-  auto saved_derived_values = std::move(base.derived_values);
-  auto saved_drop_glue_types = std::move(base.drop_glue_types);
+  auto saved_value_types = std::move(base.values.value_types);
+  auto saved_derived_values = std::move(base.values.derived_values);
+  auto saved_drop_glue_types = std::move(base.values.drop_glue_types);
 
   LowerCtx branch = base;
 
-  base.value_types = std::move(saved_value_types);
-  base.derived_values = std::move(saved_derived_values);
-  base.drop_glue_types = std::move(saved_drop_glue_types);
+  base.values.value_types = std::move(saved_value_types);
+  base.values.derived_values = std::move(saved_derived_values);
+  base.values.drop_glue_types = std::move(saved_drop_glue_types);
 
-  branch.value_types.clear();
-  branch.derived_values.clear();
-  branch.drop_glue_types.clear();
-  branch.map_parent = &base;
+  branch.values.value_types.clear();
+  branch.values.derived_values.clear();
+  branch.values.drop_glue_types.clear();
+  branch.values.parent = &base;
   return branch;
 }
 
@@ -131,24 +132,24 @@ LowerResult LowerIfCaseClauseImpl(
 // Merge value type info from branch context into base context
 // Used when lowering case clauses where only one branch may execute
 void MergeLowerCtxTemps(LowerCtx& base, const LowerCtx& branch) {
-  for (const auto& [name, type] : branch.value_types) {
-    if (!base.value_types.count(name)) {
-      base.value_types.emplace(name, type);
+  for (const auto& [name, type] : branch.values.value_types) {
+    if (!base.values.value_types.count(name)) {
+      base.values.value_types.emplace(name, type);
     }
   }
-  for (const auto& [name, info] : branch.derived_values) {
-    if (!base.derived_values.count(name)) {
-      base.derived_values.emplace(name, info);
+  for (const auto& [name, info] : branch.values.derived_values) {
+    if (!base.values.derived_values.count(name)) {
+      base.values.derived_values.emplace(name, info);
     }
   }
-  for (const auto& [name, type] : branch.static_types) {
-    if (!base.static_types.count(name)) {
-      base.static_types.emplace(name, type);
+  for (const auto& [name, type] : branch.values.static_types) {
+    if (!base.values.static_types.count(name)) {
+      base.values.static_types.emplace(name, type);
     }
   }
-  for (const auto& [name, type] : branch.drop_glue_types) {
-    if (!base.drop_glue_types.count(name)) {
-      base.drop_glue_types.emplace(name, type);
+  for (const auto& [name, type] : branch.values.drop_glue_types) {
+    if (!base.values.drop_glue_types.count(name)) {
+      base.values.drop_glue_types.emplace(name, type);
     }
   }
 }
@@ -316,7 +317,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
 
     // Build the IR case clause.
     IRIfCaseClause ir_arm;
-    ir_arm.pattern = arm.pattern;
+    ir_arm.pattern = LowerIRPattern(*arm.pattern, arm_ctx);
     ir_arm.body = arm_result.ir;
     ir_arm.value = arm_result.value;
     ir_arms.push_back(std::move(ir_arm));
@@ -337,12 +338,8 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     MergeLowerCtxTemps(ctx, else_ctx);
     *ctx.temp_counter = std::max(*ctx.temp_counter, *else_ctx.temp_counter);
 
-    auto fallback_pattern = std::make_shared<ast::Pattern>();
-    fallback_pattern->span = else_expr ? else_expr->span : scrutinee.span;
-    fallback_pattern->node = ast::WildcardPattern{};
-
     IRIfCaseClause else_arm;
-    else_arm.pattern = std::move(fallback_pattern);
+    else_arm.pattern = std::make_shared<IRPattern>(IRPattern{IRWildcardPattern{}});
     else_arm.body = else_result.ir;
     else_arm.value = else_result.value;
     ir_arms.push_back(std::move(else_arm));

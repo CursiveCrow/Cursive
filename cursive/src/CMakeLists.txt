@@ -21,6 +21,7 @@ add_library(cursive_core STATIC
   00_core/numeric_literals.cpp
   00_core/path.cpp
   00_core/process_config.cpp
+  00_core/runtime_abi.cpp
   00_core/source_load.cpp
   00_core/span.cpp
   00_core/spec_trace.cpp
@@ -192,7 +193,6 @@ endif()
 
 add_library(cursive_project STATIC
   01_project/assemblies.cpp
-  01_project/assembly_graph.cpp
   01_project/compiler_support_paths.cpp
   01_project/deterministic_order.cpp
   01_project/ir_assembly.cpp
@@ -205,7 +205,6 @@ add_library(cursive_project STATIC
   01_project/target_profile.cpp
   01_project/tool_resolution.cpp
   01_project/ffi_library.cpp
-  01_project/unwind_ffi_surface.cpp
 )
 
 target_include_directories(cursive_project PUBLIC
@@ -382,6 +381,7 @@ add_library(cursive_analysis STATIC
   04_analysis/attributes/attribute_registry.cpp
   04_analysis/attributes/attribute_targets.cpp
   04_analysis/attributes/attribute_validate.cpp
+  04_analysis/attributes/ffi_library_attrs.cpp
   04_analysis/caps/authority_model.cpp
   04_analysis/caps/callgraph_caps.cpp
   04_analysis/caps/cap_comptime.cpp
@@ -407,6 +407,7 @@ add_library(cursive_analysis STATIC
   04_analysis/contracts/contract_check.cpp
   04_analysis/contracts/contract_intrinsics.cpp
   04_analysis/contracts/verification.cpp
+  04_analysis/ffi/unwind_surface.cpp
   04_analysis/generics/generic_params.cpp
   04_analysis/generics/monomorphize.cpp
   04_analysis/generics/where_bounds.cpp
@@ -441,6 +442,7 @@ add_library(cursive_analysis STATIC
   04_analysis/resolve/resolve_extern.cpp
   04_analysis/resolve/resolve_generics.cpp
   04_analysis/resolve/resolve_items.cpp
+  04_analysis/resolve/assembly_import_graph.cpp
   04_analysis/resolve/resolve_module.cpp
   # resolve_path.cpp removed - functionality is in scopes_lookup.cpp
   04_analysis/resolve/resolve_pattern.cpp
@@ -611,6 +613,8 @@ add_library(cursive_codegen STATIC
   05_codegen/llvm/llvm_backend.cpp
   05_codegen/llvm/llvm_call.cpp
   05_codegen/llvm/llvm_emit.cpp
+  05_codegen/llvm/emit/emitter_state.cpp
+  05_codegen/llvm/emit/global_emit.cpp
   05_codegen/llvm/emit/module_emit.cpp
   05_codegen/llvm/llvm_ir_panic.cpp
   05_codegen/llvm/llvm_module.cpp
@@ -681,6 +685,7 @@ add_library(cursive_codegen STATIC
   05_codegen/lower/lower_proc.cpp
   05_codegen/lower/pattern/enum_pattern.cpp
   05_codegen/lower/pattern/identifier_pattern.cpp
+  05_codegen/lower/pattern/ir_pattern.cpp
   05_codegen/lower/pattern/literal_pattern.cpp
   05_codegen/lower/pattern/modal_pattern.cpp
   05_codegen/lower/pattern/pattern_common.cpp
@@ -849,33 +854,9 @@ if(LLVM_FOUND)
 
   target_link_libraries(cursive_codegen PUBLIC ${LLVM_LIBS})
 
-  target_include_directories(cursive_project PUBLIC ${LLVM_INCLUDE_DIRS})
-  target_compile_definitions(cursive_project PRIVATE ${LLVM_DEFINITIONS})
-
-  if(WIN32)
-    set(CURSIVE_PROJECT_LLVM_LIBS
-      "${LLVM_ROOT}/lib/LLVMAsmParser.lib"
-      "${LLVM_ROOT}/lib/LLVMBitWriter.lib"
-      "${LLVM_ROOT}/lib/LLVMObject.lib"
-      "${LLVM_ROOT}/lib/LLVMBinaryFormat.lib"
-    )
-    foreach(llvm_extra_lib IN LISTS CURSIVE_PROJECT_LLVM_LIBS)
-      if(NOT EXISTS "${llvm_extra_lib}")
-        message(FATAL_ERROR "Required LLVM/lld support library not found: ${llvm_extra_lib}")
-      endif()
-    endforeach()
-  else()
-    set(CURSIVE_PROJECT_LLVM_LIBS
-      LLVMAsmParser
-      LLVMBitWriter
-    )
-  endif()
-
-  target_link_libraries(cursive_project PUBLIC ${CURSIVE_PROJECT_LLVM_LIBS})
 endif()
 
 target_link_libraries(cursive_project PUBLIC cursive_core)
-target_link_libraries(cursive_project PUBLIC cursive_source)
 target_link_libraries(cursive_source PUBLIC cursive_core)
 target_link_libraries(cursive_analysis PUBLIC cursive_core cursive_source cursive_project)
 target_link_libraries(cursive_codegen PUBLIC cursive_analysis)
@@ -897,8 +878,10 @@ target_compile_features(cursive-debug PRIVATE cxx_std_20)
 
 add_executable(cursive
   06_driver/cli.cpp
+  06_driver/compiler_main.cpp
   06_driver/main.cpp
   06_driver/options.cpp
+  06_driver/output_pipeline.cpp
   06_driver/pipeline.cpp
   06_driver/shared_library_exports.cpp
   06_driver/version.cpp

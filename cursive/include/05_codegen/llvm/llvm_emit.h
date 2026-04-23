@@ -287,7 +287,7 @@ private:
   llvm::LLVMContext& context_;
   std::unique_ptr<llvm::Module> module_;
   std::unique_ptr<llvm::IRBuilderBase> builder_; // Use base class to hide template
-  project::TargetProfile target_profile_ = project::TargetProfile::X86_64Win64;
+  project::TargetProfile target_profile_;
   
   LowerCtx* current_ctx_ = nullptr;
 

@@ -226,12 +226,8 @@ LowerResult LowerPropagateExpr(const ast::PropagateExpr& expr, LowerCtx& ctx) {
         const bool is_success = i == *success_index;
         const analysis::TypeRef member_type = members[i];
 
-        ast::TypedPattern typed;
-        typed.name = "__case" + std::to_string(i);
-        typed.type = nullptr;
-        auto pattern = std::make_shared<ast::Pattern>();
-        pattern->node = std::move(typed);
-        pattern->span = core::Span{};
+        auto pattern = std::make_shared<IRPattern>();
+        pattern->node = IRTypedPattern{"__case" + std::to_string(i), member_type};
 
         IRValue case_value;
         if (IsUnitType(member_type)) {

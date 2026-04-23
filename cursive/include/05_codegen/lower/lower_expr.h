@@ -216,6 +216,21 @@ struct LocalAddrAlias {
   std::string static_name;
 };
 
+struct LowerValueState {
+  const LowerCtx* parent = nullptr;
+  std::unordered_map<std::string, analysis::TypeRef> value_types;
+  std::vector<std::string>* value_type_insert_sink = nullptr;
+  std::unordered_map<std::string, analysis::TypeRef> static_types;
+  std::unordered_map<std::string, analysis::TypeRef> drop_glue_types;
+  std::unordered_map<std::string, DerivedValueInfo> derived_values;
+
+  struct RequiredVTableInfo {
+    analysis::TypeRef type;
+    analysis::TypePath class_path;
+  };
+  std::unordered_map<std::string, RequiredVTableInfo> required_vtables;
+};
+
 // LowerCtx - context for lowering operations
 // Contains type information and scope state needed during lowering
 struct LowerCtx {
@@ -293,18 +308,7 @@ struct LowerCtx {
   // IR value and symbol type tracking.
   // Branch-lowered contexts may chain to a parent to avoid copying large
   // transient maps for every branch clone.
-  const LowerCtx* map_parent = nullptr;
-  std::unordered_map<std::string, analysis::TypeRef> value_types;
-  // Optional sink used by callers that need to track newly-inserted value
-  // type keys without snapshotting the entire map.
-  std::vector<std::string>* value_type_insert_sink = nullptr;
-  std::unordered_map<std::string, analysis::TypeRef> static_types;
-  std::unordered_map<std::string, analysis::TypeRef> drop_glue_types;
-  struct RequiredVTableInfo {
-    analysis::TypeRef type;
-    analysis::TypePath class_path;
-  };
-  std::unordered_map<std::string, RequiredVTableInfo> required_vtables;
+  LowerValueState values;
   std::unordered_map<std::string, std::vector<std::string>> static_modules;
   std::unordered_map<std::string, std::vector<std::string>> record_ctor_paths;
 
@@ -438,7 +442,8 @@ struct LowerCtx {
   void RegisterRequiredVTable(const std::string& sym,
                               analysis::TypeRef type,
                               const analysis::TypePath& class_path);
-  const RequiredVTableInfo* LookupRequiredVTable(const std::string& sym) const;
+  const LowerValueState::RequiredVTableInfo* LookupRequiredVTable(
+      const std::string& sym) const;
   void RegisterRecordCtor(const std::string& sym, const std::vector<std::string>& path);
   const std::vector<std::string>* LookupRecordCtor(const std::string& sym) const;
   void RegisterProcSig(const ProcIR& proc);
@@ -477,9 +482,6 @@ struct LowerCtx {
   std::unordered_map<std::string, std::vector<BindingState>> binding_states;
   std::unordered_map<std::string, std::vector<LocalAddrAlias>> local_addr_aliases;
   std::uint64_t next_binding_id = 1;
-
-  // Map from temporary value names to derived value info
-  std::unordered_map<std::string, DerivedValueInfo> derived_values;
 
   // Current temp sink for statement-scoped temporaries
   std::vector<TempValue>* temp_sink = nullptr;

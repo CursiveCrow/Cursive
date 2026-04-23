@@ -111,7 +111,7 @@
 #include "00_core/host_primitives.h"
 #include "00_core/path.h"
 #include "01_project/compiler_support_paths.h"
-#include "05_codegen/llvm/llvm_module.h"
+#include "01_project/llvm_toolchain.h"
 #include "01_project/project.h"
 #include "01_project/target_profile.h"
 
@@ -169,7 +169,7 @@ bool CandidateMatchesLLVMToolchain(const std::filesystem::path& candidate) {
   const auto version_output = RunToolVersionCommand(candidate);
   const bool matches =
       version_output.has_value() &&
-      version_output->find(std::string(codegen::GetLLVMToolchainVersion())) !=
+      version_output->find(std::string(kLLVMToolchainVersion)) !=
           std::string::npos;
 
   const std::lock_guard<std::mutex> lock(cache_mu);
@@ -231,13 +231,6 @@ std::vector<std::filesystem::path> SearchDirs(const Project& project,
     }
   }
   return dirs;
-}
-
-std::optional<std::filesystem::path> ResolveTool(const Project& project,
-                                                 std::string_view tool) {
-  const TargetProfile target_profile =
-      project.toolchain.target_profile.value_or(TargetProfile::X86_64Win64);
-  return ResolveTool(project, target_profile, tool);
 }
 
 std::optional<std::filesystem::path> ResolveTool(const Project& project,

@@ -27,7 +27,7 @@
 //   - cursive/include/05_codegen/ir/ir_model.h (IR node types)
 //   - cursive/include/05_codegen/ir/ir_dump.h (dump interface)
 //   - analysis::TypeToString for type printing
-//   - ast::RangeKind for range formatting
+//   - IRRangeKind for range formatting
 //
 // REFACTORING NOTES:
 //   1. Preserve human-readable dump format for debugging
@@ -181,27 +181,27 @@ struct Dumper {
     };
 
     switch (range.kind) {
-      case ast::RangeKind::Full:
+      case IRRangeKind::Full:
         oss << "..";
         return;
-      case ast::RangeKind::From:
+      case IRRangeKind::From:
         dump_opt(range.lo);
         oss << "..";
         return;
-      case ast::RangeKind::To:
+      case IRRangeKind::To:
         oss << "..";
         dump_opt(range.hi);
         return;
-      case ast::RangeKind::ToInclusive:
+      case IRRangeKind::ToInclusive:
         oss << "..=";
         dump_opt(range.hi);
         return;
-      case ast::RangeKind::Exclusive:
+      case IRRangeKind::Exclusive:
         dump_opt(range.lo);
         oss << "..";
         dump_opt(range.hi);
         return;
-      case ast::RangeKind::Inclusive:
+      case IRRangeKind::Inclusive:
         dump_opt(range.lo);
         oss << "..=";
         dump_opt(range.hi);
@@ -209,31 +209,31 @@ struct Dumper {
     }
   }
 
-  void DumpPattern(const ast::Pattern& pattern) {
+  void DumpPattern(const IRPattern& pattern) {
     std::visit(
         [this](const auto& pat) {
           using T = std::decay_t<decltype(pat)>;
-        if constexpr (std::is_same_v<T, ast::LiteralPattern>) {
+        if constexpr (std::is_same_v<T, IRLiteralPattern>) {
           oss << "<literal " << pat.literal.lexeme << ">";
-        } else if constexpr (std::is_same_v<T, ast::WildcardPattern>) {
+        } else if constexpr (std::is_same_v<T, IRWildcardPattern>) {
           oss << "_";
-        } else if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
+        } else if constexpr (std::is_same_v<T, IRIdentifierPattern>) {
           oss << pat.name;
-        } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
+        } else if constexpr (std::is_same_v<T, IRTypedPattern>) {
           oss << pat.name;
-        } else if constexpr (std::is_same_v<T, ast::ModalPattern>) {
+        } else if constexpr (std::is_same_v<T, IRModalPattern>) {
           oss << "@" << pat.state;
-          if (pat.fields_opt) {
+          if (pat.fields) {
             oss << " {";
-            for (std::size_t i = 0; i < pat.fields_opt->fields.size(); ++i) {
-              const auto& field = pat.fields_opt->fields[i];
+            for (std::size_t i = 0; i < pat.fields->fields.size(); ++i) {
+              const auto& field = pat.fields->fields[i];
               if (i) {
                 oss << ", ";
               }
               oss << field.name;
-              if (field.pattern_opt) {
+              if (field.pattern) {
                 oss << ": ";
-                DumpPattern(*field.pattern_opt);
+                DumpPattern(*field.pattern);
               }
             }
             oss << "}";
@@ -484,13 +484,13 @@ struct Dumper {
   void DumpNode(const IRFence& fence) {
     oss << "fence ";
     switch (fence.order) {
-      case ast::FenceOrder::Acquire:
+      case IRFenceOrder::Acquire:
         oss << "acquire";
         break;
-      case ast::FenceOrder::Release:
+      case IRFenceOrder::Release:
         oss << "release";
         break;
-      case ast::FenceOrder::SeqCst:
+      case IRFenceOrder::SeqCst:
         oss << "seqcst";
         break;
     }

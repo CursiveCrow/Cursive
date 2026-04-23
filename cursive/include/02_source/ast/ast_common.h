@@ -25,8 +25,8 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/int128.h"
-#include "cursive/src/02_source/ast/nodes/ast_fwd.h"
-#include "cursive/src/02_source/ast/nodes/ast_enums.h"
+#include "02_source/ast/nodes/ast_fwd.h"
+#include "02_source/ast/nodes/ast_enums.h"
 #include "00_core/span.h"
 #include "02_source/lexer/token.h"
 

@@ -57,20 +57,20 @@ void AppendDistinctType(std::vector<analysis::TypeRef>& members,
 }
 
 LowerCtx MakeBranchCtx(LowerCtx& base) {
-    auto saved_value_types = std::move(base.value_types);
-    auto saved_derived_values = std::move(base.derived_values);
-    auto saved_drop_glue_types = std::move(base.drop_glue_types);
+    auto saved_value_types = std::move(base.values.value_types);
+    auto saved_derived_values = std::move(base.values.derived_values);
+    auto saved_drop_glue_types = std::move(base.values.drop_glue_types);
 
     LowerCtx branch = base;
 
-    base.value_types = std::move(saved_value_types);
-    base.derived_values = std::move(saved_derived_values);
-    base.drop_glue_types = std::move(saved_drop_glue_types);
+    base.values.value_types = std::move(saved_value_types);
+    base.values.derived_values = std::move(saved_derived_values);
+    base.values.drop_glue_types = std::move(saved_drop_glue_types);
 
-    branch.value_types.clear();
-    branch.derived_values.clear();
-    branch.drop_glue_types.clear();
-    branch.map_parent = &base;
+    branch.values.value_types.clear();
+    branch.values.derived_values.clear();
+    branch.values.drop_glue_types.clear();
+    branch.values.parent = &base;
     return branch;
 }
 
@@ -123,7 +123,6 @@ LowerResult LowerRaceExpr(const ast::RaceExpr& expr, LowerCtx& ctx) {
         auto async_result = LowerExpr(*arm.expr, ctx);
         ir_arm.async_ir = async_result.ir;
         ir_arm.async_value = async_result.value;
-        ir_arm.pattern = arm.pattern;
 
         // Get async type and extract pattern type
         analysis::TypeRef async_type;
@@ -179,30 +178,30 @@ LowerResult LowerRaceExpr(const ast::RaceExpr& expr, LowerCtx& ctx) {
         ir_arm.handler_result = handler_result.value;
 
         // Merge value_types from arm context to parent
-        for (const auto& [name, type] : arm_ctx.value_types) {
-            if (!ctx.value_types.count(name)) {
-                ctx.value_types.emplace(name, type);
+        for (const auto& [name, type] : arm_ctx.values.value_types) {
+            if (!ctx.values.value_types.count(name)) {
+                ctx.values.value_types.emplace(name, type);
             }
         }
 
         // Merge derived_values from arm context to parent
-        for (const auto& [name, info] : arm_ctx.derived_values) {
-            if (!ctx.derived_values.count(name)) {
-                ctx.derived_values.emplace(name, info);
+        for (const auto& [name, info] : arm_ctx.values.derived_values) {
+            if (!ctx.values.derived_values.count(name)) {
+                ctx.values.derived_values.emplace(name, info);
             }
         }
 
         // Merge static_types from arm context to parent
-        for (const auto& [name, type] : arm_ctx.static_types) {
-            if (!ctx.static_types.count(name)) {
-                ctx.static_types.emplace(name, type);
+        for (const auto& [name, type] : arm_ctx.values.static_types) {
+            if (!ctx.values.static_types.count(name)) {
+                ctx.values.static_types.emplace(name, type);
             }
         }
 
         // Merge drop_glue_types from arm context to parent
-        for (const auto& [name, type] : arm_ctx.drop_glue_types) {
-            if (!ctx.drop_glue_types.count(name)) {
-                ctx.drop_glue_types.emplace(name, type);
+        for (const auto& [name, type] : arm_ctx.values.drop_glue_types) {
+            if (!ctx.values.drop_glue_types.count(name)) {
+                ctx.values.drop_glue_types.emplace(name, type);
             }
         }
 

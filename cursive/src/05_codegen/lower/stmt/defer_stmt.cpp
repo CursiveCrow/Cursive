@@ -3,7 +3,7 @@
 // =============================================================================
 //
 // SPEC REFERENCE: CursiveSpecification.md Lines 16655-16657 (Lower-Stmt-Defer)
-//   - DeferIR(block) - deferred block stored for cleanup
+//   - DeferIR - deferred block marker stored for cleanup
 //
 // MIGRATED FROM:
 //   - cursive-bootstrap/src/04_codegen/lower/lower_stmt.cpp
@@ -25,10 +25,10 @@ namespace cursive::codegen {
 // ============================================================================
 //
 // Per the spec (Lines 16655-16657):
-//   DeferIR(block) - stores the deferred block for execution at scope exit
+//   DeferIR marks the deferred block registration point.
 //
 // The implementation:
-//   - Creates an IRDefer node containing the block
+//   - Creates an IRDefer marker node
 //   - Registers the defer with the context for cleanup tracking
 //   - Defers are executed in reverse order at scope exit
 //
@@ -40,12 +40,9 @@ IRPtr LowerDeferStmt(const ast::DeferStmt& stmt, LowerCtx& ctx) {
   LowerResult deferred_body = LowerBlock(*stmt.body, ctx);
   ctx.RegisterDefer(deferred_body.ir);
 
-  // Keep a DeferIR marker in the stream for IR-model fidelity. Runtime
-  // behavior is driven by cleanup expansion, not immediate execution here.
-  IRDefer defer;
-  defer.block = stmt.body;
-  IRPtr defer_ir = MakeIR(std::move(defer));
-  return defer_ir;
+  // Runtime behavior is driven by cleanup expansion, not immediate execution
+  // at the statement site.
+  return MakeIR(IRDefer{});
 }
 
 }  // namespace cursive::codegen

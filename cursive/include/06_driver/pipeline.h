@@ -31,13 +31,11 @@ struct ModuleCodegen {
   ast::ModulePath path;
   std::string path_key;
   codegen::IRDecls decls;
-  std::unordered_map<std::string, analysis::TypeRef> value_types;
-  std::unordered_map<std::string, codegen::DerivedValueInfo> derived_values;
+  codegen::LowerValueState values;
   std::unordered_map<std::string, codegen::LowerCtx::ProcSigInfo> proc_sigs;
   std::unordered_map<std::string, codegen::LinkageKind> proc_linkages;
   std::unordered_map<std::string, codegen::LowerCtx::AsyncProcInfo> async_procs;
   std::uint64_t temp_counter = 0;
-  std::unordered_map<std::string, analysis::TypeRef> drop_glue_types;
   std::optional<std::string> main_symbol;
 };
 

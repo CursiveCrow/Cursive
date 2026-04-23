@@ -18,7 +18,7 @@
 //   CanAccessVis  (visibility.cpp)
 // Assembly-level import graph validation is implemented by:
 //   BuildAssemblyImportGraph, ValidateAssemblyImportGraphStructure
-//     (assembly_graph.cpp)
+//     (assembly_import_graph.cpp)
 //
 // This file provides per-declaration validation that composes those primitives.
 // =============================================================================

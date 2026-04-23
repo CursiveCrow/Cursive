@@ -2832,94 +2832,6 @@ namespace cursive::codegen
 
   } // namespace
 
-  // =============================================================================
-  // LLVMEmitter Implementation
-  // =============================================================================
-
-  LLVMEmitter::LLVMEmitter(llvm::LLVMContext &ctx,
-                           const std::string &module_name,
-                           project::TargetProfile profile)
-      : context_(ctx),
-        module_(std::make_unique<llvm::Module>(module_name, ctx)),
-        builder_(std::make_unique<llvm::IRBuilder<>>(ctx)),
-        target_profile_(profile)
-  {
-  }
-
-  LLVMEmitter::~LLVMEmitter() = default;
-
-  std::unique_ptr<llvm::Module> LLVMEmitter::ReleaseModule()
-  {
-    return std::move(module_);
-  }
-
-  void LLVMEmitter::PushLoopTargets(llvm::BasicBlock *break_target,
-                                    llvm::BasicBlock *continue_target,
-                                    llvm::Value *break_value_slot,
-                                    analysis::TypeRef break_result_type)
-  {
-    loop_break_targets_.push_back(break_target);
-    loop_continue_targets_.push_back(continue_target);
-    loop_break_value_slots_.push_back(break_value_slot);
-    loop_break_result_types_.push_back(break_result_type);
-  }
-
-  void LLVMEmitter::PopLoopTargets()
-  {
-    if (!loop_break_targets_.empty())
-    {
-      loop_break_targets_.pop_back();
-    }
-    if (!loop_continue_targets_.empty())
-    {
-      loop_continue_targets_.pop_back();
-    }
-    if (!loop_break_value_slots_.empty())
-    {
-      loop_break_value_slots_.pop_back();
-    }
-    if (!loop_break_result_types_.empty())
-    {
-      loop_break_result_types_.pop_back();
-    }
-  }
-
-  llvm::BasicBlock *LLVMEmitter::CurrentLoopBreakTarget() const
-  {
-    if (loop_break_targets_.empty())
-    {
-      return nullptr;
-    }
-    return loop_break_targets_.back();
-  }
-
-  llvm::BasicBlock *LLVMEmitter::CurrentLoopContinueTarget() const
-  {
-    if (loop_continue_targets_.empty())
-    {
-      return nullptr;
-    }
-    return loop_continue_targets_.back();
-  }
-
-  llvm::Value *LLVMEmitter::CurrentLoopBreakValueSlot() const
-  {
-    if (loop_break_value_slots_.empty())
-    {
-      return nullptr;
-    }
-    return loop_break_value_slots_.back();
-  }
-
-  analysis::TypeRef LLVMEmitter::CurrentLoopBreakResultType() const
-  {
-    if (loop_break_result_types_.empty())
-    {
-      return nullptr;
-    }
-    return loop_break_result_types_.back();
-  }
-
   // T-LLVM-001: Set module header (triple, datalayout)
 
 
@@ -4414,176 +4326,6 @@ namespace cursive::codegen
       }
     }
   }
-
-  void LLVMEmitter::EmitGlobalConst(const GlobalConst &global)
-  {
-    SPEC_RULE("LowerIRDecl-GlobalConst");
-
-    // GlobalConst stores raw bytes - create an i8 array type
-    llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
-    llvm::ArrayType *ty = llvm::ArrayType::get(i8_ty, global.bytes.size());
-
-    llvm::Constant *init = nullptr;
-    if (global.bytes.empty())
-    {
-      init = llvm::Constant::getNullValue(ty);
-    }
-    else
-    {
-      // Create constant from bytes as i8 array
-      std::vector<llvm::Constant *> byte_consts;
-      byte_consts.reserve(global.bytes.size());
-      for (std::uint8_t byte : global.bytes)
-      {
-        byte_consts.push_back(llvm::ConstantInt::get(i8_ty, byte));
-      }
-      init = llvm::ConstantArray::get(ty, byte_consts);
-    }
-
-    const bool hosted_state_fallback = HasHostedStateSlot(global.symbol);
-    auto *gv = new llvm::GlobalVariable(
-        *module_,
-        ty,
-        !hosted_state_fallback,
-        global.externally_visible ? llvm::GlobalValue::ExternalLinkage
-                                  : llvm::GlobalValue::InternalLinkage,
-        init,
-        global.symbol);
-
-    globals_[global.symbol] = gv;
-  }
-
-  void LLVMEmitter::EmitGlobalZero(const GlobalZero &global)
-  {
-    SPEC_RULE("LowerIRDecl-GlobalZero");
-
-    // GlobalZero stores size in bytes - create an i8 array type
-    llvm::Type *i8_ty = llvm::Type::getInt8Ty(context_);
-    llvm::ArrayType *ty = llvm::ArrayType::get(i8_ty, global.size);
-
-    auto *gv = new llvm::GlobalVariable(
-        *module_,
-        ty,
-        false, // not constant
-        global.externally_visible ? llvm::GlobalValue::ExternalLinkage
-                                  : llvm::GlobalValue::InternalLinkage,
-        llvm::Constant::getNullValue(ty),
-        global.symbol);
-
-    globals_[global.symbol] = gv;
-  }
-
-  void LLVMEmitter::EmitVTable(const GlobalVTable &vtable)
-  {
-    SPEC_RULE("LowerIRDecl-VTable");
-
-    const bool debug_vtable = core::IsDebugEnabled("obj");
-    if (debug_vtable)
-    {
-      std::fprintf(stderr, "[emit-vtable] symbol=%s slots=%zu\n",
-                   vtable.symbol.c_str(), vtable.slots.size());
-    }
-
-    auto *usize_ty = llvm::Type::getInt64Ty(context_);
-    auto *ptr_ty = GetOpaquePtr();
-
-    auto resolve_ptr_const = [&](const std::string &symbol,
-                                 std::size_t slot_index,
-                                 bool drop_entry) -> llvm::Constant * {
-      if (symbol.empty())
-      {
-        return llvm::ConstantPointerNull::get(
-            llvm::cast<llvm::PointerType>(ptr_ty));
-      }
-
-      if (llvm::Function *func = functions_[symbol])
-      {
-        return llvm::ConstantExpr::getBitCast(func, ptr_ty);
-      }
-      if (llvm::Function *func = module_->getFunction(symbol))
-      {
-        return llvm::ConstantExpr::getBitCast(func, ptr_ty);
-      }
-      if (llvm::GlobalVariable *global = module_->getNamedGlobal(symbol))
-      {
-        return llvm::ConstantExpr::getBitCast(global, ptr_ty);
-      }
-
-      if (debug_vtable)
-      {
-        std::fprintf(stderr,
-                     "[emit-vtable]   %s[%zu]=%s -> NULL (not found)\n",
-                     drop_entry ? "drop" : "slot",
-                     slot_index,
-                     symbol.c_str());
-      }
-      return llvm::ConstantPointerNull::get(
-          llvm::cast<llvm::PointerType>(ptr_ty));
-    };
-
-    std::vector<llvm::Type *> field_tys;
-    field_tys.reserve(3 + vtable.slots.size());
-    field_tys.push_back(usize_ty);
-    field_tys.push_back(usize_ty);
-    field_tys.push_back(ptr_ty);
-    for (std::size_t i = 0; i < vtable.slots.size(); ++i)
-    {
-      field_tys.push_back(ptr_ty);
-    }
-    llvm::StructType *vtable_ty = llvm::StructType::get(context_, field_tys);
-
-    std::vector<llvm::Constant *> fields;
-    fields.reserve(3 + vtable.slots.size());
-    fields.push_back(llvm::ConstantInt::get(usize_ty, vtable.header.size));
-    fields.push_back(llvm::ConstantInt::get(usize_ty, vtable.header.align));
-    fields.push_back(resolve_ptr_const(vtable.header.drop_sym, 0, true));
-
-    for (std::size_t i = 0; i < vtable.slots.size(); ++i)
-    {
-      const auto &slot = vtable.slots[i];
-      llvm::Constant *entry = resolve_ptr_const(slot, i, false);
-      fields.push_back(entry);
-      if (debug_vtable && !llvm::isa<llvm::ConstantPointerNull>(entry))
-      {
-        std::fprintf(stderr, "[emit-vtable]   slot[%zu]=%s -> FOUND\n", i,
-                     slot.c_str());
-      }
-    }
-
-    llvm::Constant *init = llvm::ConstantStruct::get(vtable_ty, fields);
-
-    llvm::GlobalVariable *gv = module_->getNamedGlobal(vtable.symbol);
-    if (!gv)
-    {
-      gv = new llvm::GlobalVariable(
-          *module_,
-          vtable_ty,
-          true,
-          llvm::GlobalValue::InternalLinkage,
-          init,
-          vtable.symbol);
-    }
-    else
-    {
-      if (gv->getValueType() != vtable_ty)
-      {
-        if (current_ctx_)
-        {
-          current_ctx_->ReportCodegenFailure();
-        }
-        return;
-      }
-      gv->setInitializer(init);
-      gv->setConstant(true);
-      gv->setLinkage(llvm::GlobalValue::InternalLinkage);
-    }
-
-    globals_[vtable.symbol] = gv;
-  }
-
-
-
-
 
 
   bool LLVMEmitter::IsHostedLibraryBuild() const
@@ -8153,9 +7895,9 @@ namespace cursive::codegen
 
         switch (range.kind)
         {
-        case ast::RangeKind::Full:
+        case IRRangeKind::Full:
           return base_len;
-        case ast::RangeKind::From:
+        case IRRangeKind::From:
         {
           auto lo = bound_or(range.lo, 0);
           if (!lo.has_value() || *lo > base_len)
@@ -8164,7 +7906,7 @@ namespace cursive::codegen
           }
           return base_len - *lo;
         }
-        case ast::RangeKind::To:
+        case IRRangeKind::To:
         {
           auto hi = bound_or(range.hi, base_len);
           if (!hi.has_value() || *hi > base_len)
@@ -8173,7 +7915,7 @@ namespace cursive::codegen
           }
           return *hi;
         }
-        case ast::RangeKind::ToInclusive:
+        case IRRangeKind::ToInclusive:
         {
           auto hi = bound_or(range.hi, 0);
           if (!hi.has_value() || *hi >= base_len)
@@ -8182,7 +7924,7 @@ namespace cursive::codegen
           }
           return *hi + 1;
         }
-        case ast::RangeKind::Exclusive:
+        case IRRangeKind::Exclusive:
         {
           auto lo = bound_or(range.lo, 0);
           auto hi = bound_or(range.hi, base_len);
@@ -8192,7 +7934,7 @@ namespace cursive::codegen
           }
           return *hi - *lo;
         }
-        case ast::RangeKind::Inclusive:
+        case IRRangeKind::Inclusive:
         {
           auto lo = bound_or(range.lo, 0);
           auto hi = bound_or(range.hi, 0);
@@ -8250,7 +7992,7 @@ namespace cursive::codegen
             };
             switch (range.kind)
             {
-            case ast::RangeKind::Exclusive:
+            case IRRangeKind::Exclusive:
             {
               auto lo = bound_or(range.lo, 0);
               auto hi = bound_or(range.hi, 0);
@@ -8260,7 +8002,7 @@ namespace cursive::codegen
               }
               return *hi - *lo;
             }
-            case ast::RangeKind::Inclusive:
+            case IRRangeKind::Inclusive:
             {
               auto lo = bound_or(range.lo, 0);
               auto hi = bound_or(range.hi, 0);
@@ -8270,7 +8012,7 @@ namespace cursive::codegen
               }
               return (*hi - *lo) + 1;
             }
-            case ast::RangeKind::To:
+            case IRRangeKind::To:
             {
               auto hi = bound_or(range.hi, 0);
               if (!hi.has_value())
@@ -8279,7 +8021,7 @@ namespace cursive::codegen
               }
               return *hi;
             }
-            case ast::RangeKind::ToInclusive:
+            case IRRangeKind::ToInclusive:
             {
               auto hi = bound_or(range.hi, 0);
               if (!hi.has_value())
@@ -8288,8 +8030,8 @@ namespace cursive::codegen
               }
               return *hi + 1;
             }
-            case ast::RangeKind::From:
-            case ast::RangeKind::Full:
+            case IRRangeKind::From:
+            case IRRangeKind::Full:
               return std::nullopt;
             }
             return std::nullopt;
@@ -8634,7 +8376,7 @@ namespace cursive::codegen
 
       struct MaterializedRangeValue
       {
-        ast::RangeKind kind = ast::RangeKind::Full;
+        IRRangeKind kind = IRRangeKind::Full;
         llvm::Value *lo = nullptr;
         llvm::Value *hi = nullptr;
       };
@@ -8642,31 +8384,31 @@ namespace cursive::codegen
       std::optional<MaterializedRangeValue> ResolveRangeValue(
           const IRValue &value,
           llvm::Type *bound_ty = nullptr,
-          std::optional<ast::RangeKind> fallback_kind = std::nullopt) const
+          std::optional<IRRangeKind> fallback_kind = std::nullopt) const
       {
         analysis::TypeRef range_type = NormalizeValueType(value);
 
         MaterializedRangeValue out;
         std::optional<unsigned> lo_index;
         std::optional<unsigned> hi_index;
-        auto configure_for_kind = [&](ast::RangeKind kind) -> bool
+        auto configure_for_kind = [&](IRRangeKind kind) -> bool
         {
           out.kind = kind;
           lo_index.reset();
           hi_index.reset();
           switch (kind)
           {
-          case ast::RangeKind::Full:
+          case IRRangeKind::Full:
             return true;
-          case ast::RangeKind::From:
+          case IRRangeKind::From:
             lo_index = 0u;
             return true;
-          case ast::RangeKind::To:
-          case ast::RangeKind::ToInclusive:
+          case IRRangeKind::To:
+          case IRRangeKind::ToInclusive:
             hi_index = 0u;
             return true;
-          case ast::RangeKind::Exclusive:
-          case ast::RangeKind::Inclusive:
+          case IRRangeKind::Exclusive:
+          case IRRangeKind::Inclusive:
             lo_index = 0u;
             hi_index = 1u;
             return true;
@@ -8678,7 +8420,7 @@ namespace cursive::codegen
         {
           if (std::holds_alternative<analysis::TypeRange>(range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::Exclusive))
+            if (!configure_for_kind(IRRangeKind::Exclusive))
             {
               return std::nullopt;
             }
@@ -8686,7 +8428,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeInclusive>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::Inclusive))
+            if (!configure_for_kind(IRRangeKind::Inclusive))
             {
               return std::nullopt;
             }
@@ -8694,7 +8436,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeFrom>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::From))
+            if (!configure_for_kind(IRRangeKind::From))
             {
               return std::nullopt;
             }
@@ -8702,7 +8444,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeTo>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::To))
+            if (!configure_for_kind(IRRangeKind::To))
             {
               return std::nullopt;
             }
@@ -8710,7 +8452,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeToInclusive>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::ToInclusive))
+            if (!configure_for_kind(IRRangeKind::ToInclusive))
             {
               return std::nullopt;
             }
@@ -8718,7 +8460,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeFull>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::Full))
+            if (!configure_for_kind(IRRangeKind::Full))
             {
               return std::nullopt;
             }
@@ -11299,13 +11041,13 @@ namespace cursive::codegen
         llvm::AtomicOrdering ordering = llvm::AtomicOrdering::SequentiallyConsistent;
         switch (fence.order)
         {
-        case ast::FenceOrder::Acquire:
+        case IRFenceOrder::Acquire:
           ordering = llvm::AtomicOrdering::Acquire;
           break;
-        case ast::FenceOrder::Release:
+        case IRFenceOrder::Release:
           ordering = llvm::AtomicOrdering::Release;
           break;
-        case ast::FenceOrder::SeqCst:
+        case IRFenceOrder::SeqCst:
           ordering = llvm::AtomicOrdering::SequentiallyConsistent;
           break;
         }
@@ -12401,9 +12143,9 @@ namespace cursive::codegen
         {
           switch (runtime_range->kind)
           {
-          case ast::RangeKind::Full:
+          case IRRangeKind::Full:
             break;
-          case ast::RangeKind::From:
+          case IRRangeKind::From:
           {
             llvm::Value *lo = runtime_range->lo
                                   ? runtime_range->lo
@@ -12411,13 +12153,13 @@ namespace cursive::codegen
             ok = builder.CreateICmpULE(lo, len);
             break;
           }
-          case ast::RangeKind::To:
+          case IRRangeKind::To:
           {
             llvm::Value *hi = runtime_range->hi ? runtime_range->hi : len;
             ok = builder.CreateICmpULE(hi, len);
             break;
           }
-          case ast::RangeKind::ToInclusive:
+          case IRRangeKind::ToInclusive:
           {
             llvm::Value *hi = runtime_range->hi
                                   ? runtime_range->hi
@@ -12425,7 +12167,7 @@ namespace cursive::codegen
             ok = builder.CreateICmpULT(hi, len);
             break;
           }
-          case ast::RangeKind::Exclusive:
+          case IRRangeKind::Exclusive:
           {
             llvm::Value *lo = runtime_range->lo
                                   ? runtime_range->lo
@@ -12436,7 +12178,7 @@ namespace cursive::codegen
             ok = builder.CreateAnd(lo_le_hi, hi_le_len);
             break;
           }
-          case ast::RangeKind::Inclusive:
+          case IRRangeKind::Inclusive:
           {
             llvm::Value *lo = runtime_range->lo
                                   ? runtime_range->lo
@@ -12455,9 +12197,9 @@ namespace cursive::codegen
         {
           switch (check.range.kind)
           {
-          case ast::RangeKind::Full:
+          case IRRangeKind::Full:
             break;
-          case ast::RangeKind::From:
+          case IRRangeKind::From:
           {
             llvm::Value *lo = as_u64(check.range.lo, 0);
             if (!lo)
@@ -12467,7 +12209,7 @@ namespace cursive::codegen
             ok = builder.CreateICmpULE(lo, len);
             break;
           }
-          case ast::RangeKind::To:
+          case IRRangeKind::To:
           {
             llvm::Value *hi = as_u64(check.range.hi, *len_opt);
             if (!hi)
@@ -12477,7 +12219,7 @@ namespace cursive::codegen
             ok = builder.CreateICmpULE(hi, len);
             break;
           }
-          case ast::RangeKind::ToInclusive:
+          case IRRangeKind::ToInclusive:
           {
             llvm::Value *hi = as_u64(check.range.hi, 0);
             if (!hi)
@@ -12487,7 +12229,7 @@ namespace cursive::codegen
             ok = builder.CreateICmpULT(hi, len);
             break;
           }
-          case ast::RangeKind::Exclusive:
+          case IRRangeKind::Exclusive:
           {
             llvm::Value *lo = as_u64(check.range.lo, 0);
             llvm::Value *hi = as_u64(check.range.hi, *len_opt);
@@ -12500,7 +12242,7 @@ namespace cursive::codegen
             ok = builder.CreateAnd(lo_le_hi, hi_le_len);
             break;
           }
-          case ast::RangeKind::Inclusive:
+          case IRRangeKind::Inclusive:
           {
             llvm::Value *lo = as_u64(check.range.lo, 0);
             llvm::Value *hi = as_u64(check.range.hi, 0);
@@ -12575,10 +12317,10 @@ namespace cursive::codegen
         {
           switch (runtime_range->kind)
           {
-          case ast::RangeKind::Full:
+          case IRRangeKind::Full:
             expected_len = base_len;
             break;
-          case ast::RangeKind::From:
+          case IRRangeKind::From:
           {
             llvm::Value *lo = runtime_range->lo
                                   ? runtime_range->lo
@@ -12586,13 +12328,13 @@ namespace cursive::codegen
             expected_len = builder.CreateSub(base_len, lo);
             break;
           }
-          case ast::RangeKind::To:
+          case IRRangeKind::To:
           {
             llvm::Value *hi = runtime_range->hi ? runtime_range->hi : base_len;
             expected_len = hi;
             break;
           }
-          case ast::RangeKind::ToInclusive:
+          case IRRangeKind::ToInclusive:
           {
             llvm::Value *hi = runtime_range->hi
                                   ? runtime_range->hi
@@ -12600,7 +12342,7 @@ namespace cursive::codegen
             expected_len = builder.CreateAdd(hi, llvm::ConstantInt::get(i64, 1));
             break;
           }
-          case ast::RangeKind::Exclusive:
+          case IRRangeKind::Exclusive:
           {
             llvm::Value *lo = runtime_range->lo
                                   ? runtime_range->lo
@@ -12609,7 +12351,7 @@ namespace cursive::codegen
             expected_len = builder.CreateSub(hi, lo);
             break;
           }
-          case ast::RangeKind::Inclusive:
+          case IRRangeKind::Inclusive:
           {
             llvm::Value *lo = runtime_range->lo
                                   ? runtime_range->lo
@@ -12627,10 +12369,10 @@ namespace cursive::codegen
         {
           switch (check.range.kind)
           {
-          case ast::RangeKind::Full:
+          case IRRangeKind::Full:
             expected_len = base_len;
             break;
-          case ast::RangeKind::From:
+          case IRRangeKind::From:
           {
             llvm::Value *lo = to_i64(check.range.lo, llvm::ConstantInt::get(i64, 0));
             if (!lo)
@@ -12640,7 +12382,7 @@ namespace cursive::codegen
             expected_len = builder.CreateSub(base_len, lo);
             break;
           }
-          case ast::RangeKind::To:
+          case IRRangeKind::To:
           {
             llvm::Value *hi = to_i64(check.range.hi, base_len);
             if (!hi)
@@ -12650,7 +12392,7 @@ namespace cursive::codegen
             expected_len = hi;
             break;
           }
-          case ast::RangeKind::ToInclusive:
+          case IRRangeKind::ToInclusive:
           {
             llvm::Value *hi = to_i64(check.range.hi, llvm::ConstantInt::get(i64, 0));
             if (!hi)
@@ -12660,7 +12402,7 @@ namespace cursive::codegen
             expected_len = builder.CreateAdd(hi, llvm::ConstantInt::get(i64, 1));
             break;
           }
-          case ast::RangeKind::Exclusive:
+          case IRRangeKind::Exclusive:
           {
             llvm::Value *lo = to_i64(check.range.lo, llvm::ConstantInt::get(i64, 0));
             llvm::Value *hi = to_i64(check.range.hi, base_len);
@@ -12671,7 +12413,7 @@ namespace cursive::codegen
             expected_len = builder.CreateSub(hi, lo);
             break;
           }
-          case ast::RangeKind::Inclusive:
+          case IRRangeKind::Inclusive:
           {
             llvm::Value *lo = to_i64(check.range.lo, llvm::ConstantInt::get(i64, 0));
             llvm::Value *hi = to_i64(check.range.hi, llvm::ConstantInt::get(i64, 0));
@@ -14023,15 +13765,15 @@ namespace cursive::codegen
                         [&](const auto &pat)
                         {
                           using P = std::decay_t<decltype(pat)>;
-                          if constexpr (std::is_same_v<P, ast::IdentifierPattern>)
+                          if constexpr (std::is_same_v<P, IRIdentifierPattern>)
                           {
                             bind_async_iter_identifier(pat.name, elem_value);
                           }
-                          else if constexpr (std::is_same_v<P, ast::TypedPattern>)
+                          else if constexpr (std::is_same_v<P, IRTypedPattern>)
                           {
                             bind_async_iter_identifier(pat.name, elem_value);
                           }
-                          else if constexpr (std::is_same_v<P, ast::WildcardPattern>)
+                          else if constexpr (std::is_same_v<P, IRWildcardPattern>)
                           {
                             return;
                           }
@@ -14327,7 +14069,7 @@ namespace cursive::codegen
               analysis::TypeRef iter_elem_type = nullptr;
               bool iter_is_range_type = false;
               bool range_iter = false;
-              ast::RangeKind range_iter_kind = ast::RangeKind::Exclusive;
+              IRRangeKind range_iter_kind = IRRangeKind::Exclusive;
               llvm::Type *range_bound_ty = nullptr;
               llvm::Value *range_lo = nullptr;
               llvm::Value *range_hi = nullptr;
@@ -14368,7 +14110,7 @@ namespace cursive::codegen
                       iter_is_range_type = true;
                       iter_elem_type = range->base;
                       range_iter = true;
-                      range_iter_kind = ast::RangeKind::Exclusive;
+                      range_iter_kind = IRRangeKind::Exclusive;
                     }
                     else if (const auto *range =
                                  std::get_if<analysis::TypeRangeInclusive>(&iter_type->node))
@@ -14376,7 +14118,7 @@ namespace cursive::codegen
                       iter_is_range_type = true;
                       iter_elem_type = range->base;
                       range_iter = true;
-                      range_iter_kind = ast::RangeKind::Inclusive;
+                      range_iter_kind = IRRangeKind::Inclusive;
                     }
                     else if (const auto *range =
                                  std::get_if<analysis::TypeRangeFrom>(&iter_type->node))
@@ -14384,7 +14126,7 @@ namespace cursive::codegen
                       iter_is_range_type = true;
                       iter_elem_type = range->base;
                       range_iter = true;
-                      range_iter_kind = ast::RangeKind::From;
+                      range_iter_kind = IRRangeKind::From;
                     }
                   }
                 }
@@ -14417,7 +14159,7 @@ namespace cursive::codegen
                   if (auto range_value = ResolveRangeValue(
                           *loop.iter_value,
                           range_bound_ty,
-                          std::optional<ast::RangeKind>(range_iter_kind));
+                          std::optional<IRRangeKind>(range_iter_kind));
                       range_value.has_value())
                   {
                     range_iter_kind = range_value->kind;
@@ -14433,7 +14175,7 @@ namespace cursive::codegen
                     }
                     range_iter = false;
                   }
-                  const bool finite_range = range_iter_kind != ast::RangeKind::From;
+                  const bool finite_range = range_iter_kind != IRRangeKind::From;
                   if (finite_range && !range_hi)
                   {
                     if (active_ctx)
@@ -14598,15 +14340,15 @@ namespace cursive::codegen
                       [&](const auto &pat)
                       {
                         using P = std::decay_t<decltype(pat)>;
-                        if constexpr (std::is_same_v<P, ast::IdentifierPattern>)
+                        if constexpr (std::is_same_v<P, IRIdentifierPattern>)
                         {
                           bind_iter_identifier(pat.name, elem_value);
                         }
-                        else if constexpr (std::is_same_v<P, ast::TypedPattern>)
+                        else if constexpr (std::is_same_v<P, IRTypedPattern>)
                         {
                           bind_iter_identifier(pat.name, elem_value);
                         }
-                        else if constexpr (std::is_same_v<P, ast::WildcardPattern>)
+                        else if constexpr (std::is_same_v<P, IRWildcardPattern>)
                         {
                           return;
                         }
@@ -14629,7 +14371,7 @@ namespace cursive::codegen
                   llvm::Value *cur = builder.CreateLoad(range_bound_ty, range_cur_slot);
                   switch (range_iter_kind)
                   {
-                  case ast::RangeKind::Exclusive:
+                  case IRRangeKind::Exclusive:
                   {
                     llvm::Value *at_hi =
                         EmitBuiltinEqCall(builder, iter_elem_type, cur, range_hi);
@@ -14649,15 +14391,15 @@ namespace cursive::codegen
                     }
                     break;
                   }
-                  case ast::RangeKind::Inclusive:
+                  case IRRangeKind::Inclusive:
                     in_range = builder.CreateNot(done);
                     break;
-                  case ast::RangeKind::From:
+                  case IRRangeKind::From:
                     in_range = builder.CreateNot(done);
                     break;
-                  case ast::RangeKind::To:
-                  case ast::RangeKind::ToInclusive:
-                  case ast::RangeKind::Full:
+                  case IRRangeKind::To:
+                  case IRRangeKind::ToInclusive:
+                  case IRRangeKind::Full:
                     in_range = llvm::ConstantInt::getFalse(emitter.GetContext());
                     break;
                   }
@@ -14719,13 +14461,13 @@ namespace cursive::codegen
                         cur);
                     switch (range_iter_kind)
                     {
-                    case ast::RangeKind::Exclusive:
+                    case IRRangeKind::Exclusive:
                       builder.CreateStore(
                           builder.CreateNot(successor->has_next),
                           range_done_slot);
                       builder.CreateStore(next_or_cur, range_cur_slot);
                       break;
-                    case ast::RangeKind::Inclusive:
+                    case IRRangeKind::Inclusive:
                     {
                       llvm::Value *at_hi =
                           EmitBuiltinEqCall(builder, iter_elem_type, cur, range_hi);
@@ -14749,15 +14491,15 @@ namespace cursive::codegen
                       }
                       break;
                     }
-                    case ast::RangeKind::From:
+                    case IRRangeKind::From:
                       builder.CreateStore(
                           builder.CreateNot(successor->has_next),
                           range_done_slot);
                       builder.CreateStore(next_or_cur, range_cur_slot);
                       break;
-                    case ast::RangeKind::To:
-                    case ast::RangeKind::ToInclusive:
-                    case ast::RangeKind::Full:
+                    case IRRangeKind::To:
+                    case IRRangeKind::ToInclusive:
+                    case IRRangeKind::Full:
                       builder.CreateStore(
                           llvm::ConstantInt::getTrue(emitter.GetContext()),
                           range_done_slot);
@@ -15341,13 +15083,13 @@ namespace cursive::codegen
           return load;
         };
 
-        std::function<llvm::Value *(const std::shared_ptr<ast::Pattern> &,
+        std::function<llvm::Value *(const IRPatternPtr &,
                                     llvm::Value *,
                                     analysis::TypeRef)>
             emit_pattern_cond_for_value;
 
         emit_pattern_cond_for_value =
-            [&](const std::shared_ptr<ast::Pattern> &pattern,
+            [&](const IRPatternPtr &pattern,
                 llvm::Value *subject,
                 analysis::TypeRef subject_type) -> llvm::Value *
         {
@@ -15359,12 +15101,12 @@ namespace cursive::codegen
               [&](const auto &pat) -> llvm::Value *
               {
                 using P = std::decay_t<decltype(pat)>;
-                if constexpr (std::is_same_v<P, ast::WildcardPattern> ||
-                              std::is_same_v<P, ast::IdentifierPattern>)
+                if constexpr (std::is_same_v<P, IRWildcardPattern> ||
+                              std::is_same_v<P, IRIdentifierPattern>)
                 {
                   return llvm::ConstantInt::getTrue(emitter.GetContext());
                 }
-                else if constexpr (std::is_same_v<P, ast::TypedPattern>)
+                else if constexpr (std::is_same_v<P, IRTypedPattern>)
                 {
                   if (!subject || !subject_type)
                   {
@@ -15375,13 +15117,10 @@ namespace cursive::codegen
                   analysis::TypeRef typed_target = nullptr;
                   if (pat.type)
                   {
-                    if (const auto lowered_target = LowerTypeForLayout(scope, pat.type))
+                    typed_target = analysis::StripPerm(pat.type);
+                    if (!typed_target)
                     {
-                      typed_target = analysis::StripPerm(*lowered_target);
-                      if (!typed_target)
-                      {
-                        typed_target = *lowered_target;
-                      }
+                      typed_target = pat.type;
                     }
                   }
 
@@ -15537,10 +15276,7 @@ namespace cursive::codegen
                   std::optional<std::size_t> member_index;
                   if (pat.type)
                   {
-                    if (const auto lowered = LowerTypeForLayout(scope, pat.type))
-                    {
-                      member_index = find_member_index(members, *lowered);
-                    }
+                    member_index = find_member_index(members, pat.type);
                   }
                   if (!member_index.has_value())
                   {
@@ -15592,20 +15328,20 @@ namespace cursive::codegen
                       disc,
                       llvm::ConstantInt::get(disc->getType(), *member_index));
                 }
-                else if constexpr (std::is_same_v<P, ast::LiteralPattern>)
+                else if constexpr (std::is_same_v<P, IRLiteralPattern>)
                 {
                   if (!subject)
                   {
                     return llvm::ConstantInt::getFalse(emitter.GetContext());
                   }
                   llvm::Value *lit = nullptr;
-                  if (pat.literal.kind == ast::TokenKind::BoolLiteral)
+                  if (pat.literal.kind == IRLiteralKind::Bool)
                   {
                     lit = llvm::ConstantInt::get(
                         llvm::Type::getInt1Ty(emitter.GetContext()),
                         pat.literal.lexeme == "true" ? 1 : 0);
                   }
-                  else if (pat.literal.kind == ast::TokenKind::IntLiteral)
+                  else if (pat.literal.kind == IRLiteralKind::Int)
                   {
                     if (auto parsed = parse_int_literal(pat.literal.lexeme))
                     {
@@ -15624,7 +15360,7 @@ namespace cursive::codegen
                   }
                   return EmitTypedEq(&builder, subject, lit);
                 }
-                else if constexpr (std::is_same_v<P, ast::RangePattern>)
+                else if constexpr (std::is_same_v<P, IRRangePattern>)
                 {
                   if (!subject || !subject->getType()->isIntegerTy())
                   {
@@ -15632,14 +15368,14 @@ namespace cursive::codegen
                   }
 
                   auto parse_const_pattern_int =
-                      [&](const std::shared_ptr<ast::Pattern> &bound) -> std::optional<long long>
+                      [&](const IRPatternPtr &bound) -> std::optional<long long>
                   {
                     if (!bound)
                     {
                       return std::nullopt;
                     }
-                    const auto *lit = std::get_if<ast::LiteralPattern>(&bound->node);
-                    if (!lit || lit->literal.kind != ast::TokenKind::IntLiteral)
+                    const auto *lit = std::get_if<IRLiteralPattern>(&bound->node);
+                    if (!lit || lit->literal.kind != IRLiteralKind::Int)
                     {
                       return std::nullopt;
                     }
@@ -15668,13 +15404,13 @@ namespace cursive::codegen
                                               : builder.CreateICmpUGE(subject, lo_value);
 
                   llvm::Value *upper_ok = nullptr;
-                  if (pat.kind == ast::RangeKind::Inclusive)
+                  if (pat.kind == IRRangeKind::Inclusive)
                   {
                     upper_ok = is_signed
                                    ? builder.CreateICmpSLE(subject, hi_value)
                                    : builder.CreateICmpULE(subject, hi_value);
                   }
-                  else if (pat.kind == ast::RangeKind::Exclusive)
+                  else if (pat.kind == IRRangeKind::Exclusive)
                   {
                     upper_ok = is_signed
                                    ? builder.CreateICmpSLT(subject, hi_value)
@@ -15687,7 +15423,7 @@ namespace cursive::codegen
 
                   return builder.CreateAnd(lower_ok, upper_ok);
                 }
-                else if constexpr (std::is_same_v<P, ast::TuplePattern>)
+                else if constexpr (std::is_same_v<P, IRTuplePattern>)
                 {
                   if (!subject || !subject_type)
                   {
@@ -15723,7 +15459,7 @@ namespace cursive::codegen
                   }
                   return tuple_ok;
                 }
-                else if constexpr (std::is_same_v<P, ast::RecordPattern>)
+                else if constexpr (std::is_same_v<P, IRRecordPattern>)
                 {
                   if (!subject || !subject_type)
                   {
@@ -15767,7 +15503,7 @@ namespace cursive::codegen
                   llvm::Value *record_ok = llvm::ConstantInt::getTrue(emitter.GetContext());
                   for (const auto &field : pat.fields)
                   {
-                    if (!field.pattern_opt)
+                    if (!field.pattern)
                     {
                       continue;
                     }
@@ -15781,14 +15517,14 @@ namespace cursive::codegen
                     llvm::Value *field_value = builder.CreateExtractValue(
                         subject, {static_cast<unsigned>(field_meta->index)});
                     llvm::Value *field_ok = emit_pattern_cond_for_value(
-                        field.pattern_opt, field_value, field_meta->field_type);
+                        field.pattern, field_value, field_meta->field_type);
                     record_ok = builder.CreateAnd(
                         AsBool(&builder, record_ok),
                         AsBool(&builder, field_ok));
                   }
                   return record_ok;
                 }
-                else if constexpr (std::is_same_v<P, ast::EnumPattern>)
+                else if constexpr (std::is_same_v<P, IREnumPattern>)
                 {
                   const ast::EnumDecl *enum_decl = nullptr;
                   analysis::TypePath enum_path;
@@ -15842,7 +15578,7 @@ namespace cursive::codegen
                       &builder,
                       actual_disc,
                       llvm::ConstantInt::get(actual_disc->getType(), *expected_disc));
-                  if (!pat.payload_opt.has_value())
+                  if (!pat.payload.has_value())
                   {
                     return disc_eq;
                   }
@@ -15856,7 +15592,7 @@ namespace cursive::codegen
                       [&](const auto &payload_pattern)
                       {
                         using PayloadP = std::decay_t<decltype(payload_pattern)>;
-                        if constexpr (std::is_same_v<PayloadP, ast::TuplePayloadPattern>)
+                        if constexpr (std::is_same_v<PayloadP, IRTuplePayloadPattern>)
                         {
                           for (std::size_t i = 0; i < payload_pattern.elements.size(); ++i)
                           {
@@ -15875,7 +15611,7 @@ namespace cursive::codegen
                         {
                           for (const auto &field : payload_pattern.fields)
                           {
-                            if (!field.pattern_opt)
+                            if (!field.pattern)
                             {
                               continue;
                             }
@@ -15883,7 +15619,7 @@ namespace cursive::codegen
                                 payload_member_by_field(*enum_decl, *variant, field.name);
                             llvm::Value *member_val = load_enum_payload_member(subject, member);
                             llvm::Value *member_ok = emit_pattern_cond_for_value(
-                                field.pattern_opt,
+                                field.pattern,
                                 member_val,
                                 member.type);
                             payload_ok = builder.CreateAnd(
@@ -15892,12 +15628,12 @@ namespace cursive::codegen
                           }
                         }
                       },
-                      *pat.payload_opt);
+                      *pat.payload);
                   return builder.CreateAnd(
                       AsBool(&builder, disc_eq),
                       AsBool(&builder, payload_ok));
                 }
-                else if constexpr (std::is_same_v<P, ast::ModalPattern>)
+                else if constexpr (std::is_same_v<P, IRModalPattern>)
                 {
                   if (!subject)
                   {
@@ -15968,11 +15704,11 @@ namespace cursive::codegen
                   }
 
                   llvm::Value *payload_ok = llvm::ConstantInt::getTrue(emitter.GetContext());
-                  if (pat.fields_opt.has_value())
+                  if (pat.fields.has_value())
                   {
-                    for (const auto &field : pat.fields_opt->fields)
+                    for (const auto &field : pat.fields->fields)
                     {
-                      if (!field.pattern_opt)
+                      if (!field.pattern)
                       {
                         continue;
                       }
@@ -15987,7 +15723,7 @@ namespace cursive::codegen
                       }
                       llvm::Value *member_val = load_modal_payload_member(subject, member);
                       llvm::Value *member_ok = emit_pattern_cond_for_value(
-                          field.pattern_opt,
+                          field.pattern,
                           member_val,
                           member.type);
                       payload_ok = builder.CreateAnd(
@@ -16009,7 +15745,7 @@ namespace cursive::codegen
               pattern->node);
         };
 
-        auto emit_pattern_cond = [&](const std::shared_ptr<ast::Pattern> &pattern) -> llvm::Value *
+        auto emit_pattern_cond = [&](const IRPatternPtr &pattern) -> llvm::Value *
         {
           analysis::TypeRef scrut_type = if_case.scrutinee_type;
           if (!scrut_type && ctx)
@@ -22013,13 +21749,13 @@ namespace cursive::codegen
       };
       struct MaterializedRangeValue
       {
-        ast::RangeKind kind = ast::RangeKind::Full;
+        IRRangeKind kind = IRRangeKind::Full;
         llvm::Value *lo = nullptr;
         llvm::Value *hi = nullptr;
       };
       auto materialize_range_value = [&](const IRValue &range_value,
                                         llvm::Type *bound_ty,
-                                        std::optional<ast::RangeKind> fallback_kind = std::nullopt)
+                                        std::optional<IRRangeKind> fallback_kind = std::nullopt)
           -> std::optional<MaterializedRangeValue>
       {
         auto normalize_range_type = [&](analysis::TypeRef type) -> analysis::TypeRef
@@ -22051,24 +21787,24 @@ namespace cursive::codegen
         MaterializedRangeValue out;
         std::optional<unsigned> lo_index;
         std::optional<unsigned> hi_index;
-        auto configure_for_kind = [&](ast::RangeKind kind) -> bool
+        auto configure_for_kind = [&](IRRangeKind kind) -> bool
         {
           out.kind = kind;
           lo_index.reset();
           hi_index.reset();
           switch (kind)
           {
-          case ast::RangeKind::Full:
+          case IRRangeKind::Full:
             return true;
-          case ast::RangeKind::From:
+          case IRRangeKind::From:
             lo_index = 0u;
             return true;
-          case ast::RangeKind::To:
-          case ast::RangeKind::ToInclusive:
+          case IRRangeKind::To:
+          case IRRangeKind::ToInclusive:
             hi_index = 0u;
             return true;
-          case ast::RangeKind::Exclusive:
-          case ast::RangeKind::Inclusive:
+          case IRRangeKind::Exclusive:
+          case IRRangeKind::Inclusive:
             lo_index = 0u;
             hi_index = 1u;
             return true;
@@ -22080,7 +21816,7 @@ namespace cursive::codegen
         {
           if (std::holds_alternative<analysis::TypeRange>(range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::Exclusive))
+            if (!configure_for_kind(IRRangeKind::Exclusive))
             {
               return std::nullopt;
             }
@@ -22088,7 +21824,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeInclusive>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::Inclusive))
+            if (!configure_for_kind(IRRangeKind::Inclusive))
             {
               return std::nullopt;
             }
@@ -22096,7 +21832,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeFrom>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::From))
+            if (!configure_for_kind(IRRangeKind::From))
             {
               return std::nullopt;
             }
@@ -22104,7 +21840,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeTo>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::To))
+            if (!configure_for_kind(IRRangeKind::To))
             {
               return std::nullopt;
             }
@@ -22112,7 +21848,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeToInclusive>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::ToInclusive))
+            if (!configure_for_kind(IRRangeKind::ToInclusive))
             {
               return std::nullopt;
             }
@@ -22120,7 +21856,7 @@ namespace cursive::codegen
           else if (std::holds_alternative<analysis::TypeRangeFull>(
                        range_type->node))
           {
-            if (!configure_for_kind(ast::RangeKind::Full))
+            if (!configure_for_kind(IRRangeKind::Full))
             {
               return std::nullopt;
             }
@@ -23534,23 +23270,23 @@ namespace cursive::codegen
         {
           switch (runtime_range->kind)
           {
-          case ast::RangeKind::Full:
+          case IRRangeKind::Full:
             start = llvm::ConstantInt::get(i64_ty, 0);
             end = base_len;
             break;
-          case ast::RangeKind::From:
+          case IRRangeKind::From:
             start = runtime_range->lo
                         ? runtime_range->lo
                         : llvm::ConstantInt::get(i64_ty, 0);
             end = base_len;
             break;
-          case ast::RangeKind::To:
+          case IRRangeKind::To:
             start = llvm::ConstantInt::get(i64_ty, 0);
             end = runtime_range->hi
                       ? runtime_range->hi
                       : llvm::ConstantInt::get(i64_ty, 0);
             break;
-          case ast::RangeKind::ToInclusive:
+          case IRRangeKind::ToInclusive:
           {
             start = llvm::ConstantInt::get(i64_ty, 0);
             llvm::Value *hi = runtime_range->hi
@@ -23559,7 +23295,7 @@ namespace cursive::codegen
             end = hi ? builder->CreateAdd(hi, llvm::ConstantInt::get(i64_ty, 1)) : nullptr;
             break;
           }
-          case ast::RangeKind::Exclusive:
+          case IRRangeKind::Exclusive:
             start = runtime_range->lo
                         ? runtime_range->lo
                         : llvm::ConstantInt::get(i64_ty, 0);
@@ -23567,7 +23303,7 @@ namespace cursive::codegen
                       ? runtime_range->hi
                       : llvm::ConstantInt::get(i64_ty, 0);
             break;
-          case ast::RangeKind::Inclusive:
+          case IRRangeKind::Inclusive:
           {
             start = runtime_range->lo
                         ? runtime_range->lo
@@ -23584,30 +23320,30 @@ namespace cursive::codegen
         {
           switch (derived->range.kind)
           {
-          case ast::RangeKind::Full:
+          case IRRangeKind::Full:
             start = llvm::ConstantInt::get(i64_ty, 0);
             end = base_len;
             break;
-          case ast::RangeKind::From:
+          case IRRangeKind::From:
             start = bound_or(derived->range.lo, 0);
             end = base_len;
             break;
-          case ast::RangeKind::To:
+          case IRRangeKind::To:
             start = llvm::ConstantInt::get(i64_ty, 0);
             end = bound_or(derived->range.hi, 0);
             break;
-          case ast::RangeKind::ToInclusive:
+          case IRRangeKind::ToInclusive:
           {
             start = llvm::ConstantInt::get(i64_ty, 0);
             llvm::Value *hi = bound_or(derived->range.hi, 0);
             end = hi ? builder->CreateAdd(hi, llvm::ConstantInt::get(i64_ty, 1)) : nullptr;
             break;
           }
-          case ast::RangeKind::Exclusive:
+          case IRRangeKind::Exclusive:
             start = bound_or(derived->range.lo, 0);
             end = bound_or(derived->range.hi, 0);
             break;
-          case ast::RangeKind::Inclusive:
+          case IRRangeKind::Inclusive:
           {
             start = bound_or(derived->range.lo, 0);
             llvm::Value *hi = bound_or(derived->range.hi, 0);

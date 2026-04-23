@@ -616,7 +616,7 @@ struct LowerCtxSnapshot {
   explicit LowerCtxSnapshot(const LowerCtx& ctx)
       : scope_stack(ctx.scope_stack),
         binding_states(ctx.binding_states),
-        derived_values(ctx.derived_values),
+        derived_values(ctx.values.derived_values),
         temp_sink(ctx.temp_sink),
         temp_depth(ctx.temp_depth),
         suppress_temp_at_depth(ctx.suppress_temp_at_depth),
@@ -633,7 +633,7 @@ struct LowerCtxSnapshot {
     // lowering (e.g., capture_ptr_N) while restoring values from the snapshot.
     // New derived values are referenced from generated IR and must be preserved.
     for (const auto& [key, value] : derived_values) {
-      ctx.derived_values[key] = value;
+      ctx.values.derived_values[key] = value;
     }
     ctx.temp_sink = temp_sink;
     ctx.temp_depth = temp_depth;
@@ -805,7 +805,7 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
     LowerCtxSnapshot snapshot(ctx);
     ctx.scope_stack.clear();
     ctx.binding_states.clear();
-    ctx.derived_values.clear();
+    ctx.values.derived_values.clear();
     ctx.temp_sink = nullptr;
     ctx.temp_depth = 0;
     ctx.suppress_temp_at_depth.reset();

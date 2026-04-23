@@ -19,13 +19,13 @@
 #include "00_core/diagnostic_messages.h"
 #include "00_core/host_primitives.h"
 #include "00_core/process_config.h"
+#include "00_core/runtime_abi.h"
 #include "00_core/compiler_support.h"
 #include "01_project/compiler_support_paths.h"
 #include "01_project/outputs.h"
 #include "01_project/project.h"
 #include "01_project/target_profile.h"
 #include "01_project/tool_resolution.h"
-#include "05_codegen/intrinsics/builtins.h"
 
 namespace cursive::project {
 
@@ -1412,6 +1412,9 @@ std::vector<std::string> BuildPosixLinkArgs(
   for (const auto& input : inputs) {
     args.push_back(PathArgString(input));
   }
+  if (ObjectFormatOf(plan.target_profile) == ObjectFormat::Elf) {
+    args.push_back("-lc");
+  }
   return args;
 }
 
@@ -1493,7 +1496,7 @@ std::optional<std::filesystem::path> RuntimeStartupObjectPath(
 }
 
 std::vector<std::string> RuntimeRequiredSyms() {
-  return codegen::RuntimeLinkRequiredSyms();
+  return core::RuntimeLinkRequiredSyms();
 }
 
 bool IsHiddenSharedLibraryExportSymbol(std::string_view symbol) {

@@ -21,7 +21,7 @@
 
 #include "02_source/ast/ast.h"
 
-namespace cursive::project {
+namespace cursive::analysis {
 
 // =============================================================================
 // Unwind Mode
@@ -113,4 +113,4 @@ FfiSurfaceInfo CollectFfiSurface(const ast::ASTModule& module);
 // Collect FFI surface information from a file
 FfiSurfaceInfo CollectFfiSurface(const ast::ASTFile& file);
 
-}  // namespace cursive::project
+}  // namespace cursive::analysis

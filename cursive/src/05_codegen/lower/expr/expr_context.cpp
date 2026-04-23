@@ -468,7 +468,7 @@ void LowerCtx::RegisterDerivedValue(const IRValue& value, const DerivedValueInfo
   if (key.empty()) {
     return;
   }
-  derived_values[key] = info;
+  values.derived_values[key] = info;
 }
 
 const DerivedValueInfo* LowerCtx::LookupDerivedValue(const IRValue& value) const {
@@ -485,10 +485,10 @@ const DerivedValueInfo* LowerCtx::LookupDerivedValue(const IRValue& value) const
   if (key.empty()) {
     return nullptr;
   }
-  auto it = derived_values.find(key);
-  if (it == derived_values.end()) {
-    if (map_parent != nullptr) {
-      return map_parent->LookupDerivedValue(value);
+  auto it = values.derived_values.find(key);
+  if (it == values.derived_values.end()) {
+    if (values.parent != nullptr) {
+      return values.parent->LookupDerivedValue(value);
     }
     return nullptr;
   }
@@ -709,31 +709,31 @@ void LowerCtx::RegisterValueType(const IRValue& value,
   if (value.kind == IRValue::Kind::Symbol) {
     std::string key = "sym:";
     key += value.name;
-    const auto [it, inserted] = value_types.emplace(key, type);
+    const auto [it, inserted] = values.value_types.emplace(key, type);
     if (!inserted) {
       it->second = type;
-    } else if (value_type_insert_sink) {
-      value_type_insert_sink->push_back(key);
+    } else if (values.value_type_insert_sink) {
+      values.value_type_insert_sink->push_back(key);
     }
     return;
   }
   if (value.kind == IRValue::Kind::Opaque) {
-    const auto [it, inserted] = value_types.emplace(value.name, type);
+    const auto [it, inserted] = values.value_types.emplace(value.name, type);
     if (!inserted) {
       it->second = type;
-    } else if (value_type_insert_sink) {
-      value_type_insert_sink->push_back(value.name);
+    } else if (values.value_type_insert_sink) {
+      values.value_type_insert_sink->push_back(value.name);
     }
     return;
   }
   if (value.kind == IRValue::Kind::Immediate) {
     std::string key = "imm:";
     key += std::to_string(value.literal_id);
-    const auto [it, inserted] = value_types.emplace(key, type);
+    const auto [it, inserted] = values.value_types.emplace(key, type);
     if (!inserted) {
       it->second = type;
-    } else if (value_type_insert_sink) {
-      value_type_insert_sink->push_back(key);
+    } else if (values.value_type_insert_sink) {
+      values.value_type_insert_sink->push_back(key);
     }
   }
 }
@@ -743,20 +743,20 @@ analysis::TypeRef LowerCtx::LookupValueType(const IRValue& value) const {
     if (const auto* state = GetBindingState(value.name)) {
       return state->type;
     }
-    if (map_parent != nullptr) {
-      return map_parent->LookupValueType(value);
+    if (values.parent != nullptr) {
+      return values.parent->LookupValueType(value);
     }
     return nullptr;
   }
   if (value.kind == IRValue::Kind::Symbol) {
     std::string key = "sym:";
     key += value.name;
-    auto sym_it = value_types.find(key);
-    if (sym_it != value_types.end()) {
+    auto sym_it = values.value_types.find(key);
+    if (sym_it != values.value_types.end()) {
       return sym_it->second;
     }
-    if (map_parent != nullptr) {
-      if (analysis::TypeRef inherited = map_parent->LookupValueType(value)) {
+    if (values.parent != nullptr) {
+      if (analysis::TypeRef inherited = values.parent->LookupValueType(value)) {
         return inherited;
       }
     }
@@ -772,24 +772,24 @@ analysis::TypeRef LowerCtx::LookupValueType(const IRValue& value) const {
     return nullptr;
   }
   if (value.kind == IRValue::Kind::Opaque) {
-    auto it = value_types.find(value.name);
-    if (it != value_types.end()) {
+    auto it = values.value_types.find(value.name);
+    if (it != values.value_types.end()) {
       return it->second;
     }
-    if (map_parent != nullptr) {
-      return map_parent->LookupValueType(value);
+    if (values.parent != nullptr) {
+      return values.parent->LookupValueType(value);
     }
     return nullptr;
   }
   if (value.kind == IRValue::Kind::Immediate && value.literal_id != 0) {
     std::string key = "imm:";
     key += std::to_string(value.literal_id);
-    auto it = value_types.find(key);
-    if (it != value_types.end()) {
+    auto it = values.value_types.find(key);
+    if (it != values.value_types.end()) {
       return it->second;
     }
-    if (map_parent != nullptr) {
-      return map_parent->LookupValueType(value);
+    if (values.parent != nullptr) {
+      return values.parent->LookupValueType(value);
     }
   }
   return nullptr;
@@ -800,7 +800,7 @@ void LowerCtx::FreezeLookupTables() {
     return;
   }
   auto tables = std::make_shared<LookupTables>();
-  tables->static_types = std::move(static_types);
+  tables->static_types = std::move(values.static_types);
   tables->static_modules = std::move(static_modules);
   tables->record_ctor_paths = std::move(record_ctor_paths);
   tables->proc_sigs = std::move(proc_sigs);
@@ -818,12 +818,12 @@ void LowerCtx::RegisterStaticType(const std::string& sym, analysis::TypeRef type
   if (!type) {
     return;
   }
-  static_types[sym] = type;
+  values.static_types[sym] = type;
 }
 
 analysis::TypeRef LowerCtx::LookupStaticType(const std::string& sym) const {
-  auto it = static_types.find(sym);
-  if (it != static_types.end()) {
+  auto it = values.static_types.find(sym);
+  if (it != values.static_types.end()) {
     return it->second;
   }
   if (baseline_tables != nullptr) {
@@ -859,16 +859,16 @@ void LowerCtx::RegisterDropGlueType(const std::string& sym, analysis::TypeRef ty
   if (!type) {
     return;
   }
-  drop_glue_types[sym] = type;
+  values.drop_glue_types[sym] = type;
 }
 
 analysis::TypeRef LowerCtx::LookupDropGlueType(const std::string& sym) const {
-  auto it = drop_glue_types.find(sym);
-  if (it != drop_glue_types.end()) {
+  auto it = values.drop_glue_types.find(sym);
+  if (it != values.drop_glue_types.end()) {
     return it->second;
   }
-  if (map_parent != nullptr) {
-    if (analysis::TypeRef inherited = map_parent->LookupDropGlueType(sym)) {
+  if (values.parent != nullptr) {
+    if (analysis::TypeRef inherited = values.parent->LookupDropGlueType(sym)) {
       return inherited;
     }
   }
@@ -923,20 +923,20 @@ void LowerCtx::RegisterRequiredVTable(const std::string& sym,
     }
   }
 
-  RequiredVTableInfo info;
+  LowerValueState::RequiredVTableInfo info;
   info.type = type;
   info.class_path = std::move(resolved_class_path);
-  required_vtables[sym] = std::move(info);
+  values.required_vtables[sym] = std::move(info);
 }
 
-const LowerCtx::RequiredVTableInfo* LowerCtx::LookupRequiredVTable(
+const LowerValueState::RequiredVTableInfo* LowerCtx::LookupRequiredVTable(
     const std::string& sym) const {
-  auto it = required_vtables.find(sym);
-  if (it != required_vtables.end()) {
+  auto it = values.required_vtables.find(sym);
+  if (it != values.required_vtables.end()) {
     return &it->second;
   }
-  if (map_parent != nullptr) {
-    return map_parent->LookupRequiredVTable(sym);
+  if (values.parent != nullptr) {
+    return values.parent->LookupRequiredVTable(sym);
   }
   return nullptr;
 }

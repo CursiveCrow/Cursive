@@ -2,18 +2,18 @@
 
 #include <optional>
 
-#include "01_project/outputs.h"
+#include "06_driver/output_pipeline.h"
 #include "06_driver/pipeline.h"
 
 namespace cursive::driver {
 
-std::optional<project::SharedLibraryExports> ResolveSharedLibraryExports(
+std::optional<SharedLibraryExports> ResolveSharedLibraryExports(
     const project::Project& project,
     const CodegenCache& cache);
 
 bool PrepareSharedLibraryCodegenContext(
     const project::Project& project,
     CodegenCache& cache,
-    const project::SharedLibraryExports& exports);
+    const SharedLibraryExports& exports);
 
 }  // namespace cursive::driver

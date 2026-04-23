@@ -150,14 +150,14 @@ std::vector<std::string> ComputeSharedLibraryDataExportSymbols(
 
 }  // namespace
 
-std::optional<project::SharedLibraryExports> ResolveSharedLibraryExports(
+std::optional<SharedLibraryExports> ResolveSharedLibraryExports(
     const project::Project& project,
     const CodegenCache& cache) {
   if (!IsSharedLibraryOutput(project)) {
-    return project::SharedLibraryExports{};
+    return SharedLibraryExports{};
   }
 
-  project::SharedLibraryExports exports;
+  SharedLibraryExports exports;
   if (cache.ctx.shared_library_export_symbols.empty()) {
     exports.export_symbols = ComputeSharedLibraryExportSymbols(project, cache);
   } else {
@@ -184,7 +184,7 @@ std::optional<project::SharedLibraryExports> ResolveSharedLibraryExports(
 bool PrepareSharedLibraryCodegenContext(
     const project::Project& project,
     CodegenCache& cache,
-    const project::SharedLibraryExports& exports) {
+    const SharedLibraryExports& exports) {
   ConfigureCodegenContextForProject(cache, project);
   if (!IsSharedLibraryOutput(project)) {
     cache.ctx.shared_library_export_symbols.clear();

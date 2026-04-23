@@ -20,9 +20,9 @@
 #include <vector>
 
 #include "00_core/span.h"
-#include "cursive/src/02_source/ast/ast_common.h"
-#include "cursive/src/02_source/ast/nodes/ast_attributes.h"
-#include "cursive/src/02_source/ast/nodes/ast_patterns.h"
+#include "02_source/ast/ast_common.h"
+#include "02_source/ast/nodes/ast_attributes.h"
+#include "02_source/ast/nodes/ast_patterns.h"
 
 namespace cursive::ast
 {

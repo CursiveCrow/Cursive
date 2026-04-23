@@ -52,7 +52,7 @@
 #include "00_core/assert_spec.h"
 #include "05_codegen/symbols/visibility.h"
 
-#include "cursive/src/02_source/ast/nodes/ast_items.h"
+#include "02_source/ast/nodes/ast_items.h"
 
 namespace cursive::codegen {
 

@@ -19,6 +19,7 @@
 #include "05_codegen/lower/expr/index_access.h"
 #include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/checks/checks.h"
+#include "05_codegen/lower/pattern/ir_pattern.h"
 #include "00_core/assert_spec.h"
 
 #include <variant>
@@ -30,7 +31,7 @@ namespace {
 // Helper to convert RangeVal to IRRange
 IRRange ToIRRange(const RangeVal& range) {
     IRRange out;
-    out.kind = range.kind;
+    out.kind = ToIRRangeKind(range.kind);
     out.lo = range.lo;
     out.hi = range.hi;
     return out;
@@ -110,7 +111,7 @@ LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
         check.base = base_result.value;
         check.range_value = range_result.value;
         if (range_kind.has_value()) {
-            check.range.kind = *range_kind;
+            check.range.kind = ToIRRangeKind(*range_kind);
         }
 
         IRValue slice_value = ctx.FreshTempValue("slice");
@@ -119,7 +120,7 @@ LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
         info.base = base_result.value;
         info.range_value = range_result.value;
         if (range_kind.has_value()) {
-            info.range.kind = *range_kind;
+            info.range.kind = ToIRRangeKind(*range_kind);
         }
         ctx.RegisterDerivedValue(slice_value, info);
 

@@ -1,6 +1,16 @@
 #include "01_project/target_profile.h"
 
+#include <cstdlib>
+
 namespace cursive::project {
+
+namespace {
+
+[[noreturn]] void UnreachableTargetProfile() {
+  std::abort();
+}
+
+}  // namespace
 
 std::string_view TargetProfileName(TargetProfile profile) {
   switch (profile) {
@@ -11,7 +21,7 @@ std::string_view TargetProfileName(TargetProfile profile) {
     case TargetProfile::AArch64AAPCS64:
       return "aarch64-aapcs64";
   }
-  return "x86_64-win64";
+  UnreachableTargetProfile();
 }
 
 std::optional<TargetProfile> ParseTargetProfile(std::string_view value) {
@@ -35,7 +45,7 @@ TargetArch TargetArchOf(TargetProfile profile) {
     case TargetProfile::AArch64AAPCS64:
       return TargetArch::AArch64;
   }
-  return TargetArch::X86_64;
+  UnreachableTargetProfile();
 }
 
 Endianness EndiannessOf(TargetProfile profile) {
@@ -56,7 +66,7 @@ std::string_view ObjExt(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return ".obj";
   }
-  return ".obj";
+  UnreachableTargetProfile();
 }
 
 std::string_view ExeSuffix(TargetProfile profile) {
@@ -67,7 +77,7 @@ std::string_view ExeSuffix(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return ".exe";
   }
-  return ".exe";
+  UnreachableTargetProfile();
 }
 
 std::string_view LibraryPrefix(TargetProfile profile) {
@@ -78,7 +88,7 @@ std::string_view LibraryPrefix(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return "";
   }
-  return "";
+  UnreachableTargetProfile();
 }
 
 std::string_view SharedLibSuffix(TargetProfile profile) {
@@ -89,7 +99,7 @@ std::string_view SharedLibSuffix(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return ".dll";
   }
-  return ".dll";
+  UnreachableTargetProfile();
 }
 
 std::string_view StaticLibSuffix(TargetProfile profile) {
@@ -100,7 +110,7 @@ std::string_view StaticLibSuffix(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return ".lib";
   }
-  return ".lib";
+  UnreachableTargetProfile();
 }
 
 std::string_view ImportLibSuffix(TargetProfile profile) {
@@ -111,7 +121,7 @@ std::string_view ImportLibSuffix(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return ".lib";
   }
-  return ".lib";
+  UnreachableTargetProfile();
 }
 
 bool EmitsImportLib(TargetProfile profile) {
@@ -126,7 +136,7 @@ std::string_view RuntimeLibNameFor(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return "CursiveRT.lib";
   }
-  return "CursiveRT.lib";
+  UnreachableTargetProfile();
 }
 
 std::string_view LinkerToolName(TargetProfile profile) {
@@ -137,7 +147,7 @@ std::string_view LinkerToolName(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return "lld-link";
   }
-  return "lld-link";
+  UnreachableTargetProfile();
 }
 
 std::string_view ArchiverToolName(TargetProfile profile) {
@@ -148,7 +158,7 @@ std::string_view ArchiverToolName(TargetProfile profile) {
     case TargetProfile::X86_64Win64:
       return "llvm-lib";
   }
-  return "llvm-lib";
+  UnreachableTargetProfile();
 }
 
 std::string_view LLVMTripleOf(TargetProfile profile) {
@@ -160,7 +170,7 @@ std::string_view LLVMTripleOf(TargetProfile profile) {
     case TargetProfile::AArch64AAPCS64:
       return "aarch64-unknown-linux-gnu";
   }
-  return "x86_64-pc-windows-msvc";
+  UnreachableTargetProfile();
 }
 
 std::string_view LLVMDataLayoutOf(TargetProfile profile) {
@@ -172,7 +182,7 @@ std::string_view LLVMDataLayoutOf(TargetProfile profile) {
     case TargetProfile::AArch64AAPCS64:
       return "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128";
   }
-  return "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128";
+  UnreachableTargetProfile();
 }
 
 std::string_view RepoLLVMSubdir(TargetProfile profile) {
@@ -184,12 +194,18 @@ std::string_view RepoLLVMSubdir(TargetProfile profile) {
     case TargetProfile::AArch64AAPCS64:
       return "llvm/llvm-21.1.8-aarch64-aapcs64/bin";
   }
-  return "llvm/llvm-21.1.8-x86_64-win64/bin";
+  UnreachableTargetProfile();
 }
 
 ObjectFormat ObjectFormatOf(TargetProfile profile) {
-  return profile == TargetProfile::X86_64Win64 ? ObjectFormat::Coff
-                                               : ObjectFormat::Elf;
+  switch (profile) {
+    case TargetProfile::X86_64SysV:
+    case TargetProfile::AArch64AAPCS64:
+      return ObjectFormat::Elf;
+    case TargetProfile::X86_64Win64:
+      return ObjectFormat::Coff;
+  }
+  UnreachableTargetProfile();
 }
 
 bool SupportsSharedLibraries(TargetProfile profile) {

@@ -64,6 +64,7 @@
 #include "05_codegen/lower/expr/wait_expr.h"
 #include "05_codegen/lower/expr/yield_expr.h"
 #include "05_codegen/lower/expr/yield_from_expr.h"
+#include "05_codegen/lower/pattern/ir_pattern.h"
 
 namespace cursive::codegen {
 
@@ -262,7 +263,7 @@ LowerResult LowerExprImpl(const ast::Expr& expr, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, ast::FenceExpr>) {
           IRValue result = ctx.FreshTempValue("fence");
           IRFence fence;
-          fence.order = node.order;
+          fence.order = ToIRFenceOrder(node.order);
           fence.result = result;
           return LowerResult{MakeIR(std::move(fence)), result};
         } else if constexpr (std::is_same_v<T, ast::YieldExpr>) {
@@ -578,7 +579,7 @@ std::optional<AccessOrdering> MemoryOrderFromAttrs(const ast::AttributeList& att
   return std::nullopt;
 }
 
-static IRPtr EmitFenceIR(ast::FenceOrder order, LowerCtx& ctx) {
+static IRPtr EmitFenceIR(IRFenceOrder order, LowerCtx& ctx) {
   IRFence fence;
   fence.order = order;
   fence.result = ctx.FreshTempValue("ordered_access_fence");
@@ -883,21 +884,21 @@ LowerResult ApplyEffectiveOrdering(const ast::Expr& expr,
     case AccessOrdering::Relaxed:
       return result;
     case AccessOrdering::Acquire:
-      result.ir = SeqIR({result.ir, EmitFenceIR(ast::FenceOrder::Acquire, ctx)});
+      result.ir = SeqIR({result.ir, EmitFenceIR(IRFenceOrder::Acquire, ctx)});
       return result;
     case AccessOrdering::Release:
-      result.ir = SeqIR({EmitFenceIR(ast::FenceOrder::Release, ctx), result.ir});
+      result.ir = SeqIR({EmitFenceIR(IRFenceOrder::Release, ctx), result.ir});
       return result;
     case AccessOrdering::AcqRel:
-      result.ir = SeqIR({EmitFenceIR(ast::FenceOrder::Release, ctx),
+      result.ir = SeqIR({EmitFenceIR(IRFenceOrder::Release, ctx),
                          result.ir,
-                         EmitFenceIR(ast::FenceOrder::Acquire, ctx)});
+                         EmitFenceIR(IRFenceOrder::Acquire, ctx)});
       return result;
     case AccessOrdering::SeqCst:
     default:
-      result.ir = SeqIR({EmitFenceIR(ast::FenceOrder::SeqCst, ctx),
+      result.ir = SeqIR({EmitFenceIR(IRFenceOrder::SeqCst, ctx),
                          result.ir,
-                         EmitFenceIR(ast::FenceOrder::SeqCst, ctx)});
+                         EmitFenceIR(IRFenceOrder::SeqCst, ctx)});
       return result;
   }
 }

@@ -309,11 +309,12 @@ void ResetLowerContextForModule(codegen::LowerCtx& ctx,
   ctx.codegen_failed = false;
   ctx.resolve_failures.clear();
   ctx.main_symbol.reset();
-  ctx.drop_glue_types.clear();
-  ctx.map_parent = nullptr;
-  ctx.value_types.clear();
-  ctx.value_type_insert_sink = nullptr;
-  ctx.derived_values.clear();
+  ctx.values.drop_glue_types.clear();
+  ctx.values.parent = nullptr;
+  ctx.values.value_types.clear();
+  ctx.values.value_type_insert_sink = nullptr;
+  ctx.values.derived_values.clear();
+  ctx.values.required_vtables.clear();
   ctx.temp_counter = std::make_shared<std::uint64_t>(0);
   ctx.scope_stack.clear();
   ctx.binding_states.clear();
@@ -552,13 +553,13 @@ std::optional<ModuleCodegen> LowerCodegenModule(codegen::LowerCtx& ctx,
     return std::nullopt;
   }
 
-  entry.value_types = std::move(ctx.value_types);
-  entry.derived_values = std::move(ctx.derived_values);
+  entry.values = std::move(ctx.values);
+  entry.values.parent = nullptr;
+  entry.values.value_type_insert_sink = nullptr;
   entry.proc_sigs = ctx.proc_sigs;
   entry.proc_linkages = ctx.proc_linkages;
   entry.async_procs = ctx.async_procs;
   entry.temp_counter = ctx.temp_counter ? *ctx.temp_counter : 0;
-  entry.drop_glue_types = std::move(ctx.drop_glue_types);
   entry.main_symbol = ctx.main_symbol;
 
   const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -566,9 +567,9 @@ std::optional<ModuleCodegen> LowerCodegenModule(codegen::LowerCtx& ctx,
                                .count();
   LogCodegenProgress("cache-lower-finish index=" + std::to_string(index) +
                      " module=" + module_log_name + " value_types=" +
-                     std::to_string(entry.value_types.size()) +
+                     std::to_string(entry.values.value_types.size()) +
                      " derived_values=" +
-                     std::to_string(entry.derived_values.size()) +
+                     std::to_string(entry.values.derived_values.size()) +
                      " elapsed_ms=" + std::to_string(elapsed_ms));
   return entry;
 }
@@ -622,19 +623,22 @@ codegen::LowerCtx& AcquireThreadLocalLowerCtx(const CodegenCache& cache) {
 
 struct ThreadLocalEmitCtxState {
   const CodegenCache* cache = nullptr;
+  std::uint64_t epoch = 0;
   codegen::LowerCtx ctx;
 };
 
 codegen::LowerCtx& AcquireThreadLocalEmitCtx(const CodegenCache& cache) {
   thread_local ThreadLocalEmitCtxState state;
-  if (state.cache != &cache) {
+  if (state.cache != &cache || state.epoch != cache.emit_context_epoch) {
     // Seed once per thread/cache. This avoids copying large shared maps for
-    // every module emission in full non-incremental builds.
+    // every module emission in full non-incremental builds. The epoch changes
+    // when later-lowered modules publish static metadata needed by emission.
     state.ctx = cache.ctx;
     if (cache.name_maps != nullptr) {
       ConfigureResolveCallbacks(state.ctx, *cache.name_maps);
     }
     state.cache = &cache;
+    state.epoch = cache.emit_context_epoch;
   }
   return state.ctx;
 }
@@ -663,13 +667,14 @@ std::optional<LLVMModuleBundle> EmitLLVMModule(
     project::TargetProfile target_profile) {
   codegen::LowerCtx& emit_ctx = AcquireThreadLocalEmitCtx(cache);
   ResetLowerContextForModule(emit_ctx, module.path);
-  emit_ctx.value_types = module.value_types;
-  emit_ctx.derived_values = module.derived_values;
+  emit_ctx.values.value_types = module.values.value_types;
+  emit_ctx.values.derived_values = module.values.derived_values;
+  emit_ctx.values.required_vtables = module.values.required_vtables;
   emit_ctx.proc_sigs = module.proc_sigs;
   emit_ctx.proc_linkages = module.proc_linkages;
   emit_ctx.async_procs = module.async_procs;
   emit_ctx.temp_counter = std::make_shared<std::uint64_t>(module.temp_counter);
-  emit_ctx.drop_glue_types = module.drop_glue_types;
+  emit_ctx.values.drop_glue_types = module.values.drop_glue_types;
   emit_ctx.shared_library_project = cache.ctx.shared_library_project;
   emit_ctx.hosted_library = cache.ctx.hosted_library;
   emit_ctx.hosted_exports = cache.ctx.hosted_exports;
@@ -717,7 +722,7 @@ std::optional<CachedLLVMArtifacts*> MaterializeCachedLLVMArtifacts(
   }
 
   if (need_ir_text && !entry.ir_text.has_value()) {
-    const auto assembler = project::ResolveTool(project, "llvm-as");
+    const auto assembler = project::ResolveTool(project, target_profile, "llvm-as");
     if (!assembler.has_value()) {
       return std::nullopt;
     }
@@ -730,15 +735,6 @@ std::optional<CachedLLVMArtifacts*> MaterializeCachedLLVMArtifacts(
   }
 
   return &entry;
-}
-
-std::optional<LLVMModuleBundle> EmitLLVMModule(
-    const CodegenCache& cache,
-    const ModuleCodegen& module,
-    const project::Project& project) {
-  const project::TargetProfile target_profile =
-      project.toolchain.target_profile.value_or(project::TargetProfile::X86_64Win64);
-  return EmitLLVMModule(cache, module, project, target_profile);
 }
 
 const llvm::Target* GetCachedTarget(const llvm::Triple& triple,
@@ -1222,11 +1218,17 @@ std::optional<std::size_t> EnsureCodegenModule(CodegenCache& cache,
       return std::nullopt;
     }
 
-    for (const auto& [symbol, type] : lower_ctx.static_types) {
-      cache.ctx.static_types[symbol] = type;
+    bool emit_context_changed = false;
+    for (const auto& [symbol, type] : module_entry->values.static_types) {
+      cache.ctx.values.static_types[symbol] = type;
+      emit_context_changed = true;
     }
     for (const auto& [symbol, owner_module] : lower_ctx.static_modules) {
       cache.ctx.static_modules[symbol] = owner_module;
+      emit_context_changed = true;
+    }
+    if (emit_context_changed) {
+      cache.emit_context_epoch += 1;
     }
 
     DeduplicateProcDecls(module_entry->decls,

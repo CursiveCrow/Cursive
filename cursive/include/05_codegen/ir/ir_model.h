@@ -10,7 +10,6 @@
 
 #include "04_analysis/typing/types.h"
 #include "04_analysis/memory/regions.h"
-#include "02_source/ast/ast.h"
 
 namespace cursive::codegen {
 
@@ -42,8 +41,119 @@ struct IRPlace {
   std::string repr;
 };
 
+enum class IRRangeKind {
+  To,
+  ToInclusive,
+  Full,
+  From,
+  Exclusive,
+  Inclusive,
+};
+
+enum class IRFenceOrder {
+  Acquire,
+  Release,
+  SeqCst,
+};
+
+enum class IRLiteralKind {
+  Int,
+  Float,
+  String,
+  Char,
+  Bool,
+  Null,
+  Unknown,
+};
+
+struct IRLiteral {
+  IRLiteralKind kind = IRLiteralKind::Unknown;
+  std::string lexeme;
+};
+
+struct IRPattern;
+using IRPatternPtr = std::shared_ptr<IRPattern>;
+
+struct IRLiteralPattern {
+  IRLiteral literal;
+};
+
+struct IRWildcardPattern {};
+
+struct IRIdentifierPattern {
+  std::string name;
+};
+
+struct IRTypedPattern {
+  std::string name;
+  analysis::TypeRef type;
+};
+
+struct IRTuplePattern {
+  std::vector<IRPatternPtr> elements;
+};
+
+struct IRFieldPattern {
+  std::string name;
+  IRPatternPtr pattern;
+};
+
+struct IRRecordPattern {
+  analysis::TypePath path;
+  std::vector<IRFieldPattern> fields;
+};
+
+struct IRTuplePayloadPattern {
+  std::vector<IRPatternPtr> elements;
+};
+
+struct IRRecordPayloadPattern {
+  std::vector<IRFieldPattern> fields;
+};
+
+using IREnumPayloadPattern =
+    std::variant<IRTuplePayloadPattern, IRRecordPayloadPattern>;
+
+struct IREnumPattern {
+  analysis::TypePath path;
+  std::string name;
+  std::optional<IREnumPayloadPattern> payload;
+};
+
+struct IRModalRecordPayload {
+  std::vector<IRFieldPattern> fields;
+};
+
+struct IRModalPattern {
+  std::string state;
+  std::optional<IRModalRecordPayload> fields;
+};
+
+struct IRRangePattern {
+  IRRangeKind kind = IRRangeKind::Exclusive;
+  IRPatternPtr lo;
+  IRPatternPtr hi;
+};
+
+struct IROpaquePattern {};
+
+using IRPatternNode = std::variant<IRLiteralPattern,
+                                   IRWildcardPattern,
+                                   IRIdentifierPattern,
+                                   IRTypedPattern,
+                                   IRTuplePattern,
+                                   IRRecordPattern,
+                                   IREnumPattern,
+                                   IRModalPattern,
+                                   IRRangePattern,
+                                   IROpaquePattern>;
+
+struct IRPattern {
+  IRPatternNode node;
+};
+
 struct IRRange {
-  ast::RangeKind kind = ast::RangeKind::Full;
+  IRRangeKind kind = IRRangeKind::Full;
   std::optional<IRValue> lo;
   std::optional<IRValue> hi;
 };
@@ -139,7 +249,7 @@ struct IRUnaryOp {
 };
 
 struct IRFence {
-  ast::FenceOrder order = ast::FenceOrder::SeqCst;
+  IRFenceOrder order = IRFenceOrder::SeqCst;
   IRValue result;
 };
 
@@ -220,9 +330,7 @@ struct IRBreak {
 
 struct IRContinue {};
 
-struct IRDefer {
-  std::shared_ptr<ast::Block> block;
-};
+struct IRDefer {};
 
 struct IRMoveState {
   IRPlace place;
@@ -251,8 +359,7 @@ enum class IRLoopKind {
 
 struct IRLoop {
   IRLoopKind kind = IRLoopKind::Infinite;
-  std::shared_ptr<ast::Pattern> pattern;
-  std::shared_ptr<ast::Type> type_opt;
+  IRPatternPtr pattern;
   IRPtr iter_ir;
   std::optional<IRValue> iter_value;
   IRPtr cond_ir;
@@ -263,7 +370,7 @@ struct IRLoop {
 };
 
 struct IRIfCaseClause {
-  std::shared_ptr<ast::Pattern> pattern;
+  IRPatternPtr pattern;
   IRPtr body;
   IRValue value;
 };
@@ -373,7 +480,6 @@ struct IRCancelCheck {
 
 // §18.5 Dispatch expression IR
 struct IRDispatch {
-  std::shared_ptr<ast::Pattern> pattern;  // Iteration variable
   IRValue range;                        // Range<I>
   IRPtr body;                           // Iteration body
   IRValue body_result;                  // Result value from each iteration
@@ -460,7 +566,6 @@ struct IRRaceArm {
   IRPtr async_ir;                       // IR to produce async value
   IRValue async_value;                  // The async value
   IRValue match_value;                  // Value bound to pattern (Result or Out)
-  std::shared_ptr<ast::Pattern> pattern; // Handler pattern
   IRPtr handler_ir;                     // Handler body
   IRValue handler_result;               // Handler result value
 };

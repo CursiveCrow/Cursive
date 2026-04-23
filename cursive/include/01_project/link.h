@@ -34,7 +34,7 @@ enum class SharedLibraryLifecycleMode {
 };
 
 struct LinkPlan {
-  TargetProfile target_profile = TargetProfile::X86_64Win64;
+  TargetProfile target_profile;
   LinkOutputKind output_kind = LinkOutputKind::Executable;
   SharedLibraryLifecycleMode shared_library_lifecycle_mode =
       SharedLibraryLifecycleMode::None;

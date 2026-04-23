@@ -1,4 +1,4 @@
-#include "01_project/assembly_graph.h"
+#include "04_analysis/resolve/assembly_import_graph.h"
 
 #include <algorithm>
 #include <functional>
@@ -13,10 +13,22 @@
 #include "00_core/symbols.h"
 #include "01_project/assemblies.h"
 #include "01_project/deterministic_order.h"
+#include "01_project/outputs.h"
 #include "02_source/module_paths.h"
 #include "04_analysis/attributes/attribute_registry.h"
 
-namespace cursive::project {
+namespace cursive::analysis {
+
+using project::Assembly;
+using project::AssemblyProject;
+using project::Fold;
+using project::IsDependency;
+using project::IsExecutable;
+using project::IsLibrary;
+using project::IsLinkable;
+using project::ModuleInfo;
+using project::Project;
+using project::Utf8LexLess;
 
 namespace {
 
@@ -608,4 +620,4 @@ std::optional<Project> BuildOutputProjectForAssembly(
   return output_project;
 }
 
-}  // namespace cursive::project
+}  // namespace cursive::analysis

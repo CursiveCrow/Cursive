@@ -30,6 +30,7 @@
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/lower/lower_pat.h"
 #include "05_codegen/lower/lower_stmt.h"
+#include "05_codegen/lower/pattern/ir_pattern.h"
 
 namespace cursive::codegen {
 
@@ -218,8 +219,7 @@ LowerResult LowerLoopIter(const ast::Expr& expr,
   // Create iter loop IR
   IRLoop loop;
   loop.kind = IRLoopKind::Iter;
-  loop.pattern = loop_expr.pattern;
-  loop.type_opt = loop_expr.type_opt;
+  loop.pattern = LowerIRPattern(*loop_expr.pattern, ctx);
   loop.iter_ir = iter_result.ir;
   loop.iter_value = iter_result.value;
   loop.body_ir = body_result.ir;

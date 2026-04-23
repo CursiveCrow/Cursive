@@ -85,6 +85,7 @@
 #include "00_core/process_config.h"
 #include "00_core/symbols.h"
 #include "04_analysis/attributes/attribute_registry.h"
+#include "04_analysis/attributes/ffi_library_attrs.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/record_methods.h"
 #include "04_analysis/typing/types.h"
@@ -235,7 +236,7 @@ bool ExternAbiUsesRawName(const std::optional<ast::ExternAbi>& abi_opt) {
 std::optional<project::FfiLibrarySpec> ExternLibrarySpecFor(
     const ast::AttributeList& attrs) {
   for (const auto& attr : attrs) {
-    const auto spec = project::NormalizeLibraryAttribute(attr);
+    const auto spec = analysis::NormalizeLibraryAttribute(attr);
     if (spec.has_value()) {
       return spec;
     }
@@ -1078,23 +1079,23 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
   std::unordered_map<std::string, analysis::TypeRef> module_drop_glue_types;
 
   auto flush_item_maps = [&]() {
-    if (!ctx.value_types.empty()) {
-      for (auto& [name, type] : ctx.value_types) {
+    if (!ctx.values.value_types.empty()) {
+      for (auto& [name, type] : ctx.values.value_types) {
         module_value_types[name] = type;
       }
-      ctx.value_types.clear();
+      ctx.values.value_types.clear();
     }
-    if (!ctx.derived_values.empty()) {
-      for (auto& [name, info] : ctx.derived_values) {
+    if (!ctx.values.derived_values.empty()) {
+      for (auto& [name, info] : ctx.values.derived_values) {
         module_derived_values[name] = std::move(info);
       }
-      ctx.derived_values.clear();
+      ctx.values.derived_values.clear();
     }
-    if (!ctx.drop_glue_types.empty()) {
-      for (auto& [name, type] : ctx.drop_glue_types) {
+    if (!ctx.values.drop_glue_types.empty()) {
+      for (auto& [name, type] : ctx.values.drop_glue_types) {
         module_drop_glue_types[name] = type;
       }
-      ctx.drop_glue_types.clear();
+      ctx.values.drop_glue_types.clear();
     }
   };
 
@@ -1408,9 +1409,9 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
     }
   }
 
-  ctx.value_types = std::move(module_value_types);
-  ctx.derived_values = std::move(module_derived_values);
-  ctx.drop_glue_types = std::move(module_drop_glue_types);
+  ctx.values.value_types = std::move(module_value_types);
+  ctx.values.derived_values = std::move(module_derived_values);
+  ctx.values.drop_glue_types = std::move(module_drop_glue_types);
 
   return decls;
 }

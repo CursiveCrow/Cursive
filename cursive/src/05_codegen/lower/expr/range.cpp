@@ -14,12 +14,12 @@
 //   - Handles all range kinds: Full, From, To, ToInclusive, Exclusive, Inclusive
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/ir/ir_model.h (IRRange, RangeKind)
+//   - cursive/include/05_codegen/ir/ir_model.h (IRRange, IRRangeKind)
 //   - cursive/include/05_codegen/checks/checks.h (RangeVal, LowerRangeResult)
 //
 // REFACTORING NOTES:
 //   - Range expressions lower to a RangeVal with optional lo/hi values
-//   - The kind field from ast::RangeKind maps directly to the RangeVal kind
+//   - The kind field from ast::RangeKind is converted to IRRangeKind
 //   - IR is produced for lowering any bound expressions (lo, hi)
 //   - Range values are used for slicing, iteration, and pattern matching
 //
@@ -35,6 +35,7 @@
 
 #include "05_codegen/lower/expr/range.h"
 #include "05_codegen/checks/checks.h"
+#include "05_codegen/lower/pattern/ir_pattern.h"
 #include "00_core/assert_spec.h"
 
 namespace cursive::codegen {
@@ -44,7 +45,7 @@ namespace {
 // Helper to convert RangeVal to IRRange for derived value registration
 IRRange ToIRRange(const RangeVal& range) {
     IRRange out;
-    out.kind = range.kind;
+    out.kind = ToIRRangeKind(range.kind);
     out.lo = range.lo;
     out.hi = range.hi;
     return out;

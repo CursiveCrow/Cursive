@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "01_project/target_profile.h"
+#include "01_project/llvm_toolchain.h"
 #include "04_analysis/typing/types.h"
 #include "05_codegen/ir/ir_model.h"
 
@@ -44,12 +45,6 @@ void SetupModuleHeader(llvm::Module& module,
 // =============================================================================
 // §6.12.7 LLVM Toolchain Version
 // =============================================================================
-
-// LLVMToolchain = "21.1.8"
-constexpr std::string_view kLLVMToolchain = "21.1.8";
-
-// Get the required LLVM toolchain version
-std::string_view GetLLVMToolchainVersion();
 
 // Validate that the current LLVM version matches the required version
 bool ValidateLLVMVersion();

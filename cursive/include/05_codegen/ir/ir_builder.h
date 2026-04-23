@@ -166,8 +166,7 @@ inline IRPtr MakeLoopConditional(
 
 /// Create an IR node for an iterator loop.
 inline IRPtr MakeLoopIter(
-    std::shared_ptr<ast::Pattern> pattern,
-    std::shared_ptr<ast::Type> type_opt,
+    IRPatternPtr pattern,
     IRPtr iter_ir,
     const IRValue& iter_value,
     IRPtr body_ir,
@@ -176,7 +175,6 @@ inline IRPtr MakeLoopIter(
   IRLoop loop;
   loop.kind = IRLoopKind::Iter;
   loop.pattern = std::move(pattern);
-  loop.type_opt = std::move(type_opt);
   loop.iter_ir = std::move(iter_ir);
   loop.iter_value = iter_value;
   loop.body_ir = std::move(body_ir);
@@ -234,7 +232,7 @@ inline IRPtr MakeUnaryOp(
 }
 
 /// Create an IR node for a fence expression.
-inline IRPtr MakeFence(ast::FenceOrder order, const IRValue& result) {
+inline IRPtr MakeFence(IRFenceOrder order, const IRValue& result) {
   return MakeIR(IRFence{order, result});
 }
 
@@ -304,8 +302,8 @@ inline IRPtr MakeContinue() {
 }
 
 /// Create an IR node for defer.
-inline IRPtr MakeDefer(std::shared_ptr<ast::Block> block) {
-  return MakeIR(IRDefer{std::move(block)});
+inline IRPtr MakeDefer() {
+  return MakeIR(IRDefer{});
 }
 
 // =============================================================================

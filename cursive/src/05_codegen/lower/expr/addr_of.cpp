@@ -24,6 +24,7 @@
 #include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/lower/expr/expr_common.h"
+#include "05_codegen/lower/pattern/ir_pattern.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "00_core/assert_spec.h"
 
@@ -39,7 +40,7 @@ namespace {
 // Convert RangeVal to IRRange
 IRRange ToIRRange(const RangeVal& range) {
   IRRange out;
-  out.kind = range.kind;
+  out.kind = ToIRRangeKind(range.kind);
   out.lo = range.lo;
   out.hi = range.hi;
   return out;
@@ -465,7 +466,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             check.base = base_result.value;
             check.range_value = range_result.value;
             if (range_kind.has_value()) {
-              check.range.kind = *range_kind;
+              check.range.kind = ToIRRangeKind(*range_kind);
             }
 
             DerivedValueInfo info;
@@ -473,7 +474,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             info.base = base_result.value;
             info.range_value = range_result.value;
             if (range_kind.has_value()) {
-              info.range.kind = *range_kind;
+              info.range.kind = ToIRRangeKind(*range_kind);
             }
             ctx.RegisterDerivedValue(ptr_value, info);
 

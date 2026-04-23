@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "01_project/target_profile.h"
-#include "02_source/ast/ast.h"
 
 namespace cursive::project {
 
@@ -15,12 +14,6 @@ struct FfiLibrarySpec {
   std::string name;
   std::string kind;
 };
-
-std::optional<FfiLibrarySpec> NormalizeLibraryAttribute(
-    const ast::AttributeItem& attr);
-
-std::vector<FfiLibrarySpec> CollectExternLibrarySpecs(
-    const std::vector<ast::ASTModule>& modules);
 
 bool IsLibraryKindSupportedForCurrentTarget(std::string_view kind,
                                             TargetProfile profile);

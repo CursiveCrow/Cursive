@@ -229,7 +229,7 @@ bool ValidateIR(const IR& ir) {
         } else if constexpr (std::is_same_v<T, IRContinue>) {
           return true;
         } else if constexpr (std::is_same_v<T, IRDefer>) {
-          return node.block != nullptr;
+          return true;
         } else if constexpr (std::is_same_v<T, IRMoveState>) {
           return ValidatePlace(node.place);
         } else if constexpr (std::is_same_v<T, IRIf>) {

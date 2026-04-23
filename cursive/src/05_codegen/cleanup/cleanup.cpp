@@ -1092,13 +1092,9 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
     std::vector<IRIfCaseClause> arms;
     arms.reserve(uni_type.members.size());
     for (std::size_t i = 0; i < uni_type.members.size(); ++i) {
-      ast::TypedPattern typed;
-      typed.name = "__case" + std::to_string(i);
-      typed.type = nullptr;
-
-      auto pattern = std::make_shared<ast::Pattern>();
-      pattern->node = std::move(typed);
-      pattern->span = core::Span{};
+      auto pattern = std::make_shared<IRPattern>();
+      pattern->node =
+          IRTypedPattern{"__case" + std::to_string(i), uni_type.members[i]};
 
       IRValue case_val;
       case_val.kind = IRValue::Kind::Opaque;
@@ -1236,14 +1232,8 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
       std::vector<IRIfCaseClause> arms;
       arms.reserve(enum_decl->variants.size());
       for (const auto& variant : enum_decl->variants) {
-        ast::EnumPattern enum_pat;
-        enum_pat.path = syntax_path;
-        enum_pat.name = variant.name;
-        enum_pat.payload_opt = std::nullopt;
-
-        auto pattern = std::make_shared<ast::Pattern>();
-        pattern->node = std::move(enum_pat);
-        pattern->span = core::Span{};
+        auto pattern = std::make_shared<IRPattern>();
+        pattern->node = IREnumPattern{syntax_path, variant.name, std::nullopt};
 
         IRPtr body = EmptyIR();
         if (variant.payload_opt.has_value()) {
@@ -1327,13 +1317,8 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
       std::vector<IRIfCaseClause> arms;
       arms.reserve(modal_decl->states.size());
       for (const auto& state : modal_decl->states) {
-        ast::ModalPattern modal_pat;
-        modal_pat.state = state.name;
-        modal_pat.fields_opt = std::nullopt;
-
-        auto pattern = std::make_shared<ast::Pattern>();
-        pattern->node = std::move(modal_pat);
-        pattern->span = core::Span{};
+        auto pattern = std::make_shared<IRPattern>();
+        pattern->node = IRModalPattern{state.name, std::nullopt};
 
         IRPtr body = EmptyIR();
         const auto fields = CollectModalFields(state, ctx);

@@ -78,12 +78,8 @@ void SetupModuleHeader(llvm::Module& module,
 // §6.12.7 LLVM Toolchain Version
 // =============================================================================
 
-std::string_view GetLLVMToolchainVersion() {
-  return kLLVMToolchain;
-}
-
 bool ValidateLLVMVersion() {
-  return std::string_view(LLVM_VERSION_STRING) == kLLVMToolchain;
+  return std::string_view(LLVM_VERSION_STRING) == project::kLLVMToolchainVersion;
 }
 
 // =============================================================================

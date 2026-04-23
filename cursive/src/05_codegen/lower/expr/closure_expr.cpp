@@ -571,7 +571,7 @@ struct LowerCtxSnapshot {
   explicit LowerCtxSnapshot(const LowerCtx& ctx)
       : scope_stack(ctx.scope_stack),
         binding_states(ctx.binding_states),
-        derived_values(ctx.derived_values),
+        derived_values(ctx.values.derived_values),
         temp_sink(ctx.temp_sink),
         temp_depth(ctx.temp_depth),
         suppress_temp_at_depth(ctx.suppress_temp_at_depth),
@@ -584,7 +584,7 @@ struct LowerCtxSnapshot {
     ctx.scope_stack = scope_stack;
     ctx.binding_states = binding_states;
     for (const auto& [key, value] : derived_values) {
-      ctx.derived_values[key] = value;
+      ctx.values.derived_values[key] = value;
     }
     ctx.temp_sink = temp_sink;
     ctx.temp_depth = temp_depth;
@@ -747,7 +747,7 @@ LowerResult LowerClosureExpr(
       LowerCtxSnapshot snapshot(ctx);
       ctx.scope_stack.clear();
       ctx.binding_states.clear();
-      ctx.derived_values.clear();
+      ctx.values.derived_values.clear();
       ctx.temp_sink = nullptr;
       ctx.temp_depth = 0;
       ctx.suppress_temp_at_depth.reset();
@@ -988,7 +988,7 @@ LowerResult LowerClosureExpr(
     LowerCtxSnapshot snapshot(ctx);
     ctx.scope_stack.clear();
     ctx.binding_states.clear();
-    ctx.derived_values.clear();
+    ctx.values.derived_values.clear();
     ctx.temp_sink = nullptr;
     ctx.temp_depth = 0;
     ctx.suppress_temp_at_depth.reset();

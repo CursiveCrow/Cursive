@@ -60,6 +60,42 @@
 | `Lowering`                  | Feature-local IR, ABI, layout, and backend mapping rules                      |
 | `Diagnostics`               | Diagnostic conditions owned by the feature section                            |
 
+
+### 0.4 Language Design Contract
+
+Cursive is a general-purpose systems programming language optimized for
+machine-generated source code and human review.
+
+A conforming design change SHOULD preserve the following principles:
+
+1. One Correct Way.
+   Where possible, each semantic operation in Cursive MUST have exactly one accepted source form.
+   
+   A language feature SHOULD NOT introduce aliases, shorthand forms, optional equivalent spellings, or syntactic sugar that lower to the same AST form and have identical static and dynamic semantics.
+   
+   An alternate source form is permitted only when it changes at least one of:
+   
+   1. static semantics;
+   2. dynamic semantics;
+   3. authority or capability requirements;
+   4. ownership, movement, copying, or responsibility;
+   5. synchronization behavior;
+   6. suspension behavior;
+   7. ABI, layout, or foreign-boundary behavior;
+   8. diagnostic behavior in a way that is part of the language contract.
+   
+   Formatting whitespace and comments are not semantic source forms for this principle, but grammar-level alternatives are.
+
+2. Local Reasoning.
+   A reader SHOULD be able to determine the authority, mutability, ownership, copy/move/reference behavior, synchronization behavior, suspension behavior, and dynamic-check behavior of a construct from its local syntactic context and the directly referenced type/procedure signature.
+
+3. Explicit over Implicit.
+   Source constructs MUST NOT hide externally observable effects, synchronization, allocation, copying, dynamic verification, suspension, unsafe behavior, or authority acquisition.
+
+4. Static by Default.
+   Where both static and runtime mechanisms are possible, the static mechanism is the default. Runtime checks, runtime synchronization, dynamic dispatch, heap allocation, copying, and foreign trust boundaries require explicit source opt-in.
+
+
 ## 1. Conformance and Notation
 
 ### 1.1 Conformance
@@ -10635,14 +10671,14 @@ RegionProcSig(`Region::thaw`) = ⟨[⟨⊥, `self`, TypePerm(`unique`, TypeModal
 RegionProcSig(`Region::free_unchecked`) = ⟨[⟨⊥, `self`, TypePerm(`unique`, TypeUnion([TypeModalState(["Region"], `@Active`), TypeModalState(["Region"], `@Frozen`)]))⟩], TypeModalState(["Region"], `@Freed`)⟩
 
 ProvType(T, π) = T_π
-BaseType(T_Ï€) = T
+BaseType(T_π) = T
 ProvOf(T_π) = π
 
 ¬ BitcopyType(TypePath(["Region"]))
 
 **Region Arena Requirements.**
 1. `Region::alloc` MUST yield a value with provenance `π_Region(tag)`, where `tag` is the region-provenance tag carried by the receiver handle in the current provenance environment. Fresh region tags are introduced by fresh region-creating constructs, including `region` statements and bindings of freshly created `Region@Active` values such as `Region::new_scoped(...)`. Rebinding a `Region@Active` handle MUST preserve the existing region tag and MUST introduce the new binding name as a target alias in the region-target relation.
-2. After `Region::reset_unchecked` or `Region::free_unchecked`, any dereference through a `Ptr<T>@Valid` whose address has an inactive `RegionTag` MUST behave as `Expired` per `PtrState` and `ReadPtrSigma`. Uses of non-pointer values with provenance `Ï€_Region(r)` after reset/free are `OutsideConformance`.
+2. After `Region::reset_unchecked` or `Region::free_unchecked`, any dereference through a `Ptr<T>@Valid` whose address has an inactive `RegionTag` MUST behave as `Expired` per `PtrState` and `ReadPtrSigma`. Uses of non-pointer values with provenance `π_Region(r)` after reset/free are `OutsideConformance`.
 3. `Region::free_unchecked` MUST be invoked exactly once on any `Region` that remains in `@Active` or `@Frozen` at scope exit. Implementations MAY invoke `Region::free_unchecked` implicitly during `RegionStmt` cleanup.
 
 **(Region-Unchecked-Unsafe-Err)**
@@ -19885,7 +19921,7 @@ key_mode       ::= "read" | "write"
 release_modifier ::= "release" key_mode
 ```
 
-`ordered` requests the same-base indexed-path checking defined in �19.3.4. Canonical path order remains the deterministic acquisition and conflict-resolution order for key blocks under ��19.2.5 and 19.3.5.
+`ordered` requests the same-base indexed-path checking defined in §19.3.4. Canonical path order remains the deterministic acquisition and conflict-resolution order for key blocks under §§19.2.5 and 19.3.5.
 
 #### 19.2.2 Parsing
 
@@ -19921,7 +19957,7 @@ KeyBlockMods = [KeyBlockMod]
 
 KeyPathList = [KeyPathExpr]
 
-KeyBlockStmt = ?attrs_opt, paths, mods, mode_opt, body, span?
+KeyBlockStmt = ⟨attrs_opt, paths, mods, mode_opt, body, span⟩
 
 Key = ⟨Path, Mode, Scope⟩
 
@@ -19944,7 +19980,7 @@ Mode ordering:
 Read < Write
 
 ModeSufficient(M_held, M_required) ⇔ M_required ≤ M_held
-BlockMode(KeyBlockStmt(_, _, _, ?, _, _)) = Read
+BlockMode(KeyBlockStmt(_, _, _, ⊥, _, _)) = Read
 BlockMode(KeyBlockStmt(_, _, _, Read, _, _)) = Read
 BlockMode(KeyBlockStmt(_, _, _, Write, _, _)) = Write
 
@@ -20093,17 +20129,17 @@ ModeOf(Write) = Write
 **(ExecSigma-KeyBlock)**
 Speculative ∉ mods    Release ∉ mods    Γ ⊢ AcquireKeysSigma(paths, mode_opt, σ) ⇓ (σ_1, keys)    Γ ⊢ EvalBlockSigma(body, σ_1) ⇓ (out, σ_2)    Γ ⊢ ReleaseKeysSigma(keys, σ_2) ⇓ σ_3
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s) ? (StmtOutOf(out), s_3)
+Γ ⊢ ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), σ) ⇓ (StmtOutOf(out), σ_3)
 
 **(ExecSigma-KeyBlock-Ctrl)**
 Speculative ∉ mods    Release ∉ mods    Γ ⊢ AcquireKeysSigma(paths, mode_opt, σ) ⇓ (σ_1, keys)    Γ ⊢ EvalBlockSigma(body, σ_1) ⇓ (Ctrl(κ), σ_2)    Γ ⊢ ReleaseKeysSigma(keys, σ_2) ⇓ σ_3
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s) ? (Ctrl(?), s_3)
+Γ ⊢ ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), σ) ⇓ (Ctrl(κ), σ_3)
 
 **(Step-Exec-KeyBlock-Enter)**
 Speculative ∉ mods    Γ ⊢ AcquireKeysSigma(paths, mode_opt, σ) ⇓ (σ_1, keys)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-?Exec(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s)? ? ?KeyBody(keys, body, s_1)?
+⟨Exec(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), σ)⟩ → ⟨KeyBody(keys, body, σ_1)⟩
 
 **(Step-Exec-KeyBlock-Body)**
 Γ ⊢ EvalBlockSigma(body, σ) ⇓ (out, σ_1)
@@ -20150,7 +20186,7 @@ IR_enter = SeqIRList([SeqIR(CheckConflict(P_i, mode), AcquireKey(P_i, mode, S)) 
 Γ ⊢ LowerBlock(body) ⇓ ⟨IR_b, v_b⟩
 IR_exit = SeqIRList([ReleaseKey(P_i, S) | P_i ∈ Reverse(sorted)])
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? SeqIR(IR_enter, IR_b, IR_exit)
+Γ ⊢ LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ⇓ SeqIR(IR_enter, IR_b, IR_exit)
 
 #### 19.2.7 Diagnostics
 
@@ -20288,11 +20324,11 @@ Reject
 
 **Read-Then-Write Prohibition**
 
-ReadThenWrite(P, S) ? ? e_r, e_w ? Subexpressions(S) : ReadsPath(e_r, P) ? WritesPath(e_w, P)
+ReadThenWrite(P, S) ⇔ ∃ e_r, e_w ∈ Subexpressions(S) : ReadsPath(e_r, P) ∧ WritesPath(e_w, P)
 
-CompoundRewriteOp(op) ? op ? {`+`, `-`, `*`, `/`, `%`}
+CompoundRewriteOp(op) ⇔ op ∈ {`+`, `-`, `*`, `/`, `%`}
 
-CompoundRewriteCandidate(P, S) ? S = AssignStmt(P, BinaryExpr(op, P, e), span) ? CompoundRewriteOp(op)
+CompoundRewriteCandidate(P, S) ⇔ S = AssignStmt(P, BinaryExpr(op, P, e), span) ∧ CompoundRewriteOp(op)
 
 In this chapter, `ReadThenWrite(P, S)` is required to be diagnosed for assignment and compound-assignment statement surfaces that visibly separate a read of `P` from a write of `P`.
 
@@ -20309,14 +20345,14 @@ Reject
 Permitted
 
 **(K-RMW-Explicit-Warn)**
-G ? P : `shared` T    ReadThenWrite(P, S)    ? (Q, Write, S') ? G_keys : Prefix(Q, P)    CompoundRewriteCandidate(P, S)    w = Code(K-RMW-Explicit-Warn)
+Γ ⊢ P : `shared` T    ReadThenWrite(P, S)    ∃ (Q, Write, S') ∈ Γ_keys : Prefix(Q, P)    CompoundRewriteCandidate(P, S)    w = Code(K-RMW-Explicit-Warn)
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-G ? WarnRMW(S) ? w
+Γ ⊢ WarnRMW(S) ⇓ w
 
 **(K-RMW-Contention-Warn)**
-G ? P : `shared` T    ReadThenWrite(P, S)    ? (Q, Write, S') ? G_keys : Prefix(Q, P)    � CompoundRewriteCandidate(P, S)    w = Code(K-RMW-Contention-Warn)
+Γ ⊢ P : `shared` T    ReadThenWrite(P, S)    ∃ (Q, Write, S') ∈ Γ_keys : Prefix(Q, P)    ¬ CompoundRewriteCandidate(P, S)    w = Code(K-RMW-Contention-Warn)
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------
-G ? WarnRMW(S) ? w
+Γ ⊢ WarnRMW(S) ⇓ w
 
 NonIndexShape(P) = [seg | seg ∈ PathSegments(P) ∧ ¬ IsIndex(seg)]
 OrderedBase(P) = ⟨Root(P), NonIndexShape(P)⟩
@@ -20331,12 +20367,12 @@ OrderedPathsOk(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span))
 **(K-Ordered-Base-Err)**
 Ordered ∈ mods    ¬ OrderedComparable([KeyPath(p) | p ∈ paths])    c = Code(K-Ordered-Base-Err)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ? c
+Γ ⊢ KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ⇑ c
 
 **(K-Ordered-Redundant-Warn)**
 Ordered ∈ mods    OrderedComparable([KeyPath(p) | p ∈ paths])    StaticallyComparableIndices([KeyPath(p) | p ∈ paths])    w = Code(K-Ordered-Redundant-Warn)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? WarnKeyBlock(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? w
+Γ ⊢ WarnKeyBlock(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ⇓ w
 
 #### 19.3.5 Dynamic Semantics
 
@@ -20381,7 +20417,7 @@ This section introduces no additional parsing rules beyond §19.2.2.
 
 #### 19.4.3 AST Representation / Form
 
-Nested release is represented by `KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)` with `Release ? mods`.
+Nested release is represented by `KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)` with `Release ∈ mods`.
 
 #### 19.4.4 Static Semantics
 
@@ -20396,31 +20432,31 @@ otherwise:
  Reject
 
 **(K-Reentrant)**
-SharedParam(proc, i) ? the i-th formal parameter of proc has type `shared` T for some T
-DirectCalleeAccesses(proc) = {?i, rel, M? | SharedParam(proc, i) ? proc.body contains KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ? q ? paths ? KeyPath(q) = name(param_i) ++ rel ? M = BlockMode(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span))}
-CalleeAccessSummary(proc) is the least set A such that DirectCalleeAccesses(proc) ? A and, for every directly resolved call `g(a_1, �, a_n)` in proc.body, every ?j, rel, M? ? CalleeAccessSummary(g), and every i with SharedParam(proc, i) and KeyPath(a_j) = name(param_i) ++ rel_0, ?i, rel_0 ++ rel, M? ? A.
-InstantiateCalleeAccess(v, ?i, rel, M?) = ?Q, M? ? KeyPath(v) = Q_0 ? Q = Q_0 ++ rel
-CalleeAccesses(Q) at call site `call(f, a_1, �, a_n)` iff ? ?i, rel, M? ? CalleeAccessSummary(f). InstantiateCalleeAccess(a_i, ?i, rel, M?) = ?Q, M?
+SharedParam(proc, i) ⇔ the i-th formal parameter of proc has type `shared` T for some T
+DirectCalleeAccesses(proc) = {⟨i, rel, M⟩ | SharedParam(proc, i) ∧ proc.body contains KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ∧ q ∈ paths ∧ KeyPath(q) = name(param_i) ++ rel ∧ M = BlockMode(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span))}
+CalleeAccessSummary(proc) is the least set A such that DirectCalleeAccesses(proc) ⊆ A and, for every directly resolved call `g(a_1, …, a_n)` in proc.body, every ⟨j, rel, M⟩ ∈ CalleeAccessSummary(g), and every i with SharedParam(proc, i) and KeyPath(a_j) = name(param_i) ++ rel_0, ⟨i, rel_0 ++ rel, M⟩ ∈ A.
+InstantiateCalleeAccess(v, ⟨i, rel, M⟩) = ⟨Q, M⟩ ⇔ KeyPath(v) = Q_0 ∧ Q = Q_0 ++ rel
+CalleeAccesses(Q) at call site `call(f, a_1, …, a_n)` iff ∃ ⟨i, rel, M⟩ ∈ CalleeAccessSummary(f). InstantiateCalleeAccess(a_i, ⟨i, rel, M⟩) = ⟨Q, M⟩
 CalleeCovered(Q) at call site iff the instantiated access for Q has required mode M_Q and Covered(Q, M_Q, G_keys).
 
 Held(P, M, G_keys)    Prefix(P, Q)    CalleeAccesses(Q)
 ----------------------------------------------------------
 CalleeCovered(Q)
 
-If CalleeAccessSummary(f) cannot be computed because the callee is unresolved, bodyless, dynamically dispatched, or recursively unknown, the compiler MUST emit the unknown-callee-access warning defined in �19.4.7 once per call site whose `shared` actual argument path lies under a currently held prefix. For static analysis, that call site is treated as potentially accessing every subpath of the actual argument path in `Write` mode.
+If CalleeAccessSummary(f) cannot be computed because the callee is unresolved, bodyless, dynamically dispatched, or recursively unknown, the compiler MUST emit the unknown-callee-access warning defined in §19.4.7 once per call site whose `shared` actual argument path lies under a currently held prefix. For static analysis, that call site is treated as potentially accessing every subpath of the actual argument path in `Write` mode.
 
 Passing a `shared` value as a procedure argument does not itself acquire a key:
 
-G ? f : (`shared` T) ? R    G ? v : `shared` T
+Γ ⊢ f : (`shared` T) → R    Γ ⊢ v : `shared` T
 --------------------------------------------------------------
-call(f, v) ? no key acquisition at call site
+call(f, v) ⇒ no key acquisition at call site
 
-`[[stale_ok]]` suppresses the stale-after-release warning on a binding derived from `shared` data across a `release` boundary. Attribute syntax and attachment are defined in �9.5.
+`[[stale_ok]]` suppresses the stale-after-release warning on a binding derived from `shared` data across a `release` boundary. Attribute syntax and attachment are defined in §9.5.
 
 **(K-Release-SameMode-Err)**
 Release ∈ modifiers    Held(P, M_outer, Γ_keys)    P ∈ {KeyPath(p) | p ∈ paths}    BlockMode(KeyBlockStmt(attrs_opt, paths, modifiers, mode_opt, body, span)) = M_outer    c = Code(K-Release-SameMode-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? KeyBlockStmt(attrs_opt, paths, modifiers, mode_opt, body, span) ? c
+Γ ⊢ KeyBlockStmt(attrs_opt, paths, modifiers, mode_opt, body, span) ⇑ c
 
 #### 19.4.5 Dynamic Semantics
 
@@ -20460,7 +20496,7 @@ ReacquireHeldKeysSigma(keys, σ) ⇓ σ' ⇔
 **(ExecSigma-KeyBlock-Release)**
 Release ∈ mods    outer = HeldKeysForPaths(paths, σ)    Γ ⊢ ReleaseKeysSigma(outer, σ) ⇓ σ_1    σ_2 = MarkKeysReleased(σ_1, outer)    Γ ⊢ AcquireKeysSigma(paths, mode_opt, σ_2) ⇓ (σ_3, inner)    Γ ⊢ EvalBlockSigma(body, σ_3) ⇓ (out, σ_4)    Γ ⊢ ReleaseKeysSigma(inner, σ_4) ⇓ σ_5    σ_6 = ClearReleased(σ_5, outer)    Γ ⊢ ReacquireHeldKeysSigma(outer, σ_6) ⇓ σ_7
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s) ? (StmtOutOf(out), s_7)
+Γ ⊢ ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), σ) ⇓ (StmtOutOf(out), σ_7)
 
 #### 19.4.6 Lowering
 
@@ -20472,7 +20508,7 @@ IR_acquire_inner = SeqIRList([SeqIR(CheckConflict(P_i, mode), AcquireKey(P_i, mo
 IR_release_inner = SeqIRList([ReleaseKey(P_i, CurrentScope) | P_i ∈ Reverse(sorted)])
 IR_reacquire_outer = SeqIRList([AcquireKey(PathOf(k), KeyModeOf(k), KeyScopeOf(k)) | k ∈ outer])
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? SeqIR(IR_release_outer, IR_acquire_inner, IR_b, IR_release_inner, IR_reacquire_outer)
+Γ ⊢ LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ⇓ SeqIR(IR_release_outer, IR_acquire_inner, IR_b, IR_release_inner, IR_reacquire_outer)
 
 #### 19.4.7 Diagnostics
 
@@ -20498,7 +20534,7 @@ Speculative blocks use the key-block parser in §19.2.2 together with `Parse-Key
 
 #### 19.5.3 AST Representation / Form
 
-Speculative execution is represented by `KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)` with `Speculative ? mods`.
+Speculative execution is represented by `KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)` with `Speculative ∈ mods`.
 
 ReadSet = ℘(Path × Value)
 
@@ -20563,17 +20599,17 @@ Reject
 **(K-Spec-No-Wait)**
 #P `speculative write` {B}    WaitExpr(_) ∈ Subexpressions(B)    c = Code(K-Spec-No-Wait)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, B, span) ? c
+Γ ⊢ KeyBlockStmt(attrs_opt, paths, mods, mode_opt, B, span) ⇑ c
 
 **(K-Spec-No-Defer)**
 #P `speculative write` {B}    DeferStmt(_) ∈ SubStatements(B)    c = Code(K-Spec-No-Defer)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, B, span) ? c
+Γ ⊢ KeyBlockStmt(attrs_opt, paths, mods, mode_opt, B, span) ⇑ c
 
 **(K-Spec-No-Release)**
 Speculative ∈ mods    Release ∈ mods    c = Code(K-Spec-No-Release)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ? c
+Γ ⊢ KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ⇑ c
 
 #### 19.5.5 Dynamic Semantics
 
@@ -20582,7 +20618,7 @@ G ? KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span) ? c
 **(ExecSigma-KeyBlock-Speculative)**
 Speculative ∈ mods    retries = 0
 ────────────────────────────────────────────────────────────────────────────────────────────
-G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), s) ? SpecLoop(paths, mods, mode_opt, body, retries, s)
+Γ ⊢ ExecSigma(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span), σ) ⇓ SpecLoop(paths, mods, mode_opt, body, retries, σ)
 
 SpecLoop(paths, mods, mode_opt, body, retries, σ) ⇓ (out, σ') ⇔
   R = SnapshotKeyedPaths(paths, σ) ∧
@@ -20590,7 +20626,7 @@ SpecLoop(paths, mods, mode_opt, body, retries, σ) ⇓ (out, σ') ⇔
   W = CollectWrites(σ, σ_1) ∧
   (SpeculativeCommit(R, W) ⇒ out = out_body ∧ σ' = ApplyWrites(σ, W)) ∧
   (¬SpeculativeCommit(R, W) ∧ retries < MAX_SPECULATIVE_RETRIES ⇒ SpecLoop(paths, mods, mode_opt, body, retries + 1, σ) ⇓ (out, σ')) ∧
-  (�SpeculativeCommit(R, W) ? retries = MAX_SPECULATIVE_RETRIES ? G ? ExecSigma(KeyBlockStmt(attrs_opt, paths, mods \ {Speculative}, mode_opt, body, span), s) ? (out, s'))
+  (¬SpeculativeCommit(R, W) ∧ retries = MAX_SPECULATIVE_RETRIES ⇒ Γ ⊢ ExecSigma(KeyBlockStmt(attrs_opt, paths, mods \ {Speculative}, mode_opt, body, span), σ) ⇓ (out, σ'))
 
 **State Machine**
 
@@ -20674,7 +20710,7 @@ Speculative ∈ mods    Γ ⊢ LowerKeyPaths(paths) ⇓ Ps    sorted = Canonical
 IR_fallback = SeqIR(SeqIRList([SeqIR(CheckConflict(P_i, Write), AcquireKey(P_i, Write, CurrentScope)) | P_i ∈ sorted]), IR_b, SeqIRList([ReleaseKey(P_i, CurrentScope) | P_i ∈ Reverse(sorted)]))
 IR = SpecLoopIR(SpecSnapshotIR(sorted), IR_b, SpecValidateIR(sorted), SpecCommitIR(sorted), SpecRetryIR, SpecFallbackIR(IR_fallback))
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ? IR
+Γ ⊢ LowerStmt(KeyBlockStmt(attrs_opt, paths, mods, mode_opt, body, span)) ⇓ IR
 
 #### 19.5.7 Diagnostics
 
@@ -20919,7 +20955,7 @@ ParallelOpt = {Cancel(expr), Name(str), Workgroup(dim3), Workgroups(dim3)}
 
 ParallelOpts = [ParallelOpt]
 
-Expr = � | ParallelExpr(domain, opts, body) | �
+Expr = … | ParallelExpr(domain, opts, body) | …
 
 ResolveParallelOptJudg = {ResolveParallelOpt, ResolveParallelOpts}
 
@@ -20940,33 +20976,33 @@ ParallelOptExprs(Workgroups(e) :: os) = [e] ++ ParallelOptExprs(os)
 
 #### 20.1.4 Static Semantics
 
-BlockOptOk(Name(_)) ? true
+BlockOptOk(Name(_)) ⇔ true
 
-BlockOptOk(Cancel(e)) ? G ? e : TypePath(["CancelToken"])
+BlockOptOk(Cancel(e)) ⇔ G ⊢ e : TypePath(["CancelToken"])
 
-G ? Dim3Const((e_1, e_2, e_3)) ? (x, y, z) ?
-  G ? e_1 : TypePrim("usize") ? G ? ConstLen(e_1) ? x ? x > 0 ?
-  G ? e_2 : TypePrim("usize") ? G ? ConstLen(e_2) ? y ? y > 0 ?
-  G ? e_3 : TypePrim("usize") ? G ? ConstLen(e_3) ? z ? z > 0
+G ⊢ Dim3Const((e_1, e_2, e_3)) ⇓ (x, y, z) ⇔
+  G ⊢ e_1 : TypePrim("usize") ∧ G ⊢ ConstLen(e_1) ⇓ x ∧ x > 0 ∧
+  G ⊢ e_2 : TypePrim("usize") ∧ G ⊢ ConstLen(e_2) ⇓ y ∧ y > 0 ∧
+  G ⊢ e_3 : TypePrim("usize") ∧ G ⊢ ConstLen(e_3) ⇓ z ∧ z > 0
 
 **(Dim3Const-Err)**
 ¬∃ dims. G ⊢ Dim3Const(e) ⇓ dims    c = Code(Dim3Const-Err)
 ────────────────────────────────────────────────────────────
 Reject
 
-BlockOptOk(Workgroup(e)) ? ? dims. G ? Dim3Const(e) ? dims
+BlockOptOk(Workgroup(e)) ⇔ ∃ dims. G ⊢ Dim3Const(e) ⇓ dims
 
-BlockOptOk(Workgroups(e)) ? ? dims. G ? Dim3Const(e) ? dims
+BlockOptOk(Workgroups(e)) ⇔ ∃ dims. G ⊢ Dim3Const(e) ⇓ dims
 
-BlockOptsOk(opts) ? ? opt ? opts. BlockOptOk(opt)
-DomainCtor(MethodCall(ctx, name, args)) ? name ? {`cpu`, `gpu`, `inline`}
-DomainCtor(_) ? false
+BlockOptsOk(opts) ⇔ ∀ opt ∈ opts. BlockOptOk(opt)
+DomainCtor(MethodCall(ctx, name, args)) ⇔ name ∈ {`cpu`, `gpu`, `inline`}
+DomainCtor(_) ⇔ false
 DomainCtorOk(MethodCall(ctx, `cpu`, []))
-DomainCtorOk(MethodCall(ctx, `cpu`, [mask])) ? G ? mask : TypePath(["CpuSet"])
-DomainCtorOk(MethodCall(ctx, `cpu`, [mask, prio])) ? G ? mask : TypePath(["CpuSet"]) ? G ? prio : TypePath(["Priority"])
+DomainCtorOk(MethodCall(ctx, `cpu`, [mask])) ⇔ G ⊢ mask : TypePath(["CpuSet"])
+DomainCtorOk(MethodCall(ctx, `cpu`, [mask, prio])) ⇔ G ⊢ mask : TypePath(["CpuSet"]) ∧ G ⊢ prio : TypePath(["Priority"])
 DomainCtorOk(MethodCall(ctx, `gpu`, []))
 DomainCtorOk(MethodCall(ctx, `inline`, []))
-DomainCtorOk(D) ? �DomainCtor(D)
+DomainCtorOk(D) ⇔ ¬DomainCtor(D)
 
 **(T-Parallel)**
 Γ ⊢ D : `$ExecutionDomain`    DomainCtorOk(D)    BlockOptsOk(opts)    Γ_P = Γ[parallel_context ↦ D]    Γ_P ⊢ B : T
@@ -20988,41 +21024,41 @@ The same rejection form applies when some option `Cancel(e)` is present and Γ �
 
 #### 20.1.5 Dynamic Semantics
 
-ParallelState = {Domain : Value, Handles : List?Value?, CancelToken : CancelToken@Active | ?}
+ParallelState = {Domain : Value, Handles : List⟨Value⟩, CancelToken : CancelToken@Active | ⊥}
 
-ParallelInit(d, opts) ? pstate ? pstate = {Domain: d, Handles: [], CancelToken: CancelOpt(opts)}
+ParallelInit(d, opts) ⇓ pstate ⇔ pstate = {Domain: d, Handles: [], CancelToken: CancelOpt(opts)}
 
-CancelOpt(opts) = token ? Cancel(token) ? opts
+CancelOpt(opts) = token ⇔ Cancel(token) ∈ opts
 
-CancelOpt(opts) = ? ? ? opt ? opts. opt ? Cancel(_)
+CancelOpt(opts) = ⊥ ⇔ ∀ opt ∈ opts. opt ≠ Cancel(_)
 
 DEFAULT_GPU_WORKGROUP = (64, 1, 1)
 
 DEFAULT_GPU_WORKGROUPS = (1, 1, 1)
 
-WorkgroupOpt(opts) = dims ? Workgroup(dims) ? opts
+WorkgroupOpt(opts) = dims ⇔ Workgroup(dims) ∈ opts
 
-WorkgroupOpt(opts) = ? ? ? opt ? opts. opt ? Workgroup(_)
+WorkgroupOpt(opts) = ⊥ ⇔ ∀ opt ∈ opts. opt ≠ Workgroup(_)
 
-WorkgroupsOpt(opts) = dims ? Workgroups(dims) ? opts
+WorkgroupsOpt(opts) = dims ⇔ Workgroups(dims) ∈ opts
 
-WorkgroupsOpt(opts) = ? ? ? opt ? opts. opt ? Workgroups(_)
+WorkgroupsOpt(opts) = ⊥ ⇔ ∀ opt ∈ opts. opt ≠ Workgroups(_)
 
-ComputeTopologyParallel(opts) = topo ?
-  wg = if WorkgroupOpt(opts) ? ? then WorkgroupOpt(opts) else DEFAULT_GPU_WORKGROUP ?
-  ng = if WorkgroupsOpt(opts) ? ? then WorkgroupsOpt(opts) else DEFAULT_GPU_WORKGROUPS ?
-  topo = ?
+ComputeTopologyParallel(opts) = topo ⇔
+  wg = if WorkgroupOpt(opts) ≠ ⊥ then WorkgroupOpt(opts) else DEFAULT_GPU_WORKGROUP ∧
+  ng = if WorkgroupsOpt(opts) ≠ ⊥ then WorkgroupsOpt(opts) else DEFAULT_GPU_WORKGROUPS ∧
+  topo = ⟨
     WorkgroupSize := wg,
     NumWorkgroups := ng,
-    GlobalSize := (wg.0 � ng.0, wg.1 � ng.1, wg.2 � ng.2)
-  ?
+    GlobalSize := (wg.0 × ng.0, wg.1 × ng.1, wg.2 × ng.2)
+  ⟩
 
-AwaitSpawned(pstate, s) ? (panic_opt, s') ? every handle in `pstate.Handles` reaches `Ready` or `Failed` between `s` and `s'`, and `panic_opt` is the failed completion associated with the least completion-sequence number among handles in `pstate.Handles` whose terminal state is `Failed`, or `?` if none fail.
+AwaitSpawned(pstate, σ) ⇓ (panic_opt, σ') ⇔ every handle in `pstate.Handles` reaches `Ready` or `Failed` between `σ` and `σ'`, and `panic_opt` is the failed completion associated with the least completion-sequence number among handles in `pstate.Handles` whose terminal state is `Failed`, or `⊥` if none fail.
 
 **(EvalSigma-Parallel)**
-G ? EvalSigma(D, s) ? (Val(d), s_1)    ParallelInit(d, opts) ? pstate_0    topology = if IsGpuDomain(d) then ComputeTopologyParallel(opts) else ?    G ? EvalSigma(B, s_1[parallel_context ? pstate_0]) ? (Val(v_body), s_2)    LookupVal(s_2, parallel_context) = pstate_n    AwaitSpawned(pstate_n, s_2) ? (?, s_3)
+Γ ⊢ EvalSigma(D, σ) ⇓ (Val(d), σ_1)    ParallelInit(d, opts) ⇓ pstate_0    topology = if IsGpuDomain(d) then ComputeTopologyParallel(opts) else ⊥    Γ ⊢ EvalSigma(B, σ_1[parallel_context ↦ pstate_0]) ⇓ (Val(v_body), σ_2)    LookupVal(σ_2, parallel_context) = pstate_n    AwaitSpawned(pstate_n, σ_2) ⇓ (⊥, σ_3)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? EvalSigma(ParallelExpr(D, opts, B), s) ? (Val(v_body), s_3)
+Γ ⊢ EvalSigma(ParallelExpr(D, opts, B), σ) ⇓ (Val(v_body), σ_3)
 
 **(EvalSigma-Parallel-Body-Ctrl)**
 Γ ⊢ EvalSigma(D, σ) ⇓ (Val(d), σ_1)    ParallelInit(d, opts) ⇓ pstate_0    Γ ⊢ EvalSigma(B, σ_1[parallel_context ↦ pstate_0]) ⇓ (Ctrl(κ), σ_2)    LookupVal(σ_2, parallel_context) = pstate_n    AwaitSpawned(pstate_n, σ_2) ⇓ (⊥, σ_3)
@@ -21075,33 +21111,33 @@ This section introduces no additional parser productions beyond ordinary type, c
 
 GpuDomainJudg = {IsGpuDomain, GpuContext, GpuSafeType, GpuCaptureOk}
 
-IsGpuDomain(D) ? DomainKind(D) = `GPU`
+IsGpuDomain(D) ⇔ DomainKind(D) = `GPU`
 
-GpuContext(G) ? G[parallel_context] = D ? IsGpuDomain(D)
+GpuContext(G) ⇔ G[parallel_context] = D ∧ IsGpuDomain(D)
 
 GpuSafeJudg = {GpuSafeType}
 
 GpuAddressSpace = {Global, Shared, Private}
 
-GpuMemory = ?GlobalMem, SharedMem, PrivateMem?
-GlobalMem : Addr ? Value
-SharedMem : WorkgroupId � Addr ? Value
-PrivateMem : WorkItemId � Addr ? Value
+GpuMemory = ⟨GlobalMem, SharedMem, PrivateMem⟩
+GlobalMem : Addr ⇀ Value
+SharedMem : WorkgroupId × Addr ⇀ Value
+PrivateMem : WorkItemId × Addr ⇀ Value
 
 **GpuPtr Type.** `GpuPtr<T, S>` represents a pointer to GPU memory in address space `S`.
 
-TypeGpuPtr(T, S) where S ? GpuAddressSpace
+TypeGpuPtr(T, S) where S ∈ GpuAddressSpace
 GpuPtrAddrSpace(TypeGpuPtr(T, S)) = S
 
-ComputeTopologyDispatch(bounds, opts) = topo ?
-  wg = if WorkgroupOpt(opts) ? ? then WorkgroupOpt(opts) else DEFAULT_GPU_WORKGROUP ?
-  volume = wg.0 � wg.1 � wg.2 ?
-  groups = CeilDiv(|bounds|, volume) ?
-  topo = ?
+ComputeTopologyDispatch(bounds, opts) = topo ⇔
+  wg = if WorkgroupOpt(opts) ≠ ⊥ then WorkgroupOpt(opts) else DEFAULT_GPU_WORKGROUP ∧
+  volume = wg.0 × wg.1 × wg.2 ∧
+  groups = CeilDiv(|bounds|, volume) ∧
+  topo = ⟨
     WorkgroupSize := wg,
     NumWorkgroups := (groups, 1, 1),
-    GlobalSize := (wg.0 � groups, wg.1, wg.2)
-  ?
+    GlobalSize := (wg.0 × groups, wg.1, wg.2)
+  ⟩
 
 **GPU Execution Topology.** Work-items are organized into a 3-dimensional hierarchy of workgroups.
 
@@ -21265,14 +21301,14 @@ GpuContext(Γ)    ⟨name, [], ret⟩ ∈ GpuIntrinsicTable
 Γ ⊢ Call(PathExpr([name]), []) ⇑ c
 
 **(GpuIntrinsic-Outside-Err)**
-�GpuContext(G)    name ? GpuIntrinsicNames \ {`gpu_barrier`, `gpu_memory_barrier`, `gpu_workgroup_barrier`}    c = Code(E-CON-0154)
+¬GpuContext(Γ)    name ∈ GpuIntrinsicNames \ {`gpu_barrier`, `gpu_memory_barrier`, `gpu_workgroup_barrier`}    c = Code(E-CON-0154)
 ──────────────────────────────────────────────────────────────────────
-G ? Call(PathExpr([name]), []) ? c
+Γ ⊢ Call(PathExpr([name]), []) ⇑ c
 
 **(GpuPtr-AddrSpace-Err)**
-G; R; L ? e : TypeGpuPtr(T, S_1)    ExpectedType(e) = TypeGpuPtr(T, S_2)    S_1 ? S_2    c = Code(GpuPtr-AddrSpace-Err)
+Γ; R; L ⊢ e : TypeGpuPtr(T, S_1)    ExpectedType(e) = TypeGpuPtr(T, S_2)    S_1 ≠ S_2    c = Code(GpuPtr-AddrSpace-Err)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G; R; L ? e ? c
+Γ; R; L ⊢ e ⇑ c
 
 `ExecutionDomain` is a dispatchable class used for heterogeneous domain handling.
 
@@ -21289,25 +21325,25 @@ Inline-domain semantics:
 3. No actual parallelism occurs.
 4. Capture and permission rules remain enforced.
 
-GpuMemVisible(addr, S, wg, wi) ?
-  (S = Global) ?
-  (S = Shared ? WorkgroupOf(wi) = wg) ?
+GpuMemVisible(addr, S, wg, wi) ⇔
+  (S = Global) ∨
+  (S = Shared ∧ WorkgroupOf(wi) = wg) ∨
   (S = Private ∧ wi = CurrentWorkItem)
 
 **(GpuPtr-Deref-Visible)**
 G[gpu_workitem] = wi    G[gpu_workgroup] = wg    GpuMemVisible(addr, S, wg, wi)
 ────────────────────────────────────────────────────────────────────────────────────────
-G ? Deref(GpuPtr(addr, S)) ? ok
+G ⊢ Deref(GpuPtr(addr, S)) ⇓ ok
 
 **(GpuPtr-Deref-Err)**
-G[gpu_workitem] = wi    G[gpu_workgroup] = wg    �GpuMemVisible(addr, S, wg, wi)    c = Code(E-CON-0150)
+G[gpu_workitem] = wi    G[gpu_workgroup] = wg    ¬GpuMemVisible(addr, S, wg, wi)    c = Code(E-CON-0150)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
-G ? Deref(GpuPtr(addr, S)) ? c
+G ⊢ Deref(GpuPtr(addr, S)) ⇑ c
 
-TopologyValid(topo) ?
-  topo.WorkgroupSize.0 � topo.WorkgroupSize.1 � topo.WorkgroupSize.2 = MAX_WORKGROUP_SIZE ?
-  topo.GlobalSize.0 = topo.WorkgroupSize.0 � topo.NumWorkgroups.0 ?
-  topo.GlobalSize.1 = topo.WorkgroupSize.1 � topo.NumWorkgroups.1 ?
+TopologyValid(topo) ⇔
+  topo.WorkgroupSize.0 × topo.WorkgroupSize.1 × topo.WorkgroupSize.2 = MAX_WORKGROUP_SIZE ∧
+  topo.GlobalSize.0 = topo.WorkgroupSize.0 × topo.NumWorkgroups.0 ∧
+  topo.GlobalSize.1 = topo.WorkgroupSize.1 × topo.NumWorkgroups.1 ∧
   topo.GlobalSize.2 = topo.WorkgroupSize.2 × topo.NumWorkgroups.2
 
 MAX_WORKGROUP_SIZE = 1024
@@ -21458,7 +21494,7 @@ C = ClosureExpr(params, ret_type_opt, body)    Context(C) ⊆ {SpawnBody, Dispat
 Γ ⊢ ParallelClosureCapture(C, x) ⇑ c
 
 **(Parallel-Escaping-Closure-Spawn-Err)**
-C = ClosureExpr(params, ret_type_opt, body)    IsEscaping(C)    SpawnExpr(_, _) ? body
+C = ClosureExpr(params, ret_type_opt, body)    IsEscaping(C)    SpawnExpr(_, _) ∈ body
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Reject
 
@@ -21659,17 +21695,17 @@ The fixed identifiers `min`, `max`, `and`, and `or` are tokenized as identifiers
 
 #### 20.5.3 AST Representation / Form
 
-ReduceOp = {`+`, `*`, `min`, `max`, `and`, `or`} ? Identifier
+ReduceOp = {`+`, `*`, `min`, `max`, `and`, `or`} ∪ Identifier
 
-DispatchOpt = {Reduce(op), Ordered, Chunk(expr), Workgroup(dim3)}    op ? ReduceOp
+DispatchOpt = {Reduce(op), Ordered, Chunk(expr), Workgroup(dim3)}    op ∈ ReduceOp
 
 DispatchOpts = [DispatchOpt]
 
-KeyClause = ?path, mode?
+KeyClause = ⟨path, mode⟩
 
-KeyClauseOpt ? {?} ? KeyClause
+KeyClauseOpt = {⊥} ∪ KeyClause
 
-Expr = � | DispatchExpr(pat, range, key_clause_opt, opts, body) | �
+Expr = … | DispatchExpr(pat, range, key_clause_opt, opts, body) | …
 
 ResolveKeyClauseJudg = {ResolveKeyClauseOpt}
 
@@ -21685,7 +21721,7 @@ DispatchOptExprs(Chunk(e) :: os) = [e] ++ DispatchOptExprs(os)
 
 DispatchOptExprs(Workgroup(e) :: os) = [e] ++ DispatchOptExprs(os)
 
-DispatchAccess = ?schema, mode?    mode ? {Read, Write}
+DispatchAccess = ⟨schema, mode⟩    mode ∈ {Read, Write}
 
 DispatchAccessSet = [DispatchAccess]
 
@@ -21694,24 +21730,24 @@ DispatchAccessSet = [DispatchAccess]
 An enclosing `parallel_context` is required. The enclosing-context diagnostics are owned by §§20.1.7 and 20.5.7.
 
 **(T-Dispatch)**
-G ? range : Range?I?    G, i : I ? B : T
+Γ ⊢ range : Range<I>    Γ, i : I ⊢ B : T
 ──────────────────────────────────────────────────────────
-G ? `dispatch` i `in range` {B} : ()
+Γ ⊢ `dispatch` i `in range` {B} : ()
 
 **(T-Dispatch-Reduce)**
-G ? range : Range?I?    G, i : I ? B : T    G ? ? : (T, T) ? T
+Γ ⊢ range : Range<I>    Γ, i : I ⊢ B : T    Γ ⊢ op : (T, T) -> T
 ─────────────────────────────────────────────────────────────────────────────────────
-G ? `dispatch` i `in range [reduce: ?]` {B} : T
+Γ ⊢ `dispatch` i `in range [reduce: op]` {B} : T
 
 **(T-GPU-Dispatch)**
-GpuContext(G)    G ? range : Range?I?    G, i : I ? B : T    topology = ComputeTopologyDispatch(RangeBounds(range), opts)    TopologyValid(topology)    ? x ? FreeVars(B). GpuCaptureOk(G, x, G[x].type)
+GpuContext(Γ)    Γ ⊢ range : Range<I>    Γ, i : I ⊢ B : T    topology = ComputeTopologyDispatch(RangeBounds(range), opts)    TopologyValid(topology)    ∀ x ∈ FreeVars(B). GpuCaptureOk(Γ, x, Γ[x].type)
 ────────────────────────────────────────────────────────────────────────────────────
-G ? DispatchExpr(i, range, ?, opts, B) : ()
+Γ ⊢ DispatchExpr(i, range, ⊥, opts, B) : ()
 
 **(T-GPU-Dispatch-Reduce)**
-GpuContext(G)    G ? range : Range?I?    G, i : I ? B : T    G ? ? : (T, T) ? T    GpuSafeType(T)    topology = ComputeTopologyDispatch(RangeBounds(range), opts)    TopologyValid(topology)    ? x ? FreeVars(B). GpuCaptureOk(G, x, G[x].type)
+GpuContext(Γ)    Γ ⊢ range : Range<I>    Γ, i : I ⊢ B : T    Γ ⊢ op : (T, T) -> T    GpuSafeType(T)    topology = ComputeTopologyDispatch(RangeBounds(range), opts)    TopologyValid(topology)    ∀ x ∈ FreeVars(B). GpuCaptureOk(Γ, x, Γ[x].type)
 ────────────────────────────────────────────────────────────────────────────────────
-G ? DispatchExpr(i, range, Reduce(?), opts, B) : T
+Γ ⊢ DispatchExpr(i, range, Reduce(op), opts, B) : T
 
 DispatchPatternVars(pat) = PatNames(pat)
 
@@ -28685,7 +28721,7 @@ pad_mid = payload_off - disc_size
 pad_tail = size - (payload_off + payload_size)
 
 **(LLVMTy-Prim)**
-T = TypePrim(name)    LLVMPrim(name) = Ï"
+T = TypePrim(name)    LLVMPrim(name) = τ
 ────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
@@ -28700,17 +28736,17 @@ T = TypePrim(name)    LLVMPrim(name) = Ï"
 Γ ⊢ LLVMTy(TypeRefine(T, P)) ⇓ τ
 
 **(LLVMTy-Ptr)**
-T = TypePtr(U, s)    LLVMPtrTy(T) = Ï"
+T = TypePtr(U, s)    LLVMPtrTy(T) = τ
 ──────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
 **(LLVMTy-RawPtr)**
-T = TypeRawPtr(q, U)    LLVMPtrTy(T) = Ï"
+T = TypeRawPtr(q, U)    LLVMPtrTy(T) = τ
 ──────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
 **(LLVMTy-Func)**
-T = TypeFunc(params, R)    LLVMPtrTy(T) = Ï"
+T = TypeFunc(params, R)    LLVMPtrTy(T) = τ
 ──────────────────────────────────────────────
 Γ ⊢ LLVMTy(T) ⇓ τ
 
@@ -28885,14 +28921,14 @@ ByteInt(bytes) = i{8|bytes|} LEValue(bytes)
 AllZero(bytes) ⇔ ∀ b ∈ bytes. b = 0x00
 ByteArray(bytes) = LLVMArrayConst(|bytes|, i8, bytes)
 ConstBytes(τ, bytes) = c ⇔ ∃ T. Γ ⊢ LLVMTy(T) ⇓ τ ∧ |bytes| = sizeof(T) ∧ c = ConstBytesCase(τ, bytes)
-ConstBytesCase(Ï", bytes) =
+ConstBytesCase(τ, bytes) =
  `zeroinitializer`    if |bytes| = 0
- ByteArray(bytes)     if Ï" = LLVMArray(|bytes|, i8)
- ByteInt(bytes)       if Ï" = i{8|bytes|}
+ ByteArray(bytes)     if τ = LLVMArray(|bytes|, i8)
+ ByteInt(bytes)       if τ = i{8|bytes|}
  `bitcast`(ByteInt(bytes) to τ)    if τ ∈ {`half`, `float`, `double`}
  `null`               if τ = LLVMPtrTy(U) ∧ AllZero(bytes)
  ⊥                    otherwise
-LLVMGlobalZero(sym, Ï", align) = LLVMGlobalConst(sym, Ï", `zeroinitializer`, align)
+LLVMGlobalZero(sym, τ, align) = LLVMGlobalConst(sym, τ, `zeroinitializer`, align)
 
 StaticType(sym) = TypeArray(TypePrim("u8"), Literal(IntLiteral(|bytes|)))    if sym = Mangle(LiteralData(kind, bytes))
 StaticType(sym) = T ⇔ StaticSymPath(path, name) = sym ∧ StaticType(path, name) = T
@@ -29248,7 +29284,7 @@ BindState(Γ) = Γ.bind_state
 ResolveEntry_π([], tag) = ⊥
 ResolveEntry_π(⟨tag, target⟩ :: es, t) =
  ⟨tag, target⟩             if t = tag
- ResolveEntry_Ï€(es, t)      otherwise
+  ResolveEntry_π(es, t)      otherwise
 ResolveTarget_π(⟨Σ_π, RS⟩, tag) = target ⇔ ResolveEntry_π(RS, tag) = ⟨tag, target⟩
 BindProv_Γ(x) = π ⇔ Γ has provenance environment Ω ∧ Γ; Ω ⊢ Identifier(x) ⇓ π
 BindRegionTarget(x) = r ⇔ BindProv_Γ(x) = π_Region(tag) ∧ ResolveTarget_π(Ω, tag) = r
@@ -30212,6 +30248,3 @@ Informative. Appendix D cross-indexes layout, ABI, and runtime ownership after r
 | Runtime symbol surface                                           | `§24.6`                                                            | `BuiltinModalSym`, `BuiltinSym`, `RuntimeSig`, `RuntimeDecls`                |
 | Calling convention and ABI lowering                              | `§24.2.3` to `§24.2.5`                                             | `ABITy`, `ABIParam`, `ABIRet`, `ABICall`                                     |
 | Backend requirements and LLVM mapping                            | `§24.7`                                                            | `LLVMPtrAttrs`, `LLVMArgAttrs`, `LLVMUBSafe`, `LLVMTy`                       |
-
-
-

@@ -423,7 +423,7 @@ std::vector<std::string> CollectVTableRefs(const IRDecls& decls,
   for (const auto& symbol : CollectVTableRefs(decls)) {
     refs.insert(symbol);
   }
-  for (const auto& [symbol, _info] : ctx.required_vtables) {
+  for (const auto& [symbol, _info] : ctx.values.required_vtables) {
     refs.insert(symbol);
   }
   return {refs.begin(), refs.end()};
@@ -433,8 +433,8 @@ std::vector<std::string> CollectVTableRefs(const LowerCtx& ctx) {
   SPEC_RULE("VTableRefs");
 
   std::vector<std::string> vtable_refs;
-  vtable_refs.reserve(ctx.required_vtables.size());
-  for (const auto& [symbol, _info] : ctx.required_vtables) {
+  vtable_refs.reserve(ctx.values.required_vtables.size());
+  for (const auto& [symbol, _info] : ctx.values.required_vtables) {
     vtable_refs.push_back(symbol);
   }
   std::sort(vtable_refs.begin(), vtable_refs.end());
