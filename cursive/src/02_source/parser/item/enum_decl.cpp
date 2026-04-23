@@ -457,6 +457,8 @@ ParseItemResult ParseEnumDecl(Parser parser, Visibility vis,
 
   RecordGenericPredicateOwnerClause("EnumDecl", decl.name, decl.generic_params,
                                     decl.predicate_clause_opt, decl.span);
+  RecordNominalRelationFormOnOwnerDecl("EnumDecl", decl.name, "implements",
+                                       decl.implements, decl.span);
 
   return {parser, decl};
 }

@@ -419,6 +419,43 @@ namespace cursive::ast
             "GenericParamsAndPredicateClausesOnOwnerDecl", span, payload);
     }
 
+    inline void RecordNominalRelationFormOnOwnerDecl(
+        std::string_view owner_kind,
+        const Identifier& name,
+        std::string_view relation_kind,
+        const std::vector<ClassPath>& relations,
+        const core::Span& span) {
+        if (!core::Conformance::Enabled()) {
+            return;
+        }
+
+        std::string payload;
+        payload.reserve(160);
+        payload += "owner=";
+        payload.append(owner_kind.data(), owner_kind.size());
+        payload += ";name=";
+        payload += name;
+        payload += ";relation=";
+        payload.append(relation_kind.data(), relation_kind.size());
+        payload += ";count=";
+        payload += std::to_string(relations.size());
+        payload += ";paths=";
+        for (std::size_t i = 0; i < relations.size(); ++i) {
+            if (i > 0) {
+                payload += ",";
+            }
+            for (std::size_t j = 0; j < relations[i].size(); ++j) {
+                if (j > 0) {
+                    payload += "::";
+                }
+                payload += relations[i][j];
+            }
+        }
+
+        core::Conformance::Record(
+            "NominalRelationFormOnOwnerDecl", span, payload);
+    }
+
     // ===========================================================================
     // Contract System (C0X Extension)
     // ===========================================================================

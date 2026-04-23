@@ -577,6 +577,8 @@ ParseItemResult ParseClassDecl(Parser parser, Visibility vis,
   RecordGenericPredicateOwnerClause("ClassDecl", decl.name,
                                     decl.generic_params,
                                     decl.predicate_clause_opt, decl.span);
+  RecordNominalRelationFormOnOwnerDecl("ClassDecl", decl.name, "supers",
+                                       decl.supers, decl.span);
 
   return {parser, decl};
 }

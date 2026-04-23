@@ -615,6 +615,9 @@ ParseElemResult<std::vector<RecordMember>> ParseRecordMemberList(
     RecordGenericPredicateOwnerClause("RecordDecl", decl.name,
                                       decl.generic_params,
                                       decl.predicate_clause_opt, decl.span);
+    RecordNominalRelationFormOnOwnerDecl("RecordDecl", decl.name,
+                                         "implements", decl.implements,
+                                         decl.span);
 
     return {parser, decl};
   }

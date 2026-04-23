@@ -473,6 +473,8 @@ ParseItemResult ParseModalDecl(Parser parser, Visibility vis,
   RecordGenericPredicateOwnerClause("ModalDecl", decl.name,
                                     decl.generic_params,
                                     decl.predicate_clause_opt, decl.span);
+  RecordNominalRelationFormOnOwnerDecl("ModalDecl", decl.name, "implements",
+                                       decl.implements, decl.span);
 
   return {parser, decl};
 }
