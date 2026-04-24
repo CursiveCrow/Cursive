@@ -18,12 +18,12 @@
 //   - PrimAlign function (lines 24-39)
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (Layout struct, constants)
+//   - cursive/include/04_analysis/layout/layout.h (Layout struct, constants)
 //   - cursive/include/00_core/assert_spec.h (SPEC_RULE macro)
 //
 // REFACTORING NOTES:
-//   1. kPtrSize = 8 (64-bit pointer size)
-//   2. kPtrAlign = 8 (64-bit pointer alignment)
+//   1. Pointer size and alignment come from the selected target profile.
+//   2. kPtrSize/kPtrAlign remain compatibility defaults for no-context callers.
 //   3. All integer types: i8, i16, i32, i64, i128, u8, u16, u32, u64, u128
 //   4. Float types: f16, f32, f64
 //   5. Special types: bool (1 byte), char (4 bytes for UTF-32)
@@ -43,13 +43,44 @@
 //   Same as sizes except: () = 1, ! = 1
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include "00_core/assert_spec.h"
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 
-std::optional<std::uint64_t> PrimSize(std::string_view name) {
+LayoutEnv LayoutEnvOf(cursive::project::TargetProfile target_profile) {
+  LayoutEnv env;
+  env.target_profile = target_profile;
+  env.ptr_size = static_cast<std::uint64_t>(
+      cursive::project::PtrSizeBytes(target_profile));
+  env.ptr_align = env.ptr_size;
+  return env;
+}
+
+LayoutEnv LayoutEnvOf(const cursive::analysis::ScopeContext& ctx) {
+  return LayoutEnvOf(
+      ctx.target_profile.value_or(cursive::project::TargetProfile::X86_64SysV));
+}
+
+std::uint64_t PtrSize(const LayoutEnv& env) {
+  return env.ptr_size;
+}
+
+std::uint64_t PtrAlign(const LayoutEnv& env) {
+  return env.ptr_align;
+}
+
+std::uint64_t PtrSize(const cursive::analysis::ScopeContext& ctx) {
+  return PtrSize(LayoutEnvOf(ctx));
+}
+
+std::uint64_t PtrAlign(const cursive::analysis::ScopeContext& ctx) {
+  return PtrAlign(LayoutEnvOf(ctx));
+}
+
+std::optional<std::uint64_t> PrimSize(const LayoutEnv& env,
+                                      std::string_view name) {
   SPEC_RULE("Size-Prim");
   if (name == "i8" || name == "u8") return 1;
   if (name == "i16" || name == "u16") return 2;
@@ -61,12 +92,13 @@ std::optional<std::uint64_t> PrimSize(std::string_view name) {
   if (name == "f64") return 8;
   if (name == "bool") return 1;
   if (name == "char") return 4;
-  if (name == "usize" || name == "isize") return kPtrSize;
+  if (name == "usize" || name == "isize") return PtrSize(env);
   if (name == "()" || name == "!") return 0;
   return std::nullopt;
 }
 
-std::optional<std::uint64_t> PrimAlign(std::string_view name) {
+std::optional<std::uint64_t> PrimAlign(const LayoutEnv& env,
+                                       std::string_view name) {
   SPEC_RULE("Align-Prim");
   if (name == "i8" || name == "u8") return 1;
   if (name == "i16" || name == "u16") return 2;
@@ -78,9 +110,31 @@ std::optional<std::uint64_t> PrimAlign(std::string_view name) {
   if (name == "f64") return 8;
   if (name == "bool") return 1;
   if (name == "char") return 4;
-  if (name == "usize" || name == "isize") return kPtrAlign;
+  if (name == "usize" || name == "isize") return PtrAlign(env);
   if (name == "()" || name == "!") return 1;
   return std::nullopt;
 }
 
-}  // namespace cursive::codegen
+std::optional<std::uint64_t> PrimSize(
+    const cursive::analysis::ScopeContext& ctx,
+    std::string_view name) {
+  return PrimSize(LayoutEnvOf(ctx), name);
+}
+
+std::optional<std::uint64_t> PrimAlign(
+    const cursive::analysis::ScopeContext& ctx,
+    std::string_view name) {
+  return PrimAlign(LayoutEnvOf(ctx), name);
+}
+
+std::optional<std::uint64_t> PrimSize(std::string_view name) {
+  return PrimSize(LayoutEnvOf(cursive::project::TargetProfile::X86_64SysV),
+                  name);
+}
+
+std::optional<std::uint64_t> PrimAlign(std::string_view name) {
+  return PrimAlign(LayoutEnvOf(cursive::project::TargetProfile::X86_64SysV),
+                   name);
+}
+
+}  // namespace cursive::analysis::layout

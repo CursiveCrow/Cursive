@@ -28,7 +28,7 @@
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/ir/ir_model.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_pat.h"
@@ -114,15 +114,19 @@ std::string NextDispatchSynthSymbol(LowerCtx& ctx, std::string_view role) {
          std::to_string(ctx.synth_proc_counter++);
 }
 
-// Create usize immediate value
-IRValue USizeImmediate(std::uint64_t value) {
+// Create usize immediate value.
+IRValue USizeImmediate(std::uint64_t value, const LowerCtx& ctx) {
+  const auto env = ::cursive::analysis::layout::LayoutEnvOf(
+      ctx.target_profile.value_or(project::TargetProfile::X86_64SysV));
+  const std::uint64_t ptr_size = ::cursive::analysis::layout::PtrSize(env);
   IRValue v;
   v.kind = IRValue::Kind::Immediate;
   v.name = std::to_string(value);
-  // Little-endian 8-byte representation
-  v.bytes.resize(kPtrSize);
-  for (std::size_t i = 0; i < kPtrSize; ++i) {
-    v.bytes[i] = static_cast<std::uint8_t>((value >> (i * 8)) & 0xFF);
+  v.bytes.resize(static_cast<std::size_t>(ptr_size));
+  for (std::uint64_t i = 0; i < ptr_size; ++i) {
+    v.bytes[i] = i < sizeof(value)
+                     ? static_cast<std::uint8_t>((value >> (i * 8)) & 0xFF)
+                     : 0;
   }
   return v;
 }
@@ -131,7 +135,7 @@ IRValue USizeImmediate(std::uint64_t value) {
 IRValue MakeNullPtr(const analysis::TypeRef& ptr_type,
                     LowerCtx& ctx,
                     std::vector<IRPtr>& parts) {
-  IRValue zero = USizeImmediate(0);
+  IRValue zero = USizeImmediate(0, ctx);
   IRValue null_ptr = ctx.FreshTempValue("null_ptr");
   IRTransmute trans;
   trans.from = analysis::MakeTypePrim("usize");
@@ -666,24 +670,24 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
   std::uint64_t elem_size_val = 0;
   if (ctx.sigma) {
-    if (const auto size = codegen::SizeOf(scope, elem_type)) {
+    if (const auto size = ::cursive::analysis::layout::SizeOf(scope, elem_type)) {
       elem_size_val = *size;
     } else {
       ctx.ReportCodegenFailure();
     }
   }
-  IRValue elem_size = USizeImmediate(elem_size_val);
+  IRValue elem_size = USizeImmediate(elem_size_val, ctx);
 
   // Compute result size for reduce
   std::uint64_t result_size_val = 0;
   if (has_reduce && ctx.sigma) {
-    if (const auto size = codegen::SizeOf(scope, body_type)) {
+    if (const auto size = ::cursive::analysis::layout::SizeOf(scope, body_type)) {
       result_size_val = *size;
     } else {
       ctx.ReportCodegenFailure();
     }
   }
-  IRValue result_size = USizeImmediate(result_size_val);
+  IRValue result_size = USizeImmediate(result_size_val, ctx);
 
   // Create result pointer
   IRValue result_ptr;

@@ -466,7 +466,7 @@ std::vector<DropChild> ComputeDropChildren(
       }
 
       // Lower field type
-      auto lowered = LowerTypeForLayout(scope, field->type);
+      auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
       if (!lowered.has_value()) {
         continue;
       }

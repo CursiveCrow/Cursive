@@ -27,7 +27,7 @@
 //   - cursive/src/05_codegen/dyn_dispatch.h (EmitVTable)
 //   - cursive/src/05_codegen/globals.h (EmitGlobal, EmitModuleInitFn, EmitModuleDeinitFn)
 //   - cursive/src/05_codegen/mangle.h (MangleProc, MangleMethod, MangleStateMethod, etc.)
-//   - cursive/src/05_codegen/layout/layout.h (LowerTypeForLayout)
+//   - cursive/src/04_analysis/layout/layout.h (LowerTypeForLayout)
 //   - cursive/src/04_analysis/types/types.h (TypeRef, MakeTypePrim, etc.)
 //   - cursive/src/04_analysis/composite/classes.h (TypeImplementsClass)
 //   - cursive/src/04_analysis/composite/record_methods.h (RecvTypeForReceiver, RecvModeOf)
@@ -75,7 +75,7 @@
 #include "05_codegen/dyn_dispatch/vtable_emit.h"
 #include "05_codegen/globals/globals.h"
 #include "05_codegen/globals/literal_emit.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/lower_proc.h"
 #include "05_codegen/lower/lower_stmt.h"
 #include "05_codegen/symbols/linkage.h"
@@ -119,6 +119,7 @@ const analysis::ScopeContext& BuildScope(const ast::ModulePath& module_path,
     LowerCtx* ctx = nullptr;
     const analysis::Sigma* sigma = nullptr;
     ast::ModulePath module_path;
+    std::optional<project::TargetProfile> target_profile;
     analysis::ExprTypeMap* expr_types = nullptr;
     analysis::DynamicRefineExprMap* dynamic_refine_checks = nullptr;
     analysis::ScopeContext scope;
@@ -130,17 +131,21 @@ const analysis::ScopeContext& BuildScope(const ast::ModulePath& module_path,
   }
 
   if (cache.ctx != &ctx || cache.sigma != ctx.sigma ||
-      cache.module_path != module_path || cache.expr_types != ctx.expr_types ||
+      cache.module_path != module_path ||
+      cache.target_profile != ctx.target_profile ||
+      cache.expr_types != ctx.expr_types ||
       cache.dynamic_refine_checks != ctx.dynamic_refine_checks) {
     cache.ctx = &ctx;
     cache.sigma = ctx.sigma;
     cache.module_path = module_path;
+    cache.target_profile = ctx.target_profile;
     cache.expr_types = ctx.expr_types;
     cache.dynamic_refine_checks = ctx.dynamic_refine_checks;
     cache.scope = analysis::ScopeContext{};
     cache.scope.sigma = *ctx.sigma;
     cache.scope.sigma_source = ctx.sigma;
     cache.scope.current_module = module_path;
+    cache.scope.target_profile = ctx.target_profile;
     cache.scope.expr_types = ctx.expr_types;
     cache.scope.dynamic_refine_checks = ctx.dynamic_refine_checks;
   }
@@ -298,7 +303,7 @@ analysis::LowerTypeResult LowerTypeForMethod(const analysis::ScopeContext& scope
   if (!type) {
     return {false, std::nullopt, nullptr};
   }
-  if (auto lowered = LowerTypeForLayout(scope, type)) {
+  if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, type)) {
     return {true, std::nullopt, *lowered};
   }
   return {false, std::nullopt, nullptr};

@@ -16,7 +16,7 @@
 #include "04_analysis/memory/regions.h"
 #include "04_analysis/typing/type_expr.h"
 #include "05_codegen/intrinsics/builtins.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/lower/expr/addr_of.h"
 #include "05_codegen/lower/expr/all_expr.h"
@@ -150,12 +150,12 @@ LowerResult LowerExprImpl(const ast::Expr& expr, LowerCtx& ctx) {
             return LowerResult{EmptyIR(), IRValue{}};
           }
           const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-          auto lowered = LowerTypeForLayout(scope, node.type);
+          auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, node.type);
           if (!lowered) {
             ctx.ReportCodegenFailure();
             return LowerResult{EmptyIR(), IRValue{}};
           }
-          auto layout = LayoutOf(scope, *lowered);
+          auto layout = ::cursive::analysis::layout::LayoutOf(scope, *lowered);
           if (!layout) {
             ctx.ReportCodegenFailure();
             return LowerResult{EmptyIR(), IRValue{}};
@@ -172,12 +172,12 @@ LowerResult LowerExprImpl(const ast::Expr& expr, LowerCtx& ctx) {
             return LowerResult{EmptyIR(), IRValue{}};
           }
           const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-          auto lowered = LowerTypeForLayout(scope, node.type);
+          auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, node.type);
           if (!lowered) {
             ctx.ReportCodegenFailure();
             return LowerResult{EmptyIR(), IRValue{}};
           }
-          auto layout = LayoutOf(scope, *lowered);
+          auto layout = ::cursive::analysis::layout::LayoutOf(scope, *lowered);
           if (!layout) {
             ctx.ReportCodegenFailure();
             return LowerResult{EmptyIR(), IRValue{}};

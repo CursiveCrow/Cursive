@@ -24,7 +24,6 @@
 
 #include <cstddef>
 #include <array>
-#include <cstdio>
 #include <functional>
 #include <optional>
 #include <set>
@@ -809,8 +808,6 @@ static std::optional<ast::QuoteKind> ResolveQuoteKindStatic(
   for (ast::QuoteKind kind :
        {ast::QuoteKind::Expr, ast::QuoteKind::Stmt, ast::QuoteKind::Item}) {
     const bool parses = QuoteParsesAs(quote, kind);
-    std::fprintf(stderr, "[quote-kind] kind=%d parses=%d\n",
-                 static_cast<int>(kind), parses ? 1 : 0);
     if (!parses) {
       continue;
     }

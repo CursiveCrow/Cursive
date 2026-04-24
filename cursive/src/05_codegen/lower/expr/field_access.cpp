@@ -14,7 +14,7 @@
 //
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/ir/ir_model.h (DerivedValueInfo::Kind::Field)
-//   - cursive/include/05_codegen/layout/layout.h (field offset calculation)
+//   - cursive/include/04_analysis/layout/layout.h (field offset calculation)
 //   - cursive/include/05_codegen/cleanup/cleanup.h (EmitDrop, DropOnAssignRoot)
 //
 // =============================================================================

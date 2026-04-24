@@ -17,7 +17,7 @@
 //
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/globals/binding_storage.h
-//   - cursive/include/05_codegen/layout/layout.h (SizeOf, AlignOf)
+//   - cursive/include/04_analysis/layout/layout.h (SizeOf, AlignOf)
 //   - cursive/include/04_analysis/types/types.h (TypeRef)
 //
 // REFACTORING NOTES:

@@ -2296,6 +2296,7 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
 
             codegen::LowerCtx lower_ctx;
             lower_ctx.sigma = &ctx.sigma;
+            lower_ctx.target_profile = target_profile;
             lower_ctx.executable_project =
                 sema_project.assembly.kind == "executable";
             lower_ctx.shared_library_project =

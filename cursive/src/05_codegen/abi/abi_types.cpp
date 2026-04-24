@@ -27,18 +27,24 @@
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/spec_trace.h"
 
 namespace cursive::codegen {
 
 // Forward declarations for type-specific handlers.
-std::optional<ABIType> ABITyPrim(const analysis::TypePrim& prim);
-std::optional<ABIType> ABITyPtr(const analysis::TypePtr& ptr);
-std::optional<ABIType> ABITyRawPtr(const analysis::TypeRawPtr& rawptr);
-std::optional<ABIType> ABITyFunc(const analysis::TypeFunc& func);
-std::optional<ABIType> ABITySlice(const analysis::TypeSlice& slice);
-std::optional<ABIType> ABITyDynamic(const analysis::TypeDynamic& dyn);
+std::optional<ABIType> ABITyPrim(const analysis::ScopeContext& ctx,
+                                 const analysis::TypePrim& prim);
+std::optional<ABIType> ABITyPtr(const analysis::ScopeContext& ctx,
+                                const analysis::TypePtr& ptr);
+std::optional<ABIType> ABITyRawPtr(const analysis::ScopeContext& ctx,
+                                   const analysis::TypeRawPtr& rawptr);
+std::optional<ABIType> ABITyFunc(const analysis::ScopeContext& ctx,
+                                 const analysis::TypeFunc& func);
+std::optional<ABIType> ABITySlice(const analysis::ScopeContext& ctx,
+                                  const analysis::TypeSlice& slice);
+std::optional<ABIType> ABITyDynamic(const analysis::ScopeContext& ctx,
+                                    const analysis::TypeDynamic& dyn);
 std::optional<ABIType> ABITyRange(const analysis::ScopeContext& ctx,
                                   const analysis::TypeRef& type);
 std::optional<ABIType> ABITyTuple(const analysis::ScopeContext& ctx,
@@ -72,36 +78,37 @@ std::optional<ABIType> ABITy(const analysis::ScopeContext& ctx,
 
   // (ABI-Prim)
   if (const auto* prim = std::get_if<analysis::TypePrim>(&type->node)) {
-    return ABITyPrim(*prim);
+    return ABITyPrim(ctx, *prim);
   }
 
   // (ABI-Ptr)
   if (const auto* ptr = std::get_if<analysis::TypePtr>(&type->node)) {
-    return ABITyPtr(*ptr);
+    return ABITyPtr(ctx, *ptr);
   }
 
   // (ABI-RawPtr)
   if (const auto* rawptr = std::get_if<analysis::TypeRawPtr>(&type->node)) {
-    return ABITyRawPtr(*rawptr);
+    return ABITyRawPtr(ctx, *rawptr);
   }
 
   // (ABI-Func)
   if (const auto* func = std::get_if<analysis::TypeFunc>(&type->node)) {
-    return ABITyFunc(*func);
+    return ABITyFunc(ctx, *func);
   }
   if (std::holds_alternative<analysis::TypeClosure>(type->node)) {
     SPEC_RULE("ABI-Func");
-    return ABIType{2 * kPtrSize, kPtrAlign};
+    return ABIType{2 * ::cursive::analysis::layout::PtrSize(ctx),
+                   ::cursive::analysis::layout::PtrAlign(ctx)};
   }
 
   // (ABI-Slice)
   if (const auto* slice = std::get_if<analysis::TypeSlice>(&type->node)) {
-    return ABITySlice(*slice);
+    return ABITySlice(ctx, *slice);
   }
 
   // (ABI-Dynamic)
   if (const auto* dyn = std::get_if<analysis::TypeDynamic>(&type->node)) {
-    return ABITyDynamic(*dyn);
+    return ABITyDynamic(ctx, *dyn);
   }
 
   // (ABI-Range)

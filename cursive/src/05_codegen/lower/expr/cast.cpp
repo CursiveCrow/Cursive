@@ -30,7 +30,7 @@
 #include "00_core/assert_spec.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/dyn_dispatch/dyn_dispatch.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/type_predicates.h"
 
@@ -160,7 +160,7 @@ LowerResult LowerCastExpr(const ast::CastExpr& expr, LowerCtx& ctx) {
   analysis::TypeRef target_type;
   if (expr.type && ctx.sigma) {
     const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-    if (auto lowered = LowerTypeForLayout(scope, expr.type)) {
+    if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, expr.type)) {
       target_type = *lowered;
     }
   }

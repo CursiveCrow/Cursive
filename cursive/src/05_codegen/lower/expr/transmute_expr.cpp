@@ -13,7 +13,7 @@
 
 #include "05_codegen/lower/expr/transmute_expr.h"
 #include "05_codegen/checks/checks.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/assert_spec.h"
 
 namespace cursive::codegen {
@@ -45,14 +45,14 @@ LowerResult LowerTransmuteExpr(const ast::Expr& expr,
 
         // Lower the target type from AST
         if (transmute.to) {
-            if (auto lowered = LowerTypeForLayout(scope, transmute.to)) {
+            if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, transmute.to)) {
                 to_type = *lowered;
             }
         }
 
         // Lower the source type from AST (if explicitly provided)
         if (transmute.from) {
-            if (auto lowered = LowerTypeForLayout(scope, transmute.from)) {
+            if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, transmute.from)) {
                 from_type = *lowered;
             }
         }

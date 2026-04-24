@@ -25,7 +25,7 @@
 //   - UnionLayoutOf function (lines 100-191)
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (UnionLayout struct)
+//   - cursive/include/04_analysis/layout/layout.h (UnionLayout struct)
 //   - cursive/include/04_analysis/types/type_equiv.h (SortUnionMembers)
 //   - cursive/include/04_analysis/types/types.h (TypeRef, TypePerm, TypePtr)
 //   - LowerTypeForLayout for type alias resolution
@@ -49,7 +49,7 @@
 //   - No discriminant needed
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include <algorithm>
 
@@ -59,7 +59,7 @@
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/types.h"
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 namespace {
 
 std::uint64_t AlignUp(std::uint64_t value, std::uint64_t align) {
@@ -234,4 +234,4 @@ std::optional<UnionLayout> UnionLayoutOf(
   return out;
 }
 
-}  // namespace cursive::codegen
+}  // namespace cursive::analysis::layout

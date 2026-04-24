@@ -18,7 +18,7 @@
 //   - Union/Modal encoding helpers
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (Layout structs)
+//   - cursive/include/04_analysis/layout/layout.h (Layout structs)
 //   - cursive/include/04_analysis/types/types.h (TypeRef, value types)
 //   - IEEE 754 bit manipulation for floats
 //   - Little-endian byte encoding
@@ -43,7 +43,7 @@
 //   - ValueBits(type, value) -> bytes
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include <algorithm>
 #include <array>
@@ -61,7 +61,7 @@
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_equiv.h"
 
-namespace cursive::codegen
+namespace cursive::analysis::layout
 {
 
   bool ValidValue(const cursive::analysis::ScopeContext &ctx,
@@ -1356,6 +1356,7 @@ namespace cursive::codegen
     {
       return false;
     }
+    const std::uint64_t ptr_size = PtrSize(ctx);
     if (const auto *prim = std::get_if<cursive::analysis::TypePrim>(&type->node))
     {
       if (prim->name == "bool")
@@ -1389,7 +1390,7 @@ namespace cursive::codegen
         return false;
       }
       SPEC_RULE("Valid-Scalar");
-      const auto size = PrimSize(prim->name);
+      const auto size = PrimSize(ctx, prim->name);
       return size.has_value() && bits.size() == *size;
     }
     if (const auto *perm = std::get_if<cursive::analysis::TypePerm>(&type->node))
@@ -1398,20 +1399,20 @@ namespace cursive::codegen
     }
     if (const auto *ptr = std::get_if<cursive::analysis::TypePtr>(&type->node))
     {
-      const auto zero = LEBytesU64(0, kPtrSize);
+      const auto zero = LEBytesU64(0, ptr_size);
       if (ptr->state == cursive::analysis::PtrState::Valid)
       {
-        return bits.size() == kPtrSize && bits != zero;
+        return bits.size() == ptr_size && bits != zero;
       }
       if (ptr->state == cursive::analysis::PtrState::Null)
       {
         return bits == zero;
       }
-      return bits.size() == kPtrSize;
+      return bits.size() == ptr_size;
     }
     if (std::holds_alternative<cursive::analysis::TypeRawPtr>(type->node))
     {
-      return bits.size() == kPtrSize;
+      return bits.size() == ptr_size;
     }
     if (const auto *tuple = std::get_if<cursive::analysis::TypeTuple>(&type->node))
     {
@@ -1451,7 +1452,7 @@ namespace cursive::codegen
     }
     if (std::holds_alternative<cursive::analysis::TypeSlice>(type->node))
     {
-      return bits.size() == 2 * kPtrSize;
+      return bits.size() == 2 * ptr_size;
     }
     if (cursive::analysis::IsRangeType(type))
     {
@@ -1470,7 +1471,7 @@ namespace cursive::codegen
     }
     if (std::holds_alternative<cursive::analysis::TypeDynamic>(type->node))
     {
-      const auto dyn = DynLayoutOf();
+      const auto dyn = DynLayoutOf(ctx);
       return bits.size() == dyn.layout.size;
     }
     if (std::holds_alternative<cursive::analysis::TypeString>(type->node))
@@ -1631,6 +1632,7 @@ namespace cursive::codegen
     {
       return std::nullopt;
     }
+    const std::uint64_t ptr_size = PtrSize(ctx);
 
     if (const auto *prim = std::get_if<cursive::analysis::TypePrim>(&type->node))
     {
@@ -1663,7 +1665,7 @@ namespace cursive::codegen
       {
         if (v->type == prim->name)
         {
-          const auto size = PrimSize(prim->name);
+          const auto size = PrimSize(ctx, prim->name);
           if (!size.has_value())
           {
             return std::nullopt;
@@ -1675,7 +1677,7 @@ namespace cursive::codegen
       {
         if (v->type == prim->name)
         {
-          const auto size = PrimSize(prim->name);
+          const auto size = PrimSize(ctx, prim->name);
           if (!size.has_value())
           {
             return std::nullopt;
@@ -1707,7 +1709,7 @@ namespace cursive::codegen
         {
           return std::nullopt;
         }
-        return LEBytesU64(v->addr, kPtrSize);
+        return LEBytesU64(v->addr, ptr_size);
       }
       return std::nullopt;
     }
@@ -1720,7 +1722,7 @@ namespace cursive::codegen
         {
           return std::nullopt;
         }
-        return LEBytesU64(v->addr, kPtrSize);
+        return LEBytesU64(v->addr, ptr_size);
       }
       return std::nullopt;
     }
@@ -1789,8 +1791,8 @@ namespace cursive::codegen
         return std::nullopt;
       }
       std::vector<std::uint8_t> bits;
-      const auto ptr_bits = LEBytesU64(v->ptr.addr, kPtrSize);
-      const auto len_bits = LEBytesU64(v->length, kPtrSize);
+      const auto ptr_bits = LEBytesU64(v->ptr.addr, ptr_size);
+      const auto len_bits = LEBytesU64(v->length, ptr_size);
       bits.insert(bits.end(), ptr_bits.begin(), ptr_bits.end());
       bits.insert(bits.end(), len_bits.begin(), len_bits.end());
       return bits;
@@ -1888,11 +1890,11 @@ namespace cursive::codegen
       {
         return std::nullopt;
       }
-      const auto dyn = DynLayoutOf();
+      const auto dyn = DynLayoutOf(ctx);
       std::vector<std::vector<std::uint8_t>> bits;
-      bits.push_back(LEBytesU64(v->data, kPtrSize));
-      bits.push_back(LEBytesU64(v->vtable, kPtrSize));
-      std::vector<std::uint64_t> offsets = {0, kPtrSize};
+      bits.push_back(LEBytesU64(v->data, ptr_size));
+      bits.push_back(LEBytesU64(v->vtable, ptr_size));
+      std::vector<std::uint64_t> offsets = {0, ptr_size};
       return StructBits(bits, offsets, dyn.layout.size);
     }
 
@@ -1927,4 +1929,4 @@ namespace cursive::codegen
     return std::nullopt;
   }
 
-} // namespace cursive::codegen
+} // namespace cursive::analysis::layout

@@ -10,7 +10,7 @@
 //
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/ir/ir_model.h (IRRecordLiteral, IRFieldInit)
-//   - cursive/include/05_codegen/layout/layout.h (RecordLayout)
+//   - cursive/include/04_analysis/layout/layout.h (::cursive::analysis::layout::RecordLayout)
 //
 // =============================================================================
 

@@ -53,7 +53,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
+#include "01_project/target_profile.h"
 #include "05_codegen/lower/lower_proc.h"
 #include "05_codegen/symbols/mangle.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
@@ -540,19 +541,39 @@ std::vector<IRDecl> UniqueLiterals(
 // Section 6.12.14 String/Bytes View Construction
 // ============================================================================
 
-StringViewLayout GetStringViewLayout() {
+StringViewLayout GetStringViewLayout(
+    const ::cursive::analysis::layout::LayoutEnv& env) {
   // string@View = { ptr: *imm u8, len: usize }
+  const std::uint64_t ptr_size = ::cursive::analysis::layout::PtrSize(env);
   StringViewLayout layout;
   layout.ptr_offset = 0;
-  layout.len_offset = kPtrSize;  // After pointer
-  layout.total_size = kPtrSize * 2;  // ptr + len
+  layout.len_offset = ptr_size;
+  layout.total_size = ptr_size * 2;
   return layout;
 }
 
-StringViewLayout GetBytesViewLayout() {
+StringViewLayout GetStringViewLayout(project::TargetProfile target_profile) {
+  return GetStringViewLayout(
+      ::cursive::analysis::layout::LayoutEnvOf(target_profile));
+}
+
+StringViewLayout GetStringViewLayout() {
+  return GetStringViewLayout(project::TargetProfile::X86_64SysV);
+}
+
+StringViewLayout GetBytesViewLayout(
+    const ::cursive::analysis::layout::LayoutEnv& env) {
   // bytes@View = { ptr: *imm u8, len: usize }
   // Same layout as string@View
-  return GetStringViewLayout();
+  return GetStringViewLayout(env);
+}
+
+StringViewLayout GetBytesViewLayout(project::TargetProfile target_profile) {
+  return GetStringViewLayout(target_profile);
+}
+
+StringViewLayout GetBytesViewLayout() {
+  return GetBytesViewLayout(project::TargetProfile::X86_64SysV);
 }
 
 IRPtr EmitStringViewIR(const std::string& literal_sym,
@@ -579,10 +600,16 @@ IRPtr EmitStringViewIR(const std::string& literal_sym,
   IRValue len_val;
   len_val.kind = IRValue::Kind::Immediate;
   len_val.name = std::to_string(length);
-  // Encode as usize (8 bytes on 64-bit)
-  len_val.bytes.resize(8);
-  for (int i = 0; i < 8; ++i) {
-    len_val.bytes[i] = static_cast<std::uint8_t>((length >> (i * 8)) & 0xFF);
+  const auto env = ::cursive::analysis::layout::LayoutEnvOf(
+      ctx.target_profile.value_or(project::TargetProfile::X86_64SysV));
+  const std::uint64_t ptr_size = ::cursive::analysis::layout::PtrSize(env);
+  len_val.bytes.resize(static_cast<std::size_t>(ptr_size));
+  const auto encoded_length = static_cast<std::uint64_t>(length);
+  for (std::uint64_t i = 0; i < ptr_size; ++i) {
+    len_val.bytes[i] =
+        i < sizeof(encoded_length)
+            ? static_cast<std::uint8_t>((encoded_length >> (i * 8)) & 0xFF)
+            : 0;
   }
 
   // The actual struct construction would be handled by the LLVM emitter

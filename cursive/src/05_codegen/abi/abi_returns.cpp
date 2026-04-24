@@ -10,7 +10,7 @@
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/spec_trace.h"
 
 namespace cursive::codegen {
@@ -22,7 +22,7 @@ std::optional<PassKind> ABIRet(const analysis::ScopeContext& ctx,
     return std::nullopt;
   }
 
-  const auto size = SizeOf(ctx, type);
+  const auto size = ::cursive::analysis::layout::SizeOf(ctx, type);
   if (!size.has_value()) {
     return std::nullopt;
   }

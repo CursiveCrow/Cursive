@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include "01_project/target_profile.h"
 #include "05_codegen/dyn_dispatch/dyn_dispatch.h"
 #include "05_codegen/ir/ir_model.h"
 #include "04_analysis/typing/types.h"
@@ -41,10 +42,10 @@ class LLVMEmitter;
 struct LowerCtx;
 
 // =============================================================================
-// VTable Header Layout
+// VTable Header ::cursive::analysis::layout::Layout
 // =============================================================================
 
-/// Layout information for VTable header fields.
+/// ::cursive::analysis::layout::Layout information for VTable header fields.
 struct VTableHeaderLayout {
   /// Offset of the size field (bytes).
   std::uint64_t size_offset = 0;
@@ -62,8 +63,12 @@ struct VTableHeaderLayout {
   std::uint64_t slot_size = 8;
 };
 
-/// Get the VTable header layout for the current platform.
-VTableHeaderLayout GetVTableHeaderLayout();
+/// Get the VTable header layout for a target profile.
+VTableHeaderLayout GetVTableHeaderLayout(
+    project::TargetProfile target_profile);
+
+/// Get the VTable header layout for the current lowering target.
+VTableHeaderLayout GetVTableHeaderLayout(const LowerCtx& ctx);
 
 // =============================================================================
 // VTable Symbol Resolution

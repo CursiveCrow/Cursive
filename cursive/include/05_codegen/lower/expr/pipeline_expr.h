@@ -5,11 +5,11 @@
 // =============================================================================
 //
 // SPEC REFERENCE: CursiveSpecification.md Lines 16288-16302 (Pipeline Lowering)
-//   - Lower-Expr-Pipeline: e1 |> e2 desugars to function/closure application
+//   - Lower-Expr-Pipeline: e1 => e2 desugars to function/closure application
 //   - IsFunc case: CallIR(v_2, [v_1])
 //   - IsClosure case: IndirectCall(code, [env, v_1])
 //
-// The pipeline operator |> passes the LHS value as the first argument to
+// The pipeline operator => passes the LHS value as the first argument to
 // the RHS function or closure.
 //
 // =============================================================================

@@ -1,9 +1,8 @@
 // =============================================================================
-// where_clause.cpp - Generic Constraint Clause Parsing
+// where_clause.cpp - Generic Predicate Clause Parsing
 // =============================================================================
 //
 // This file parses generic constraint clauses introduced by `|:`.
-// Legacy `where` syntax is rejected with a parse error.
 //
 // Syntax:
 //   |: Bitcopy(T)
@@ -49,9 +48,6 @@ std::shared_ptr<Type> MakeTypePrim(const core::Span& span, std::string_view name
 // Accepted:
 //   |: Pred(Type)
 //
-// Rejected:
-//   where Pred(Type)
-
 namespace {
 
 bool IsPredicateReqName(std::string_view name) {
@@ -264,30 +260,24 @@ ParseElemResult<std::optional<PredicateClause>> ParsePredicateClauseImpl(Parser 
     Advance(parser);
   }
 
-  const bool legacy_where = IsKw(parser, "where");
-  if (!legacy_where && !IsOp(parser, "|:")) {
+  if (!IsOp(parser, "|:")) {
     const std::optional<PredicateClause> none = std::nullopt;
     (void)PredicateReqs(none, TokSpan(parser));
     return {parser, std::nullopt};
   }
 
-  if (!legacy_where) {
-    Parser after_clause = parser;
-    Advance(after_clause);
-    if (!StartsPredicateReq(after_clause)) {
-      const std::optional<PredicateClause> none = std::nullopt;
-      (void)PredicateReqs(none, SpanBetween(parser, after_clause));
-      return {parser, std::nullopt};
-    }
+  Parser after_clause = parser;
+  Advance(after_clause);
+  if (!StartsPredicateReq(after_clause)) {
+    const std::optional<PredicateClause> none = std::nullopt;
+    (void)PredicateReqs(none, SpanBetween(parser, after_clause));
+    return {parser, std::nullopt};
   }
 
   SPEC_RULE("Parse-Where-Clause");
   Parser start = parser;
   Parser next = parser;
-  if (legacy_where) {
-    EmitParseSyntaxErr(next, TokSpan(next));
-  }
-  Advance(next);  // consume |: (or legacy where)
+  Advance(next);  // consume |:
 
   // Skip newlines after |:
   while (Tok(next) && Tok(next)->kind == TokenKind::Newline) {

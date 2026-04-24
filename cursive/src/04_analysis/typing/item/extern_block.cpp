@@ -259,18 +259,35 @@ static std::string ExtractAbiString(const std::optional<ast::ExternAbi>& abi_opt
       *abi_opt);
 }
 
+constexpr std::string_view kMissingTargetProfileDiag =
+    "Internal-MissingTargetProfile";
+
+static std::optional<project::TargetProfile> RequireExternTargetProfile(
+    const ScopeContext& ctx,
+    std::optional<std::string_view>& diag_id) {
+  const auto profile = RequireSelectedTargetProfile(ctx);
+  if (!profile.has_value()) {
+    diag_id = kMissingTargetProfileDiag;
+  }
+  return profile;
+}
+
 static bool ValidateLibraryKindsForCurrentTarget(
     const ScopeContext& ctx,
     const ast::ExternBlock& block,
     ExternBlockResult& result) {
-  const auto profile = SelectedTargetProfile(ctx);
+  const auto profile = RequireExternTargetProfile(ctx, result.diag_id);
+  if (!profile.has_value()) {
+    result.ok = false;
+    return false;
+  }
   for (const auto& attr : ast::AttrListOf(block)) {
     const auto library = NormalizeLibraryAttribute(attr);
     if (!library.has_value()) {
       continue;
     }
     if (project::IsLibraryKindSupportedForCurrentTarget(library->kind,
-                                                       profile)) {
+                                                       *profile)) {
       continue;
     }
     result.ok = false;
@@ -458,8 +475,12 @@ ExternBlockResult TypeExternBlock(
     result.diag_id = "ExternAbi-Unknown-Err";
     return result;
   }
-  const auto profile = SelectedTargetProfile(ctx);
-  if (!IsSupportedABIForProfile(result.abi, profile)) {
+  const auto profile = RequireExternTargetProfile(ctx, result.diag_id);
+  if (!profile.has_value()) {
+    result.ok = false;
+    return result;
+  }
+  if (!IsSupportedABIForProfile(result.abi, *profile)) {
     SPEC_RULE("ExternAbi-Unknown-Err");
     result.ok = false;
     result.diag_id = "E-SYS-3352";
@@ -542,8 +563,12 @@ ExternBlockResult TypeExternBlockSignature(
     result.diag_id = "ExternAbi-Unknown-Err";
     return result;
   }
-  const auto profile = SelectedTargetProfile(ctx);
-  if (!IsSupportedABIForProfile(result.abi, profile)) {
+  const auto profile = RequireExternTargetProfile(ctx, result.diag_id);
+  if (!profile.has_value()) {
+    result.ok = false;
+    return result;
+  }
+  if (!IsSupportedABIForProfile(result.abi, *profile)) {
     SPEC_RULE("ExternAbi-Unknown-Err");
     result.ok = false;
     result.diag_id = "ExternAbi-Unknown-Err";

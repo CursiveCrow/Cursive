@@ -17,7 +17,7 @@
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/type_equiv.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/assert_spec.h"
 #include "00_core/process_config.h"
 
@@ -190,7 +190,7 @@ LowerResult LowerPropagateExpr(const ast::PropagateExpr& expr, LowerCtx& ctx) {
     // Runtime discriminants are based on canonical union layout ordering.
     std::vector<analysis::TypeRef> members = union_type->members;
     if (ctx.sigma) {
-        if (const auto layout = UnionLayoutOf(scope, *union_type)) {
+        if (const auto layout = ::cursive::analysis::layout::UnionLayoutOf(scope, *union_type)) {
             members = layout->member_list;
         }
     }

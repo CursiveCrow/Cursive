@@ -21,7 +21,7 @@
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/checks.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/symbols/mangle.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "04_analysis/typing/types.h"
@@ -507,7 +507,7 @@ ClosureEnvLayout ComputeClosureEnvLayout(
       field_type = analysis::MakeTypePtr(cap.type, analysis::PtrState::Valid);
     }
 
-    const auto field_layout = LayoutOf(scope, field_type);
+    const auto field_layout = ::cursive::analysis::layout::LayoutOf(scope, field_type);
     if (!field_layout) {
       continue;
     }
@@ -676,7 +676,7 @@ LowerResult LowerClosureExpr(
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
   analysis::TypeRef ret_type = nullptr;
   if (ret_type_opt) {
-    if (const auto lowered = LowerTypeForLayout(scope, ret_type_opt)) {
+    if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, ret_type_opt)) {
       ret_type = *lowered;
     } else {
       ctx.ReportCodegenFailure();
@@ -722,7 +722,7 @@ LowerResult LowerClosureExpr(
       ir_param.name = param.name;
       analysis::TypeRef param_type;
       if (param.type && ctx.sigma) {
-        if (const auto lowered = LowerTypeForLayout(scope, param.type)) {
+        if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, param.type)) {
           param_type = *lowered;
         }
       }
@@ -965,7 +965,7 @@ LowerResult LowerClosureExpr(
     ir_param.name = param.name;
     analysis::TypeRef param_type;
     if (param.type && ctx.sigma) {
-      if (const auto lowered = LowerTypeForLayout(scope, param.type)) {
+      if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, param.type)) {
         param_type = *lowered;
       }
     }

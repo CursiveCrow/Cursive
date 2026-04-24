@@ -2,8 +2,8 @@
 
 #include <optional>
 
+#include "06_driver/codegen_cache.h"
 #include "06_driver/output_pipeline.h"
-#include "06_driver/pipeline.h"
 
 namespace cursive::driver {
 

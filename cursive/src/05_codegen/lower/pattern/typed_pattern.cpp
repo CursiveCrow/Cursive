@@ -24,7 +24,7 @@
 #include "04_analysis/typing/type_layout.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "05_codegen/ir/ir_model.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/lower_pat.h"
 
 namespace cursive::codegen {
@@ -38,7 +38,7 @@ analysis::TypeRef LowerSyntaxType(const std::shared_ptr<ast::Type>& type,
     return nullptr;
   }
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-  if (const auto lowered = LowerTypeForLayout(scope, type)) {
+  if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, type)) {
     return *lowered;
   }
   return nullptr;
@@ -77,7 +77,7 @@ analysis::TypeRef ResolveAliasTypeForPattern(const analysis::TypeRef& type,
 
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
 
-  const auto lowered = LowerTypeForLayout(scope, alias->type);
+  const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, alias->type);
   if (!lowered.has_value()) {
     return stripped;
   }
@@ -192,7 +192,7 @@ IRPtr LowerTypedPatternBindings(const ast::TypedPattern& pattern,
         const auto& uni = std::get<analysis::TypeUnion>(base_type->node);
         const analysis::ScopeContext& scope = ScopeForLowering(ctx);
 
-        if (const auto layout = UnionLayoutOf(scope, uni)) {
+        if (const auto layout = ::cursive::analysis::layout::UnionLayoutOf(scope, uni)) {
           const auto& members = layout->member_list;
           std::optional<std::size_t> member_index;
 

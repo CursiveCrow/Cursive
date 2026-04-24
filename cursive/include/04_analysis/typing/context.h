@@ -119,9 +119,10 @@ inline const project::Project* Project(const ScopeContext& ctx) {
   return ctx.project;
 }
 
-inline project::TargetProfile SelectedTargetProfile(const ScopeContext& ctx) {
-  SPEC_DEF("SelectedTargetProfile", "1.6");
-  return ctx.target_profile.value();
+inline std::optional<project::TargetProfile> RequireSelectedTargetProfile(
+    const ScopeContext& ctx) {
+  SPEC_DEF("RequireSelectedTargetProfile", "1.6");
+  return ctx.target_profile;
 }
 
 inline ResContext ResCtx(const ScopeContext& ctx) {

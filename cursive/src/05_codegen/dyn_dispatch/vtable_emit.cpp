@@ -17,21 +17,12 @@
 #include <variant>
 
 #include "00_core/assert_spec.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/symbols/mangle.h"
 
 namespace cursive::codegen {
 
-// =============================================================================
-// Platform Constants
-// =============================================================================
-
 namespace {
-
-/// Pointer size for the target platform (64-bit).
-constexpr std::uint64_t kPtrSize = 8;
-
-/// Pointer alignment for the target platform.
-constexpr std::uint64_t kPtrAlign = 8;
 
 /// Prefix used for vtable symbols.
 constexpr std::string_view kVTablePrefix = "_ZTV";  // C++ style vtable prefix
@@ -266,17 +257,25 @@ void CollectVTableRefsFromIR(std::set<std::string>& refs, const IRPtr& ir) {
 }  // namespace
 
 // =============================================================================
-// VTable Header Layout Implementation
+// VTable Header ::cursive::analysis::layout::Layout Implementation
 // =============================================================================
 
-VTableHeaderLayout GetVTableHeaderLayout() {
+VTableHeaderLayout GetVTableHeaderLayout(
+    project::TargetProfile target_profile) {
+  const auto env = analysis::layout::LayoutEnvOf(target_profile);
+  const std::uint64_t ptr_size = analysis::layout::PtrSize(env);
   VTableHeaderLayout layout;
   layout.size_offset = 0;
-  layout.align_offset = kPtrSize;
-  layout.drop_offset = 2 * kPtrSize;
-  layout.slots_offset = 3 * kPtrSize;
-  layout.slot_size = kPtrSize;
+  layout.align_offset = ptr_size;
+  layout.drop_offset = 2 * ptr_size;
+  layout.slots_offset = 3 * ptr_size;
+  layout.slot_size = ptr_size;
   return layout;
+}
+
+VTableHeaderLayout GetVTableHeaderLayout(const LowerCtx& ctx) {
+  return GetVTableHeaderLayout(
+      ctx.target_profile.value_or(project::TargetProfile::X86_64SysV));
 }
 
 // =============================================================================

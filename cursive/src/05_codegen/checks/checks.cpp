@@ -23,7 +23,7 @@
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/checks/checks.h
 //   - cursive/include/05_codegen/ir/ir_model.h (IRLowerPanic, IRPanicCheck)
-//   - cursive/include/05_codegen/layout/layout.h (SizeOf)
+//   - cursive/include/04_analysis/layout/layout.h (SizeOf)
 //   - cursive/include/05_codegen/cleanup/cleanup.h (CleanupPlan)
 //   - cursive/include/runtime/runtime_interface.h
 //
@@ -71,7 +71,7 @@
 #include "05_codegen/checks/poison_instrument.h"
 #include "05_codegen/common/runtime_trace_utils.h"
 #include "05_codegen/globals/init.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/intrinsics/builtins.h"
@@ -127,7 +127,7 @@ analysis::TypeRef ResolveAliasTypeForCodegen(const analysis::TypeRef& type,
   scope.sigma_source = ctx.sigma;
   scope.current_module = ctx.module_path;
 
-  const auto lowered = LowerTypeForLayout(scope, alias->type);
+  const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, alias->type);
   if (!lowered.has_value()) {
     return stripped;
   }
@@ -575,8 +575,8 @@ LowerResult LowerTransmute(analysis::TypeRef from_type,
     analysis::ScopeContext scope;
     scope.sigma = *ctx.sigma;
     scope.sigma_source = ctx.sigma;
-    from_size = SizeOf(scope, from_type);
-    to_size = SizeOf(scope, to_type);
+    from_size = ::cursive::analysis::layout::SizeOf(scope, from_type);
+    to_size = ::cursive::analysis::layout::SizeOf(scope, to_type);
   }
 
   if (from_size.has_value() && to_size.has_value() && *from_size != *to_size) {

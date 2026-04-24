@@ -14,7 +14,7 @@
 //   - Uses same algorithm as RecordLayoutOf with synthetic field names
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (RecordLayout struct)
+//   - cursive/include/04_analysis/layout/layout.h (RecordLayout struct)
 //   - RecordLayoutOf for layout computation
 //   - analysis::TypeRef for element types
 //
@@ -40,7 +40,7 @@
 //   - Total: 16 bytes, align 8
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include "00_core/assert_spec.h"
 
@@ -54,7 +54,7 @@
 //
 // This achieves the spec's TupleFields transformation implicitly.
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 
 std::vector<TupleField> TupleFields(
     const std::vector<cursive::analysis::TypeRef>& elems) {
@@ -81,4 +81,4 @@ std::optional<RecordLayout> TupleLayoutOf(
   return RecordLayoutOf(ctx, field_types);
 }
 
-}  // namespace cursive::codegen
+}  // namespace cursive::analysis::layout

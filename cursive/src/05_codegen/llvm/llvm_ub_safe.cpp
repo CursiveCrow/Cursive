@@ -28,8 +28,9 @@
 #include "00_core/spec_trace.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/checks/panic.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
+#include "05_codegen/llvm/emit/internal_helpers.h"
 #include "05_codegen/llvm/llvm_ir_panic.h"
 
 #include "llvm/IR/Function.h"
@@ -45,6 +46,8 @@ namespace cursive::codegen {
 
 namespace {
 
+using emit_detail::BuildScope;
+
 std::string RenderLLVMIRText(const llvm::Module& module) {
   std::string text;
   llvm::raw_string_ostream os(text);
@@ -54,35 +57,6 @@ std::string RenderLLVMIRText(const llvm::Module& module) {
 
 bool ContainsIRToken(const std::string& text, std::string_view token) {
   return text.find(std::string(token)) != std::string::npos;
-}
-
-const analysis::ScopeContext& BuildScope(const LowerCtx* ctx) {
-  static const analysis::ScopeContext kEmptyScope{};
-
-  struct ScopeCache {
-    const LowerCtx* ctx = nullptr;
-    const analysis::Sigma* sigma = nullptr;
-    std::vector<std::string> module_path;
-    analysis::ScopeContext scope;
-  };
-
-  thread_local ScopeCache cache;
-  if (!ctx || !ctx->sigma) {
-    return kEmptyScope;
-  }
-
-  if (cache.ctx != ctx || cache.sigma != ctx->sigma ||
-      cache.module_path != ctx->module_path) {
-    cache.ctx = ctx;
-    cache.sigma = ctx->sigma;
-    cache.module_path = ctx->module_path;
-    cache.scope = analysis::ScopeContext{};
-    cache.scope.sigma = *ctx->sigma;
-    cache.scope.sigma_source = ctx->sigma;
-    cache.scope.current_module = ctx->module_path;
-  }
-
-  return cache.scope;
 }
 
 llvm::Value* LoadLocalPanicOutPtr(LLVMEmitter& emitter, llvm::IRBuilder<>* builder) {

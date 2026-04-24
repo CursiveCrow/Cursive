@@ -54,7 +54,7 @@
 #include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/intrinsics/async_frame.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/llvm/llvm_attr.h"
 #include "05_codegen/llvm/llvm_call.h"
 #include "05_codegen/llvm/emit/internal_helpers.h"
@@ -104,118 +104,12 @@ namespace cursive::codegen
   {
 
     using AsyncCombinatorKind = analysis::BuiltinAsyncCombinatorKind;
-    constexpr const char* kLibraryEntrySym = "__cursive_library_entry";
-    constexpr const char* kLibraryCtorSym = "__cursive_library_ctor";
-    constexpr const char* kLibraryDtorSym = "__cursive_library_dtor";
-    constexpr const char* kImagePanicRecordSym = "__cursive_image_panic_record";
-    constexpr const char* kHostAbiVersionSym = "__cursive_host_abi_version";
-    constexpr const char* kHostSessionCreateSym = "__cursive_host_session_create";
-    constexpr const char* kHostSessionDestroySym = "__cursive_host_session_destroy";
-    constexpr const char* kHostSessionOwnerTokenSym =
-        "__cursive_host_session_owner_token";
-    constexpr const char* kHostRuntimeAllocSym = "cursive_host_alloc";
-    constexpr const char* kHostRuntimeFreeSym = "cursive_host_free";
-    constexpr const char* kHostRuntimeRegisterSym = "cursive_host_session_register";
-    constexpr const char* kHostRuntimeTryEnterSym = "cursive_host_session_try_enter";
-    constexpr const char* kHostRuntimeLeaveSym = "cursive_host_session_leave";
-    constexpr const char* kHostRuntimeTryRetireSym = "cursive_host_session_try_retire";
-    constexpr const char* kHostRuntimeAbortLiveSym = "cursive_host_session_abort_live";
-    constexpr const char* kHostRuntimeCurrentEnvSym = "cursive_host_session_current_env";
-    constexpr const char* kHostRuntimeEnterRetiredSym = "cursive_host_session_enter_retired";
-    constexpr const char* kHostRuntimeLeaveRetiredSym = "cursive_host_session_leave_retired";
-    constexpr const char* kHostRuntimeAbortRetiredSym = "cursive_host_session_abort_retired";
-    constexpr const char* kRawDylibResolveSym = "cursive_raw_dylib_resolve";
-    constexpr std::uint32_t kHostAbiVersion = 1u;
+    using namespace emit_detail;
 
     std::optional<AsyncCombinatorKind> AsyncCombinatorKindFromSymbol(
         std::string_view symbol)
     {
       return analysis::LookupBuiltinAsyncCombinatorByRuntimeSymbol(symbol);
-    }
-
-    unsigned CallingConvForAbi(const std::optional<std::string> &abi_opt)
-    {
-      if (!abi_opt.has_value())
-      {
-        return llvm::CallingConv::C;
-      }
-      const std::string &abi = *abi_opt;
-      if (abi == "stdcall")
-      {
-        return llvm::CallingConv::X86_StdCall;
-      }
-      if (abi == "fastcall")
-      {
-        return llvm::CallingConv::X86_FastCall;
-      }
-      if (abi == "vectorcall")
-      {
-        return llvm::CallingConv::X86_VectorCall;
-      }
-      return llvm::CallingConv::C;
-    }
-
-    llvm::GlobalVariable *EnsureHostedOwnerTokenGlobal(llvm::Module *module,
-                                                       llvm::LLVMContext &context,
-                                                       bool define_symbol)
-    {
-      if (module == nullptr)
-      {
-        return nullptr;
-      }
-      llvm::Type *i8_ty = llvm::Type::getInt8Ty(context);
-      llvm::GlobalVariable *gv =
-          module->getNamedGlobal(kHostSessionOwnerTokenSym);
-      if (!gv)
-      {
-        gv = new llvm::GlobalVariable(
-            *module,
-            i8_ty,
-            false,
-            llvm::GlobalValue::ExternalLinkage,
-            define_symbol ? llvm::ConstantInt::get(i8_ty, 0) : nullptr,
-            kHostSessionOwnerTokenSym);
-      }
-      else if (define_symbol && gv->isDeclaration())
-      {
-        gv->setInitializer(llvm::ConstantInt::get(i8_ty, 0));
-        gv->setLinkage(llvm::GlobalValue::ExternalLinkage);
-      }
-      return gv;
-    }
-
-    llvm::GlobalValue::LinkageTypes LLVMLinkageFor(LinkageKind linkage)
-    {
-      switch (linkage)
-      {
-      case LinkageKind::Internal:
-        return llvm::GlobalValue::InternalLinkage;
-      case LinkageKind::External:
-        return llvm::GlobalValue::ExternalLinkage;
-      }
-      return llvm::GlobalValue::ExternalLinkage;
-    }
-
-    bool IsRuntimeLifecycleSymbol(std::string_view symbol)
-    {
-      return symbol.rfind("cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3a", 0) == 0 ||
-             symbol.rfind("cursive_x3a_x3aruntime_x3a_x3adeinit_x3a_x3a", 0) == 0;
-    }
-
-    bool IsHostedInternalBodySymbol(const LowerCtx *ctx, std::string_view symbol)
-    {
-      if (ctx == nullptr)
-      {
-        return false;
-      }
-      for (const auto &info : ctx->hosted_exports)
-      {
-        if (info.internal_symbol == symbol)
-        {
-          return true;
-        }
-      }
-      return false;
     }
 
     llvm::Value *EmitSliceLenFromAddr(LLVMEmitter &emitter,
@@ -574,297 +468,6 @@ namespace cursive::codegen
       return nullptr;
     }
 
-    llvm::GlobalValue::LinkageTypes ProcLLVMLinkageFor(const LowerCtx *ctx,
-                                                       std::string_view symbol)
-    {
-      if (IsRuntimeLifecycleSymbol(symbol) ||
-          IsHostedInternalBodySymbol(ctx, symbol))
-      {
-        return llvm::GlobalValue::ExternalLinkage;
-      }
-      if (ctx != nullptr)
-      {
-        if (const auto proc_linkage = ctx->LookupProcLinkage(std::string(symbol));
-            proc_linkage.has_value())
-        {
-          return LLVMLinkageFor(*proc_linkage);
-        }
-      }
-      return llvm::GlobalValue::ExternalLinkage;
-    }
-
-    bool IsProjectEntryModule(const LowerCtx *ctx)
-    {
-      if (ctx == nullptr)
-      {
-        return false;
-      }
-      if (ctx->project_entry_module.has_value())
-      {
-        return core::StringOfPath(ctx->module_path) == *ctx->project_entry_module;
-      }
-      return true;
-    }
-
-    void ApplyProcFunctionAttrs(const ProcIR &proc, llvm::Function *fn)
-    {
-      if (!fn)
-      {
-        return;
-      }
-      switch (proc.inline_mode)
-      {
-      case IRInlineMode::Always:
-        fn->addFnAttr(llvm::Attribute::AlwaysInline);
-        break;
-      case IRInlineMode::Never:
-        fn->addFnAttr(llvm::Attribute::NoInline);
-        break;
-      case IRInlineMode::Default:
-        break;
-      }
-      if (proc.cold)
-      {
-        fn->addFnAttr(llvm::Attribute::Cold);
-      }
-    }
-
-    bool IsDisabledPerfValue(const char *value)
-    {
-      if (value == nullptr || *value == '\0')
-      {
-        return true;
-      }
-      std::string lowered;
-      for (const char *p = value; *p != '\0'; ++p)
-      {
-        lowered.push_back(static_cast<char>(std::tolower(
-            static_cast<unsigned char>(*p))));
-      }
-      return lowered == "0" || lowered == "false" || lowered == "off" ||
-             lowered == "no";
-    }
-
-    bool EmitPerfLoggingEnabled()
-    {
-      static const bool enabled = []
-      {
-        if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF");
-            env.has_value() && !env->empty())
-        {
-          return !IsDisabledPerfValue(env->c_str());
-        }
-        return core::IsDebugEnabled("codegen") || core::IsDebugEnabled("pipeline");
-      }();
-      return enabled;
-    }
-
-    long long ElapsedMs(std::chrono::steady_clock::time_point start,
-                        std::chrono::steady_clock::time_point end)
-    {
-      return std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-          .count();
-    }
-
-    std::string DeclPerfLabel(const IRDecl &decl)
-    {
-      struct Visitor
-      {
-        std::string operator()(const ProcIR &proc) const
-        {
-          return "proc:" + proc.symbol;
-        }
-        std::string operator()(const ExternProcIR &proc) const
-        {
-          return "extern:" + proc.symbol;
-        }
-        std::string operator()(const GlobalConst &global) const
-        {
-          return "global-const:" + global.symbol;
-        }
-        std::string operator()(const GlobalZero &global) const
-        {
-          return "global-zero:" + global.symbol;
-        }
-        std::string operator()(const GlobalVTable &vtable) const
-        {
-          return "global-vtable:" + vtable.symbol;
-        }
-      };
-      return std::visit(Visitor{}, decl);
-    }
-
-    std::string ModulePerfLabel(const LowerCtx &ctx)
-    {
-      const std::string key = core::StringOfPath(ctx.module_path);
-      if (key.empty())
-      {
-        return "<root>";
-      }
-      return key;
-    }
-
-    long long EmitPerfSlowDeclThresholdMs()
-    {
-      static const long long threshold = []
-      {
-        if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF_SLOW_DECL_MS");
-            env.has_value() && !env->empty())
-        {
-          char *end = nullptr;
-          const long parsed = std::strtol(env->c_str(), &end, 10);
-          if (end != env->c_str() && parsed >= 0)
-          {
-            return static_cast<long long>(parsed);
-          }
-        }
-        return 5LL;
-      }();
-      return threshold;
-    }
-
-    long long EmitPerfSlowProcThresholdMs()
-    {
-      static const long long threshold = []
-      {
-        if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF_SLOW_PROC_MS");
-            env.has_value() && !env->empty())
-        {
-          char *end = nullptr;
-          const long parsed = std::strtol(env->c_str(), &end, 10);
-          if (end != env->c_str() && parsed >= 0)
-          {
-            return static_cast<long long>(parsed);
-          }
-        }
-        return 25LL;
-      }();
-      return threshold;
-    }
-
-    std::uint64_t AlignUpU64(std::uint64_t value, std::uint64_t align)
-    {
-      if (align == 0u)
-      {
-        return value;
-      }
-      const std::uint64_t rem = value % align;
-      return rem == 0u ? value : (value + (align - rem));
-    }
-
-    std::vector<std::string> SplitModulePathKey(std::string_view key)
-    {
-      std::vector<std::string> parts;
-      std::string current;
-      for (std::size_t i = 0; i < key.size();)
-      {
-        if (i + 1 < key.size() && key[i] == ':' && key[i + 1] == ':')
-        {
-          parts.push_back(current);
-          current.clear();
-          i += 2;
-          continue;
-        }
-        current.push_back(static_cast<char>(key[i]));
-        ++i;
-      }
-      if (!current.empty())
-      {
-        parts.push_back(std::move(current));
-      }
-      return parts;
-    }
-
-    bool EmitPerfLogAllProcs()
-    {
-      static const bool enabled = []
-      {
-        if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF_PROC_ALL");
-            env.has_value() && !env->empty())
-        {
-          return !IsDisabledPerfValue(env->c_str());
-        }
-        return false;
-      }();
-      return enabled;
-    }
-
-    void EmitPerfLogLine(const std::string &line)
-    {
-      static std::mutex log_mu;
-      std::lock_guard<std::mutex> lock(log_mu);
-      std::fprintf(stderr, "[emit-perf] %s\n", line.c_str());
-      std::fflush(stderr);
-    }
-
-    enum class DeclPerfKind : std::size_t
-    {
-      Proc = 0,
-      ExternProc,
-      GlobalConst,
-      GlobalZero,
-      GlobalVTable,
-      Count
-    };
-
-    DeclPerfKind DeclPerfKindOf(const IRDecl &decl)
-    {
-      struct Visitor
-      {
-        DeclPerfKind operator()(const ProcIR &) const { return DeclPerfKind::Proc; }
-        DeclPerfKind operator()(const ExternProcIR &) const
-        {
-          return DeclPerfKind::ExternProc;
-        }
-        DeclPerfKind operator()(const GlobalConst &) const
-        {
-          return DeclPerfKind::GlobalConst;
-        }
-        DeclPerfKind operator()(const GlobalZero &) const
-        {
-          return DeclPerfKind::GlobalZero;
-        }
-        DeclPerfKind operator()(const GlobalVTable &) const
-        {
-          return DeclPerfKind::GlobalVTable;
-        }
-      };
-      return std::visit(Visitor{}, decl);
-    }
-
-    const char *DeclPerfKindName(DeclPerfKind kind)
-    {
-      switch (kind)
-      {
-      case DeclPerfKind::Proc:
-        return "proc";
-      case DeclPerfKind::ExternProc:
-        return "extern";
-      case DeclPerfKind::GlobalConst:
-        return "global-const";
-      case DeclPerfKind::GlobalZero:
-        return "global-zero";
-      case DeclPerfKind::GlobalVTable:
-        return "global-vtable";
-      case DeclPerfKind::Count:
-        break;
-      }
-      return "unknown";
-    }
-
-    bool DeclPerfKindHasBody(DeclPerfKind kind)
-    {
-      return kind != DeclPerfKind::ExternProc;
-    }
-
-    struct DeclPerfBucket
-    {
-      std::size_t count = 0;
-      long long total_ms = 0;
-      long long max_ms = 0;
-      std::string slowest_label;
-    };
-
     struct IRNodePerfBucket
     {
       std::size_t count = 0;
@@ -1029,39 +632,6 @@ namespace cursive::codegen
                 std::to_string(top[i].count) + "x(max=" +
                 std::to_string(top[i].max_self_ms) + "ms)";
       }
-    }
-
-    const analysis::ScopeContext &BuildScope(const LowerCtx *ctx)
-    {
-      static const analysis::ScopeContext kEmptyScope{};
-
-      struct ScopeCache
-      {
-        const LowerCtx *ctx = nullptr;
-        const analysis::Sigma *sigma = nullptr;
-        std::vector<std::string> module_path;
-        analysis::ScopeContext scope;
-      };
-
-      thread_local ScopeCache cache;
-      if (!ctx || !ctx->sigma)
-      {
-        return kEmptyScope;
-      }
-
-      if (cache.ctx != ctx || cache.sigma != ctx->sigma ||
-          cache.module_path != ctx->module_path)
-      {
-        cache.ctx = ctx;
-        cache.sigma = ctx->sigma;
-        cache.module_path = ctx->module_path;
-        cache.scope = analysis::ScopeContext{};
-        cache.scope.sigma = *ctx->sigma;
-        cache.scope.sigma_source = ctx->sigma;
-        cache.scope.current_module = ctx->module_path;
-      }
-
-      return cache.scope;
     }
 
     bool IsForeignAbiAggregateLLVMType(llvm::Type *ty)
@@ -1303,7 +873,7 @@ namespace cursive::codegen
 
     AsyncStateDiscs LoweredAsyncStateDiscs(
         const analysis::ScopeContext &scope,
-        const std::optional<LoweredAsyncType> &lowered)
+        const std::optional<::cursive::analysis::layout::LoweredAsyncType> &lowered)
     {
       AsyncStateDiscs discs;
       if (lowered.has_value())
@@ -1336,14 +906,14 @@ namespace cursive::codegen
         const analysis::ScopeContext &scope,
         const analysis::TypeRef &async_type)
     {
-      return LoweredAsyncStateDiscs(scope, LowerAsyncType(async_type));
+      return LoweredAsyncStateDiscs(scope, ::cursive::analysis::layout::LowerAsyncType(async_type));
     }
 
     AsyncStateDiscs LoweredAsyncStateDiscs(
         const analysis::ScopeContext &scope,
         const analysis::AsyncSig &sig)
     {
-      return LoweredAsyncStateDiscs(scope, LowerAsyncType(sig));
+      return LoweredAsyncStateDiscs(scope, ::cursive::analysis::layout::LowerAsyncType(sig));
     }
 
     constexpr std::uint64_t kAsyncPayloadFramePtrOffset = 8;
@@ -1607,20 +1177,6 @@ namespace cursive::codegen
       return emitter.EvaluateIRValue(local);
     }
 
-    bool HasLeadingHostedEnvParam(const std::vector<IRParam> &params)
-    {
-      return !params.empty() && params.front().name == kHostedEnvParamName;
-    }
-
-    bool HasNamedParam(const std::vector<IRParam> &params, std::string_view name)
-    {
-      return std::find_if(
-                 params.begin(),
-                 params.end(),
-                 [&](const IRParam &param)
-                 { return param.name == name; }) != params.end();
-    }
-
     bool StoreProcedureOutValue(LLVMEmitter &emitter,
                                 llvm::IRBuilder<> *builder,
                                 llvm::Function *func,
@@ -1798,7 +1354,7 @@ namespace cursive::codegen
       std::size_t index = 0;
       analysis::TypeRef field_type;
       std::vector<analysis::TypeRef> aggregate_fields;
-      RecordLayoutOptions layout_options{};
+      ::cursive::analysis::layout::RecordLayoutOptions layout_options{};
     };
 
     analysis::TypeRef ResolveAliasTypeInScope(const analysis::ScopeContext &scope,
@@ -1839,7 +1395,7 @@ namespace cursive::codegen
         return stripped;
       }
 
-      const auto lowered = LowerTypeForLayout(scope, alias->type);
+      const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, alias->type);
       if (!lowered.has_value())
       {
         return stripped;
@@ -1941,7 +1497,7 @@ namespace cursive::codegen
           {
             continue;
           }
-          auto lowered = LowerTypeForLayout(scope, field->type);
+          auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
           analysis::TypeRef lowered_type = analysis::MakeTypePrim("u8");
           if (lowered.has_value())
           {
@@ -2055,7 +1611,7 @@ namespace cursive::codegen
         return std::nullopt;
       }
       analysis::TypeSubst record_subst;
-      RecordLayoutOptions record_layout_options{};
+      ::cursive::analysis::layout::RecordLayoutOptions record_layout_options{};
       if (record->generic_params && !record->generic_params->params.empty())
       {
         if (path->generic_args.size() > record->generic_params->params.size())
@@ -2066,7 +1622,7 @@ namespace cursive::codegen
             record->generic_params->params,
             path->generic_args);
       }
-      record_layout_options = ResolveRecordLayoutOptions(record->attrs);
+      record_layout_options = ::cursive::analysis::layout::ResolveRecordLayoutOptions(record->attrs);
 
       FieldAccessMeta meta;
       bool found = false;
@@ -2078,7 +1634,7 @@ namespace cursive::codegen
         {
           continue;
         }
-        auto lowered = LowerTypeForLayout(scope, field->type);
+        auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
         analysis::TypeRef lowered_type = analysis::MakeTypePrim("u8");
         if (lowered.has_value())
         {
@@ -2387,7 +1943,7 @@ namespace cursive::codegen
         }
         return "<no-func>";
       };
-      const auto union_layout = UnionLayoutOf(scope, *target_union);
+      const auto union_layout = ::cursive::analysis::layout::UnionLayoutOf(scope, *target_union);
       if (!union_layout.has_value())
       {
         if (UnionDebugEnabled())
@@ -2948,7 +2504,7 @@ namespace cursive::codegen
       else
       {
         const analysis::ScopeContext &scope = BuildScope(current_ctx_);
-        const auto layout = RecordLayoutOf(scope, tuple->elements);
+        const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, tuple->elements);
         std::vector<llvm::Type *> elems;
         if (layout.has_value())
         {
@@ -2967,7 +2523,7 @@ namespace cursive::codegen
       else
       {
         const analysis::ScopeContext &scope = BuildScope(current_ctx_);
-        const auto layout = UnionLayoutOf(scope, *uni);
+        const auto layout = ::cursive::analysis::layout::UnionLayoutOf(scope, *uni);
         if (UnionDebugEnabled())
         {
           std::cerr << "[union-debug-llvmtype] union=" << analysis::TypeToString(type)
@@ -3080,7 +2636,7 @@ namespace cursive::codegen
             {
               continue;
             }
-            auto lowered = LowerTypeForLayout(scope, field->type);
+            auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
             if (lowered.has_value())
             {
               analysis::TypeRef field_type = *lowered;
@@ -3095,8 +2651,8 @@ namespace cursive::codegen
               fields.push_back(analysis::MakeTypePrim("u8"));
             }
           }
-          const auto record_layout_options = ResolveRecordLayoutOptions(record->attrs);
-          if (const auto layout = RecordLayoutOf(scope, fields, record_layout_options))
+          const auto record_layout_options = ::cursive::analysis::layout::ResolveRecordLayoutOptions(record->attrs);
+          if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields, record_layout_options))
           {
             std::vector<llvm::Type *> elems =
                 ComputeStructElements(*this,
@@ -3116,10 +2672,10 @@ namespace cursive::codegen
           if (const ast::EnumDecl *enum_decl = analysis::LookupEnumDecl(scope, path->path))
           {
             SPEC_RULE("LLVMTy-Enum");
-            if (const auto layout = EnumLayoutOf(
+            if (const auto layout = ::cursive::analysis::layout::EnumLayoutOf(
                     scope,
                     *enum_decl,
-                    ResolveEnumLayoutOptions(enum_decl->attrs)))
+                    ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs)))
             {
               analysis::TypeRef disc_type = analysis::MakeTypePrim(layout->disc_type);
               if (layout->payload_size == 0) {
@@ -3147,7 +2703,7 @@ namespace cursive::codegen
           {
             if (const auto *alias = std::get_if<ast::TypeAliasDecl>(&it->second))
             {
-              if (const auto lowered = LowerTypeForLayout(scope, alias->type))
+              if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, alias->type))
               {
                 analysis::TypeRef inst = *lowered;
                 if (alias->generic_params &&
@@ -3194,7 +2750,7 @@ namespace cursive::codegen
             if (const auto *modal = std::get_if<ast::ModalDecl>(&it->second))
             {
               SPEC_RULE("LLVMTy-Tuple");
-              if (const auto layout = ModalLayoutOf(scope, *modal, path->generic_args))
+              if (const auto layout = ::cursive::analysis::layout::ModalLayoutOf(scope, *modal, path->generic_args))
               {
                 if (layout->disc_type.has_value())
                 {
@@ -3292,7 +2848,7 @@ namespace cursive::codegen
                 {
                   continue;
                 }
-                auto lowered = LowerTypeForLayout(scope, field->type);
+                auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
                 if (lowered.has_value())
                 {
                   analysis::TypeRef field_type = *lowered;
@@ -3307,7 +2863,7 @@ namespace cursive::codegen
                   fields.push_back(analysis::MakeTypePrim("u8"));
                 }
               }
-              if (const auto layout = RecordLayoutOf(scope, fields))
+              if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields))
               {
                 std::vector<llvm::Type *> elems = ComputeStructElements(
                     *this, fields, layout->offsets, layout->layout.size);
@@ -3323,7 +2879,7 @@ namespace cursive::codegen
           if (!ll_ty && modal_decl)
           {
             // Fallback to general modal layout if state layout synthesis fails.
-            if (const auto layout = ModalLayoutOf(scope, *modal_decl, modal_state->generic_args))
+            if (const auto layout = ::cursive::analysis::layout::ModalLayoutOf(scope, *modal_decl, modal_state->generic_args))
             {
               if (layout->disc_type.has_value())
               {
@@ -3371,8 +2927,8 @@ namespace cursive::codegen
       else
       {
         SPEC_RULE("LLVMTy-Modal-StringBytes");
-        const std::uint64_t payload_size = 3 * kPtrSize;
-        const std::uint64_t payload_align = kPtrAlign;
+        const std::uint64_t payload_size = 3 * ::cursive::analysis::layout::kPtrSize;
+        const std::uint64_t payload_align = ::cursive::analysis::layout::kPtrAlign;
         const std::uint64_t payload_off =
             ((1 + payload_align - 1) / payload_align) * payload_align;
         const std::uint64_t total_size_raw = payload_off + payload_size;
@@ -3401,8 +2957,8 @@ namespace cursive::codegen
       else
       {
         SPEC_RULE("LLVMTy-Modal-StringBytes");
-        const std::uint64_t payload_size = 3 * kPtrSize;
-        const std::uint64_t payload_align = kPtrAlign;
+        const std::uint64_t payload_size = 3 * ::cursive::analysis::layout::kPtrSize;
+        const std::uint64_t payload_align = ::cursive::analysis::layout::kPtrAlign;
         const std::uint64_t payload_off =
             ((1 + payload_align - 1) / payload_align) * payload_align;
         const std::uint64_t total_size_raw = payload_off + payload_size;
@@ -3486,7 +3042,7 @@ namespace cursive::codegen
       else
       {
         const analysis::ScopeContext scope = BuildScope(current_ctx_);
-        if (const auto layout = RecordLayoutOf(scope, fields))
+        if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields))
         {
           std::vector<llvm::Type *> elems = ComputeStructElements(
               *this, fields, layout->offsets, layout->layout.size);
@@ -3602,7 +3158,7 @@ namespace cursive::codegen
     bool c_abi_sret = false;
     if (win64_foreign_abi && ret_type)
     {
-      const auto ret_size = SizeOf(scope, ret_type);
+      const auto ret_size = ::cursive::analysis::layout::SizeOf(scope, ret_type);
       llvm::Type *ret_ll = GetLLVMType(ret_type);
       if (ret_size.has_value() && *ret_size > 0 &&
           IsForeignAbiAggregateLLVMType(ret_ll) &&
@@ -3628,7 +3184,7 @@ namespace cursive::codegen
     }
     else
     {
-      const auto size = SizeOf(scope, ret_type);
+      const auto size = ::cursive::analysis::layout::SizeOf(scope, ret_type);
       if (!size.has_value())
       {
         SPEC_RULE("LLVMRetLower-Err");
@@ -3645,7 +3201,7 @@ namespace cursive::codegen
         result.ret_type = GetLLVMType(ret_type);
         if (win64_foreign_abi && ret_type)
         {
-          const auto ret_size = SizeOf(scope, ret_type);
+          const auto ret_size = ::cursive::analysis::layout::SizeOf(scope, ret_type);
           if (ret_size.has_value() && *ret_size > 0 &&
               IsForeignAbiAggregateLLVMType(result.ret_type))
           {
@@ -3700,7 +3256,7 @@ namespace cursive::codegen
         continue;
       }
 
-      const auto size = SizeOf(scope, params[i].type);
+      const auto size = ::cursive::analysis::layout::SizeOf(scope, params[i].type);
       if (!size.has_value())
       {
         SPEC_RULE("LLVMArgLower-Err");
@@ -3883,7 +3439,7 @@ namespace cursive::codegen
         return false;
       }
 
-      const auto size = SizeOf(param_scope, param.type);
+      const auto size = ::cursive::analysis::layout::SizeOf(param_scope, param.type);
       if (!size.has_value() || *size != 0)
       {
         return false;
@@ -4723,7 +4279,7 @@ namespace cursive::codegen
       std::uint64_t flag_offset = 0;
       std::uint64_t code_offset = 4;
       const analysis::ScopeContext &scope = BuildScope(current_ctx_);
-      const auto layout = RecordLayoutOf(scope,
+      const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope,
                                          {analysis::MakeTypePrim("bool"),
                                           analysis::MakeTypePrim("u32")});
       if (layout.has_value() && layout->offsets.size() >= 2)
@@ -5401,7 +4957,7 @@ namespace cursive::codegen
     auto panic_offsets = [&]() {
       std::uint64_t flag_offset = 0;
       std::uint64_t code_offset = 4;
-      const auto layout = RecordLayoutOf(
+      const auto layout = ::cursive::analysis::layout::RecordLayoutOf(
           scope,
           {analysis::MakeTypePrim("bool"), analysis::MakeTypePrim("u32")});
       if (layout.has_value() && layout->offsets.size() >= 2)
@@ -5580,7 +5136,7 @@ namespace cursive::codegen
       std::size_t extract_index = 0u;
       for (const auto &field : fields)
       {
-        const auto size = SizeOf(scope, field.type).value_or(0u);
+        const auto size = ::cursive::analysis::layout::SizeOf(scope, field.type).value_or(0u);
         if (std::string_view(field.name) == field_name)
         {
           if (size == 0u)
@@ -5725,7 +5281,7 @@ namespace cursive::codegen
             }
             llvm::Value *field_value = self(
                 self, irb, lowered.type, field->name, root_ctx_ptr, root_ctx_value);
-            const auto field_size = SizeOf(scope, lowered.type).value_or(0u);
+            const auto field_size = ::cursive::analysis::layout::SizeOf(scope, lowered.type).value_or(0u);
             if (field_size == 0u)
             {
               continue;
@@ -6567,7 +6123,7 @@ namespace cursive::codegen
     std::uint64_t panic_code_offset = 4;
     {
       const analysis::ScopeContext &scope = BuildScope(current_ctx_);
-      const auto layout = RecordLayoutOf(scope, {
+      const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, {
                                                     analysis::MakeTypePrim("bool"),
                                                     analysis::MakeTypePrim("u32"),
                                                 });
@@ -6804,7 +6360,7 @@ namespace cursive::codegen
       std::size_t extract_index = 0u;
       for (const auto &field : fields)
       {
-        const auto size = SizeOf(entry_scope, field.type).value_or(0u);
+        const auto size = ::cursive::analysis::layout::SizeOf(entry_scope, field.type).value_or(0u);
         if (std::string_view(field.name) == field_name)
         {
           if (size == 0u)
@@ -6945,7 +6501,7 @@ namespace cursive::codegen
             }
             llvm::Value *field_value = self(
                 self, irb, lowered.type, field->name, root_ctx_ptr, root_ctx_loaded);
-            const auto field_size = SizeOf(entry_scope, lowered.type).value_or(0u);
+            const auto field_size = ::cursive::analysis::layout::SizeOf(entry_scope, lowered.type).value_or(0u);
             if (field_size == 0u)
             {
               continue;
@@ -7304,7 +6860,7 @@ namespace cursive::codegen
       std::uint64_t flag_offset = 0;
       std::uint64_t code_offset = 4;
       const analysis::ScopeContext &scope = BuildScope(current_ctx_);
-      const auto layout = RecordLayoutOf(
+      const auto layout = ::cursive::analysis::layout::RecordLayoutOf(
           scope,
           {analysis::MakeTypePrim("bool"), analysis::MakeTypePrim("u32")});
       if (layout.has_value() && layout->offsets.size() >= 2)
@@ -9336,7 +8892,7 @@ namespace cursive::codegen
                   &builder,
                   async_struct,
                   slot,
-                  kPtrAlign);
+                  ::cursive::analysis::layout::kPtrAlign);
               if (!payload_i8)
               {
                 return nullptr;
@@ -9394,7 +8950,7 @@ namespace cursive::codegen
                   &builder,
                   async_struct,
                   slot,
-                  kPtrAlign);
+                  ::cursive::analysis::layout::kPtrAlign);
               if (!payload_i8)
               {
                 return;
@@ -10550,7 +10106,7 @@ namespace cursive::codegen
             }
 
             const analysis::ScopeContext &scope = BuildScope(active_ctx);
-            const auto union_layout = UnionLayoutOf(scope, *target_union);
+            const auto union_layout = ::cursive::analysis::layout::UnionLayoutOf(scope, *target_union);
             if (!union_layout.has_value() || union_layout->niche)
             {
               return raw_result;
@@ -10946,7 +10502,7 @@ namespace cursive::codegen
                 target_ty = operand ? operand->getType() : nullptr;
               }
 
-              if (const auto modal_layout = ModalLayoutOf(scope, *modal_decl, modal_state->generic_args))
+              if (const auto modal_layout = ::cursive::analysis::layout::ModalLayoutOf(scope, *modal_decl, modal_state->generic_args))
               {
                 if (modal_layout->disc_type.has_value())
                 {
@@ -13029,11 +12585,11 @@ namespace cursive::codegen
         std::uint64_t alloc_align = 1;
         if (value_type)
         {
-          if (const auto size = SizeOf(scope, value_type))
+          if (const auto size = ::cursive::analysis::layout::SizeOf(scope, value_type))
           {
             alloc_size = *size;
           }
-          if (const auto align = AlignOf(scope, value_type))
+          if (const auto align = ::cursive::analysis::layout::AlignOf(scope, value_type))
           {
             alloc_align = *align;
           }
@@ -13229,7 +12785,7 @@ namespace cursive::codegen
           std::size_t extract_index = 0u;
           for (const auto &field : fields)
           {
-            const auto size = SizeOf(scope, field.type).value_or(0u);
+            const auto size = ::cursive::analysis::layout::SizeOf(scope, field.type).value_or(0u);
             if (std::string_view(field.name) == field_name)
             {
               if (size == 0u)
@@ -13366,7 +12922,7 @@ namespace cursive::codegen
                 }
                 llvm::Value *field_value = self(
                     self, irb, lowered.type, field->name, ctx_ptr, ctx_loaded);
-                const auto field_size = SizeOf(scope, lowered.type).value_or(0u);
+                const auto field_size = ::cursive::analysis::layout::SizeOf(scope, lowered.type).value_or(0u);
                 if (field_size == 0u)
                 {
                   continue;
@@ -13696,7 +13252,7 @@ namespace cursive::codegen
                         &builder,
                         iter_async_ty,
                         payload_async_slot,
-                        kPtrAlign);
+                        ::cursive::analysis::layout::kPtrAlign);
                     if (!payload_i8)
                     {
                       return nullptr;
@@ -13987,7 +13543,7 @@ namespace cursive::codegen
                             &builder,
                             outer_async_struct,
                             outer_async_slot,
-                            kPtrAlign);
+                            ::cursive::analysis::layout::kPtrAlign);
                         if (outer_payload_i8 &&
                             outer_sig->err &&
                             !IsUnitTypeRef(outer_sig->err) &&
@@ -14693,7 +14249,7 @@ namespace cursive::codegen
         {
           EnumPayloadMemberInfo out;
           const auto enum_layout =
-              EnumLayoutOf(scope, enum_decl, ResolveEnumLayoutOptions(enum_decl.attrs));
+              ::cursive::analysis::layout::EnumLayoutOf(scope, enum_decl, ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl.attrs));
           if (!enum_layout.has_value())
           {
             return out;
@@ -14712,14 +14268,14 @@ namespace cursive::codegen
           field_types.reserve(payload->elements.size());
           for (const auto &elem_ty : payload->elements)
           {
-            const auto lowered = LowerTypeForLayout(scope, elem_ty);
+            const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, elem_ty);
             if (!lowered.has_value())
             {
               return out;
             }
             field_types.push_back(*lowered);
           }
-          const auto layout = RecordLayoutOf(scope, field_types);
+          const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
           if (!layout.has_value() || index >= layout->offsets.size())
           {
             return out;
@@ -14738,7 +14294,7 @@ namespace cursive::codegen
         {
           EnumPayloadMemberInfo out;
           const auto enum_layout =
-              EnumLayoutOf(scope, enum_decl, ResolveEnumLayoutOptions(enum_decl.attrs));
+              ::cursive::analysis::layout::EnumLayoutOf(scope, enum_decl, ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl.attrs));
           if (!enum_layout.has_value())
           {
             return out;
@@ -14759,7 +14315,7 @@ namespace cursive::codegen
           field_names.reserve(payload->fields.size());
           for (const auto &field : payload->fields)
           {
-            const auto lowered = LowerTypeForLayout(scope, field.type);
+            const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field.type);
             if (!lowered.has_value())
             {
               return out;
@@ -14767,7 +14323,7 @@ namespace cursive::codegen
             field_types.push_back(*lowered);
             field_names.push_back(field.name);
           }
-          const auto layout = RecordLayoutOf(scope, field_types);
+          const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
           if (!layout.has_value())
           {
             return out;
@@ -14939,7 +14495,7 @@ namespace cursive::codegen
                 modal_args);
           }
 
-          const auto modal_layout = ModalLayoutOf(scope, modal_decl, modal_args);
+          const auto modal_layout = ::cursive::analysis::layout::ModalLayoutOf(scope, modal_decl, modal_args);
           if (!modal_layout.has_value())
           {
             return out;
@@ -14963,7 +14519,7 @@ namespace cursive::codegen
             {
               continue;
             }
-            const auto lowered = LowerTypeForLayout(scope, field->type);
+            const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
             if (!lowered.has_value())
             {
               return out;
@@ -14977,7 +14533,7 @@ namespace cursive::codegen
             field_names.push_back(field->name);
           }
 
-          const auto layout = RecordLayoutOf(scope, field_types);
+          const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
           if (!layout.has_value())
           {
             return out;
@@ -15049,7 +14605,7 @@ namespace cursive::codegen
             auto *modal_ty = llvm::dyn_cast<llvm::StructType>(modal_value->getType());
             if (!modal_ty || modal_ty->getNumElements() < 2)
             {
-              const auto member_size = SizeOf(scope, member.type);
+              const auto member_size = ::cursive::analysis::layout::SizeOf(scope, member.type);
               if (member_size.has_value() && *member_size == 0)
               {
                 return llvm::Constant::getNullValue(member_ty);
@@ -15270,7 +14826,7 @@ namespace cursive::codegen
                   };
 
                   std::vector<analysis::TypeRef> members = uni->members;
-                  std::optional<UnionLayout> union_layout = UnionLayoutOf(scope, *uni);
+                  std::optional<::cursive::analysis::layout::UnionLayout> union_layout = ::cursive::analysis::layout::UnionLayoutOf(scope, *uni);
                   if (union_layout.has_value())
                   {
                     members = union_layout->member_list;
@@ -15669,7 +15225,7 @@ namespace cursive::codegen
                   {
                     subject_modal_args = *subject_modal_path_args;
                   }
-                  const auto modal_layout = ModalLayoutOf(scope, *modal_decl, subject_modal_args);
+                  const auto modal_layout = ::cursive::analysis::layout::ModalLayoutOf(scope, *modal_decl, subject_modal_args);
                   const bool subject_is_modal_state = (subject_modal_state != nullptr);
                   const bool subject_is_async_modal_state =
                       subject_modal_state && analysis::IsAsyncType(stripped_subject);
@@ -17157,7 +16713,7 @@ namespace cursive::codegen
               &builder,
               async_struct,
               async_slot,
-              kPtrAlign);
+              ::cursive::analysis::layout::kPtrAlign);
 
           if (payload_i8 &&
               info.out_type &&
@@ -17580,7 +17136,7 @@ namespace cursive::codegen
               &builder,
               async_struct,
               source_slot,
-              kPtrAlign);
+              ::cursive::analysis::layout::kPtrAlign);
           if (!payload_i8)
           {
             return nullptr;
@@ -17837,7 +17393,7 @@ namespace cursive::codegen
                 &builder,
                 outer_struct,
                 outer_slot,
-                kPtrAlign);
+                ::cursive::analysis::layout::kPtrAlign);
 
             if (payload_i8 &&
                 info.out_type &&
@@ -18426,7 +17982,7 @@ namespace cursive::codegen
               &builder,
               async_struct,
               payload_async_slot,
-              kPtrAlign);
+              ::cursive::analysis::layout::kPtrAlign);
           if (!payload_i8)
           {
             return nullptr;
@@ -18798,7 +18354,7 @@ namespace cursive::codegen
               &builder,
               async_struct,
               async_slot,
-              kPtrAlign);
+              ::cursive::analysis::layout::kPtrAlign);
           if (!payload_i8)
           {
             return nullptr;
@@ -19122,7 +18678,7 @@ namespace cursive::codegen
               &builder,
               async_struct,
               async_slot,
-              kPtrAlign);
+              ::cursive::analysis::layout::kPtrAlign);
           if (!payload_i8)
           {
             return nullptr;
@@ -19220,7 +18776,7 @@ namespace cursive::codegen
                   &builder,
                   stream_struct,
                   stream_slot,
-                  kPtrAlign);
+                  ::cursive::analysis::layout::kPtrAlign);
               if (payload_i8)
               {
                 llvm::AllocaInst *src_slot = entry_builder.CreateAlloca(out_ll);
@@ -19563,7 +19119,7 @@ namespace cursive::codegen
               &builder,
               async_struct,
               async_slot,
-              kPtrAlign);
+              ::cursive::analysis::layout::kPtrAlign);
           if (!payload_i8)
           {
             return nullptr;
@@ -19920,7 +19476,7 @@ namespace cursive::codegen
                     &builder,
                     async_struct,
                     async_slot,
-                    kPtrAlign);
+                    ::cursive::analysis::layout::kPtrAlign);
                 if (payload_i8)
                 {
                   llvm::AllocaInst *src_slot =
@@ -20019,7 +19575,7 @@ namespace cursive::codegen
             builder.CreateStore(llvm::Constant::getNullValue(async_struct), async_slot);
 
             llvm::Type *disc_ty = async_struct->getElementType(0);
-            const auto lowered_async = LowerAsyncType(async_type);
+            const auto lowered_async = ::cursive::analysis::layout::LowerAsyncType(async_type);
             const AsyncStateDiscs async_discs =
                 LoweredAsyncStateDiscs(scope, lowered_async);
             if (!async_discs.failed.has_value())
@@ -20076,7 +19632,7 @@ namespace cursive::codegen
                     &builder,
                     async_struct,
                     async_slot,
-                    kPtrAlign);
+                    ::cursive::analysis::layout::kPtrAlign);
                 if (payload_i8)
                 {
                   llvm::AllocaInst *src_slot =
@@ -20836,11 +20392,11 @@ namespace cursive::codegen
       const analysis::ScopeContext &scope = BuildScope(current_ctx_);
       if (bind_slot_info->type)
       {
-        if (const auto size = SizeOf(scope, bind_slot_info->type))
+        if (const auto size = ::cursive::analysis::layout::SizeOf(scope, bind_slot_info->type))
         {
           alloc_size = *size;
         }
-        if (const auto align = AlignOf(scope, bind_slot_info->type))
+        if (const auto align = ::cursive::analysis::layout::AlignOf(scope, bind_slot_info->type))
         {
           alloc_align = *align;
         }
@@ -20921,7 +20477,7 @@ namespace cursive::codegen
     if (bind.type)
     {
       const analysis::ScopeContext &scope = BuildScope(current_ctx_);
-      if (const auto align = AlignOf(scope, bind.type); align.has_value())
+      if (const auto align = ::cursive::analysis::layout::AlignOf(scope, bind.type); align.has_value())
       {
         if (auto *alloca_inst = llvm::dyn_cast<llvm::AllocaInst>(bind_slot))
         {
@@ -22093,7 +21649,7 @@ namespace cursive::codegen
       {
         EnumPayloadMemberInfo out;
         const auto enum_layout =
-            EnumLayoutOf(scope, enum_decl, ResolveEnumLayoutOptions(enum_decl.attrs));
+            ::cursive::analysis::layout::EnumLayoutOf(scope, enum_decl, ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl.attrs));
         if (!enum_layout.has_value())
         {
           return out;
@@ -22111,14 +21667,14 @@ namespace cursive::codegen
         field_types.reserve(tuple->elements.size());
         for (const auto &elem : tuple->elements)
         {
-          const auto lowered = LowerTypeForLayout(scope, elem);
+          const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, elem);
           if (!lowered.has_value())
           {
             return out;
           }
           field_types.push_back(*lowered);
         }
-        const auto layout = RecordLayoutOf(scope, field_types);
+        const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
         if (!layout.has_value() || index >= layout->offsets.size())
         {
           return out;
@@ -22137,7 +21693,7 @@ namespace cursive::codegen
       {
         EnumPayloadMemberInfo out;
         const auto enum_layout =
-            EnumLayoutOf(scope, enum_decl, ResolveEnumLayoutOptions(enum_decl.attrs));
+            ::cursive::analysis::layout::EnumLayoutOf(scope, enum_decl, ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl.attrs));
         if (!enum_layout.has_value())
         {
           return out;
@@ -22157,7 +21713,7 @@ namespace cursive::codegen
         field_names.reserve(record->fields.size());
         for (const auto &field : record->fields)
         {
-          const auto lowered = LowerTypeForLayout(scope, field.type);
+          const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field.type);
           if (!lowered.has_value())
           {
             return out;
@@ -22165,7 +21721,7 @@ namespace cursive::codegen
           field_types.push_back(*lowered);
           field_names.push_back(field.name);
         }
-        const auto layout = RecordLayoutOf(scope, field_types);
+        const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
         if (!layout.has_value())
         {
           return out;
@@ -22351,7 +21907,7 @@ namespace cursive::codegen
               modal_decl.generic_params->params,
               modal_args);
         }
-        const auto modal_layout = ModalLayoutOf(scope, modal_decl, modal_args);
+        const auto modal_layout = ::cursive::analysis::layout::ModalLayoutOf(scope, modal_decl, modal_args);
         if (!modal_layout.has_value())
         {
           return out;
@@ -22375,7 +21931,7 @@ namespace cursive::codegen
           {
             continue;
           }
-          const auto lowered = LowerTypeForLayout(scope, field->type);
+          const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
           if (!lowered.has_value())
           {
             return out;
@@ -22389,7 +21945,7 @@ namespace cursive::codegen
           field_names.push_back(field->name);
         }
 
-        const auto layout = RecordLayoutOf(scope, field_types);
+        const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
         if (!layout.has_value())
         {
           return out;
@@ -22483,7 +22039,7 @@ namespace cursive::codegen
           {
             return nullptr;
           }
-          const auto layout = RecordLayoutOf(
+          const auto layout = ::cursive::analysis::layout::RecordLayoutOf(
               scope, field_meta.aggregate_fields, field_meta.layout_options);
           if (!layout.has_value() || field_meta.index >= layout->offsets.size())
           {
@@ -22814,7 +22370,7 @@ namespace cursive::codegen
               if (!field_offset.has_value())
               {
                 const analysis::ScopeContext &scope = BuildScope(ctx);
-                if (const auto layout = RecordLayoutOf(scope, tup->elements))
+                if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, tup->elements))
                 {
                   if (derived->tuple_index < layout->offsets.size())
                   {
@@ -23007,7 +22563,7 @@ namespace cursive::codegen
         analysis::TypeRef field_type = nullptr;
         if (meta.has_value() && meta->index < meta->aggregate_fields.size())
         {
-          if (auto layout = RecordLayoutOf(
+          if (auto layout = ::cursive::analysis::layout::RecordLayoutOf(
                   scope, meta->aggregate_fields, meta->layout_options))
           {
             if (meta->index < layout->offsets.size())
@@ -23099,7 +22655,7 @@ namespace cursive::codegen
           if (tup && derived->tuple_index < tup->elements.size())
           {
             analysis::TypeRef elem_type = tup->elements[derived->tuple_index];
-            if (const auto layout = RecordLayoutOf(scope, tup->elements))
+            if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, tup->elements))
             {
               if (derived->tuple_index < layout->offsets.size())
               {
@@ -23563,7 +23119,7 @@ namespace cursive::codegen
         {
           break;
         }
-        const auto layout = UnionLayoutOf(scope, *uni);
+        const auto layout = ::cursive::analysis::layout::UnionLayoutOf(scope, *uni);
         if (!layout.has_value())
         {
           break;
@@ -23668,10 +23224,10 @@ namespace cursive::codegen
           member.ok = member.type != nullptr;
           if (enum_decl)
           {
-            if (const auto enum_layout = EnumLayoutOf(
+            if (const auto enum_layout = ::cursive::analysis::layout::EnumLayoutOf(
                     scope,
                     *enum_decl,
-                    ResolveEnumLayoutOptions(enum_decl->attrs)))
+                    ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs)))
             {
               member.payload_size = enum_layout->payload_size;
               member.payload_align = enum_layout->payload_align;
@@ -23712,10 +23268,10 @@ namespace cursive::codegen
           member.ok = member.type != nullptr;
           if (enum_decl)
           {
-            if (const auto enum_layout = EnumLayoutOf(
+            if (const auto enum_layout = ::cursive::analysis::layout::EnumLayoutOf(
                     scope,
                     *enum_decl,
-                    ResolveEnumLayoutOptions(enum_decl->attrs)))
+                    ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs)))
             {
               member.payload_size = enum_layout->payload_size;
               member.payload_align = enum_layout->payload_align;
@@ -23782,7 +23338,7 @@ namespace cursive::codegen
           member.ok = member.type != nullptr;
           if (modal_decl)
           {
-            if (const auto modal_layout = ModalLayoutOf(scope, *modal_decl, base_modal_args))
+            if (const auto modal_layout = ::cursive::analysis::layout::ModalLayoutOf(scope, *modal_decl, base_modal_args))
             {
               member.payload_size = modal_layout->payload_size;
               member.payload_align = modal_layout->payload_align;
@@ -23813,10 +23369,10 @@ namespace cursive::codegen
         }
         const ast::VariantDecl *variant = find_enum_variant(*enum_decl, derived->variant);
         const auto disc = enum_variant_disc(*enum_decl, derived->variant);
-        const auto enum_layout = EnumLayoutOf(
+        const auto enum_layout = ::cursive::analysis::layout::EnumLayoutOf(
             scope,
             *enum_decl,
-            ResolveEnumLayoutOptions(enum_decl->attrs));
+            ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs));
         if (!variant || !disc.has_value() || !enum_layout.has_value())
         {
           break;
@@ -24154,7 +23710,7 @@ namespace cursive::codegen
               can_use_offset_mode = false;
               break;
             }
-            const auto layout = RecordLayoutOf(
+            const auto layout = ::cursive::analysis::layout::RecordLayoutOf(
                 scope, meta->aggregate_fields, meta->layout_options);
             if (!layout.has_value() || meta->index >= layout->offsets.size())
             {

@@ -105,9 +105,9 @@ analysis::TypeRef PanicRecordType() {
   return analysis::MakeTypePath({"PanicRecord"});
 }
 
-std::optional<RecordLayout> PanicRecordLayout(
+std::optional<::cursive::analysis::layout::RecordLayout> PanicRecordLayout(
     const analysis::ScopeContext& ctx) {
-  return RecordLayoutOf(ctx, PanicRecordFieldTypes());
+  return ::cursive::analysis::layout::RecordLayoutOf(ctx, PanicRecordFieldTypes());
 }
 
 // PanicOutType = rawptr[mut, PanicRecord]

@@ -19,7 +19,7 @@
 //   - RecordLayoutOf function (lines 23-52)
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (Layout, RecordLayout structs)
+//   - cursive/include/04_analysis/layout/layout.h (Layout, RecordLayout structs)
 //   - cursive/include/04_analysis/scopes.h (ScopeContext)
 //   - cursive/include/04_analysis/types/types.h (TypeRef)
 //   - SizeOf, AlignOf functions from layout dispatch
@@ -43,13 +43,13 @@
 //   2. Final size = AlignUp(current_offset, max_align)
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include <algorithm>
 
 #include "00_core/assert_spec.h"
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 namespace {
 
 std::uint64_t AlignUp(std::uint64_t value, std::uint64_t align) {
@@ -108,4 +108,4 @@ std::optional<RecordLayout> RecordLayoutOf(
   return RecordLayout{Layout{size, max_align}, offsets};
 }
 
-}  // namespace cursive::codegen
+}  // namespace cursive::analysis::layout

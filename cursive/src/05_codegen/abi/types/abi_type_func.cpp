@@ -10,14 +10,16 @@
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/spec_trace.h"
 
 namespace cursive::codegen {
 
-std::optional<ABIType> ABITyFunc(const analysis::TypeFunc& /*func*/) {
+std::optional<ABIType> ABITyFunc(const analysis::ScopeContext& ctx,
+                                 const analysis::TypeFunc& /*func*/) {
   SPEC_RULE("ABI-Func");
-  return ABIType{kPtrSize, kPtrAlign};
+  return ABIType{::cursive::analysis::layout::PtrSize(ctx),
+                 ::cursive::analysis::layout::PtrAlign(ctx)};
 }
 
 }  // namespace cursive::codegen

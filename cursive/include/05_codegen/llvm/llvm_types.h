@@ -89,7 +89,7 @@ llvm::ArrayType* CreateArrayType(llvm::Type* element_type, std::uint64_t count);
 llvm::Type* CreatePaddingType(llvm::LLVMContext& context, std::uint64_t bytes);
 
 // -----------------------------------------------------------------------------
-// Layout-Aware Struct Construction
+// ::cursive::analysis::layout::Layout-Aware Struct Construction
 // -----------------------------------------------------------------------------
 
 // StructElems(fields, offsets, size) - Build struct element list with padding
@@ -102,7 +102,7 @@ std::vector<llvm::Type*> ComputeStructElements(
     std::uint64_t required_align = 1);
 
 // TaggedElems(disc, payload_size, payload_align, size) - Build tagged union elements
-// Layout: [disc_type, padding, [payload_size x i8], tail_padding]
+// ::cursive::analysis::layout::Layout: [disc_type, padding, [payload_size x i8], tail_padding]
 std::vector<llvm::Type*> ComputeTaggedElements(
     LLVMEmitter& emitter,
     const analysis::TypeRef& disc_type,
@@ -177,11 +177,11 @@ llvm::StructType* CreateTaggedStructType(LLVMEmitter& emitter,
                                          std::uint64_t total_size);
 
 // -----------------------------------------------------------------------------
-// Async Type Layout (§5.4.5)
+// Async Type ::cursive::analysis::layout::Layout (§5.4.5)
 // -----------------------------------------------------------------------------
 
 // Build LLVM type for Async<Out, In, Result, E>
-// Layout matches ModalLayout with tagged discriminant + max payload blob
+// ::cursive::analysis::layout::Layout matches ModalLayout with tagged discriminant + max payload blob
 llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
                                const std::vector<analysis::TypeRef>& generic_args);
 

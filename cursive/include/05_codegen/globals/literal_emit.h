@@ -20,6 +20,8 @@
 #include <string_view>
 #include <vector>
 
+#include "01_project/target_profile.h"
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/typing/types.h"
 #include "05_codegen/ir/ir_model.h"
 
@@ -140,11 +142,17 @@ struct StringViewLayout {
   std::uint64_t len_offset = 0;  // Platform-dependent (usually sizeof(ptr))
   std::uint64_t total_size = 0;  // sizeof(string@View)
 };
+StringViewLayout GetStringViewLayout(
+    const analysis::layout::LayoutEnv& env);
+StringViewLayout GetStringViewLayout(project::TargetProfile target_profile);
 StringViewLayout GetStringViewLayout();
 
 // (BytesViewLayout): Get offsets for bytes@View fields
 // bytes@View is { ptr: *imm u8, len: usize }
 // (Same layout as string@View)
+StringViewLayout GetBytesViewLayout(
+    const analysis::layout::LayoutEnv& env);
+StringViewLayout GetBytesViewLayout(project::TargetProfile target_profile);
 StringViewLayout GetBytesViewLayout();
 
 // (EmitStringViewIR): Create IR to construct a string@View from a literal

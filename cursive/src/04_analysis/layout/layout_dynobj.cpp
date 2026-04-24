@@ -13,7 +13,7 @@
 //   - DynLayoutOf function (if exists)
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (Layout struct)
+//   - cursive/include/04_analysis/layout/layout.h (Layout struct)
 //   - cursive/include/04_analysis/types/types.h (TypeDynamic)
 //
 // REFACTORING NOTES:
@@ -40,16 +40,18 @@
 //   }
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include "00_core/assert_spec.h"
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 
-DynLayout DynLayoutOf() {
+DynLayout DynLayoutOf(const cursive::analysis::ScopeContext& ctx) {
   SPEC_RULE("Layout-DynamicClass");
   DynLayout out;
-  out.layout = Layout{2 * kPtrSize, kPtrAlign};
+  const std::uint64_t ptr_size = PtrSize(ctx);
+  const std::uint64_t ptr_align = PtrAlign(ctx);
+  out.layout = Layout{2 * ptr_size, ptr_align};
   out.fields.push_back(
       cursive::analysis::MakeTypeRawPtr(cursive::analysis::RawPtrQual::Imm,
                                         cursive::analysis::MakeTypePrim("()")));
@@ -59,4 +61,10 @@ DynLayout DynLayoutOf() {
   return out;
 }
 
-}  // namespace cursive::codegen
+DynLayout DynLayoutOf() {
+  cursive::analysis::ScopeContext ctx;
+  ctx.target_profile = cursive::project::TargetProfile::X86_64SysV;
+  return DynLayoutOf(ctx);
+}
+
+}  // namespace cursive::analysis::layout

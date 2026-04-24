@@ -55,7 +55,7 @@ struct TransmuteLowerResult {
 /// This is an unsafe operation and must only be called from unsafe context.
 ///
 /// SPEC: §6.11 Lower-Transmute
-///   - Verify SizeOf(from) == SizeOf(to)
+///   - Verify ::cursive::analysis::layout::SizeOf(from) == ::cursive::analysis::layout::SizeOf(to)
 ///   - Generate IRTransmute node
 ///   - No runtime checks (caller verified unsafe context)
 ///

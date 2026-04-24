@@ -156,6 +156,7 @@ LowerCtx BuildABILowerCtx(const analysis::ScopeContext& scope_ctx) {
   LowerCtx lower_ctx;
   lower_ctx.sigma = scope_ctx.sigma_source ? scope_ctx.sigma_source : &scope_ctx.sigma;
   lower_ctx.module_path = scope_ctx.current_module;
+  lower_ctx.target_profile = scope_ctx.target_profile;
   lower_ctx.expr_types = scope_ctx.expr_types;
   lower_ctx.dynamic_refine_checks = scope_ctx.dynamic_refine_checks;
 

@@ -14,7 +14,7 @@
 #include "04_analysis/typing/type_expr.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/intrinsics/builtins.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 namespace cursive::codegen {
 
@@ -535,7 +535,7 @@ analysis::TypeRef ResolveAliasTypeForLogCompare(
   }
 
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-  const auto lowered = LowerTypeForLayout(scope, alias->type);
+  const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, alias->type);
   if (!lowered.has_value()) {
     return stripped;
   }
@@ -563,7 +563,7 @@ std::optional<IRValue> BuildLogExpectedImmediate(
     return std::nullopt;
   }
 
-  if (auto encoded = EncodeConst(compare_type, expected_token)) {
+  if (auto encoded = ::cursive::analysis::layout::EncodeConst(compare_type, expected_token)) {
     IRValue value;
     value.kind = IRValue::Kind::Immediate;
     value.name = expected_token.lexeme;
@@ -580,7 +580,7 @@ std::optional<IRValue> BuildLogExpectedImmediate(
       if (expected_token.kind != lexer::TokenKind::StringLiteral) {
         return std::nullopt;
       }
-      auto decoded = DecodeStringLiteralBytes(expected_token.lexeme);
+      auto decoded = ::cursive::analysis::layout::DecodeStringLiteralBytes(expected_token.lexeme);
       if (!decoded.has_value()) {
         return std::nullopt;
       }

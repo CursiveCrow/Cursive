@@ -9,7 +9,7 @@
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/spec_trace.h"
 
 namespace cursive::codegen {
@@ -17,7 +17,7 @@ namespace cursive::codegen {
 std::optional<ABIType> ABITyTuple(const analysis::ScopeContext& ctx,
                                   const analysis::TypeTuple& tuple) {
   SPEC_RULE("ABI-Tuple");
-  const auto layout = RecordLayoutOf(ctx, tuple.elements);
+  const auto layout = ::cursive::analysis::layout::RecordLayoutOf(ctx, tuple.elements);
   if (!layout.has_value()) {
     return std::nullopt;
   }

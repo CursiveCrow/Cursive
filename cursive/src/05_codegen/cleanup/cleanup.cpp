@@ -24,7 +24,7 @@
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/cleanup/cleanup.h
 //   - cursive/include/05_codegen/ir/ir_model.h (IRDrop, IRDropFields)
-//   - cursive/include/05_codegen/layout/layout.h (SizeOf, AlignOf)
+//   - cursive/include/04_analysis/layout/layout.h (SizeOf, AlignOf)
 //   - cursive/include/04_analysis/types/types.h (TypeRef, DropType predicate)
 //   - cursive/include/05_codegen/symbols/mangle.h (DropGlueSym)
 //
@@ -76,7 +76,7 @@
 #include "05_codegen/common/runtime_trace_utils.h"
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/symbols/mangle.h"
 #include "00_core/assert_spec.h"
 #include "00_core/process_config.h"
@@ -289,7 +289,7 @@ static std::optional<analysis::TypeRef> LowerTypeForDrop(
   scope.sigma = *ctx.sigma;
   scope.sigma_source = ctx.sigma;
   scope.current_module = ctx.module_path;
-  return LowerTypeForLayout(scope, type);
+  return ::cursive::analysis::layout::LowerTypeForLayout(scope, type);
 }
 
 static ast::Path ToSyntaxPath(const analysis::TypePath& path) {

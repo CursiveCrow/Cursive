@@ -20,7 +20,7 @@
 //   - State enumeration helpers
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (ModalLayout struct)
+//   - cursive/include/04_analysis/layout/layout.h (ModalLayout struct)
 //   - cursive/include/04_analysis/modal/modal_widen.h (modal type helpers)
 //   - cursive/include/04_analysis/types/types.h (TypeModalState)
 //   - RecordLayoutOf for state payload layout
@@ -44,7 +44,7 @@
 //   Same as single payload state layout (no discriminant needed)
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include <algorithm>
 
@@ -53,7 +53,7 @@
 #include "04_analysis/modal/modal_widen.h"
 #include "04_analysis/resolve/scopes.h"
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 namespace {
 
 std::uint64_t AlignUp(std::uint64_t value, std::uint64_t align) {
@@ -211,10 +211,12 @@ std::optional<ModalLayout> ModalLayoutOf(
     // frame pointer at byte offset 8 (see async runtime ABI). Ensure payload
     // capacity/alignment is sufficient even when Out is zero-sized.
     constexpr std::uint64_t kAsyncFramePtrPayloadOffset = 8;
+    const std::uint64_t ptr_size = PtrSize(ctx);
+    const std::uint64_t ptr_align = PtrAlign(ctx);
     const std::uint64_t min_suspended_payload =
-        kAsyncFramePtrPayloadOffset + kPtrSize;
+        kAsyncFramePtrPayloadOffset + ptr_size;
     payload_size = std::max(payload_size, min_suspended_payload);
-    payload_align = std::max(payload_align, kPtrAlign);
+    payload_align = std::max(payload_align, ptr_align);
 
     const auto disc = DiscTypeLayout(decl.states.size() - 1);
     const auto disc_name = DiscTypeName(decl.states.size() - 1);
@@ -285,4 +287,4 @@ std::optional<ModalLayout> ModalLayoutOf(
   return out;
 }
 
-}  // namespace cursive::codegen
+}  // namespace cursive::analysis::layout

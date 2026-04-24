@@ -58,7 +58,7 @@
 #include "05_codegen/common/runtime_trace_utils.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_pat.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/symbols/mangle.h"
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"

@@ -37,6 +37,7 @@ const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
     analysis::ExprTypeMap* expr_types = nullptr;
     analysis::DynamicRefineExprMap* dynamic_refine_checks = nullptr;
     std::vector<std::string> module_path;
+    std::optional<project::TargetProfile> target_profile;
     analysis::ScopeContext scope;
   };
 
@@ -47,15 +48,18 @@ const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
 
   if (cache.sigma != ctx.sigma || cache.expr_types != ctx.expr_types ||
       cache.dynamic_refine_checks != ctx.dynamic_refine_checks ||
-      cache.module_path != ctx.module_path) {
+      cache.module_path != ctx.module_path ||
+      cache.target_profile != ctx.target_profile) {
     cache.sigma = ctx.sigma;
     cache.expr_types = ctx.expr_types;
     cache.dynamic_refine_checks = ctx.dynamic_refine_checks;
     cache.module_path = ctx.module_path;
+    cache.target_profile = ctx.target_profile;
     cache.scope = analysis::ScopeContext{};
     cache.scope.sigma = *ctx.sigma;
     cache.scope.sigma_source = ctx.sigma;
     cache.scope.current_module = ctx.module_path;
+    cache.scope.target_profile = ctx.target_profile;
     cache.scope.expr_types = ctx.expr_types;
     cache.scope.dynamic_refine_checks = ctx.dynamic_refine_checks;
   }

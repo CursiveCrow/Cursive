@@ -59,7 +59,7 @@
 #include "05_codegen/globals/init.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/intrinsics/builtins.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/symbols/mangle.h"
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"

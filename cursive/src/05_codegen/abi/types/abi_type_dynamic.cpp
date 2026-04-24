@@ -10,14 +10,15 @@
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/spec_trace.h"
 
 namespace cursive::codegen {
 
-std::optional<ABIType> ABITyDynamic(const analysis::TypeDynamic& /*dyn*/) {
+std::optional<ABIType> ABITyDynamic(const analysis::ScopeContext& ctx,
+                                    const analysis::TypeDynamic& /*dyn*/) {
   SPEC_RULE("ABI-Dynamic");
-  const auto dyn_layout = DynLayoutOf();
+  const auto dyn_layout = ::cursive::analysis::layout::DynLayoutOf(ctx);
   return dyn_layout.layout;
 }
 

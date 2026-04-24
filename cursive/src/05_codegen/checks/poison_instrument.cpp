@@ -24,7 +24,7 @@
 //   - cursive/include/00_core/symbols.h (StringOfPath)
 //   - cursive/include/05_codegen/llvm/llvm_emit.h
 //   - cursive/include/05_codegen/llvm/llvm_ir_panic.h
-//   - cursive/include/05_codegen/layout/layout.h (RecordLayoutOf)
+//   - cursive/include/04_analysis/layout/layout.h (RecordLayoutOf)
 //
 // REFACTORING NOTES:
 //   1. Poisoning marks modules as failed during init

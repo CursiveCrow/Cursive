@@ -57,6 +57,9 @@ namespace cursive::analysis {
 
 namespace {
 
+constexpr std::string_view kMissingTargetProfileDiag =
+    "Internal-MissingTargetProfile";
+
 // =============================================================================
 // SPEC DEFINITIONS
 // =============================================================================
@@ -1653,10 +1656,13 @@ static std::optional<std::string_view> ValidateProcedureFfiAttributes(
   }
 
   if (has_foreign_export) {
-    const auto profile = SelectedTargetProfile(ctx);
+    const auto profile = RequireSelectedTargetProfile(ctx);
+    if (!profile.has_value()) {
+      return kMissingTargetProfileDiag;
+    }
     if (!foreign_abi.has_value() || foreign_abi->empty() ||
         !IsValidFfiAbi(*foreign_abi) ||
-        !IsSupportedFfiAbiForProfile(*foreign_abi, profile)) {
+        !IsSupportedFfiAbiForProfile(*foreign_abi, *profile)) {
       SPEC_RULE("ExportAbi-Unknown-Err");
       return "E-SYS-3352";
     }

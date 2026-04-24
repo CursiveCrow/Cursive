@@ -22,9 +22,8 @@
 // - CheckUnionDirectAccess (lines 110-132): Direct access error check
 //
 // Supporting helpers:
-// - UnionMemberResult struct (lines 21-25): Result type for membership check
-// - StripPerm (lines 27-35): Strip permission layer
-// - UnionMember (lines 37-50): Check if type is a union member
+// - UnionMemberResult: Result type for membership check
+// - UnionMember: Check if type is a union member
 //
 // DEPENDENCIES:
 // - cursive/include/04_analysis/typing/type_equiv.h (TypeEquiv)
@@ -33,10 +32,9 @@
 // REFACTORING NOTES:
 // 1. Union types are unordered: A|B is equivalent to B|A (spec line 8512 MembersEq)
 // 2. The UnionMember check uses TypeEquiv for each member comparison
-// 3. StripPerm is duplicated; consolidate with other files
-// 4. Union-DirectAccess-Err prevents field access on union types directly
-// 5. Consider caching union member equivalence checks for performance
-// 6. The union introduction rule checks permission compatibility when both
+// 3. Union-DirectAccess-Err prevents field access on union types directly
+// 4. Consider caching union member equivalence checks for performance
+// 5. The union introduction rule checks permission compatibility when both
 //    the value and target have permissions
 // =============================================================================
 
@@ -47,6 +45,7 @@
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/typing/type_equiv.h"
+#include "04_analysis/typing/type_predicates.h"
 
 namespace cursive::analysis {
 
@@ -57,7 +56,6 @@ static inline void SpecDefsUnions() {
   SPEC_DEF("DistinctMembers", "5.2.7");
   SPEC_DEF("SetMembers", "5.2.7");
   SPEC_DEF("Member", "5.2.2");
-  SPEC_DEF("StripPerm", "5.2.12");
 }
 
 struct UnionMemberResult {
@@ -65,16 +63,6 @@ struct UnionMemberResult {
   std::optional<std::string_view> diag_id;
   bool member = false;
 };
-
-static TypeRef StripPerm(const TypeRef& type) {
-  if (!type) {
-    return type;
-  }
-  if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
-    return perm->base;
-  }
-  return type;
-}
 
 static UnionMemberResult UnionMember(const TypeRef& type,
                                      const TypeUnion& uni) {

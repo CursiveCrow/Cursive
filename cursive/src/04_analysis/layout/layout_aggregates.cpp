@@ -19,7 +19,7 @@
 //   - EnumLayoutOf (lines 65-133)
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (Layout, RecordLayout, EnumLayout)
+//   - cursive/include/04_analysis/layout/layout.h (Layout, RecordLayout, EnumLayout)
 //   - RecordLayoutOf, SizeOf, AlignOf functions
 //   - LowerTypeForLayout for type resolution
 //   - EnumDiscriminants for discriminant computation
@@ -44,7 +44,7 @@
 //   - Enum: discriminant + max variant payload
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include <algorithm>
 #include <limits>
@@ -52,7 +52,7 @@
 #include "00_core/assert_spec.h"
 #include "04_analysis/composite/enums.h"
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 namespace {
 
 std::uint64_t AlignUp(std::uint64_t value, std::uint64_t align) {
@@ -166,8 +166,8 @@ std::optional<EnumLayout> EnumLayoutOf(
     }
     disc_type_name = *inferred_disc_name;
   }
-  const auto disc_size = PrimSize(disc_type_name);
-  const auto disc_align = PrimAlign(disc_type_name);
+  const auto disc_size = PrimSize(ctx, disc_type_name);
+  const auto disc_align = PrimAlign(ctx, disc_type_name);
   if (!disc_size.has_value() || !disc_align.has_value()) {
     return std::nullopt;
   }
@@ -267,4 +267,4 @@ std::optional<EnumLayout> EnumLayoutOf(
   return out;
 }
 
-}  // namespace cursive::codegen
+}  // namespace cursive::analysis::layout

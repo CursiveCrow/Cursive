@@ -17,7 +17,7 @@
 //   - cursive/src/05_codegen/lower/lower_expr.h (LowerResult, LowerCtx, etc.)
 //   - cursive/src/05_codegen/cleanup/cleanup.h (CleanupPlan, EmitCleanup)
 //   - cursive/src/05_codegen/cleanup/unwind.h (USizeImmediate, kPanicOutName, PanicOutType)
-//   - cursive/src/05_codegen/layout/layout.h (SizeOf)
+//   - cursive/src/04_analysis/layout/layout.h (SizeOf)
 //   - cursive/src/05_codegen/abi/abi.h (PanicOutType)
 //
 // =============================================================================
@@ -36,7 +36,7 @@
 #include "05_codegen/lower/lower_proc.h"
 #include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/ir/ir_model.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/cleanup/unwind.h"
@@ -693,7 +693,7 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
   std::uint64_t env_size_val = 0;
   if (ctx.sigma) {
-    if (const auto size = codegen::SizeOf(scope, env_type)) {
+    if (const auto size = ::cursive::analysis::layout::SizeOf(scope, env_type)) {
       env_size_val = *size;
     } else {
       ctx.ReportCodegenFailure();
@@ -750,7 +750,7 @@ LowerResult LowerSpawnExpr(const ast::Expr& expr,
   }
   std::uint64_t result_size_val = 0;
   if (ctx.sigma) {
-    if (const auto size = codegen::SizeOf(scope, body_type)) {
+    if (const auto size = ::cursive::analysis::layout::SizeOf(scope, body_type)) {
       result_size_val = *size;
     } else {
       ctx.ReportCodegenFailure();

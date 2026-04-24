@@ -246,6 +246,9 @@ struct LowerCtx {
   // Module path for symbol resolution
   std::vector<std::string> module_path;
 
+  // Selected target profile for target-sensitive semantic layout queries.
+  std::optional<project::TargetProfile> target_profile;
+
   // Project output kind context for entrypoint-sensitive lowering.
   bool executable_project = false;
   bool shared_library_project = false;

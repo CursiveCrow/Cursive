@@ -10,12 +10,13 @@
 #include <vector>
 
 #include "00_core/int128.h"
+#include "01_project/target_profile.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/composite/enums.h"
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 
 struct Layout {
   std::uint64_t size = 0;
@@ -78,10 +79,35 @@ struct DynLayout {
   std::vector<cursive::analysis::TypeRef> fields;
 };
 
-// Primitive layout constants (Cursive0)
+struct LayoutEnv {
+  cursive::project::TargetProfile target_profile =
+      cursive::project::TargetProfile::X86_64SysV;
+  std::uint64_t ptr_size = 8;
+  std::uint64_t ptr_align = 8;
+};
+
+LayoutEnv LayoutEnvOf(cursive::project::TargetProfile target_profile);
+LayoutEnv LayoutEnvOf(const cursive::analysis::ScopeContext& ctx);
+std::uint64_t PtrSize(const LayoutEnv& env);
+std::uint64_t PtrAlign(const LayoutEnv& env);
+std::uint64_t PtrSize(const cursive::analysis::ScopeContext& ctx);
+std::uint64_t PtrAlign(const cursive::analysis::ScopeContext& ctx);
+
+// Compatibility constants for code that is not yet target-profile parameterized.
+// Canonical layout queries should use LayoutEnvOf/PtrSize/PtrAlign.
 constexpr std::uint64_t kPtrSize = 8;
 constexpr std::uint64_t kPtrAlign = 8;
 
+std::optional<std::uint64_t> PrimSize(const LayoutEnv& env,
+                                      std::string_view name);
+std::optional<std::uint64_t> PrimAlign(const LayoutEnv& env,
+                                       std::string_view name);
+std::optional<std::uint64_t> PrimSize(
+    const cursive::analysis::ScopeContext& ctx,
+    std::string_view name);
+std::optional<std::uint64_t> PrimAlign(
+    const cursive::analysis::ScopeContext& ctx,
+    std::string_view name);
 std::optional<std::uint64_t> PrimSize(std::string_view name);
 std::optional<std::uint64_t> PrimAlign(std::string_view name);
 
@@ -136,6 +162,7 @@ std::optional<ModalLayout> ModalLayoutOf(
     const cursive::ast::ModalDecl& decl,
     const std::vector<cursive::analysis::TypeRef>& generic_args = {});
 
+DynLayout DynLayoutOf(const cursive::analysis::ScopeContext& ctx);
 DynLayout DynLayoutOf();
 
 // Value representations for ValueBits helpers.
@@ -254,4 +281,4 @@ std::optional<std::vector<std::uint8_t>> ValueBits(
     const cursive::analysis::TypeRef& type,
     const Value& value);
 
-}  // namespace cursive::codegen
+}  // namespace cursive::analysis::layout

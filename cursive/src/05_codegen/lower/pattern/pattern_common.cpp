@@ -25,7 +25,7 @@
 #include "04_analysis/typing/type_layout.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/types.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/lower_bind.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_pat.h"
@@ -54,7 +54,7 @@ analysis::TypeRef LowerSyntaxType(const std::shared_ptr<ast::Type>& type,
     return nullptr;
   }
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-  if (const auto lowered = LowerTypeForLayout(scope, type)) {
+  if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, type)) {
     return *lowered;
   }
   return nullptr;
@@ -416,7 +416,7 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
               if (stripped && std::holds_alternative<analysis::TypeUnion>(stripped->node)) {
                 const auto& uni = std::get<analysis::TypeUnion>(stripped->node);
                 const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-                if (const auto layout = UnionLayoutOf(scope, uni)) {
+                if (const auto layout = ::cursive::analysis::layout::UnionLayoutOf(scope, uni)) {
                   const auto& members = layout->member_list;
                   std::optional<std::size_t> member_index;
                   for (std::size_t i = 0; i < members.size(); ++i) {

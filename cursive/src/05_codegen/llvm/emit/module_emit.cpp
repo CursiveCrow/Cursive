@@ -19,7 +19,7 @@
 #include "05_codegen/globals/init.h"
 #include "05_codegen/globals/literal_emit.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/lower_module.h"
 #include "05_codegen/llvm/llvm_attr.h"
 #include "05_codegen/llvm/llvm_call.h"
@@ -118,10 +118,10 @@ using namespace emit_detail;
       const analysis::ScopeContext &scope = BuildScope(&ctx);
       const analysis::TypeRef context_type = analysis::MakeTypePath({"Context"});
       const analysis::TypeRef panic_type = PanicRecordType();
-      const std::optional<std::uint64_t> ctx_size = SizeOf(scope, context_type);
-      const std::optional<std::uint64_t> ctx_align = AlignOf(scope, context_type);
-      const std::optional<std::uint64_t> panic_size = SizeOf(scope, panic_type);
-      const std::optional<std::uint64_t> panic_align = AlignOf(scope, panic_type);
+      const std::optional<std::uint64_t> ctx_size = ::cursive::analysis::layout::SizeOf(scope, context_type);
+      const std::optional<std::uint64_t> ctx_align = ::cursive::analysis::layout::AlignOf(scope, context_type);
+      const std::optional<std::uint64_t> panic_size = ::cursive::analysis::layout::SizeOf(scope, panic_type);
+      const std::optional<std::uint64_t> panic_align = ::cursive::analysis::layout::AlignOf(scope, panic_type);
 
       hosted_layout_.active = true;
       hosted_layout_.align = 1u;

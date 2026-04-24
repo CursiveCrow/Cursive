@@ -3,11 +3,11 @@
 // =============================================================================
 //
 // SPEC REFERENCE: CursiveSpecification.md Lines 16288-16302 (Pipeline Lowering)
-//   - Lower-Expr-Pipeline: e1 |> e2 desugars to function/closure application
+//   - Lower-Expr-Pipeline: e1 => e2 desugars to function/closure application
 //   - IsFunc case: CallIR(v_2, [v_1])
 //   - IsClosure case: IndirectCall(code, [env, v_1])
 //
-// The pipeline operator |> passes the LHS value as the first argument to
+// The pipeline operator => passes the LHS value as the first argument to
 // the RHS function or closure.
 //
 // SPEC RULE: (Lower-Expr-Pipeline)
@@ -87,7 +87,7 @@ analysis::TypeRef PipelineResultType(const analysis::TypeRef& type) {
 //   Gamma |- LowerExpr(e_2) => <IR_2, v_2>
 //   type(e_2) = TypeFunc(_, _)
 //   ---------------------------------------------------------------
-//   Gamma |- LowerExpr(e_1 |> e_2) => <SeqIR(IR_1, IR_2, CallIR(v_2, [v_1])), v_call>
+//   Gamma |- LowerExpr(e_1 => e_2) => <SeqIR(IR_1, IR_2, CallIR(v_2, [v_1])), v_call>
 //
 // Pipeline expressions desugar to function application where the LHS
 // becomes the first argument to the RHS function.
@@ -95,8 +95,8 @@ analysis::TypeRef PipelineResultType(const analysis::TypeRef& type) {
 LowerResult LowerPipelineExpr(const ast::BinaryExpr& expr, LowerCtx& ctx) {
   SPEC_RULE("Lower-Expr-Pipeline");
 
-  // Verify this is actually a pipeline operator (=> per spec, |> for legacy)
-  if (expr.op != "=>" && expr.op != "|>") {
+  // Verify this is actually a pipeline operator.
+  if (expr.op != "=>") {
     ctx.ReportCodegenFailure();
     IRValue bad = ctx.FreshTempValue("pipeline_err");
     return LowerResult{EmptyIR(), bad};

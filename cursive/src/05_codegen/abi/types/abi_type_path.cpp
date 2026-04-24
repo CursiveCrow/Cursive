@@ -5,14 +5,14 @@
 // SPEC REFERENCE: CursiveSpecification.md
 //   - Section 6.2.2 ABI Type Lowering
 //   - ABI-Alias: resolve alias body and recurse
-//   - ABI-Record: use RecordLayout
+//   - ABI-Record: use ::cursive::analysis::layout::RecordLayout
 //   - ABI-Enum: use EnumLayout
 //   - ABI-Modal: use ModalLayout for modal path types
 //
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "00_core/spec_trace.h"
@@ -37,7 +37,7 @@ std::optional<analysis::TypeRef> ResolveAliasBody(
   if (!alias) {
     return std::nullopt;
   }
-  return LowerTypeForLayout(ctx, alias->type);
+  return ::cursive::analysis::layout::LowerTypeForLayout(ctx, alias->type);
 }
 
 // Check if a TypePathType resolves to a record declaration.
@@ -144,7 +144,7 @@ std::optional<ABIType> ABITyPathType(const analysis::ScopeContext& ctx,
   // ABITy(TypePath(p)) => <size, align> when RecordDecl(p) = R
   if (IsRecordDecl(ctx, path_type.path)) {
     SPEC_RULE("ABI-Record");
-    const auto layout = LayoutOf(ctx, type);
+    const auto layout = ::cursive::analysis::layout::LayoutOf(ctx, type);
     if (!layout.has_value()) {
       return std::nullopt;
     }
@@ -155,7 +155,7 @@ std::optional<ABIType> ABITyPathType(const analysis::ScopeContext& ctx,
   // ABITy(TypePath(p)) => <size, align> when EnumDecl(p) = E
   if (IsEnumDecl(ctx, path_type.path)) {
     SPEC_RULE("ABI-Enum");
-    const auto layout = LayoutOf(ctx, type);
+    const auto layout = ::cursive::analysis::layout::LayoutOf(ctx, type);
     if (!layout.has_value()) {
       return std::nullopt;
     }
@@ -166,7 +166,7 @@ std::optional<ABIType> ABITyPathType(const analysis::ScopeContext& ctx,
   // ABITy(TypePath(p)) => <size, align> when Sigma.Types[p] = modal M
   if (IsModalDecl(ctx, path_type.path)) {
     SPEC_RULE("ABI-Modal");
-    const auto layout = LayoutOf(ctx, type);
+    const auto layout = ::cursive::analysis::layout::LayoutOf(ctx, type);
     if (!layout.has_value()) {
       return std::nullopt;
     }

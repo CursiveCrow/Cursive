@@ -32,7 +32,7 @@
 // - LowerStringState (lines 63-75): Convert syntax string state
 // - LowerBytesState (lines 77-89): Convert syntax bytes state
 // - LowerPtrState (lines 91-105): Convert syntax pointer state
-// - LowerType (lines 107-245): Full type lowering
+// - LowerTypeLocal: Adapter around canonical LowerType
 // - ProcReturn (lines 247-254): Lower procedure return type
 // - FindModule (lines 256-264): Find module by path
 // - ModuleNamesForContext (lines 266-276): Get module names from context
@@ -51,15 +51,14 @@
 // - cursive/include/00_core/assert_spec.h (SPEC_DEF, SPEC_RULE)
 //
 // REFACTORING NOTES:
-// 1. LowerType is duplicated across multiple files - must consolidate
-// 2. ProcReturn defaults to unit "()" when no return type specified
-// 3. ValuePathType handles special cases:
+// 1. ProcReturn defaults to unit "()" when no return type specified
+// 2. ValuePathType handles special cases:
 //    - String/bytes builtin methods
 //    - CancelToken::new constructor
 //    - Static declarations
 //    - Procedure declarations
-// 4. Qualified name resolution respects visibility
-// 5. T-Proc-As-Value: procedure names can be used as function values
+// 3. Qualified name resolution respects visibility
+// 4. T-Proc-As-Value: procedure names can be used as function values
 // =============================================================================
 
 #include "04_analysis/composite/function_types.h"

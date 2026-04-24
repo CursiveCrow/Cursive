@@ -9,6 +9,7 @@
 #include "01_project/deterministic_order.h"
 #include "01_project/link.h"
 #include "05_codegen/globals/globals.h"
+#include "06_driver/pipeline.h"
 
 namespace cursive::driver {
 

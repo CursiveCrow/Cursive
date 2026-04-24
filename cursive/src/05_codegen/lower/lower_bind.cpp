@@ -19,7 +19,7 @@
 //   - cursive/src/05_codegen/ir_model.h (IRBindVar)
 //   - cursive/src/05_codegen/lower/lower_ctx.h (RegisterVar)
 //   - cursive/src/05_codegen/lower/pattern/pattern_common.h
-//   - cursive/src/05_codegen/layout/layout.h (LowerTypeForLayout)
+//   - cursive/src/04_analysis/layout/layout.h (LowerTypeForLayout)
 //
 // REFACTORING NOTES:
 //   - This file bridges statement lowering and pattern matching
@@ -38,7 +38,7 @@
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/lower/lower_expr.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_equiv.h"
@@ -55,7 +55,7 @@ analysis::TypeRef LowerBindingType(const std::shared_ptr<ast::Type>& type_opt,
     return nullptr;
   }
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-  if (const auto lowered = LowerTypeForLayout(scope, type_opt)) {
+  if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, type_opt)) {
     return *lowered;
   }
   return nullptr;

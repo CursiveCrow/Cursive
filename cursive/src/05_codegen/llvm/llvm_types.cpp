@@ -24,7 +24,7 @@
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/llvm/llvm_types.h
 //   - cursive/include/05_codegen/llvm/llvm_emit.h (LLVMEmitter)
-//   - cursive/include/05_codegen/layout/layout.h (SizeOf, AlignOf, RecordLayoutOf)
+//   - cursive/include/04_analysis/layout/layout.h (SizeOf, AlignOf, RecordLayoutOf)
 //   - llvm/IR/DerivedTypes.h
 //   - llvm/IR/Type.h
 // =============================================================================
@@ -32,7 +32,7 @@
 #include "05_codegen/llvm/llvm_types.h"
 
 #include "00_core/spec_trace.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
 
 #include "llvm/IR/DerivedTypes.h"
@@ -166,7 +166,7 @@ llvm::Type* CreatePaddingType(llvm::LLVMContext& context, std::uint64_t bytes) {
 }
 
 // -----------------------------------------------------------------------------
-// Layout-Aware Struct Construction
+// ::cursive::analysis::layout::Layout-Aware Struct Construction
 // -----------------------------------------------------------------------------
 
 std::vector<llvm::Type*> ComputeStructElements(
@@ -197,8 +197,8 @@ std::vector<llvm::Type*> ComputeStructElements(
       analysis::ScopeContext scope;
       scope.sigma = *emitter.GetCurrentCtx()->sigma;
       scope.current_module = emitter.GetCurrentCtx()->module_path;
-      const auto field_size = SizeOf(scope, fields[i]);
-      const auto field_align = AlignOf(scope, fields[i]);
+      const auto field_size = ::cursive::analysis::layout::SizeOf(scope, fields[i]);
+      const auto field_align = ::cursive::analysis::layout::AlignOf(scope, fields[i]);
       if (field_size.has_value()) {
         prev_end = offset + *field_size;
       } else {
@@ -243,7 +243,7 @@ std::vector<llvm::Type*> ComputeTaggedElements(
     analysis::ScopeContext scope;
     scope.sigma = *emitter.GetCurrentCtx()->sigma;
     scope.current_module = emitter.GetCurrentCtx()->module_path;
-    const auto size_opt = SizeOf(scope, disc_type);
+    const auto size_opt = ::cursive::analysis::layout::SizeOf(scope, disc_type);
     if (size_opt.has_value()) {
       disc_size = *size_opt;
     }
@@ -451,7 +451,7 @@ llvm::StructType* CreateTaggedStructType(LLVMEmitter& emitter,
 }
 
 // -----------------------------------------------------------------------------
-// Async Type Layout (§5.4.5)
+// Async Type ::cursive::analysis::layout::Layout (§5.4.5)
 // -----------------------------------------------------------------------------
 
 llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
@@ -468,6 +468,7 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
   analysis::ScopeContext scope;
   scope.sigma = *emitter.GetCurrentCtx()->sigma;
   scope.current_module = emitter.GetCurrentCtx()->module_path;
+  scope.target_profile = emitter.GetTargetProfile();
 
   analysis::AsyncSig async_sig{};
   async_sig.out =
@@ -478,7 +479,7 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
       generic_args.size() > 2 ? generic_args[2] : analysis::MakeTypePrim("()");
   async_sig.err =
       generic_args.size() > 3 ? generic_args[3] : analysis::MakeTypePrim("!");
-  const auto lowered_async = LowerAsyncType(async_sig);
+  const auto lowered_async = ::cursive::analysis::layout::LowerAsyncType(async_sig);
   const bool has_failed_state =
       lowered_async.has_value() &&
       std::find(lowered_async->states.begin(),
@@ -489,7 +490,7 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
   std::uint64_t max_payload_size = 0;
   std::uint64_t max_payload_align = 1;
 
-  auto add_payload_layout = [&](const std::optional<Layout>& layout_opt) {
+  auto add_payload_layout = [&](const std::optional<::cursive::analysis::layout::Layout>& layout_opt) {
     if (!layout_opt.has_value() || layout_opt->size == 0) {
       return;
     }
@@ -500,7 +501,7 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
     if (!type) {
       return;
     }
-    add_payload_layout(LayoutOf(scope, type));
+    add_payload_layout(::cursive::analysis::layout::LayoutOf(scope, type));
   };
   auto is_unit_type = [](const analysis::TypeRef& type) {
     if (!type) {
@@ -529,7 +530,7 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
   const analysis::TypeRef frame_ptr = analysis::MakeTypePtr(
       analysis::MakeTypePrim("u8"),
       analysis::PtrState::Valid);
-  const auto suspended_layout = RecordLayoutOf(scope, {out_type, frame_ptr});
+  const auto suspended_layout = ::cursive::analysis::layout::RecordLayoutOf(scope, {out_type, frame_ptr});
   if (!suspended_layout.has_value()) {
     return llvm::StructType::get(ctx, {});
   }
@@ -554,10 +555,13 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
   // frame pointer at byte offset 8. Keep LLVM Async payload large/aligned
   // enough for that contract, including Out = ().
   constexpr std::uint64_t kAsyncFramePtrPayloadOffset = 8;
+  const auto env =
+      ::cursive::analysis::layout::LayoutEnvOf(emitter.GetTargetProfile());
   const std::uint64_t min_suspended_payload =
-      kAsyncFramePtrPayloadOffset + kPtrSize;
+      kAsyncFramePtrPayloadOffset + ::cursive::analysis::layout::PtrSize(env);
   max_payload_size = std::max(max_payload_size, min_suspended_payload);
-  max_payload_align = std::max(max_payload_align, kPtrAlign);
+  max_payload_align =
+      std::max(max_payload_align, ::cursive::analysis::layout::PtrAlign(env));
 
   // Build tagged struct
   const std::uint64_t disc_size = 1;

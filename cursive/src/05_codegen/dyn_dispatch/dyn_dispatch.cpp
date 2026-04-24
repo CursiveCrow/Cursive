@@ -28,7 +28,7 @@
 //   - cursive/include/05_codegen/dyn_dispatch/dyn_dispatch.h
 //   - cursive/include/05_codegen/ir/ir_model.h (GlobalVTable, CallVTable)
 //   - cursive/include/05_codegen/symbols/mangle.h (MangleVTable, MangleMethod)
-//   - cursive/include/05_codegen/layout/layout.h (SizeOf, AlignOf)
+//   - cursive/include/04_analysis/layout/layout.h (SizeOf, AlignOf)
 //   - cursive/include/05_codegen/cleanup/cleanup.h (DropGlueSym)
 //   - cursive/include/04_analysis/composite/classes.h
 //   - cursive/include/04_analysis/composite/record_methods.h
@@ -43,8 +43,8 @@
 //
 // VTABLE LAYOUT:
 //   VTable = {
-//     size: usize,      // SizeOf(T)
-//     align: usize,     // AlignOf(T)
+//     size: usize,      // ::cursive::analysis::layout::SizeOf(T)
+//     align: usize,     // ::cursive::analysis::layout::AlignOf(T)
 //     drop: *ptr,       // DropGlueSym(T)
 //     slots: [*ptr]     // Method pointers in VTableEligible order
 //   }
@@ -74,7 +74,7 @@
 #include "04_analysis/typing/type_predicates.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/cleanup/cleanup.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/symbols/mangle.h"
 
 namespace cursive::codegen {
@@ -310,8 +310,8 @@ VTableInfo VTable(const analysis::TypeRef& type,
     scope.sigma_source = ctx.sigma;
     scope.current_module = ctx.module_path;
   }
-  const auto size = SizeOf(scope, type);
-  const auto align = AlignOf(scope, type);
+  const auto size = ::cursive::analysis::layout::SizeOf(scope, type);
+  const auto align = ::cursive::analysis::layout::AlignOf(scope, type);
   info.type_size = size.value_or(0);
   info.type_align = align.value_or(1);
 
@@ -443,7 +443,7 @@ LowerResult LowerDynCall(const IRValue& base_ptr,
         scope.sigma = *ctx.sigma;
         scope.sigma_source = ctx.sigma;
         scope.current_module = ctx.module_path;
-        if (auto lowered = LowerTypeForLayout(scope, method->return_type_opt)) {
+        if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, method->return_type_opt)) {
           method_ret_type = *lowered;
         }
         break;
@@ -476,7 +476,7 @@ LowerResult LowerDynCall(const IRValue& base_ptr,
 }
 
 // ============================================================================
-// §6.10 Dynamic Object Layout
+// §6.10 Dynamic Object ::cursive::analysis::layout::Layout
 // ============================================================================
 
 DynObjectLayout GetDynObjectLayout() {

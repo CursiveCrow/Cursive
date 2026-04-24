@@ -15,9 +15,7 @@
 // - EnumDiscriminants (lines 113-178): Compute discriminant values for enum variants
 //
 // Supporting helpers:
-// - ParseIntCore (lines 23-78): Parse integer literal core (128-bit)
-// - StripIntSuffix (lines 80-93): Strip integer suffix from lexeme
-// - ParseUnsignedIntLiteral (lines 95-109): Parse unsigned integer literal
+// - core::ParseUnsignedIntLiteral: Parse unsigned integer literal
 //
 // DEPENDENCIES:
 // - cursive/src/00_core/int128.h (UInt128 operations)
@@ -31,12 +29,11 @@
 // - Enum-Disc-Dup (line 166): Duplicate discriminant value
 //
 // REFACTORING NOTES:
-// 1. Integer parsing logic is duplicated with tuples.cpp - consolidate
-// 2. Discriminant values are u64, computed incrementally from 0
-// 3. Explicit discriminants set the next implicit value
-// 4. Duplicate discriminant values are an error
-// 5. Overflow at max_u64 is an error if not the last variant
-// 6. The result includes both the discriminant list and max discriminant
+// 1. Discriminant values are u64, computed incrementally from 0
+// 2. Explicit discriminants set the next implicit value
+// 3. Duplicate discriminant values are an error
+// 4. Overflow at max_u64 is an error if not the last variant
+// 5. The result includes both the discriminant list and max discriminant
 // =============================================================================
 
 #include "04_analysis/composite/enums.h"

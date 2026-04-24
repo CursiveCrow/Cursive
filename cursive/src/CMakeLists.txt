@@ -464,7 +464,15 @@ add_library(cursive_analysis STATIC
   04_analysis/typing/dynamic_context.cpp
   04_analysis/typing/deprecation_warnings.cpp
   04_analysis/typing/ffi_by_value.cpp
-  04_analysis/typing/type_layout.cpp
+  04_analysis/layout/layout_aggregates.cpp
+  04_analysis/layout/layout_dispatch.cpp
+  04_analysis/layout/layout_dynobj.cpp
+  04_analysis/layout/layout_modal.cpp
+  04_analysis/layout/layout_primitives.cpp
+  04_analysis/layout/layout_records.cpp
+  04_analysis/layout/layout_tuples.cpp
+  04_analysis/layout/layout_unions.cpp
+  04_analysis/layout/layout_value_bits.cpp
   04_analysis/typing/type_lower.cpp
   04_analysis/typing/type_expr.cpp
   04_analysis/typing/type_lookup.cpp
@@ -621,15 +629,6 @@ add_library(cursive_codegen STATIC
   05_codegen/llvm/llvm_passes.cpp
   05_codegen/llvm/llvm_types.cpp
   05_codegen/llvm/llvm_ub_safe.cpp
-  05_codegen/layout/layout_aggregates.cpp
-  05_codegen/layout/layout_dispatch.cpp
-  05_codegen/layout/layout_dynobj.cpp
-  05_codegen/layout/layout_modal.cpp
-  05_codegen/layout/layout_primitives.cpp
-  05_codegen/layout/layout_records.cpp
-  05_codegen/layout/layout_tuples.cpp
-  05_codegen/layout/layout_unions.cpp
-  05_codegen/layout/layout_value_bits.cpp
   05_codegen/lower/expr/addr_of.cpp
   05_codegen/lower/expr/all_expr.cpp
   05_codegen/lower/expr/alloc_expr.cpp

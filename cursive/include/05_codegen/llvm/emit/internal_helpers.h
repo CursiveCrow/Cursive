@@ -231,6 +231,32 @@ inline long long EmitPerfSlowDeclThresholdMs() {
   return threshold;
 }
 
+inline long long EmitPerfSlowProcThresholdMs() {
+  static const long long threshold = [] {
+    if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF_SLOW_PROC_MS");
+        env.has_value() && !env->empty()) {
+      char* end = nullptr;
+      const long parsed = std::strtol(env->c_str(), &end, 10);
+      if (end != env->c_str() && parsed >= 0) {
+        return static_cast<long long>(parsed);
+      }
+    }
+    return 25LL;
+  }();
+  return threshold;
+}
+
+inline bool EmitPerfLogAllProcs() {
+  static const bool enabled = [] {
+    if (const auto env = core::HostGetEnvUtf8("CURSIVE_EMIT_PERF_PROC_ALL");
+        env.has_value() && !env->empty()) {
+      return !IsDisabledPerfValue(env->c_str());
+    }
+    return false;
+  }();
+  return enabled;
+}
+
 inline std::uint64_t AlignUpU64(std::uint64_t value, std::uint64_t align) {
   if (align == 0u) {
     return value;
@@ -321,6 +347,7 @@ inline const analysis::ScopeContext& BuildScope(const LowerCtx* ctx) {
     const LowerCtx* ctx = nullptr;
     const analysis::Sigma* sigma = nullptr;
     std::vector<std::string> module_path;
+    std::optional<project::TargetProfile> target_profile;
     analysis::ScopeContext scope;
   };
 
@@ -329,14 +356,18 @@ inline const analysis::ScopeContext& BuildScope(const LowerCtx* ctx) {
     return kEmptyScope;
   }
 
-  if (cache.ctx != ctx || cache.sigma != ctx->sigma || cache.module_path != ctx->module_path) {
+  if (cache.ctx != ctx || cache.sigma != ctx->sigma ||
+      cache.module_path != ctx->module_path ||
+      cache.target_profile != ctx->target_profile) {
     cache.ctx = ctx;
     cache.sigma = ctx->sigma;
     cache.module_path = ctx->module_path;
+    cache.target_profile = ctx->target_profile;
     cache.scope = analysis::ScopeContext{};
     cache.scope.sigma = *ctx->sigma;
     cache.scope.sigma_source = ctx->sigma;
     cache.scope.current_module = ctx->module_path;
+    cache.scope.target_profile = ctx->target_profile;
   }
 
   return cache.scope;

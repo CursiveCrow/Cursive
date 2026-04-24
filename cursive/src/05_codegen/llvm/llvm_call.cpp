@@ -29,7 +29,7 @@
 #include "04_analysis/typing/type_predicates.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/checks.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
 #include "05_codegen/llvm/emit/internal_helpers.h"
 #include "05_codegen/llvm/llvm_ir_panic.h"
@@ -54,34 +54,7 @@ namespace cursive::codegen {
 
 namespace {
 
-const analysis::ScopeContext& BuildScope(const LowerCtx* ctx) {
-  static const analysis::ScopeContext kEmptyScope{};
-
-  struct ScopeCache {
-    const LowerCtx* ctx = nullptr;
-    const analysis::Sigma* sigma = nullptr;
-    std::vector<std::string> module_path;
-    analysis::ScopeContext scope;
-  };
-
-  thread_local ScopeCache cache;
-  if (!ctx || !ctx->sigma) {
-    return kEmptyScope;
-  }
-
-  if (cache.ctx != ctx || cache.sigma != ctx->sigma ||
-      cache.module_path != ctx->module_path) {
-    cache.ctx = ctx;
-    cache.sigma = ctx->sigma;
-    cache.module_path = ctx->module_path;
-    cache.scope = analysis::ScopeContext{};
-    cache.scope.sigma = *ctx->sigma;
-    cache.scope.sigma_source = ctx->sigma;
-    cache.scope.current_module = ctx->module_path;
-  }
-
-  return cache.scope;
-}
+using emit_detail::BuildScope;
 
 analysis::TypeRef StripPermLocal(const analysis::TypeRef& type) {
   if (!type) {
@@ -432,7 +405,7 @@ std::optional<std::vector<llvm::Type*>> ComputeLLVMParamTypes(
       continue;
     }
 
-    const auto size = SizeOf(scope, params[i].type);
+    const auto size = ::cursive::analysis::layout::SizeOf(scope, params[i].type);
     if (!size.has_value()) {
       SPEC_RULE("LLVMArgLower-Err");
       return std::nullopt;
@@ -473,7 +446,7 @@ std::optional<llvm::Type*> ComputeLLVMReturnType(LLVMEmitter& emitter,
   }
 
   const analysis::ScopeContext& scope = BuildScope(emitter.GetCurrentCtx());
-  const auto size = SizeOf(scope, ret_type);
+  const auto size = ::cursive::analysis::layout::SizeOf(scope, ret_type);
 
   if (!size.has_value()) {
     SPEC_RULE("LLVMRetLower-Err");

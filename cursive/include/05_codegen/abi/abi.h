@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "05_codegen/ir/ir_model.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
@@ -49,8 +49,8 @@ bool IsCCompatible(CallingConvention cc);
 // =============================================================================
 
 // ABIType = { <size, align> | size ∈ ℕ ∧ align ∈ ℕ }
-// Reuses existing Layout struct which has the same structure.
-using ABIType = Layout;
+// Reuses existing ::cursive::analysis::layout::Layout struct which has the same structure.
+using ABIType = ::cursive::analysis::layout::Layout;
 
 // ABITy(T) ⇓ <size, align>
 // Maps a semantic type to its ABI representation (size and alignment).
@@ -79,9 +79,6 @@ enum class ABIParamPolicy {
 
 // ByValMax = 16 bytes
 constexpr std::uint64_t kByValMax = 16;
-
-// ByValAlign = PtrAlign (8 bytes on Win64)
-constexpr std::uint64_t kByValAlign = kPtrAlign;
 
 // ByValOk(T) ⟺ sizeof(T) ≤ ByValMax ∧ alignof(T) ≤ ByValAlign
 bool ByValOk(const analysis::ScopeContext& ctx, const analysis::TypeRef& type);
@@ -121,7 +118,7 @@ std::optional<ABICallInfo> ABICall(
 std::vector<std::pair<std::string, analysis::TypeRef>> PanicRecordFields();
 std::vector<analysis::TypeRef> PanicRecordFieldTypes();
 analysis::TypeRef PanicRecordType();
-std::optional<RecordLayout> PanicRecordLayout(
+std::optional<::cursive::analysis::layout::RecordLayout> PanicRecordLayout(
     const analysis::ScopeContext& ctx);
 
 // PanicOutType = rawptr[mut, PanicRecord]

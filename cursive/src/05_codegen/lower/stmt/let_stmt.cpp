@@ -17,7 +17,7 @@
 //   - cursive/include/05_codegen/ir/ir_model.h (IRBindVar)
 //   - cursive/include/05_codegen/lower/lower_expr.h (LowerCtx, LowerResult)
 //   - cursive/include/05_codegen/lower/lower_pat.h (LowerBindPattern)
-//   - cursive/include/05_codegen/layout/layout.h (LowerTypeForLayout)
+//   - cursive/include/04_analysis/layout/layout.h (LowerTypeForLayout)
 //
 // =============================================================================
 
@@ -28,7 +28,7 @@
 #include "04_analysis/typing/type_predicates.h"
 #include "05_codegen/dyn_dispatch/dyn_dispatch.h"
 #include "05_codegen/ir/ir_model.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_pat.h"
@@ -77,7 +77,7 @@ analysis::TypeRef LowerBindingType(const ast::TypePtr& type_opt,
     return nullptr;
   }
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-  if (const auto lowered = LowerTypeForLayout(scope, type_opt)) {
+  if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, type_opt)) {
     return *lowered;
   }
   return nullptr;

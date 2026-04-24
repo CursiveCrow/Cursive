@@ -46,7 +46,7 @@
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_module.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/llvm/llvm_emit.h"
 
@@ -205,15 +205,18 @@ void CollectHostedStateTemplates(CodegenCache& cache,
     scope.sigma = *cache.ctx.sigma;
     scope.sigma_source = cache.ctx.sigma;
     scope.current_module = module_entry.path;
+    scope.target_profile = cache.ctx.target_profile;
   }
 
   auto hosted_layout_for = [&](const std::string& symbol)
       -> std::pair<std::uint64_t, std::uint64_t> {
     const analysis::TypeRef static_type = cache.ctx.LookupStaticType(symbol);
     const std::optional<std::uint64_t> size =
-        static_type ? codegen::SizeOf(scope, static_type) : std::nullopt;
+        static_type ? analysis::layout::SizeOf(scope, static_type)
+                    : std::nullopt;
     const std::optional<std::uint64_t> align =
-        static_type ? codegen::AlignOf(scope, static_type) : std::nullopt;
+        static_type ? analysis::layout::AlignOf(scope, static_type)
+                    : std::nullopt;
     return {size.value_or(0u), std::max<std::uint64_t>(1u, align.value_or(1u))};
   };
 
@@ -441,6 +444,21 @@ void ConfigureCodegenContextForProjectImpl(CodegenCache& cache,
   if (!cache.ctx.shared_library_project) {
     cache.ctx.shared_library_export_symbols.clear();
   }
+}
+
+bool ValidateCodegenCacheCoverage(CodegenCache& cache,
+                                  const project::Project& project) {
+  for (const auto& module : project.modules) {
+    if (cache.ast_modules.find(module.path) == cache.ast_modules.end()) {
+      LogCodegenProgress("cache-build-error stage=module-coverage missing=" +
+                         module.path);
+      std::cerr << "[cursive] BuildCodegenCache: missing AST module entry for path '"
+                << module.path << "'\n";
+      cache.ok.store(false);
+      return false;
+    }
+  }
+  return true;
 }
 
 void FilterHostedExportsForProject(
@@ -975,6 +993,7 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
     const analysis::TypecheckResult& typechecked) {
   auto cache = std::make_shared<CodegenCache>();
   cache->ctx.sigma = &sema_ctx.sigma;
+  cache->ctx.target_profile = sema_ctx.target_profile;
   cache->name_maps = &name_maps;
   LogCodegenProgress("cache-build-start modules=" +
                      std::to_string(sema_ctx.sigma.mods.size()));
@@ -1062,16 +1081,7 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
     }
   }
 
-  for (const auto& module : project.modules) {
-    if (cache->ast_modules.find(module.path) == cache->ast_modules.end()) {
-      LogCodegenProgress("cache-build-error stage=module-coverage missing=" +
-                         module.path);
-      std::cerr << "[cursive] BuildCodegenCache: missing AST module entry for path '"
-                << module.path << "'\n";
-      cache->ok.store(false);
-      break;
-    }
-  }
+  ValidateCodegenCacheCoverage(*cache, project);
 
   LogCodegenProgress("cache-build-finish ok=" +
                      std::string(cache->ok.load() ? "true" : "false") +

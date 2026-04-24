@@ -17,7 +17,7 @@
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/llvm/llvm_attr.h
 //   - cursive/include/05_codegen/llvm/llvm_emit.h (LLVMEmitter)
-//   - cursive/include/05_codegen/layout/layout.h (SizeOf, AlignOf)
+//   - cursive/include/04_analysis/layout/layout.h (SizeOf, AlignOf)
 //   - llvm/IR/Attributes.h
 //   - llvm/IR/Function.h
 // =============================================================================
@@ -25,7 +25,7 @@
 #include "05_codegen/llvm/llvm_attr.h"
 
 #include "00_core/spec_trace.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
 
 #include "llvm/IR/Attributes.h"
@@ -123,8 +123,8 @@ AttrSet ComputePtrAttrs(const analysis::TypeRef& type, const LowerCtx* ctx) {
     scope.sigma_source = ctx->sigma;
     scope.current_module = ctx->module_path;
 
-    const auto size = SizeOf(scope, ptr->element);
-    const auto align = AlignOf(scope, ptr->element);
+    const auto size = ::cursive::analysis::layout::SizeOf(scope, ptr->element);
+    const auto align = ::cursive::analysis::layout::AlignOf(scope, ptr->element);
 
     if (size.has_value()) {
       attrs.push_back({AttrKind::Dereferenceable, *size});

@@ -33,8 +33,9 @@
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/intrinsics/builtins.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
+#include "05_codegen/llvm/emit/internal_helpers.h"
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -53,35 +54,7 @@ namespace {
 constexpr const char* kDeinitPanicSeenSlot = "__cursive_deinit_panic_seen";
 constexpr const char* kDeinitPanicCodeSlot = "__cursive_deinit_panic_code";
 
-// Helper to build ScopeContext from LowerCtx
-const analysis::ScopeContext& BuildScope(const LowerCtx* ctx) {
-  static const analysis::ScopeContext kEmptyScope{};
-
-  struct ScopeCache {
-    const LowerCtx* ctx = nullptr;
-    const analysis::Sigma* sigma = nullptr;
-    std::vector<std::string> module_path;
-    analysis::ScopeContext scope;
-  };
-
-  thread_local ScopeCache cache;
-  if (!ctx || !ctx->sigma) {
-    return kEmptyScope;
-  }
-
-  if (cache.ctx != ctx || cache.sigma != ctx->sigma ||
-      cache.module_path != ctx->module_path) {
-    cache.ctx = ctx;
-    cache.sigma = ctx->sigma;
-    cache.module_path = ctx->module_path;
-    cache.scope = analysis::ScopeContext{};
-    cache.scope.sigma = *ctx->sigma;
-    cache.scope.sigma_source = ctx->sigma;
-    cache.scope.current_module = ctx->module_path;
-  }
-
-  return cache.scope;
-}
+using emit_detail::BuildScope;
 
 // Helper for byte-level GEP
 llvm::Value* ByteGEP(LLVMEmitter& emitter,
@@ -561,7 +534,7 @@ void StoreInitPanicRecord(LLVMEmitter& emitter,
   std::vector<analysis::TypeRef> fields;
   fields.push_back(analysis::MakeTypePrim("bool"));
   fields.push_back(analysis::MakeTypePrim("u32"));
-  const auto layout = RecordLayoutOf(scope, fields);
+  const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields);
   if (!layout.has_value() || layout->offsets.size() < 2) {
     return;
   }

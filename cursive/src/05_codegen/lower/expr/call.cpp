@@ -56,7 +56,7 @@
 #include "05_codegen/checks/panic.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/dyn_dispatch/dyn_dispatch.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/expr/closure_expr.h"
 #include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/lower/lower_proc.h"
@@ -881,7 +881,7 @@ void RegisterProvisionalGenericProcSig(const GenericProcInfo& info,
     ir_param.name = param.name;
 
     if (param.type) {
-      if (const auto lowered = LowerTypeForLayout(scope, param.type)) {
+      if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, param.type)) {
         ir_param.type = instantiate(*lowered);
       } else {
         const auto fallback = analysis::LowerType(scope, param.type);
@@ -898,7 +898,7 @@ void RegisterProvisionalGenericProcSig(const GenericProcInfo& info,
 
   provisional.ret = analysis::MakeTypePrim("()");
   if (info.decl->return_type_opt) {
-    if (const auto lowered_ret = LowerTypeForLayout(scope, info.decl->return_type_opt)) {
+    if (const auto lowered_ret = ::cursive::analysis::layout::LowerTypeForLayout(scope, info.decl->return_type_opt)) {
       provisional.ret = instantiate(*lowered_ret);
     } else {
       const auto fallback_ret = analysis::LowerType(scope, info.decl->return_type_opt);

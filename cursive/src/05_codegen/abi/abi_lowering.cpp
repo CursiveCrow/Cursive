@@ -12,7 +12,7 @@
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/typing/types.h"
 #include "00_core/spec_trace.h"
 
@@ -72,7 +72,7 @@ std::vector<std::optional<unsigned>> ComputeParamIndices(
     }
 
     // ByValue - check if ZST.
-    const auto size = SizeOf(ctx, type);
+    const auto size = ::cursive::analysis::layout::SizeOf(ctx, type);
     if (!size.has_value()) {
       indices[i] = llvm_index++;
       continue;

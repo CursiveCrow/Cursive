@@ -24,7 +24,7 @@
 //   - cursive/src/05_codegen/globals.h (EmitInitPlan)
 //   - cursive/src/05_codegen/async_frame.h (kAsyncFrameHeaderSize, kAsyncFrameHeaderAlign)
 //   - cursive/src/05_codegen/mangle.h (MangleProc)
-//   - cursive/src/05_codegen/layout/layout.h (LowerTypeForLayout, SizeOf, AlignOf)
+//   - cursive/src/04_analysis/layout/layout.h (LowerTypeForLayout, SizeOf, AlignOf)
 //   - cursive/src/04_analysis/types/types.h (TypeRef, IsAsyncType, GetAsyncSig)
 //   - cursive/src/04_analysis/memory/regions.h (ComputeExprProvenanceMap)
 //
@@ -73,7 +73,7 @@
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/expr/expr_common.h"
 #include "05_codegen/lower/lower_stmt.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/intrinsics/async_frame.h"
 #include "05_codegen/symbols/mangle.h"
 #include "00_core/assert_spec.h"
@@ -1371,8 +1371,8 @@ ProcIR LowerProc(const ProcedureDecl& decl,
           continue;
         }
         const auto& type = it->second;
-        const auto size_opt = SizeOf(scope_inner, type);
-        const auto align_opt = AlignOf(scope_inner, type);
+        const auto size_opt = ::cursive::analysis::layout::SizeOf(scope_inner, type);
+        const auto align_opt = ::cursive::analysis::layout::AlignOf(scope_inner, type);
         if (!size_opt.has_value()) {
           ctx.ReportCodegenFailure();
           continue;
@@ -1626,7 +1626,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
   for (std::size_t i = 0; i < user_param_count && i < ir.params.size(); ++i) {
     analysis::TypeRef lowered = ir.params[i].type;
     if (decl.params[i].type && ctx.sigma) {
-      if (const auto lowered_opt = LowerTypeForLayout(scope, decl.params[i].type)) {
+      if (const auto lowered_opt = ::cursive::analysis::layout::LowerTypeForLayout(scope, decl.params[i].type)) {
         lowered = *lowered_opt;
       }
     }
@@ -1634,7 +1634,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
   }
 
   if (decl.return_type_opt && ctx.sigma) {
-    if (const auto lowered_ret = LowerTypeForLayout(scope, decl.return_type_opt)) {
+    if (const auto lowered_ret = ::cursive::analysis::layout::LowerTypeForLayout(scope, decl.return_type_opt)) {
       ir.ret = instantiate(*lowered_ret);
     } else {
       ir.ret = instantiate(ir.ret);

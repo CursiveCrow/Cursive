@@ -37,7 +37,7 @@
 // =============================================================================
 
 #include "05_codegen/lower/expr/literal.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/assert_spec.h"
 
 #include <array>
@@ -233,7 +233,7 @@ LowerResult LowerLiteral(const ast::Expr& expr,
     // String literals: decode escape sequences to UTF-8 bytes
     if (lit.literal.kind == lexer::TokenKind::StringLiteral) {
         SPEC_RULE("StringLiteralVal");
-        if (auto decoded = DecodeStringLiteralBytes(lit.literal.lexeme)) {
+        if (auto decoded = ::cursive::analysis::layout::DecodeStringLiteralBytes(lit.literal.lexeme)) {
             value.bytes = std::move(*decoded);
         } else {
             ctx.ReportCodegenFailure();
@@ -244,7 +244,7 @@ LowerResult LowerLiteral(const ast::Expr& expr,
     if (ctx.expr_type) {
         const auto lit_type = ctx.expr_type(expr);
         if (lit_type) {
-            if (auto bytes = EncodeConst(lit_type, lit.literal)) {
+            if (auto bytes = ::cursive::analysis::layout::EncodeConst(lit_type, lit.literal)) {
                 value.bytes = std::move(*bytes);
             }
             ctx.RegisterValueType(value, lit_type);
@@ -275,7 +275,7 @@ LowerResult LowerLiteral(const ast::Expr& expr,
             fallback_float_type = analysis::MakeTypePrim("f32");
         }
 
-        if (auto bytes = EncodeConst(fallback_float_type, lit.literal)) {
+        if (auto bytes = ::cursive::analysis::layout::EncodeConst(fallback_float_type, lit.literal)) {
             value.bytes = std::move(*bytes);
             // Hosted/synthesized lowering paths may not provide ctx.expr_type.
             // Preserve fallback float type so downstream unary lowering and LLVM

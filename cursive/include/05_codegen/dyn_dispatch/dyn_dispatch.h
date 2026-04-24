@@ -122,7 +122,7 @@ LowerResult LowerDynCall(const IRValue& base_ptr,
                          LowerCtx& ctx);
 
 // ============================================================================
-// §6.10 Dynamic Object Layout
+// §6.10 Dynamic Object ::cursive::analysis::layout::Layout
 // ============================================================================
 
 // A dynamic object (trait object) consists of:

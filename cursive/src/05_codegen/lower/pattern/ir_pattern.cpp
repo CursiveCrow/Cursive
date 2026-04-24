@@ -1,6 +1,6 @@
 #include "05_codegen/lower/pattern/ir_pattern.h"
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/lower_expr.h"
 
 namespace cursive::codegen {
@@ -117,7 +117,7 @@ IRPatternPtr LowerIRPattern(const ast::Pattern& pattern, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
           analysis::TypeRef type;
           if (node.type) {
-            if (const auto lowered = LowerTypeForLayout(ScopeForLowering(ctx),
+            if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(ScopeForLowering(ctx),
                                                         node.type)) {
               type = *lowered;
             }

@@ -14,7 +14,7 @@
 // DEPENDENCIES:
 //   - cursive/include/05_codegen/globals/globals.h
 //   - cursive/include/05_codegen/ir/ir_model.h (GlobalConst, GlobalZero)
-//   - cursive/include/05_codegen/layout/layout.h (SizeOf, AlignOf)
+//   - cursive/include/04_analysis/layout/layout.h (SizeOf, AlignOf)
 //   - cursive/include/05_codegen/symbols/mangle.h (MangleStatic)
 //
 // REFACTORING NOTES:
@@ -51,7 +51,7 @@
 
 #include "05_codegen/symbols/mangle.h"
 #include "05_codegen/symbols/linkage.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/symbols.h"
 #include "04_analysis/typing/type_pattern.h"
 #include "00_core/assert_spec.h"
@@ -70,7 +70,7 @@ static std::optional<std::vector<std::uint8_t>> ConstInit(analysis::TypeRef type
   }
   if (const auto* lit = std::get_if<ast::LiteralExpr>(&expr.node)) {
     SPEC_RULE("ConstInit");
-    return EncodeConst(type, lit->literal);
+    return ::cursive::analysis::layout::EncodeConst(type, lit->literal);
   }
   return std::nullopt;
 }
@@ -208,7 +208,7 @@ std::vector<std::pair<std::string, analysis::TypeRef>> StaticBindTypes(
     scope.sigma = *ctx.sigma;
     scope.sigma_source = ctx.sigma;
     scope.current_module = module_path;
-    if (auto lowered = LowerTypeForLayout(scope, ann_type)) {
+    if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, ann_type)) {
       bind_type = *lowered;
     }
   }
@@ -420,7 +420,7 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
     scope.sigma = *ctx.sigma;
     scope.sigma_source = ctx.sigma;
     scope.current_module = module_path;
-    if (auto lowered = LowerTypeForLayout(scope, ann_type)) {
+    if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, ann_type)) {
       init_type = *lowered;
     }
   }
@@ -460,7 +460,7 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
       gz.symbol = sym;
       gz.externally_visible = externally_visible;
       gz.export_from_shared_library = export_from_shared_library;
-      const auto size = SizeOf(layout_scope, init_type);
+      const auto size = ::cursive::analysis::layout::SizeOf(layout_scope, init_type);
       if (!size.has_value()) {
         ctx.ReportCodegenFailure();
         return result;
@@ -476,7 +476,7 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
     gz.symbol = sym;
     gz.externally_visible = externally_visible;
     gz.export_from_shared_library = export_from_shared_library;
-    const auto size = SizeOf(layout_scope, init_type);
+    const auto size = ::cursive::analysis::layout::SizeOf(layout_scope, init_type);
     if (!size.has_value()) {
       ctx.ReportCodegenFailure();
       return result;
@@ -508,7 +508,7 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
     gz.symbol = sym;
     gz.externally_visible = externally_visible;
     gz.export_from_shared_library = export_from_shared_library;
-    const auto size = SizeOf(layout_scope, type);
+    const auto size = ::cursive::analysis::layout::SizeOf(layout_scope, type);
     if (!size.has_value()) {
       ctx.ReportCodegenFailure();
       result.decls.clear();

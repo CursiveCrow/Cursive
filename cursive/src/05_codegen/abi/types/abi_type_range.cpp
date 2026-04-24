@@ -9,7 +9,7 @@
 // =============================================================================
 
 #include "05_codegen/abi/abi.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "00_core/spec_trace.h"
 
 namespace cursive::codegen {
@@ -17,8 +17,8 @@ namespace cursive::codegen {
 std::optional<ABIType> ABITyRange(const analysis::ScopeContext& ctx,
                                   const analysis::TypeRef& type) {
   SPEC_RULE("ABI-Range");
-  const auto size = SizeOf(ctx, type);
-  const auto align = AlignOf(ctx, type);
+  const auto size = ::cursive::analysis::layout::SizeOf(ctx, type);
+  const auto align = ::cursive::analysis::layout::AlignOf(ctx, type);
   if (!size.has_value() || !align.has_value()) {
     return std::nullopt;
   }

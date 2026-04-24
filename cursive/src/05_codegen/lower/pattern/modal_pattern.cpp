@@ -21,7 +21,7 @@
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_layout.h"
 #include "05_codegen/ir/ir_model.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "05_codegen/lower/lower_pat.h"
 #include "05_codegen/lower/pattern/pattern_common.h"
 

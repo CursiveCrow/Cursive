@@ -15,7 +15,7 @@
 //   - LowerTypeForLayout for type alias resolution
 //
 // DEPENDENCIES:
-//   - cursive/include/05_codegen/layout/layout.h (Layout struct)
+//   - cursive/include/04_analysis/layout/layout.h (Layout struct)
 //   - cursive/include/04_analysis/types/types.h (all type variants)
 //   - All layout_*.cpp files for specific type handling
 //
@@ -34,7 +34,7 @@
 //      - TypeString, TypeBytes -> layout by state
 //      - TypeModalState -> layout_modal.cpp
 //      - TypeDynamic -> layout_dynobj.cpp
-//      - TypeRange* -> layout_ranges.cpp
+//      - TypeRange* -> layout_aggregates.cpp
 //   3. LowerTypeForLayout resolves type aliases
 //   4. Returns std::optional to handle unknown/error types
 //
@@ -44,7 +44,7 @@
 //   LayoutOf(T) -> {size, align} pair
 // =============================================================================
 
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -60,7 +60,7 @@
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_equiv.h"
 
-namespace cursive::codegen {
+namespace cursive::analysis::layout {
 namespace {
 
 struct LowerTypeCacheKey {
@@ -241,10 +241,12 @@ std::optional<Layout> AsyncLayoutFromArgs(const cursive::analysis::ScopeContext&
   // frame pointer at byte offset 8. Preserve this minimum payload contract
   // even when Out is zero-sized.
   constexpr std::uint64_t kAsyncFramePtrPayloadOffset = 8;
+  const std::uint64_t ptr_size = PtrSize(ctx);
+  const std::uint64_t ptr_align = PtrAlign(ctx);
   const std::uint64_t min_suspended_payload =
-      kAsyncFramePtrPayloadOffset + kPtrSize;
+      kAsyncFramePtrPayloadOffset + ptr_size;
   max_payload_size = std::max(max_payload_size, min_suspended_payload);
-  max_payload_align = std::max(max_payload_align, kPtrAlign);
+  max_payload_align = std::max(max_payload_align, ptr_align);
 
   const std::uint64_t disc_size = 1;
   const std::uint64_t disc_align = 1;
@@ -354,14 +356,16 @@ std::optional<cursive::analysis::PtrState> LowerPtrState(
   return std::nullopt;
 }
 
-std::optional<Layout> ModalStringBytesLayout(std::uint64_t managed_size,
-                                             std::uint64_t view_size) {
+std::optional<Layout> ModalStringBytesLayout(
+    const cursive::analysis::ScopeContext& ctx,
+    std::uint64_t managed_size,
+    std::uint64_t view_size) {
   const auto disc = DiscTypeLayout(1);
   if (!disc.has_value()) {
     return std::nullopt;
   }
   const std::uint64_t max_size = std::max(managed_size, view_size);
-  const std::uint64_t align = std::max(disc->align, kPtrAlign);
+  const std::uint64_t align = std::max(disc->align, PtrAlign(ctx));
   const std::uint64_t size = AlignUp(disc->size + max_size, align);
   return Layout{size, align};
 }
@@ -737,6 +741,8 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
   if (!type) {
     return std::nullopt;
   }
+  const std::uint64_t ptr_size = PtrSize(ctx);
+  const std::uint64_t ptr_align = PtrAlign(ctx);
 
   if (const auto* perm = std::get_if<cursive::analysis::TypePerm>(&type->node)) {
     SPEC_RULE("Layout-Perm");
@@ -759,8 +765,8 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
 
   if (const auto* prim = std::get_if<cursive::analysis::TypePrim>(&type->node)) {
     SPEC_RULE("Layout-Prim");
-    const auto size = PrimSize(prim->name);
-    const auto align = PrimAlign(prim->name);
+    const auto size = PrimSize(ctx, prim->name);
+    const auto align = PrimAlign(ctx, prim->name);
     if (!size.has_value() || !align.has_value()) {
       return std::nullopt;
     }
@@ -769,19 +775,19 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
 
   if (std::holds_alternative<cursive::analysis::TypePtr>(type->node)) {
     SPEC_RULE("Layout-Ptr");
-    return Layout{kPtrSize, kPtrAlign};
+    return Layout{ptr_size, ptr_align};
   }
   if (std::holds_alternative<cursive::analysis::TypeRawPtr>(type->node)) {
     SPEC_RULE("Layout-RawPtr");
-    return Layout{kPtrSize, kPtrAlign};
+    return Layout{ptr_size, ptr_align};
   }
   if (std::holds_alternative<cursive::analysis::TypeFunc>(type->node)) {
     SPEC_RULE("Layout-Func");
-    return Layout{kPtrSize, kPtrAlign};
+    return Layout{ptr_size, ptr_align};
   }
   if (std::holds_alternative<cursive::analysis::TypeClosure>(type->node)) {
     SPEC_RULE("Layout-Tuple");
-    return Layout{kPtrSize * 2, kPtrAlign};
+    return Layout{ptr_size * 2, ptr_align};
   }
 
   if (const auto async_sig = analysis::GetAsyncSig(type)) {
@@ -790,41 +796,41 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
   }
 
   if (std::holds_alternative<cursive::analysis::TypeDynamic>(type->node)) {
-    const auto dyn = DynLayoutOf();
+    const auto dyn = DynLayoutOf(ctx);
     SPEC_RULE("Layout-DynamicClass");
     return dyn.layout;
   }
 
   if (std::holds_alternative<cursive::analysis::TypeSlice>(type->node)) {
     SPEC_RULE("Layout-Slice");
-    return Layout{2 * kPtrSize, kPtrAlign};
+    return Layout{2 * ptr_size, ptr_align};
   }
 
   if (const auto* str = std::get_if<cursive::analysis::TypeString>(&type->node)) {
     if (!str->state.has_value()) {
-      const auto modal = ModalStringBytesLayout(3 * kPtrSize, 2 * kPtrSize);
+      const auto modal = ModalStringBytesLayout(ctx, 3 * ptr_size, 2 * ptr_size);
       return modal;
     }
     if (*str->state == cursive::analysis::StringState::Managed) {
       SPEC_RULE("Layout-String-Managed");
-      return Layout{3 * kPtrSize, kPtrAlign};
+      return Layout{3 * ptr_size, ptr_align};
     }
     SPEC_RULE("Layout-String-View");
-    return Layout{2 * kPtrSize, kPtrAlign};
+    return Layout{2 * ptr_size, ptr_align};
   }
 
   if (const auto* bytes =
           std::get_if<cursive::analysis::TypeBytes>(&type->node)) {
     if (!bytes->state.has_value()) {
-      const auto modal = ModalStringBytesLayout(3 * kPtrSize, 2 * kPtrSize);
+      const auto modal = ModalStringBytesLayout(ctx, 3 * ptr_size, 2 * ptr_size);
       return modal;
     }
     if (*bytes->state == cursive::analysis::BytesState::Managed) {
       SPEC_RULE("Layout-Bytes-Managed");
-      return Layout{3 * kPtrSize, kPtrAlign};
+      return Layout{3 * ptr_size, ptr_align};
     }
     SPEC_RULE("Layout-Bytes-View");
-    return Layout{2 * kPtrSize, kPtrAlign};
+    return Layout{2 * ptr_size, ptr_align};
   }
 
   if (cursive::analysis::IsRangeType(type)) {
@@ -872,7 +878,7 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
   if (const auto* modal =
           std::get_if<cursive::analysis::TypeModalState>(&type->node)) {
     if (IsRuntimeHandleModalPath(modal->path)) {
-      return Layout{kPtrSize, kPtrAlign};
+      return Layout{ptr_size, ptr_align};
     }
     SPEC_RULE("Layout-ModalState");
     if (const auto builtin_layout =
@@ -919,7 +925,7 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
       const std::vector<cursive::analysis::TypeRef> empty_args;
       const auto& args = generic_args ? *generic_args : empty_args;
       if (IsRuntimeHandleModalPath(*path)) {
-        return Layout{kPtrSize, kPtrAlign};
+        return Layout{ptr_size, ptr_align};
       }
       if (const auto builtin_layout =
               cursive::analysis::LookupBuiltinModalLayout(*path)) {
@@ -998,6 +1004,7 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
   if (!type) {
     return std::nullopt;
   }
+  const std::uint64_t ptr_size = PtrSize(ctx);
   if (const auto* perm = std::get_if<cursive::analysis::TypePerm>(&type->node)) {
     SPEC_RULE("Size-Perm");
     return SizeOf(ctx, perm->base);
@@ -1018,31 +1025,31 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
   }
   if (const auto* prim = std::get_if<cursive::analysis::TypePrim>(&type->node)) {
     SPEC_RULE("Size-Prim");
-    return PrimSize(prim->name);
+    return PrimSize(ctx, prim->name);
   }
   if (std::holds_alternative<cursive::analysis::TypePtr>(type->node)) {
     SPEC_RULE("Size-Ptr");
-    return kPtrSize;
+    return ptr_size;
   }
   if (std::holds_alternative<cursive::analysis::TypeRawPtr>(type->node)) {
     SPEC_RULE("Size-RawPtr");
-    return kPtrSize;
+    return ptr_size;
   }
   if (std::holds_alternative<cursive::analysis::TypeFunc>(type->node)) {
     SPEC_RULE("Size-Func");
-    return kPtrSize;
+    return ptr_size;
   }
   if (std::holds_alternative<cursive::analysis::TypeClosure>(type->node)) {
     SPEC_RULE("Size-Tuple");
-    return 2 * kPtrSize;
+    return 2 * ptr_size;
   }
   if (std::holds_alternative<cursive::analysis::TypeDynamic>(type->node)) {
     SPEC_RULE("Size-DynamicClass");
-    return 2 * kPtrSize;
+    return 2 * ptr_size;
   }
   if (std::holds_alternative<cursive::analysis::TypeSlice>(type->node)) {
     SPEC_RULE("Size-Slice");
-    return 2 * kPtrSize;
+    return 2 * ptr_size;
   }
   if (const auto async_sig = cursive::analysis::AsyncSigOf(ctx, type)) {
     SPEC_RULE("Size-Async");
@@ -1055,7 +1062,7 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
   if (const auto* str = std::get_if<cursive::analysis::TypeString>(&type->node)) {
     if (!str->state.has_value()) {
       SPEC_RULE("Size-String-Modal");
-      const auto layout = ModalStringBytesLayout(3 * kPtrSize, 2 * kPtrSize);
+      const auto layout = ModalStringBytesLayout(ctx, 3 * ptr_size, 2 * ptr_size);
       if (!layout.has_value()) {
         return std::nullopt;
       }
@@ -1063,16 +1070,16 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
     }
     if (*str->state == cursive::analysis::StringState::Managed) {
       SPEC_RULE("Size-String-Managed");
-      return 3 * kPtrSize;
+      return 3 * ptr_size;
     }
     SPEC_RULE("Size-String-View");
-    return 2 * kPtrSize;
+    return 2 * ptr_size;
   }
   if (const auto* bytes =
           std::get_if<cursive::analysis::TypeBytes>(&type->node)) {
     if (!bytes->state.has_value()) {
       SPEC_RULE("Size-Bytes-Modal");
-      const auto layout = ModalStringBytesLayout(3 * kPtrSize, 2 * kPtrSize);
+      const auto layout = ModalStringBytesLayout(ctx, 3 * ptr_size, 2 * ptr_size);
       if (!layout.has_value()) {
         return std::nullopt;
       }
@@ -1080,10 +1087,10 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
     }
     if (*bytes->state == cursive::analysis::BytesState::Managed) {
       SPEC_RULE("Size-Bytes-Managed");
-      return 3 * kPtrSize;
+      return 3 * ptr_size;
     }
     SPEC_RULE("Size-Bytes-View");
-    return 2 * kPtrSize;
+    return 2 * ptr_size;
   }
   if (cursive::analysis::IsRangeType(type)) {
     SPEC_RULE("Size-Range");
@@ -1124,7 +1131,7 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
     if (const auto* modal =
             std::get_if<cursive::analysis::TypeModalState>(&type->node);
         modal && IsRuntimeHandleModalPath(modal->path)) {
-      return kPtrSize;
+      return ptr_size;
     }
     const auto layout = LayoutOf(ctx, type);
     if (!layout.has_value()) {
@@ -1137,7 +1144,7 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
     const std::vector<cursive::analysis::TypeRef> empty_args;
     const auto& args = generic_args ? *generic_args : empty_args;
     if (IsRuntimeHandleModalPath(*path)) {
-      return kPtrSize;
+      return ptr_size;
     }
     const auto it = ctx.sigma.types.find(*path);
     if (it == ctx.sigma.types.end()) {
@@ -1193,6 +1200,8 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
   if (!type) {
     return std::nullopt;
   }
+  const std::uint64_t ptr_size = PtrSize(ctx);
+  const std::uint64_t ptr_align = PtrAlign(ctx);
   if (const auto* perm = std::get_if<cursive::analysis::TypePerm>(&type->node)) {
     SPEC_RULE("Align-Perm");
     return AlignOf(ctx, perm->base);
@@ -1213,31 +1222,31 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
   }
   if (const auto* prim = std::get_if<cursive::analysis::TypePrim>(&type->node)) {
     SPEC_RULE("Align-Prim");
-    return PrimAlign(prim->name);
+    return PrimAlign(ctx, prim->name);
   }
   if (std::holds_alternative<cursive::analysis::TypePtr>(type->node)) {
     SPEC_RULE("Align-Ptr");
-    return kPtrAlign;
+    return ptr_align;
   }
   if (std::holds_alternative<cursive::analysis::TypeRawPtr>(type->node)) {
     SPEC_RULE("Align-RawPtr");
-    return kPtrAlign;
+    return ptr_align;
   }
   if (std::holds_alternative<cursive::analysis::TypeFunc>(type->node)) {
     SPEC_RULE("Align-Func");
-    return kPtrAlign;
+    return ptr_align;
   }
   if (std::holds_alternative<cursive::analysis::TypeClosure>(type->node)) {
     SPEC_RULE("Align-Tuple");
-    return kPtrAlign;
+    return ptr_align;
   }
   if (std::holds_alternative<cursive::analysis::TypeDynamic>(type->node)) {
     SPEC_RULE("Align-DynamicClass");
-    return kPtrAlign;
+    return ptr_align;
   }
   if (std::holds_alternative<cursive::analysis::TypeSlice>(type->node)) {
     SPEC_RULE("Align-Slice");
-    return kPtrAlign;
+    return ptr_align;
   }
   if (const auto async_sig = cursive::analysis::AsyncSigOf(ctx, type)) {
     SPEC_RULE("Align-Async");
@@ -1250,7 +1259,7 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
   if (const auto* str = std::get_if<cursive::analysis::TypeString>(&type->node)) {
     if (!str->state.has_value()) {
       SPEC_RULE("Align-String-Modal");
-      const auto layout = ModalStringBytesLayout(3 * kPtrSize, 2 * kPtrSize);
+      const auto layout = ModalStringBytesLayout(ctx, 3 * ptr_size, 2 * ptr_size);
       if (!layout.has_value()) {
         return std::nullopt;
       }
@@ -1258,16 +1267,16 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
     }
     if (*str->state == cursive::analysis::StringState::Managed) {
       SPEC_RULE("Align-String-Managed");
-      return kPtrAlign;
+      return ptr_align;
     }
     SPEC_RULE("Align-String-View");
-    return kPtrAlign;
+    return ptr_align;
   }
   if (const auto* bytes =
           std::get_if<cursive::analysis::TypeBytes>(&type->node)) {
     if (!bytes->state.has_value()) {
       SPEC_RULE("Align-Bytes-Modal");
-      const auto layout = ModalStringBytesLayout(3 * kPtrSize, 2 * kPtrSize);
+      const auto layout = ModalStringBytesLayout(ctx, 3 * ptr_size, 2 * ptr_size);
       if (!layout.has_value()) {
         return std::nullopt;
       }
@@ -1275,10 +1284,10 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
     }
     if (*bytes->state == cursive::analysis::BytesState::Managed) {
       SPEC_RULE("Align-Bytes-Managed");
-      return kPtrAlign;
+      return ptr_align;
     }
     SPEC_RULE("Align-Bytes-View");
-    return kPtrAlign;
+    return ptr_align;
   }
   if (cursive::analysis::IsRangeType(type)) {
     SPEC_RULE("Align-Range");
@@ -1315,7 +1324,7 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
     if (const auto* modal =
             std::get_if<cursive::analysis::TypeModalState>(&type->node);
         modal && IsRuntimeHandleModalPath(modal->path)) {
-      return kPtrAlign;
+      return ptr_align;
     }
     const auto layout = LayoutOf(ctx, type);
     if (!layout.has_value()) {
@@ -1328,7 +1337,7 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
     const std::vector<cursive::analysis::TypeRef> empty_args;
     const auto& args = generic_args ? *generic_args : empty_args;
     if (IsRuntimeHandleModalPath(*path)) {
-      return kPtrAlign;
+      return ptr_align;
     }
     const auto it = ctx.sigma.types.find(*path);
     if (it == ctx.sigma.types.end()) {
@@ -1379,4 +1388,4 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
   return std::nullopt;
 }
 
-}  // namespace cursive::codegen
+}  // namespace cursive::analysis::layout

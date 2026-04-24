@@ -15,7 +15,7 @@
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_lower.h"
 #include "04_analysis/typing/type_wf.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 
 #include <type_traits>
 
@@ -33,7 +33,7 @@ static inline void SpecDefsTransmute() {
 
 std::optional<std::uint64_t> SizeOfInternal(const ScopeContext& ctx,
                                             const TypeRef& type) {
-  const auto layout = codegen::LayoutOf(ctx, type);
+  const auto layout = layout::LayoutOf(ctx, type);
   if (!layout.has_value()) {
     return std::nullopt;
   }
@@ -42,7 +42,7 @@ std::optional<std::uint64_t> SizeOfInternal(const ScopeContext& ctx,
 
 std::optional<std::uint64_t> AlignOfInternal(const ScopeContext& ctx,
                                              const TypeRef& type) {
-  const auto layout = codegen::LayoutOf(ctx, type);
+  const auto layout = layout::LayoutOf(ctx, type);
   if (!layout.has_value()) {
     return std::nullopt;
   }

@@ -24,7 +24,7 @@
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/types.h"
-#include "05_codegen/layout/layout.h"
+#include "04_analysis/layout/layout.h"
 #include "02_source/ast/ast.h"
 
 #include <cassert>
@@ -45,7 +45,7 @@ static analysis::TypeRef LowerSyntaxType(const std::shared_ptr<ast::Type>& type,
     return nullptr;
   }
   const analysis::ScopeContext& scope = ScopeForLowering(ctx);
-  if (const auto lowered = LowerTypeForLayout(scope, type)) {
+  if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, type)) {
     return *lowered;
   }
   return nullptr;

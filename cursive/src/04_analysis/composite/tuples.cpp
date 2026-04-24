@@ -25,19 +25,8 @@
 // - TypeTupleAccessPlace (lines 368-418): Tuple element access (place context)
 //
 // Supporting helpers:
-// - kIntSuffixes (lines 26-28): Integer literal suffixes
-// - EndsWith (lines 30-35): String suffix check
-// - StripIntSuffix (lines 37-48): Strip integer suffix from lexeme
-// - DigitValue (lines 50-79): Parse digit value for base
-// - ParseIntCore (lines 81-128): Parse integer literal core (128-bit)
-// - ParseTupleIndex (lines 130-141): Parse tuple index from token
-// - StripPerm (lines 143-151): Strip permission layer
-// - kIntTypes/kFloatTypes (lines 153-159): Primitive type name lists
-// - IsPrimTypeName (lines 179-182): Check primitive type names
-// - BuiltinBitcopyType (lines 184-209): Check built-in bitcopy types
-// - IsBitcopyClassPath (lines 211-213): Check Bitcopy class path
-// - ImplementsBitcopy (lines 215-250): Check if type implements Bitcopy
-// - BitcopyType (lines 252-274): Full bitcopy type predicate
+// - Tuple alias normalization
+// - Canonical StripPerm and BitcopyType predicates from type_predicates
 //
 // DEPENDENCIES:
 // - cursive/src/04_analysis/resolve/scopes.h (ScopeContext)
@@ -45,20 +34,13 @@
 // - cursive/src/00_core/assert_spec.h (SPEC_DEF, SPEC_RULE)
 //
 // REFACTORING NOTES:
-// 1. Integer parsing logic is duplicated with enums.cpp - consolidate
-// 2. BitcopyType and related predicates are duplicated across files
-// 3. StripPerm helper is duplicated; extract to common module
-// 4. The 128-bit integer parsing should use a shared utility
-// 5. Tuple index must be a compile-time constant (statically resolved)
+// 1. Tuple index must be a compile-time constant (statically resolved)
 // =============================================================================
 
 #include "04_analysis/composite/tuples.h"
 
-#include <array>
-#include <cstdint>
 #include <optional>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -69,6 +51,7 @@
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/type_lower.h"
+#include "04_analysis/typing/type_predicates.h"
 
 namespace cursive::analysis {
 
@@ -76,18 +59,6 @@ namespace {
 
 static inline void SpecDefsTuples() {
   SPEC_DEF("ConstTupleIndex", "5.2.5");
-  SPEC_DEF("BitcopyType", "5.11");
-  SPEC_DEF("StripPerm", "5.2.12");
-}
-
-static TypeRef StripPerm(const TypeRef& type) {
-  if (!type) {
-    return type;
-  }
-  if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
-    return perm->base;
-  }
-  return type;
 }
 
 struct AliasExpandResult {
@@ -191,134 +162,6 @@ static AliasExpandResult NormalizeTupleBaseType(const ScopeContext& ctx,
     out.expanded = true;
   }
   return out;
-}
-
-static constexpr std::array<std::string_view, 12> kIntTypes = {
-    "i8",   "i16",  "i32",  "i64",  "i128", "u8",
-    "u16",  "u32",  "u64",  "u128", "isize", "usize"};
-
-static constexpr std::array<std::string_view, 3> kFloatTypes = {"f16",
-                                                                "f32",
-                                                                "f64"};
-
-static bool IsIntTypeName(std::string_view name) {
-  for (const auto& t : kIntTypes) {
-    if (name == t) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static bool IsFloatTypeName(std::string_view name) {
-  for (const auto& t : kFloatTypes) {
-    if (name == t) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static bool IsPrimTypeName(std::string_view name) {
-  return IsIntTypeName(name) || IsFloatTypeName(name) || name == "bool" ||
-         name == "char" || name == "()" || name == "!";
-}
-
-static bool BuiltinBitcopyType(const TypeRef& type) {
-  if (!type) {
-    return false;
-  }
-  return std::visit(
-      [](const auto& node) -> bool {
-        using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, TypePrim>) {
-          return IsPrimTypeName(node.name);
-        } else if constexpr (std::is_same_v<T, TypePtr> ||
-                             std::is_same_v<T, TypeRawPtr> ||
-                             std::is_same_v<T, TypeSlice> ||
-                             std::is_same_v<T, TypeFunc> ||
-                             std::is_same_v<T, TypeDynamic> ||
-                             std::is_same_v<T, TypeRange> ||
-                             std::is_same_v<T, TypeRangeInclusive> ||
-                             std::is_same_v<T, TypeRangeFrom> ||
-                             std::is_same_v<T, TypeRangeTo> ||
-                             std::is_same_v<T, TypeRangeToInclusive> ||
-                             std::is_same_v<T, TypeRangeFull>) {
-          return true;
-        } else if constexpr (std::is_same_v<T, TypeString>) {
-          return node.state.has_value() && *node.state == StringState::View;
-        } else if constexpr (std::is_same_v<T, TypeBytes>) {
-          return node.state.has_value() && *node.state == BytesState::View;
-        } else {
-          return false;
-        }
-      },
-      type->node);
-}
-
-static bool IsBitcopyClassPath(const ast::ClassPath& path) {
-  return !path.empty() && IdEq(path.back(), "Bitcopy");
-}
-
-static bool ImplementsBitcopy(const ScopeContext& ctx, const TypeRef& type) {
-  const auto* path_type = std::get_if<TypePathType>(&type->node);
-  if (!path_type) {
-    return false;
-  }
-
-  ast::Path ast_path;
-  ast_path.reserve(path_type->path.size());
-  for (const auto& comp : path_type->path) {
-    ast_path.push_back(comp);
-  }
-  const auto it = ctx.sigma.types.find(PathKeyOf(ast_path));
-  if (it == ctx.sigma.types.end()) {
-    return false;
-  }
-
-  auto has_bitcopy = [](const std::vector<ast::ClassPath>& impls) {
-    for (const auto& impl : impls) {
-      if (IsBitcopyClassPath(impl)) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  if (const auto* record = std::get_if<ast::RecordDecl>(&it->second)) {
-    return has_bitcopy(record->implements);
-  }
-  if (const auto* enum_decl = std::get_if<ast::EnumDecl>(&it->second)) {
-    return has_bitcopy(enum_decl->implements);
-  }
-  if (const auto* modal_decl = std::get_if<ast::ModalDecl>(&it->second)) {
-    return has_bitcopy(modal_decl->implements);
-  }
-  return false;
-}
-
-static bool BitcopyType(const ScopeContext& ctx, const TypeRef& type) {
-  if (!type) {
-    return false;
-  }
-  if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
-    if (perm->perm == Permission::Unique) {
-      return false;
-    }
-    return BitcopyType(ctx, perm->base);
-  }
-  if (const auto* tuple = std::get_if<TypeTuple>(&type->node)) {
-    for (const auto& elem : tuple->elements) {
-      if (!BitcopyType(ctx, elem)) {
-        return false;
-      }
-    }
-    return true;
-  }
-  if (const auto* array = std::get_if<TypeArray>(&type->node)) {
-    return BitcopyType(ctx, array->element);
-  }
-  return BuiltinBitcopyType(type) || ImplementsBitcopy(ctx, type);
 }
 
 }  // namespace
