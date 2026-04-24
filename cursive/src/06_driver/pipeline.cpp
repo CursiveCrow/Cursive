@@ -178,7 +178,12 @@ std::string ModuleNameForPath(std::string_view module_path) {
   return std::string(module_path);
 }
 
-std::optional<std::string> RenderLLVMText(
+struct RenderedLLVMArtifact {
+  std::string text;
+  std::string bitcode;
+};
+
+std::optional<RenderedLLVMArtifact> RenderLLVMText(
     llvm::Module& module,
     const std::filesystem::path& assembler,
     std::string_view module_name) {
@@ -188,14 +193,15 @@ std::optional<std::string> RenderLLVMText(
 
   // raw_string_ostream itself is infallible. The render boundary is therefore
   // defined by whether the pinned LLVM textual IR oracle accepts the bytes.
-  if (!project::AssembleIR(assembler, text).has_value()) {
+  auto bitcode = project::AssembleIR(assembler, text);
+  if (!bitcode.has_value()) {
     LogCodegenProgress("emit-ir-error module=" + std::string(module_name) +
                        " stage=validate-llvm-text");
     SPEC_RULE("EmitLLVM-Err");
     return std::nullopt;
   }
 
-  return text;
+  return RenderedLLVMArtifact{std::move(text), std::move(*bitcode)};
 }
 
 void CollectHostedStateTemplates(CodegenCache& cache,
@@ -628,6 +634,7 @@ struct LLVMModuleBundle {
 struct CachedLLVMArtifacts {
   std::optional<LLVMModuleBundle> bundle;
   std::optional<std::string> ir_text;
+  std::optional<std::string> bitcode;
 };
 
 codegen::LowerCtx& AcquireThreadLocalLowerCtx(const CodegenCache& cache) {
@@ -728,10 +735,11 @@ std::optional<CachedLLVMArtifacts*> MaterializeCachedLLVMArtifacts(
     const ModuleCodegen& module,
     const project::Project& project,
     project::TargetProfile target_profile,
-    bool need_ir_text) {
+    bool need_llvm_module,
+    bool need_ir_artifact) {
   auto& artifact_state = AcquireThreadLocalEmitArtifacts(cache);
   auto& entry = artifact_state.artifacts[module.path_key];
-  if (!entry.bundle.has_value()) {
+  if ((need_llvm_module || need_ir_artifact) && !entry.bundle.has_value()) {
     auto bundle = EmitLLVMModule(cache, module, project, target_profile);
     if (!bundle) {
       return std::nullopt;
@@ -739,17 +747,18 @@ std::optional<CachedLLVMArtifacts*> MaterializeCachedLLVMArtifacts(
     entry.bundle = std::move(*bundle);
   }
 
-  if (need_ir_text && !entry.ir_text.has_value()) {
+  if (need_ir_artifact && !entry.ir_text.has_value()) {
     const auto assembler = project::ResolveTool(project, target_profile, "llvm-as");
     if (!assembler.has_value()) {
       return std::nullopt;
     }
     const std::string module_name = ModuleNameForLog(module);
-    auto text = RenderLLVMText(*entry.bundle->module, *assembler, module_name);
-    if (!text.has_value()) {
+    auto rendered = RenderLLVMText(*entry.bundle->module, *assembler, module_name);
+    if (!rendered.has_value()) {
       return std::nullopt;
     }
-    entry.ir_text = std::move(*text);
+    entry.ir_text = std::move(rendered->text);
+    entry.bitcode = std::move(rendered->bitcode);
   }
 
   return &entry;
@@ -822,13 +831,15 @@ std::optional<std::string> EmitIRForModule(
     const CodegenCache& cache,
     const ModuleCodegen& module,
     const project::Project& project,
-    project::TargetProfile target_profile) {
+    project::TargetProfile target_profile,
+    std::string_view emit_ir) {
   const std::string module_name = ModuleNameForLog(module);
   LogCodegenProgress("emit-ir-start module=" + module_name);
   auto cached = MaterializeCachedLLVMArtifacts(cache,
                                                module,
                                                project,
                                                target_profile,
+                                               true,
                                                true);
   if (!cached.has_value()) {
     LogCodegenProgress("emit-ir-error module=" + module_name +
@@ -836,17 +847,28 @@ std::optional<std::string> EmitIRForModule(
     return std::nullopt;
   }
   auto& entry = **cached;
-  if (!entry.ir_text.has_value()) {
+  std::optional<std::string> out;
+  if (emit_ir == "ll") {
+    if (entry.ir_text.has_value()) {
+      out = *entry.ir_text;
+    }
+  } else if (emit_ir == "bc") {
+    if (entry.bitcode.has_value()) {
+      out = *entry.bitcode;
+    }
+  }
+  if (!out.has_value()) {
     LogCodegenProgress("emit-ir-error module=" + module_name +
-                       " stage=render-ir");
+                       " stage=render-ir mode=" + std::string(emit_ir));
     return std::nullopt;
   }
-  std::string out = *entry.ir_text;
   entry.bundle.reset();
   entry.ir_text.reset();
+  entry.bitcode.reset();
 
   LogCodegenProgress("emit-ir-finish module=" + module_name +
-                     " bytes=" + std::to_string(out.size()));
+                     " mode=" + std::string(emit_ir) +
+                     " bytes=" + std::to_string(out->size()));
   return out;
 }
 
@@ -862,13 +884,12 @@ std::optional<std::string> EmitObjForModule(
   const bool verify_llvm_module =
       debug_obj || core::IsDebugEnabled("pipeline") ||
       core::IsDebugEnabled("codegen");
-  const bool need_ir_text =
-      project.assembly.emit_ir.has_value() && *project.assembly.emit_ir != "none";
   auto cached = MaterializeCachedLLVMArtifacts(cache,
                                                module,
                                                project,
                                                target_profile,
-                                               need_ir_text);
+                                               true,
+                                               false);
   if (!cached.has_value()) {
     LogCodegenProgress("emit-obj-error module=" + module_name +
                        " stage=emit-llvm");
@@ -935,12 +956,9 @@ std::optional<std::string> EmitObjForModule(
   pass.run(*bundle.module);
   SPEC_RULE("EmitObj-Ok");
   std::string object_bytes(buffer.begin(), buffer.end());
-  if (entry.ir_text.has_value()) {
-    entry.bundle.reset();
-  } else {
-    entry.bundle.reset();
-    entry.ir_text.reset();
-  }
+  entry.bundle.reset();
+  entry.ir_text.reset();
+  entry.bitcode.reset();
   LogCodegenProgress("emit-obj-finish module=" + module_name +
                      " bytes=" + std::to_string(object_bytes.size()));
   return object_bytes;
@@ -975,7 +993,7 @@ std::optional<std::string> CodegenIR(CodegenCache& cache,
     cache.ok.store(false);
     return std::nullopt;
   }
-  auto bytes = EmitIRForModule(cache, *lowered, project, target_profile);
+  auto bytes = EmitIRForModule(cache, *lowered, project, target_profile, emit_ir);
   if (bytes.has_value()) {
     SPEC_RULE("CodegenIR-LLVM");
   }

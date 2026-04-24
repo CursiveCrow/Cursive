@@ -334,16 +334,6 @@ bool PathPrefix(const ast::ModulePath& prefix, const ast::ModulePath& path) {
   return true;
 }
 
-const ast::ASTModule* FindModuleByPath(const ScopeContext& ctx,
-    const ast::ModulePath& path) {
-  for (const auto& mod : ctx.sigma.mods) {
-    if (PathEq(mod.path, path)) {
-      return &mod;
-    }
-  }
-  return nullptr;
-}
-
 }  // namespace
 
 bool ImportRequired(const ast::ModulePath& current_module,
@@ -361,7 +351,7 @@ bool ImportCovers(const ScopeContext& ctx,
                   const ast::ModulePath& current_module,
                   const ast::ModulePath& path) {
   SpecDefsCollect();
-  const auto* module = FindModuleByPath(ctx, current_module);
+  const auto* module = FindContextModuleByPath(ctx, current_module);
   if (module == nullptr) {
     return false;
   }

@@ -40,7 +40,8 @@ std::optional<std::string> EmitIRForModule(
     const CodegenCache& cache,
     const ModuleCodegen& module,
     const project::Project& project,
-    project::TargetProfile target_profile);
+    project::TargetProfile target_profile,
+    std::string_view emit_ir);
 
 std::optional<std::string> EmitObjForModule(
     const CodegenCache& cache,

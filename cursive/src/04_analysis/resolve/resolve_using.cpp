@@ -55,17 +55,6 @@ std::optional<std::pair<ast::ModulePath, ast::Identifier>> SplitLast(
   return std::make_pair(prefix, path.back());
 }
 
-const ast::ASTModule* FindModuleByPath(const ScopeContext& ctx,
-                                       const ast::ModulePath& path) {
-  SpecDefsResolveUsing();
-  for (const auto& mod : ctx.sigma.mods) {
-    if (PathEq(mod.path, path)) {
-      return &mod;
-    }
-  }
-  return nullptr;
-}
-
 std::optional<ast::Visibility> ItemVisibility(const ast::ASTItem& item) {
   return std::visit(
       [](const auto& it) -> std::optional<ast::Visibility> {
@@ -266,7 +255,7 @@ std::optional<ast::Visibility> DeclVisibility(const ast::ASTItem& item,
 std::optional<ast::Visibility> FindDeclVisibility(const ScopeContext& ctx,
                                                   const ast::ModulePath& module_path,
                                                   std::string_view name) {
-  const auto* module = FindModuleByPath(ctx, module_path);
+  const auto* module = FindContextModuleByPath(ctx, module_path);
   if (!module) {
     return std::nullopt;
   }
@@ -379,7 +368,7 @@ ItemOfPathResult ItemOfPath(const ScopeContext& ctx,
     SPEC_RULE("ItemOfPath-None");
     return result;
   }
-  if (!FindModuleByPath(ctx, *resolved_module)) {
+  if (!FindContextModuleByPath(ctx, *resolved_module)) {
     SPEC_RULE("ItemOfPath-None");
     return result;
   }

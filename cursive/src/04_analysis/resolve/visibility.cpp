@@ -199,21 +199,11 @@ bool ItemBindsName(const ast::ASTItem& item, const IdKey& key) {
       item);
 }
 
-const ast::ASTModule* FindModuleByPath(const Sigma& sigma,
-                                       const ast::ModulePath& path) {
-  for (const auto& mod : sigma.mods) {
-    if (PathEq(mod.path, path)) {
-      return &mod;
-    }
-  }
-  return nullptr;
-}
-
 std::optional<ast::Visibility> FindDeclVisibilityByName(
     const ScopeContext& ctx,
     const ast::ModulePath& module_path,
     std::string_view name) {
-  const auto* module = FindModuleByPath(ctx.sigma, module_path);
+  const auto* module = FindContextModuleByPath(ctx, module_path);
   if (!module) {
     return std::nullopt;
   }
@@ -237,8 +227,8 @@ std::optional<ast::Visibility> FindDeclVisibilityByName(
   return std::nullopt;
 }
 
-bool HasModulePath(const Sigma& sigma, const ast::ModulePath& path) {
-  return FindModuleByPath(sigma, path) != nullptr;
+bool HasModulePath(const ScopeContext& ctx, const ast::ModulePath& path) {
+  return FindContextModuleByPath(ctx, path) != nullptr;
 }
 
 std::optional<ast::ModulePath> ResolveVisibleModulePath(
@@ -247,7 +237,7 @@ std::optional<ast::ModulePath> ResolveVisibleModulePath(
   if (module_path.empty()) {
     return std::nullopt;
   }
-  if (HasModulePath(ctx.sigma, module_path)) {
+  if (HasModulePath(ctx, module_path)) {
     return module_path;
   }
   if (CurrentModule(ctx).empty()) {
@@ -257,7 +247,7 @@ std::optional<ast::ModulePath> ResolveVisibleModulePath(
   candidate.reserve(module_path.size() + 1);
   candidate.push_back(CurrentModule(ctx).front());
   candidate.insert(candidate.end(), module_path.begin(), module_path.end());
-  if (HasModulePath(ctx.sigma, candidate)) {
+  if (HasModulePath(ctx, candidate)) {
     return candidate;
   }
   return std::nullopt;
@@ -266,7 +256,7 @@ std::optional<ast::ModulePath> ResolveVisibleModulePath(
 const ast::ASTItem* FindDeclByName(const ScopeContext& ctx,
                                    const ast::ModulePath& module_path,
                                    std::string_view name) {
-  const auto* module = FindModuleByPath(ctx.sigma, module_path);
+  const auto* module = FindContextModuleByPath(ctx, module_path);
   if (!module) {
     return nullptr;
   }

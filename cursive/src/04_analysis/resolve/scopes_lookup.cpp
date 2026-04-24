@@ -102,16 +102,6 @@ AliasMap AliasMapForCurrentModule(const ScopeContext& ctx,
   return AliasMapOf(it->second);
 }
 
-const ast::ASTModule* FindModuleByPath(const ScopeContext& ctx,
-                                       const ast::ModulePath& path) {
-  for (const auto& mod : ctx.sigma.mods) {
-    if (PathEq(mod.path, path)) {
-      return &mod;
-    }
-  }
-  return nullptr;
-}
-
 void AddVisibleAssemblyName(std::unordered_set<std::string>& assemblies,
                             const ast::ModulePath& module_path) {
   if (module_path.empty()) {
@@ -146,37 +136,9 @@ source::ModuleNames VisibleModuleNamesFromSigma(
   return visible;
 }
 
-}  // namespace
-
-AliasMap AliasMapOf(const NameMap& names) {
-  SpecDefsLookup();
-  AliasMap out;
-  for (const auto& [key, ent] : names) {
-    if (ent.kind != EntityKind::ModuleAlias) {
-      continue;
-    }
-    if (!ent.origin_opt.has_value()) {
-      continue;
-    }
-    out.emplace(key, *ent.origin_opt);
-  }
-  return out;
-}
-
-source::ModuleNames ModuleNamesOf(const project::Project& project) {
-  SpecDefsLookup();
-  source::ModuleNames out;
-  out.reserve(project.modules.size());
-  for (const auto& module : project.modules) {
-    out.insert(module.path);
-  }
-  return out;
-}
-
-source::ModuleNames VisibleModuleNamesOf(
+source::ModuleNames ComputeVisibleModuleNames(
     const ScopeContext& ctx,
     const source::ModuleNames& all_module_names) {
-  SpecDefsLookup();
   if (CurrentModule(ctx).empty()) {
     return all_module_names;
   }
@@ -185,7 +147,7 @@ source::ModuleNames VisibleModuleNamesOf(
   visible_assemblies.reserve(4);
   AddVisibleAssemblyName(visible_assemblies, CurrentModule(ctx));
 
-  const auto* current_module = FindModuleByPath(ctx, CurrentModule(ctx));
+  const auto* current_module = FindContextModuleByPath(ctx, CurrentModule(ctx));
   if (!current_module) {
     return all_module_names;
   }
@@ -227,6 +189,51 @@ source::ModuleNames VisibleModuleNamesOf(
   }
 
   return VisibleModuleNamesFromSigma(ctx, visible_assemblies);
+}
+
+}  // namespace
+
+AliasMap AliasMapOf(const NameMap& names) {
+  SpecDefsLookup();
+  AliasMap out;
+  for (const auto& [key, ent] : names) {
+    if (ent.kind != EntityKind::ModuleAlias) {
+      continue;
+    }
+    if (!ent.origin_opt.has_value()) {
+      continue;
+    }
+    out.emplace(key, *ent.origin_opt);
+  }
+  return out;
+}
+
+source::ModuleNames ModuleNamesOf(const project::Project& project) {
+  SpecDefsLookup();
+  source::ModuleNames out;
+  out.reserve(project.modules.size());
+  for (const auto& module : project.modules) {
+    out.insert(module.path);
+  }
+  return out;
+}
+
+const ast::ASTModule* FindContextModuleByPath(const ScopeContext& ctx,
+                                              const ast::ModulePath& path) {
+  SpecDefsLookup();
+  for (const auto& mod : ctx.sigma.mods) {
+    if (PathEq(mod.path, path)) {
+      return &mod;
+    }
+  }
+  return nullptr;
+}
+
+source::ModuleNames VisibleModuleNamesOf(
+    const ScopeContext& ctx,
+    const source::ModuleNames& all_module_names) {
+  SpecDefsLookup();
+  return ComputeVisibleModuleNames(ctx, all_module_names);
 }
 
 bool ValueKind(const Entity& ent) {

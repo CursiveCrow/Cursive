@@ -1,12 +1,15 @@
 #include "04_analysis/typing/subtyping.h"
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "00_core/assert_spec.h"
+#include "00_core/symbols.h"
 #include "04_analysis/modal/modal.h"
 #include "04_analysis/modal/modal_widen.h"
 #include "04_analysis/contracts/verification.h"
@@ -312,6 +315,73 @@ struct AliasExpandResult {
   bool expanded = false;
 };
 
+struct AliasNormalizeMemoKey {
+  TypeRef type;
+
+  bool operator==(const AliasNormalizeMemoKey& other) const {
+    return type.get() == other.type.get();
+  }
+};
+
+struct AliasNormalizeMemoKeyHash {
+  std::size_t operator()(const AliasNormalizeMemoKey& key) const {
+    return static_cast<std::size_t>(
+        reinterpret_cast<std::uintptr_t>(key.type.get()) >> 4U);
+  }
+};
+
+struct SubtypingMemoKey {
+  TypeRef lhs;
+  TypeRef rhs;
+
+  bool operator==(const SubtypingMemoKey& other) const {
+    return lhs.get() == other.lhs.get() && rhs.get() == other.rhs.get();
+  }
+};
+
+struct SubtypingMemoKeyHash {
+  std::size_t operator()(const SubtypingMemoKey& key) const {
+    const auto lhs = reinterpret_cast<std::uintptr_t>(key.lhs.get());
+    const auto rhs = reinterpret_cast<std::uintptr_t>(key.rhs.get());
+    return static_cast<std::size_t>((lhs >> 4U) ^ (rhs << 3U) ^ rhs);
+  }
+};
+
+struct SubtypingMemoState {
+  int depth = 0;
+  std::unordered_map<AliasNormalizeMemoKey,
+                     AliasExpandResult,
+                     AliasNormalizeMemoKeyHash>
+      alias_normalize;
+  std::unordered_map<SubtypingMemoKey, SubtypingResult, SubtypingMemoKeyHash>
+      subtype;
+};
+
+SubtypingMemoState& CurrentSubtypingMemo() {
+  thread_local SubtypingMemoState state;
+  return state;
+}
+
+struct SubtypingMemoScope {
+  SubtypingMemoScope() {
+    auto& state = CurrentSubtypingMemo();
+    if (state.depth == 0) {
+      state.alias_normalize.clear();
+      state.subtype.clear();
+    }
+    state.depth += 1;
+  }
+
+  ~SubtypingMemoScope() {
+    auto& state = CurrentSubtypingMemo();
+    state.depth -= 1;
+    if (state.depth == 0) {
+      state.alias_normalize.clear();
+      state.subtype.clear();
+    }
+  }
+};
+
 static AliasExpandResult ExpandTypeAliasApply(
     const ScopeContext& ctx,
     const TypePathType& applied) {
@@ -376,9 +446,31 @@ static AliasExpandResult NormalizeAliasTopLevel(const ScopeContext& ctx,
   return out;
 }
 
+static AliasExpandResult NormalizeAliasDeepUncached(const ScopeContext& ctx,
+                                                    const TypeRef& type,
+                                                    int depth = 0);
+
 static AliasExpandResult NormalizeAliasDeep(const ScopeContext& ctx,
                                             const TypeRef& type,
                                             int depth = 0) {
+  if (!type || depth > 64) {
+    return NormalizeAliasDeepUncached(ctx, type, depth);
+  }
+
+  auto& memo = CurrentSubtypingMemo().alias_normalize;
+  const AliasNormalizeMemoKey key{type};
+  if (const auto it = memo.find(key); it != memo.end()) {
+    return it->second;
+  }
+
+  AliasExpandResult result = NormalizeAliasDeepUncached(ctx, type, depth);
+  memo.emplace(key, result);
+  return result;
+}
+
+static AliasExpandResult NormalizeAliasDeepUncached(const ScopeContext& ctx,
+                                                    const TypeRef& type,
+                                                    int depth) {
   AliasExpandResult out;
   if (depth > 64) {
     out.type = type;
@@ -665,9 +757,9 @@ static SubtypingResult Member(const ScopeContext& ctx,
 
 }  // namespace
 
-SubtypingResult Subtyping(const ScopeContext& ctx,
-                          const TypeRef& lhs_in,
-                          const TypeRef& rhs_in) {
+static SubtypingResult SubtypingUncached(const ScopeContext& ctx,
+                                         const TypeRef& lhs_in,
+                                         const TypeRef& rhs_in) {
   SpecDefsSubtyping();
   const auto lhs_norm = NormalizeAliasDeep(ctx, lhs_in);
   if (!lhs_norm.ok) {
@@ -1196,6 +1288,25 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
   }
 
   return {true, std::nullopt, false};
+}
+
+SubtypingResult Subtyping(const ScopeContext& ctx,
+                          const TypeRef& lhs_in,
+                          const TypeRef& rhs_in) {
+  SubtypingMemoScope memo_scope;
+  if (!lhs_in || !rhs_in) {
+    return SubtypingUncached(ctx, lhs_in, rhs_in);
+  }
+
+  auto& memo = CurrentSubtypingMemo().subtype;
+  const SubtypingMemoKey key{lhs_in, rhs_in};
+  if (const auto it = memo.find(key); it != memo.end()) {
+    return it->second;
+  }
+
+  SubtypingResult result = SubtypingUncached(ctx, lhs_in, rhs_in);
+  memo.emplace(key, result);
+  return result;
 }
 
 }  // namespace cursive::analysis

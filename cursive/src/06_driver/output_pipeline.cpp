@@ -1621,8 +1621,8 @@ OutputPipelineResult OutputPipelineSingleAssembly(
               << " path=" << ir_path.generic_string();
           LogBuildProgress(oss.str());
         }
-        const auto ll_bytes = deps.codegen_ir(module, project, "ll");
-        if (!ll_bytes.has_value()) {
+        const auto bc_bytes = deps.codegen_ir(module, project, "bc");
+        if (!bc_bytes.has_value()) {
           if (show_build_progress) {
             std::ostringstream oss;
             oss << "ir-error mode=bc module=" << module.path
@@ -1636,31 +1636,6 @@ OutputPipelineResult OutputPipelineSingleAssembly(
           return result;
         }
         SPEC_RULE("CodegenIR-LLVM");
-        const auto tool = deps.resolve_tool(project, target_profile, "llvm-as");
-        if (!tool.has_value()) {
-          if (show_build_progress) {
-            LogBuildProgress("ir-error mode=bc stage=resolve-llvm-as");
-          }
-          SPEC_RULE("Emit-IR-Err");
-          SPEC_RULE("Out-IR-Err");
-          EmitExternal(result.diags, "E-OUT-0403");
-          SPEC_RULE("Output-Pipeline-Err");
-          return result;
-        }
-        const auto bc_bytes = deps.assemble_ir(*tool, *ll_bytes);
-        if (!bc_bytes.has_value()) {
-          if (show_build_progress) {
-            std::ostringstream oss;
-            oss << "ir-error mode=bc module=" << module.path
-                << " stage=assemble";
-            LogBuildProgress(oss.str());
-          }
-          SPEC_RULE("Emit-IR-Err");
-          SPEC_RULE("Out-IR-Err");
-          EmitExternal(result.diags, "E-OUT-0403");
-          SPEC_RULE("Output-Pipeline-Err");
-          return result;
-        }
         if (!deps.write_file(ir_path, *bc_bytes)) {
           if (show_build_progress) {
             std::ostringstream oss;

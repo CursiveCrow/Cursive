@@ -28,6 +28,8 @@ using CanAccessFn = AccessResult (*)(const ScopeContext& ctx,
 
 AliasMap AliasMapOf(const NameMap& names);
 source::ModuleNames ModuleNamesOf(const project::Project& project);
+const ast::ASTModule* FindContextModuleByPath(const ScopeContext& ctx,
+                                              const ast::ModulePath& path);
 source::ModuleNames VisibleModuleNamesOf(
     const ScopeContext& ctx,
     const source::ModuleNames& all_module_names);

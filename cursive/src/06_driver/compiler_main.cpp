@@ -37,6 +37,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -571,6 +572,1049 @@ std::unordered_map<std::string, std::vector<std::string>> BuildModuleDeps(
   return deps_by_module;
 }
 
+const char* VisibilitySignature(cursive::ast::Visibility vis) {
+  switch (vis) {
+    case cursive::ast::Visibility::Public:
+      return "public";
+    case cursive::ast::Visibility::Internal:
+      return "internal";
+    case cursive::ast::Visibility::Private:
+      return "private";
+  }
+  return "unknown";
+}
+
+const char* MutabilitySignature(cursive::ast::Mutability mut) {
+  switch (mut) {
+    case cursive::ast::Mutability::Let:
+      return "let";
+    case cursive::ast::Mutability::Var:
+      return "var";
+  }
+  return "unknown";
+}
+
+const char* ParamModeSignature(cursive::ast::ParamMode mode) {
+  switch (mode) {
+    case cursive::ast::ParamMode::Move:
+      return "move";
+  }
+  return "unknown";
+}
+
+const char* ReceiverPermSignature(cursive::ast::ReceiverPerm perm) {
+  switch (perm) {
+    case cursive::ast::ReceiverPerm::Const:
+      return "const";
+    case cursive::ast::ReceiverPerm::Unique:
+      return "unique";
+    case cursive::ast::ReceiverPerm::Shared:
+      return "shared";
+  }
+  return "unknown";
+}
+
+const char* TypePermSignature(cursive::ast::TypePerm perm) {
+  switch (perm) {
+    case cursive::ast::TypePerm::Const:
+      return "const";
+    case cursive::ast::TypePerm::Unique:
+      return "unique";
+    case cursive::ast::TypePerm::Shared:
+      return "shared";
+  }
+  return "unknown";
+}
+
+const char* RawPtrQualSignature(cursive::ast::RawPtrQual qual) {
+  switch (qual) {
+    case cursive::ast::RawPtrQual::Imm:
+      return "imm";
+    case cursive::ast::RawPtrQual::Mut:
+      return "mut";
+  }
+  return "unknown";
+}
+
+const char* PtrStateSignature(cursive::ast::PtrState state) {
+  switch (state) {
+    case cursive::ast::PtrState::Valid:
+      return "Valid";
+    case cursive::ast::PtrState::Null:
+      return "Null";
+    case cursive::ast::PtrState::Expired:
+      return "Expired";
+  }
+  return "unknown";
+}
+
+const char* StringStateSignature(cursive::ast::StringState state) {
+  switch (state) {
+    case cursive::ast::StringState::Managed:
+      return "Managed";
+    case cursive::ast::StringState::View:
+      return "View";
+  }
+  return "unknown";
+}
+
+const char* BytesStateSignature(cursive::ast::BytesState state) {
+  switch (state) {
+    case cursive::ast::BytesState::Managed:
+      return "Managed";
+    case cursive::ast::BytesState::View:
+      return "View";
+  }
+  return "unknown";
+}
+
+const char* VarianceSignature(cursive::ast::Variance variance) {
+  switch (variance) {
+    case cursive::ast::Variance::Covariant:
+      return "covariant";
+    case cursive::ast::Variance::Contravariant:
+      return "contravariant";
+    case cursive::ast::Variance::Invariant:
+      return "invariant";
+    case cursive::ast::Variance::Bivariant:
+      return "bivariant";
+  }
+  return "unknown";
+}
+
+const char* ForeignContractKindSignature(cursive::ast::ForeignContractKind kind) {
+  switch (kind) {
+    case cursive::ast::ForeignContractKind::Assumes:
+      return "assumes";
+    case cursive::ast::ForeignContractKind::Ensures:
+      return "ensures";
+    case cursive::ast::ForeignContractKind::EnsuresError:
+      return "ensures_error";
+    case cursive::ast::ForeignContractKind::EnsuresNullResult:
+      return "ensures_null_result";
+  }
+  return "unknown";
+}
+
+const char* TokenKindSignature(cursive::lexer::TokenKind kind) {
+  switch (kind) {
+    case cursive::lexer::TokenKind::Identifier:
+      return "identifier";
+    case cursive::lexer::TokenKind::Keyword:
+      return "keyword";
+    case cursive::lexer::TokenKind::IntLiteral:
+      return "int";
+    case cursive::lexer::TokenKind::FloatLiteral:
+      return "float";
+    case cursive::lexer::TokenKind::StringLiteral:
+      return "string";
+    case cursive::lexer::TokenKind::CharLiteral:
+      return "char";
+    case cursive::lexer::TokenKind::BoolLiteral:
+      return "bool";
+    case cursive::lexer::TokenKind::NullLiteral:
+      return "null";
+    case cursive::lexer::TokenKind::Operator:
+      return "operator";
+    case cursive::lexer::TokenKind::Punctuator:
+      return "punctuator";
+    case cursive::lexer::TokenKind::Newline:
+      return "newline";
+    case cursive::lexer::TokenKind::Eof:
+      return "eof";
+    case cursive::lexer::TokenKind::Unknown:
+      return "unknown";
+  }
+  return "unknown";
+}
+
+std::string PathSignature(const cursive::ast::Path& path) {
+  return cursive::core::StringOfPath(path);
+}
+
+void AppendSignatureAtom(std::string& out, std::string_view value) {
+  out.append(std::to_string(value.size()));
+  out.push_back(':');
+  out.append(value);
+  out.push_back(';');
+}
+
+void AppendSignatureBool(std::string& out, bool value) {
+  AppendSignatureAtom(out, value ? "1" : "0");
+}
+
+void AppendSignatureCount(std::string& out, std::size_t value) {
+  AppendSignatureAtom(out, std::to_string(value));
+}
+
+struct SourceTextCache {
+  explicit SourceTextCache(cursive::core::DiagnosticStream& diags)
+      : diags(diags) {}
+
+  const cursive::core::SourceFile* Load(std::string_view path) {
+    if (path.empty()) {
+      return nullptr;
+    }
+    const std::string key(path);
+    if (failed.find(key) != failed.end()) {
+      return nullptr;
+    }
+    if (const auto it = loaded.find(key); it != loaded.end()) {
+      return &it->second;
+    }
+
+    const auto bytes = cursive::frontend::ReadBytesDefault(key);
+    for (const auto& diag : bytes.diags) {
+      cursive::core::Emit(diags, diag);
+    }
+    if (!bytes.bytes.has_value()) {
+      failed.insert(key);
+      return nullptr;
+    }
+
+    auto source = cursive::core::LoadSource(key, *bytes.bytes);
+    for (const auto& diag : source.diags) {
+      cursive::core::Emit(diags, diag);
+    }
+    if (!source.source.has_value()) {
+      failed.insert(key);
+      return nullptr;
+    }
+
+    const auto [it, _inserted] = loaded.emplace(key, std::move(*source.source));
+    return &it->second;
+  }
+
+  cursive::core::DiagnosticStream& diags;
+  std::unordered_map<std::string, cursive::core::SourceFile> loaded;
+  std::unordered_set<std::string> failed;
+};
+
+std::string SpanText(SourceTextCache& sources, const cursive::core::Span& span) {
+  const auto* source = sources.Load(span.file);
+  if (source != nullptr && span.start_offset <= span.end_offset &&
+      span.end_offset <= source->text.size()) {
+    return source->text.substr(span.start_offset,
+                               span.end_offset - span.start_offset);
+  }
+  std::vector<std::string> fields;
+  fields.push_back("span");
+  fields.push_back(span.file);
+  fields.push_back(std::to_string(span.start_offset));
+  fields.push_back(std::to_string(span.end_offset));
+  return HashFields(fields);
+}
+
+std::string ExprSignature(SourceTextCache& sources,
+                          const cursive::ast::ExprPtr& expr) {
+  if (!expr) {
+    return "none";
+  }
+  return SpanText(sources, expr->span);
+}
+
+std::string PatternSignature(SourceTextCache& sources,
+                             const cursive::ast::PatternPtr& pattern) {
+  if (!pattern) {
+    return "none";
+  }
+  return SpanText(sources, pattern->span);
+}
+
+std::string TypeSignature(SourceTextCache& sources,
+                          const cursive::ast::TypePtr& type);
+
+void AppendTypeVectorSignature(SourceTextCache& sources,
+                               std::string& out,
+                               const std::vector<cursive::ast::TypePtr>& types) {
+  AppendSignatureCount(out, types.size());
+  for (const auto& type : types) {
+    AppendSignatureAtom(out, TypeSignature(sources, type));
+  }
+}
+
+std::string ModalRefSignature(SourceTextCache& sources,
+                              const cursive::ast::TypeModalRef& modal_ref) {
+  std::string out;
+  AppendSignatureAtom(out, PathSignature(cursive::ast::TypeModalRefPath(modal_ref)));
+  AppendTypeVectorSignature(sources, out, cursive::ast::TypeModalRefArgs(modal_ref));
+  return out;
+}
+
+std::string TypeSignature(SourceTextCache& sources,
+                          const cursive::ast::TypePtr& type) {
+  if (!type) {
+    return "none";
+  }
+
+  std::string out;
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, cursive::ast::TypePrim>) {
+          AppendSignatureAtom(out, "prim");
+          AppendSignatureAtom(out, node.name);
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypePermType>) {
+          AppendSignatureAtom(out, "perm");
+          AppendSignatureAtom(out, TypePermSignature(node.perm));
+          AppendSignatureAtom(out, TypeSignature(sources, node.base));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeUnion>) {
+          AppendSignatureAtom(out, "union");
+          std::vector<std::string> members;
+          members.reserve(node.types.size());
+          for (const auto& member : node.types) {
+            members.push_back(TypeSignature(sources, member));
+          }
+          std::sort(members.begin(), members.end());
+          AppendSignatureCount(out, members.size());
+          for (const auto& member : members) {
+            AppendSignatureAtom(out, member);
+          }
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeFunc>) {
+          AppendSignatureAtom(out, "func");
+          AppendSignatureCount(out, node.params.size());
+          for (const auto& param : node.params) {
+            AppendSignatureBool(out, param.mode.has_value());
+            if (param.mode.has_value()) {
+              AppendSignatureAtom(out, ParamModeSignature(*param.mode));
+            }
+            AppendSignatureAtom(out, TypeSignature(sources, param.type));
+          }
+          AppendSignatureAtom(out, TypeSignature(sources, node.ret));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeClosure>) {
+          AppendSignatureAtom(out, "closure");
+          AppendSignatureCount(out, node.params.size());
+          for (const auto& param : node.params) {
+            AppendSignatureBool(out, param.mode.has_value());
+            if (param.mode.has_value()) {
+              AppendSignatureAtom(out, ParamModeSignature(*param.mode));
+            }
+            AppendSignatureAtom(out, TypeSignature(sources, param.type));
+          }
+          AppendSignatureAtom(out, TypeSignature(sources, node.ret));
+          AppendSignatureBool(out, node.deps_opt.has_value());
+          if (node.deps_opt.has_value()) {
+            AppendSignatureCount(out, node.deps_opt->size());
+            for (const auto& dep : *node.deps_opt) {
+              AppendSignatureAtom(out, dep.name);
+              AppendSignatureAtom(out, TypeSignature(sources, dep.type));
+            }
+          }
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeTuple>) {
+          AppendSignatureAtom(out, "tuple");
+          AppendTypeVectorSignature(sources, out, node.elements);
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeArray>) {
+          AppendSignatureAtom(out, "array");
+          AppendSignatureAtom(out, TypeSignature(sources, node.element));
+          AppendSignatureAtom(out, ExprSignature(sources, node.length));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeSlice>) {
+          AppendSignatureAtom(out, "slice");
+          AppendSignatureAtom(out, TypeSignature(sources, node.element));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeSafePtr>) {
+          AppendSignatureAtom(out, "ptr");
+          AppendSignatureAtom(out, TypeSignature(sources, node.element));
+          AppendSignatureBool(out, node.state.has_value());
+          if (node.state.has_value()) {
+            AppendSignatureAtom(out, PtrStateSignature(*node.state));
+          }
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeRawPtr>) {
+          AppendSignatureAtom(out, "rawptr");
+          AppendSignatureAtom(out, RawPtrQualSignature(node.qual));
+          AppendSignatureAtom(out, TypeSignature(sources, node.element));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeString>) {
+          AppendSignatureAtom(out, "string");
+          AppendSignatureBool(out, node.state.has_value());
+          if (node.state.has_value()) {
+            AppendSignatureAtom(out, StringStateSignature(*node.state));
+          }
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeBytes>) {
+          AppendSignatureAtom(out, "bytes");
+          AppendSignatureBool(out, node.state.has_value());
+          if (node.state.has_value()) {
+            AppendSignatureAtom(out, BytesStateSignature(*node.state));
+          }
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeDynamic>) {
+          AppendSignatureAtom(out, "dynamic");
+          AppendSignatureAtom(out, PathSignature(node.path));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeModalState>) {
+          AppendSignatureAtom(out, "modal-state");
+          AppendSignatureAtom(out, ModalRefSignature(sources, node.modal_ref));
+          AppendSignatureAtom(out, node.state);
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypePathType>) {
+          AppendSignatureAtom(out, "path");
+          AppendSignatureAtom(out, PathSignature(node.path));
+          AppendTypeVectorSignature(sources, out, node.generic_args);
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeApply>) {
+          AppendSignatureAtom(out, "apply");
+          AppendSignatureAtom(out, PathSignature(node.path));
+          AppendTypeVectorSignature(sources, out, node.args);
+        } else if constexpr (std::is_same_v<T, cursive::ast::SpliceExprNode>) {
+          AppendSignatureAtom(out, "splice");
+          AppendSignatureAtom(out, ExprSignature(sources, node.expr));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeOpaque>) {
+          AppendSignatureAtom(out, "opaque");
+          AppendSignatureAtom(out, PathSignature(node.path));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeRefine>) {
+          AppendSignatureAtom(out, "refine");
+          AppendSignatureAtom(out, TypeSignature(sources, node.base));
+          AppendSignatureAtom(out, ExprSignature(sources, node.predicate));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeRange>) {
+          AppendSignatureAtom(out, "range");
+          AppendSignatureAtom(out, TypeSignature(sources, node.base));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeRangeInclusive>) {
+          AppendSignatureAtom(out, "range-inclusive");
+          AppendSignatureAtom(out, TypeSignature(sources, node.base));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeRangeFrom>) {
+          AppendSignatureAtom(out, "range-from");
+          AppendSignatureAtom(out, TypeSignature(sources, node.base));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeRangeTo>) {
+          AppendSignatureAtom(out, "range-to");
+          AppendSignatureAtom(out, TypeSignature(sources, node.base));
+        } else if constexpr (std::is_same_v<T,
+                                            cursive::ast::TypeRangeToInclusive>) {
+          AppendSignatureAtom(out, "range-to-inclusive");
+          AppendSignatureAtom(out, TypeSignature(sources, node.base));
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeRangeFull>) {
+          AppendSignatureAtom(out, "range-full");
+        }
+      },
+      type->node);
+  return out;
+}
+
+std::string AttributeArgSignature(const cursive::ast::AttributeArg& arg) {
+  std::string out;
+  AppendSignatureBool(out, arg.key.has_value());
+  if (arg.key.has_value()) {
+    AppendSignatureAtom(out, *arg.key);
+  }
+  std::visit(
+      [&](const auto& value) {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, cursive::lexer::Token>) {
+          AppendSignatureAtom(out, "token");
+          AppendSignatureAtom(out, TokenKindSignature(value.kind));
+          AppendSignatureAtom(out, value.lexeme);
+        } else {
+          AppendSignatureAtom(out, "args");
+          AppendSignatureCount(out, value.size());
+          for (const auto& nested : value) {
+            AppendSignatureAtom(out, AttributeArgSignature(nested));
+          }
+        }
+      },
+      arg.value);
+  return out;
+}
+
+void AppendAttributesSignature(std::vector<std::string>& fields,
+                               const cursive::ast::AttributeList& attrs) {
+  fields.push_back("attrs=" + std::to_string(attrs.size()));
+  for (const auto& attr : attrs) {
+    std::string out;
+    AppendSignatureAtom(out, attr.name.full_name);
+    AppendSignatureCount(out, attr.args.size());
+    for (const auto& arg : attr.args) {
+      AppendSignatureAtom(out, AttributeArgSignature(arg));
+    }
+    fields.push_back("attr=" + out);
+  }
+}
+
+void AppendAttributesSignature(std::vector<std::string>& fields,
+                               const cursive::ast::AttrOpt& attrs_opt) {
+  AppendAttributesSignature(fields, cursive::ast::AttrListOf(attrs_opt));
+}
+
+void AppendGenericSignature(
+    SourceTextCache& sources,
+    std::vector<std::string>& fields,
+    const std::optional<cursive::ast::GenericParams>& params_opt) {
+  fields.push_back(std::string("generic=") +
+                   (params_opt.has_value() ? "1" : "0"));
+  if (!params_opt.has_value()) {
+    return;
+  }
+  fields.push_back("generic-count=" + std::to_string(params_opt->params.size()));
+  for (const auto& param : params_opt->params) {
+    std::string out;
+    AppendSignatureAtom(out, param.name);
+    AppendSignatureBool(out, param.variance.has_value());
+    if (param.variance.has_value()) {
+      AppendSignatureAtom(out, VarianceSignature(*param.variance));
+    }
+    AppendSignatureCount(out, param.bounds.size());
+    for (const auto& bound : param.bounds) {
+      AppendSignatureAtom(out, PathSignature(bound.class_path));
+      AppendTypeVectorSignature(sources, out, bound.generic_args);
+    }
+    AppendSignatureAtom(out, TypeSignature(sources, param.default_type));
+    fields.push_back("generic-param=" + out);
+  }
+}
+
+void AppendPredicateSignature(
+    SourceTextCache& sources,
+    std::vector<std::string>& fields,
+    const std::optional<cursive::ast::PredicateClause>& predicates_opt) {
+  fields.push_back(std::string("predicates=") +
+                   (predicates_opt.has_value() ? "1" : "0"));
+  if (!predicates_opt.has_value()) {
+    return;
+  }
+  fields.push_back("predicate-count=" + std::to_string(predicates_opt->size()));
+  for (const auto& predicate : *predicates_opt) {
+    std::string out;
+    AppendSignatureAtom(out, predicate.pred);
+    AppendSignatureAtom(out, TypeSignature(sources, predicate.type));
+    fields.push_back("predicate=" + out);
+  }
+}
+
+std::string ParamSignature(SourceTextCache& sources,
+                           const cursive::ast::Param& param) {
+  std::string out;
+  AppendSignatureAtom(out, param.name);
+  AppendSignatureBool(out, param.mode.has_value());
+  if (param.mode.has_value()) {
+    AppendSignatureAtom(out, ParamModeSignature(*param.mode));
+  }
+  AppendSignatureAtom(out, TypeSignature(sources, param.type));
+  return out;
+}
+
+void AppendParamsSignature(SourceTextCache& sources,
+                           std::vector<std::string>& fields,
+                           const std::vector<cursive::ast::Param>& params) {
+  fields.push_back("params=" + std::to_string(params.size()));
+  for (const auto& param : params) {
+    fields.push_back("param=" + ParamSignature(sources, param));
+  }
+}
+
+std::string ReceiverSignature(SourceTextCache& sources,
+                              const cursive::ast::Receiver& receiver) {
+  std::string out;
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, cursive::ast::ReceiverShorthand>) {
+          AppendSignatureAtom(out, "shorthand");
+          AppendSignatureAtom(out, ReceiverPermSignature(node.perm));
+        } else {
+          AppendSignatureAtom(out, "explicit");
+          AppendSignatureBool(out, node.mode_opt.has_value());
+          if (node.mode_opt.has_value()) {
+            AppendSignatureAtom(out, ParamModeSignature(*node.mode_opt));
+          }
+          AppendSignatureAtom(out, TypeSignature(sources, node.type));
+        }
+      },
+      receiver);
+  return out;
+}
+
+void AppendContractSignature(
+    SourceTextCache& sources,
+    std::vector<std::string>& fields,
+    const std::optional<cursive::ast::ContractClause>& contract_opt) {
+  fields.push_back(std::string("contract=") +
+                   (contract_opt.has_value() ? "1" : "0"));
+  if (!contract_opt.has_value()) {
+    return;
+  }
+  fields.push_back("contract-pre=" +
+                   ExprSignature(sources, contract_opt->precondition));
+  fields.push_back("contract-post=" +
+                   ExprSignature(sources, contract_opt->postcondition));
+}
+
+void AppendForeignContractsSignature(
+    SourceTextCache& sources,
+    std::vector<std::string>& fields,
+    const std::optional<std::vector<cursive::ast::ForeignContractClause>>&
+        contracts_opt) {
+  fields.push_back(std::string("foreign-contracts=") +
+                   (contracts_opt.has_value() ? "1" : "0"));
+  if (!contracts_opt.has_value()) {
+    return;
+  }
+  fields.push_back("foreign-contract-count=" +
+                   std::to_string(contracts_opt->size()));
+  for (const auto& contract : *contracts_opt) {
+    std::string out;
+    AppendSignatureAtom(out, ForeignContractKindSignature(contract.kind));
+    AppendSignatureCount(out, contract.predicates.size());
+    for (const auto& predicate : contract.predicates) {
+      AppendSignatureAtom(out, ExprSignature(sources, predicate));
+    }
+    fields.push_back("foreign-contract=" + out);
+  }
+}
+
+void AppendInvariantSignature(
+    SourceTextCache& sources,
+    std::vector<std::string>& fields,
+    const std::optional<cursive::ast::TypeInvariant>& invariant_opt) {
+  fields.push_back(std::string("invariant=") +
+                   (invariant_opt.has_value() ? "1" : "0"));
+  if (invariant_opt.has_value()) {
+    fields.push_back("invariant-predicate=" +
+                     ExprSignature(sources, invariant_opt->predicate));
+  }
+}
+
+std::string ExternAbiSignature(const std::optional<cursive::ast::ExternAbi>& abi) {
+  if (!abi.has_value()) {
+    return "none";
+  }
+  std::string out;
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, cursive::ast::ExternAbiString>) {
+          AppendSignatureAtom(out, "string");
+          AppendSignatureAtom(out, node.literal.lexeme);
+        } else {
+          AppendSignatureAtom(out, "ident");
+          AppendSignatureAtom(out, node.name);
+        }
+      },
+      *abi);
+  return out;
+}
+
+void AppendCallableSignature(
+    SourceTextCache& sources,
+    std::vector<std::string>& fields,
+    std::string_view kind,
+    const cursive::ast::AttributeList& attrs,
+    cursive::ast::Visibility vis,
+    std::string_view name,
+    const std::optional<cursive::ast::GenericParams>& generic_params,
+    const std::optional<cursive::ast::PredicateClause>& predicate_clause,
+    const std::vector<cursive::ast::Param>& params,
+    const cursive::ast::TypePtr& return_type,
+    const std::optional<cursive::ast::ContractClause>& contract) {
+  fields.push_back("item=" + std::string(kind));
+  AppendAttributesSignature(fields, attrs);
+  fields.push_back("vis=" + std::string(VisibilitySignature(vis)));
+  fields.push_back("name=" + std::string(name));
+  AppendGenericSignature(sources, fields, generic_params);
+  AppendPredicateSignature(sources, fields, predicate_clause);
+  AppendParamsSignature(sources, fields, params);
+  fields.push_back("return=" + TypeSignature(sources, return_type));
+  AppendContractSignature(sources, fields, contract);
+}
+
+void AppendFieldSignature(SourceTextCache& sources,
+                          std::vector<std::string>& fields,
+                          const cursive::ast::FieldDecl& field,
+                          std::string_view kind) {
+  fields.push_back("member=" + std::string(kind));
+  AppendAttributesSignature(fields, field.attrs);
+  fields.push_back("vis=" + std::string(VisibilitySignature(field.vis)));
+  fields.push_back(std::string("key-boundary=") +
+                   (field.key_boundary ? "1" : "0"));
+  fields.push_back("name=" + field.name);
+  fields.push_back("type=" + TypeSignature(sources, field.type));
+  fields.push_back("init=" + ExprSignature(sources, field.init_opt));
+}
+
+void AppendMethodSignature(SourceTextCache& sources,
+                           std::vector<std::string>& fields,
+                           const cursive::ast::MethodDecl& method,
+                           std::string_view kind) {
+  fields.push_back("member=" + std::string(kind));
+  AppendAttributesSignature(fields, method.attrs);
+  fields.push_back("vis=" + std::string(VisibilitySignature(method.vis)));
+  fields.push_back(std::string("override=") +
+                   (method.override_flag ? "1" : "0"));
+  fields.push_back("name=" + method.name);
+  AppendGenericSignature(sources, fields, method.generic_params);
+  fields.push_back("receiver=" + ReceiverSignature(sources, method.receiver));
+  AppendParamsSignature(sources, fields, method.params);
+  fields.push_back("return=" + TypeSignature(sources, method.return_type_opt));
+  AppendContractSignature(sources, fields, method.contract);
+}
+
+std::string VariantPayloadSignature(
+    SourceTextCache& sources,
+    const std::optional<cursive::ast::VariantPayload>& payload_opt) {
+  if (!payload_opt.has_value()) {
+    return "none";
+  }
+  std::string out;
+  std::visit(
+      [&](const auto& payload) {
+        using T = std::decay_t<decltype(payload)>;
+        if constexpr (std::is_same_v<T, cursive::ast::VariantPayloadTuple>) {
+          AppendSignatureAtom(out, "tuple");
+          AppendTypeVectorSignature(sources, out, payload.elements);
+        } else {
+          AppendSignatureAtom(out, "record");
+          AppendSignatureCount(out, payload.fields.size());
+          for (const auto& field : payload.fields) {
+            std::vector<std::string> field_fields;
+            AppendFieldSignature(sources, field_fields, field, "variant-field");
+            AppendSignatureAtom(out, HashFields(field_fields));
+          }
+        }
+      },
+      *payload_opt);
+  return out;
+}
+
+std::string ClassItemSignature(SourceTextCache& sources,
+                               const cursive::ast::ClassItem& item) {
+  std::vector<std::string> fields;
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, cursive::ast::ClassFieldDecl>) {
+          fields.push_back("class-member=field");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back(std::string("key-boundary=") +
+                           (node.key_boundary ? "1" : "0"));
+          fields.push_back("name=" + node.name);
+          fields.push_back("type=" + TypeSignature(sources, node.type));
+        } else if constexpr (std::is_same_v<T,
+                                            cursive::ast::ClassMethodDecl>) {
+          fields.push_back("class-member=method");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("name=" + node.name);
+          AppendGenericSignature(sources, fields, node.generic_params);
+          fields.push_back("receiver=" +
+                           ReceiverSignature(sources, node.receiver));
+          AppendParamsSignature(sources, fields, node.params);
+          fields.push_back("return=" +
+                           TypeSignature(sources, node.return_type_opt));
+          AppendContractSignature(sources, fields, node.contract);
+          fields.push_back(std::string("default-body=") +
+                           (node.body_opt ? "1" : "0"));
+        } else if constexpr (std::is_same_v<T,
+                                            cursive::ast::AssociatedTypeDecl>) {
+          fields.push_back("class-member=assoc-type");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("name=" + node.name);
+          fields.push_back("default=" +
+                           TypeSignature(sources, node.default_type));
+        } else if constexpr (std::is_same_v<T,
+                                            cursive::ast::AbstractFieldDecl>) {
+          fields.push_back("class-member=abstract-field");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back(std::string("key-boundary=") +
+                           (node.key_boundary ? "1" : "0"));
+          fields.push_back("name=" + node.name);
+          fields.push_back("type=" + TypeSignature(sources, node.type));
+        } else if constexpr (std::is_same_v<T,
+                                            cursive::ast::AbstractStateDecl>) {
+          fields.push_back("class-member=abstract-state");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("name=" + node.name);
+          fields.push_back("fields=" + std::to_string(node.fields.size()));
+          for (const auto& field : node.fields) {
+            fields.push_back("field=" + ClassItemSignature(
+                                            sources,
+                                            cursive::ast::ClassItem{field}));
+          }
+        }
+      },
+      item);
+  return HashFields(fields);
+}
+
+std::string ItemInterfaceHash(SourceTextCache& sources,
+                              const cursive::ast::ASTItem& item) {
+  std::vector<std::string> fields;
+  std::visit(
+      [&](const auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, cursive::ast::UsingDecl>) {
+          fields.push_back("item=using");
+          AppendAttributesSignature(fields, node.attrs_opt);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("source=" + SpanText(sources, node.span));
+        } else if constexpr (std::is_same_v<T, cursive::ast::ImportDecl>) {
+          fields.push_back("item=import");
+          AppendAttributesSignature(fields, node.attrs_opt);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("path=" + PathSignature(node.path));
+          fields.push_back("alias=" + node.alias_opt.value_or(""));
+        } else if constexpr (std::is_same_v<T, cursive::ast::ExternBlock>) {
+          fields.push_back("item=extern");
+          AppendAttributesSignature(fields, node.attrs_opt);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("abi=" + ExternAbiSignature(node.abi_opt));
+          fields.push_back("extern-items=" + std::to_string(node.items.size()));
+          for (const auto& extern_item : node.items) {
+            std::visit(
+                [&](const auto& proc) {
+                  std::vector<std::string> proc_fields;
+                  AppendCallableSignature(sources,
+                                          proc_fields,
+                                          "extern-proc",
+                                          proc.attrs,
+                                          proc.vis,
+                                          proc.name,
+                                          proc.generic_params,
+                                          proc.where_clause,
+                                          proc.params,
+                                          proc.return_type_opt,
+                                          proc.contract);
+                  AppendForeignContractsSignature(
+                      sources, proc_fields, proc.foreign_contracts_opt);
+                  fields.push_back("extern-item=" + HashFields(proc_fields));
+                },
+                extern_item);
+          }
+        } else if constexpr (std::is_same_v<T, cursive::ast::StaticDecl>) {
+          fields.push_back("item=static");
+          AppendAttributesSignature(fields, node.attrs_opt);
+          AppendAttributesSignature(fields, node.binding.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("mut=" + std::string(MutabilitySignature(node.mut)));
+          fields.push_back("pattern=" + PatternSignature(sources, node.binding.pat));
+          fields.push_back("type=" + TypeSignature(
+                                         sources,
+                                         cursive::ast::BindingAnnotationTypeOpt(
+                                             node.binding)));
+          fields.push_back("op=" + node.binding.op.lexeme);
+        } else if constexpr (std::is_same_v<T, cursive::ast::ProcedureDecl>) {
+          AppendCallableSignature(sources,
+                                  fields,
+                                  "procedure",
+                                  node.attrs,
+                                  node.vis,
+                                  node.name,
+                                  node.generic_params,
+                                  node.predicate_clause_opt,
+                                  node.params,
+                                  node.return_type_opt,
+                                  node.contract);
+        } else if constexpr (std::is_same_v<T,
+                                            cursive::ast::ComptimeProcedureDecl>) {
+          AppendCallableSignature(sources,
+                                  fields,
+                                  "comptime-procedure",
+                                  node.attrs,
+                                  node.vis,
+                                  node.name,
+                                  node.generic_params,
+                                  std::nullopt,
+                                  node.params,
+                                  node.return_type_opt,
+                                  node.contract);
+        } else if constexpr (std::is_same_v<T, cursive::ast::RecordDecl>) {
+          fields.push_back("item=record");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("name=" + node.name);
+          AppendGenericSignature(sources, fields, node.generic_params);
+          AppendPredicateSignature(sources, fields, node.predicate_clause_opt);
+          fields.push_back("implements=" + std::to_string(node.implements.size()));
+          for (const auto& impl : node.implements) {
+            fields.push_back("implements-path=" + PathSignature(impl));
+          }
+          fields.push_back("members=" + std::to_string(node.members.size()));
+          for (const auto& member : node.members) {
+            std::vector<std::string> member_fields;
+            std::visit(
+                [&](const auto& member_node) {
+                  using M = std::decay_t<decltype(member_node)>;
+                  if constexpr (std::is_same_v<M, cursive::ast::FieldDecl>) {
+                    AppendFieldSignature(
+                        sources, member_fields, member_node, "record-field");
+                  } else if constexpr (std::is_same_v<M,
+                                                      cursive::ast::MethodDecl>) {
+                    AppendMethodSignature(
+                        sources, member_fields, member_node, "record-method");
+                  } else {
+                    member_fields.push_back("member=associated-type");
+                    AppendAttributesSignature(member_fields, member_node.attrs);
+                    member_fields.push_back(
+                        "vis=" + std::string(VisibilitySignature(member_node.vis)));
+                    member_fields.push_back("name=" + member_node.name);
+                    member_fields.push_back(
+                        "default=" +
+                        TypeSignature(sources, member_node.default_type));
+                  }
+                },
+                member);
+            fields.push_back("member=" + HashFields(member_fields));
+          }
+          AppendInvariantSignature(sources, fields, node.invariant_opt);
+        } else if constexpr (std::is_same_v<T, cursive::ast::EnumDecl>) {
+          fields.push_back("item=enum");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("name=" + node.name);
+          AppendGenericSignature(sources, fields, node.generic_params);
+          AppendPredicateSignature(sources, fields, node.predicate_clause_opt);
+          fields.push_back("implements=" + std::to_string(node.implements.size()));
+          for (const auto& impl : node.implements) {
+            fields.push_back("implements-path=" + PathSignature(impl));
+          }
+          fields.push_back("variants=" + std::to_string(node.variants.size()));
+          for (const auto& variant : node.variants) {
+            std::string out;
+            AppendSignatureAtom(out, variant.name);
+            AppendSignatureAtom(out,
+                                VariantPayloadSignature(sources,
+                                                        variant.payload_opt));
+            AppendSignatureBool(out, variant.discriminant_opt.has_value());
+            if (variant.discriminant_opt.has_value()) {
+              AppendSignatureAtom(out, variant.discriminant_opt->lexeme);
+            }
+            fields.push_back("variant=" + out);
+          }
+          AppendInvariantSignature(sources, fields, node.invariant_opt);
+        } else if constexpr (std::is_same_v<T, cursive::ast::ModalDecl>) {
+          fields.push_back("item=modal");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("name=" + node.name);
+          AppendGenericSignature(sources, fields, node.generic_params);
+          AppendPredicateSignature(sources, fields, node.predicate_clause_opt);
+          fields.push_back("implements=" + std::to_string(node.implements.size()));
+          for (const auto& impl : node.implements) {
+            fields.push_back("implements-path=" + PathSignature(impl));
+          }
+          fields.push_back("states=" + std::to_string(node.states.size()));
+          for (const auto& state : node.states) {
+            std::vector<std::string> state_fields;
+            state_fields.push_back("state=" + state.name);
+            state_fields.push_back("members=" + std::to_string(state.members.size()));
+            for (const auto& member : state.members) {
+              std::vector<std::string> member_fields;
+              std::visit(
+                  [&](const auto& member_node) {
+                    using M = std::decay_t<decltype(member_node)>;
+                    if constexpr (std::is_same_v<M,
+                                                  cursive::ast::StateFieldDecl>) {
+                      member_fields.push_back("member=state-field");
+                      AppendAttributesSignature(member_fields, member_node.attrs);
+                      member_fields.push_back(
+                          "vis=" +
+                          std::string(VisibilitySignature(member_node.vis)));
+                      member_fields.push_back(
+                          std::string("key-boundary=") +
+                          (member_node.key_boundary ? "1" : "0"));
+                      member_fields.push_back("name=" + member_node.name);
+                      member_fields.push_back(
+                          "type=" + TypeSignature(sources, member_node.type));
+                    } else if constexpr (std::is_same_v<
+                                             M, cursive::ast::StateMethodDecl>) {
+                      member_fields.push_back("member=state-method");
+                      AppendAttributesSignature(member_fields, member_node.attrs);
+                      member_fields.push_back(
+                          "vis=" +
+                          std::string(VisibilitySignature(member_node.vis)));
+                      member_fields.push_back("name=" + member_node.name);
+                      AppendGenericSignature(
+                          sources, member_fields, member_node.generic_params);
+                      member_fields.push_back(
+                          "receiver=" +
+                          ReceiverSignature(sources, member_node.receiver));
+                      AppendParamsSignature(
+                          sources, member_fields, member_node.params);
+                      member_fields.push_back(
+                          "return=" +
+                          TypeSignature(sources, member_node.return_type_opt));
+                      AppendContractSignature(
+                          sources, member_fields, member_node.contract);
+                    } else {
+                      member_fields.push_back("member=transition");
+                      AppendAttributesSignature(member_fields, member_node.attrs);
+                      member_fields.push_back(
+                          "vis=" +
+                          std::string(VisibilitySignature(member_node.vis)));
+                      member_fields.push_back("name=" + member_node.name);
+                      AppendParamsSignature(
+                          sources, member_fields, member_node.params);
+                      member_fields.push_back("target=" + member_node.target_state);
+                    }
+                  },
+                  member);
+              state_fields.push_back("member=" + HashFields(member_fields));
+            }
+            fields.push_back("state=" + HashFields(state_fields));
+          }
+          AppendInvariantSignature(sources, fields, node.invariant_opt);
+        } else if constexpr (std::is_same_v<T, cursive::ast::ClassDecl>) {
+          fields.push_back("item=class");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back(std::string("modal=") + (node.modal ? "1" : "0"));
+          fields.push_back("name=" + node.name);
+          AppendGenericSignature(sources, fields, node.generic_params);
+          AppendPredicateSignature(sources, fields, node.predicate_clause_opt);
+          fields.push_back("supers=" + std::to_string(node.supers.size()));
+          for (const auto& super : node.supers) {
+            fields.push_back("super=" + PathSignature(super));
+          }
+          fields.push_back("items=" + std::to_string(node.items.size()));
+          for (const auto& class_item : node.items) {
+            fields.push_back("class-item=" +
+                             ClassItemSignature(sources, class_item));
+          }
+        } else if constexpr (std::is_same_v<T, cursive::ast::TypeAliasDecl>) {
+          fields.push_back("item=type-alias");
+          AppendAttributesSignature(fields, node.attrs);
+          fields.push_back("vis=" + std::string(VisibilitySignature(node.vis)));
+          fields.push_back("name=" + node.name);
+          AppendGenericSignature(sources, fields, node.generic_params);
+          AppendPredicateSignature(sources, fields, node.predicate_clause_opt);
+          fields.push_back("type=" + TypeSignature(sources, node.type));
+        } else if constexpr (std::is_same_v<T, cursive::ast::DeriveTargetDecl>) {
+          fields.push_back("item=derive-target");
+          fields.push_back("name=" + node.name);
+          fields.push_back("source=" + SpanText(sources, node.span));
+        } else if constexpr (std::is_same_v<T, cursive::ast::ErrorItem>) {
+          fields.push_back("item=error");
+        }
+      },
+      item);
+  return HashFields(fields);
+}
+
+bool InterfaceVisible(const cursive::ast::ASTItem& item) {
+  return std::visit(
+      [](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, cursive::ast::ErrorItem>) {
+          return false;
+        } else if constexpr (std::is_same_v<T,
+                                            cursive::ast::DeriveTargetDecl>) {
+          return true;
+        } else {
+          return node.vis != cursive::ast::Visibility::Private;
+        }
+      },
+      item);
+}
+
+std::string ComputeModuleInterfaceHash(
+    const cursive::ast::ASTModule& module,
+    SourceTextCache& sources) {
+  std::vector<std::string> fields;
+  fields.reserve(module.items.size() + 4);
+  fields.push_back("interface-v1");
+  fields.push_back(cursive::core::StringOfPath(module.path));
+  for (const auto& item : module.items) {
+    if (!InterfaceVisible(item)) {
+      continue;
+    }
+    fields.push_back("item=" + ItemInterfaceHash(sources, item));
+  }
+  return HashFields(fields);
+}
+
 cursive::source::ModuleNames ModuleNamesForAssemblies(
     const std::vector<cursive::project::Assembly>& assemblies) {
   cursive::source::ModuleNames names;
@@ -878,8 +1922,85 @@ IncrementalBuildDataResult BuildIncrementalBuildData(
     source_hashes[module.path] = *source_hash;
   }
 
+  std::unordered_map<std::string, const cursive::ast::ASTModule*>
+      ast_by_module;
+  ast_by_module.reserve(resolved_modules.size());
+  for (const auto& module : resolved_modules) {
+    ast_by_module[cursive::core::StringOfPath(module.path)] = &module;
+  }
+
+  SourceTextCache source_text_cache(diags);
+  std::unordered_map<std::string, std::string> own_public_hashes;
+  own_public_hashes.reserve(project.modules.size());
+  for (const auto& module : project.modules) {
+    const auto ast_it = ast_by_module.find(module.path);
+    if (ast_it == ast_by_module.end() || ast_it->second == nullptr) {
+      own_public_hashes[module.path] = source_hashes[module.path];
+      continue;
+    }
+    own_public_hashes[module.path] =
+        ComputeModuleInterfaceHash(*ast_it->second, source_text_cache);
+  }
+
   result.build_key = BuildIncrementalBuildKey(project, target_profile, opts);
   result.modules.reserve(project.modules.size());
+
+  std::unordered_map<std::string, std::string> public_hash_cache;
+  public_hash_cache.reserve(project.modules.size());
+  std::unordered_set<std::string> public_hash_visiting;
+
+  std::function<std::string(const std::string&)> compute_public_hash =
+      [&](const std::string& module_path) -> std::string {
+    const auto cached_it = public_hash_cache.find(module_path);
+    if (cached_it != public_hash_cache.end()) {
+      return cached_it->second;
+    }
+
+    const auto own_it = own_public_hashes.find(module_path);
+    const std::string own_hash =
+        own_it != own_public_hashes.end() ? own_it->second : "missing";
+
+    if (public_hash_visiting.find(module_path) != public_hash_visiting.end()) {
+      std::vector<std::string> cycle_fields;
+      cycle_fields.reserve(6);
+      cycle_fields.push_back("public-v1");
+      cycle_fields.push_back(result.build_key);
+      cycle_fields.push_back(module_path);
+      cycle_fields.push_back("own=" + own_hash);
+      cycle_fields.push_back("cycle=1");
+      const std::string cycle_hash = HashFields(cycle_fields);
+      public_hash_cache[module_path] = cycle_hash;
+      return cycle_hash;
+    }
+
+    public_hash_visiting.insert(module_path);
+
+    std::vector<std::string> fields;
+    const auto dep_it = deps_by_module.find(module_path);
+    const std::size_t dep_count =
+        dep_it != deps_by_module.end() ? dep_it->second.size() : 0;
+    fields.reserve(5 + dep_count);
+    fields.push_back("public-v1");
+    fields.push_back(result.build_key);
+    fields.push_back(module_path);
+    fields.push_back("own=" + own_hash);
+
+    if (dep_it != deps_by_module.end()) {
+      for (const auto& dep : dep_it->second) {
+        const auto dep_own_it = own_public_hashes.find(dep);
+        if (dep_own_it == own_public_hashes.end()) {
+          fields.push_back("dep=" + dep + ":missing");
+          continue;
+        }
+        fields.push_back("dep=" + dep + ":" + compute_public_hash(dep));
+      }
+    }
+
+    const std::string out = HashFields(fields);
+    public_hash_visiting.erase(module_path);
+    public_hash_cache[module_path] = out;
+    return out;
+  };
 
   std::unordered_map<std::string, std::string> full_hash_cache;
   full_hash_cache.reserve(project.modules.size());
@@ -899,10 +2020,11 @@ IncrementalBuildDataResult BuildIncrementalBuildData(
     if (full_hash_visiting.find(module_path) != full_hash_visiting.end()) {
       std::vector<std::string> cycle_fields;
       cycle_fields.reserve(5);
-      cycle_fields.push_back("v2");
+      cycle_fields.push_back("v3");
       cycle_fields.push_back(result.build_key);
       cycle_fields.push_back(module_path);
       cycle_fields.push_back("source=" + source_hash);
+      cycle_fields.push_back("public=" + compute_public_hash(module_path));
       cycle_fields.push_back("cycle=1");
       const std::string cycle_hash = HashFields(cycle_fields);
       full_hash_cache[module_path] = cycle_hash;
@@ -916,19 +2038,20 @@ IncrementalBuildDataResult BuildIncrementalBuildData(
     const std::size_t dep_count =
         dep_it != deps_by_module.end() ? dep_it->second.size() : 0;
     fields.reserve(6 + dep_count);
-    fields.push_back("v2");
+    fields.push_back("v3");
     fields.push_back(result.build_key);
     fields.push_back(module_path);
     fields.push_back("source=" + source_hash);
+    fields.push_back("public=" + compute_public_hash(module_path));
 
     if (dep_it != deps_by_module.end()) {
       for (const auto& dep : dep_it->second) {
-        const auto dep_source_it = source_hashes.find(dep);
-        if (dep_source_it == source_hashes.end()) {
+        const auto dep_public_it = own_public_hashes.find(dep);
+        if (dep_public_it == own_public_hashes.end()) {
           fields.push_back("dep=" + dep + ":missing");
           continue;
         }
-        fields.push_back("dep=" + dep + ":" + compute_full_hash(dep));
+        fields.push_back("dep=" + dep + ":" + compute_public_hash(dep));
       }
     }
 
@@ -941,7 +2064,7 @@ IncrementalBuildDataResult BuildIncrementalBuildData(
   for (const auto& module : project.modules) {
     cursive::driver::IncrementalModuleInfo info;
     info.source_hash = source_hashes[module.path];
-    info.public_hash = info.source_hash;
+    info.public_hash = compute_public_hash(module.path);
 
     const auto dep_it = deps_by_module.find(module.path);
     if (dep_it != deps_by_module.end()) {

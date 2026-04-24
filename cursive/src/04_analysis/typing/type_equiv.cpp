@@ -77,9 +77,12 @@
 #include "04_analysis/typing/type_equiv.h"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <type_traits>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "00_core/assert_spec.h"
@@ -198,6 +201,37 @@ static bool PredicateEquiv(const std::vector<ast::ExprPtr>& lhs_preds,
          PredicatesImply(rhs_preds, lhs_preds);
 }
 
+struct TypePairKey {
+  TypeRef lhs;
+  TypeRef rhs;
+
+  bool operator==(const TypePairKey& other) const {
+    return lhs.get() == other.lhs.get() && rhs.get() == other.rhs.get();
+  }
+};
+
+struct TypePairKeyHash {
+  std::size_t operator()(const TypePairKey& key) const {
+    const auto lhs = reinterpret_cast<std::uintptr_t>(key.lhs.get());
+    const auto rhs = reinterpret_cast<std::uintptr_t>(key.rhs.get());
+    return static_cast<std::size_t>((lhs >> 4U) ^ (rhs << 3U) ^ rhs);
+  }
+};
+
+static TypePairKey MakeTypePairKey(TypeRef lhs, TypeRef rhs) {
+  if (std::less<const Type*>{}(rhs.get(), lhs.get())) {
+    std::swap(lhs, rhs);
+  }
+  return TypePairKey{std::move(lhs), std::move(rhs)};
+}
+
+static std::unordered_map<TypePairKey, TypeEquivResult, TypePairKeyHash>&
+TypeEquivMemo() {
+  thread_local std::unordered_map<TypePairKey, TypeEquivResult, TypePairKeyHash>
+      memo;
+  return memo;
+}
+
 }  // namespace
 
 TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
@@ -208,7 +242,13 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
   if (lhs.get() == rhs.get()) {
     return {true, std::nullopt, true};
   }
-  return std::visit(
+  const TypePairKey memo_key = MakeTypePairKey(lhs, rhs);
+  auto& memo = TypeEquivMemo();
+  if (const auto it = memo.find(memo_key); it != memo.end()) {
+    return it->second;
+  }
+
+  TypeEquivResult result = std::visit(
       [&](const auto& node) -> TypeEquivResult {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, TypePrim>) {
@@ -517,6 +557,8 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
         }
       },
       lhs->node);
+  memo.emplace(memo_key, result);
+  return result;
 }
 
 }  // namespace cursive::analysis
