@@ -146,7 +146,8 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
                          std::optional<unsigned> call_conv_override = std::nullopt,
                          const std::vector<IRValue>* source_args = nullptr,
                          llvm::Value** result_storage_out = nullptr,
-                         llvm::Value* preferred_result_storage = nullptr);
+                         llvm::Value* preferred_result_storage = nullptr,
+                         bool foreign_boundary_mode_independent = false);
 
 // -----------------------------------------------------------------------------
 // Calling Convention

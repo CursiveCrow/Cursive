@@ -86,8 +86,8 @@ UnwindMode GetUnwindMode(const ast::ExternProcDecl& proc);
 // Collected information about FFI imports and exports in a module.
 // Used for link-time validation and symbol visibility decisions.
 
-// Information about an imported extern procedure
-struct ExternProcInfo {
+// Information about an imported extern procedure.
+struct FfiImportInfo {
   std::string name;
   std::string abi;       // ABI string (e.g., "C", "C-unwind")
   UnwindMode unwind_mode;
@@ -103,7 +103,7 @@ struct ExportProcInfo {
 
 // Collected FFI surface for a module
 struct FfiSurfaceInfo {
-  std::vector<ExternProcInfo> imports;   // Extern procedure declarations
+  std::vector<FfiImportInfo> imports;    // Extern procedure declarations
   std::vector<ExportProcInfo> exports;   // Procedures with [[export]] attribute
 };
 

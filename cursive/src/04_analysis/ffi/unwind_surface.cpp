@@ -104,7 +104,7 @@ void ProcessItem(const ast::ASTItem& item,
                   using ET = std::decay_t<decltype(extern_decl)>;
                   if constexpr (std::is_same_v<ET, ast::ExternProcDecl>) {
                     SPEC_RULE("FFIBoundary");
-                    ExternProcInfo info;
+                    FfiImportInfo info;
                     info.name = std::string(extern_decl.name);
                     info.abi = GetAbiString(decl.abi_opt);
                     info.unwind_mode = GetUnwindMode(extern_decl);

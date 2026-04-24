@@ -10467,6 +10467,8 @@ namespace cursive::codegen
           const bool ffi_import_catch = ffi_import_boundary &&
               sig->ffi_import_unwind_mode ==
                   LowerCtx::FfiImportUnwindMode::Catch;
+          const bool foreign_boundary_mode_independent =
+              ffi_import_boundary || raw_export_boundary;
           call_result = EmitABICall(
               emitter,
               &builder,
@@ -10480,7 +10482,8 @@ namespace cursive::codegen
               std::nullopt,
               &call.args,
               &call_result_storage,
-              preferred_result_storage);
+              preferred_result_storage,
+              foreign_boundary_mode_independent);
         }
         else
         {

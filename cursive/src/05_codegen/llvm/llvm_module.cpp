@@ -323,7 +323,7 @@ bool RuntimeDeclsCover(const llvm::Module& module, const IRDecls& decls) {
           info->params,
           info->ret,
           /*use_c_abi_aggregate_sret=*/true,
-          /*foreign_boundary_mode_independent=*/true);
+          /*foreign_boundary_mode_independent=*/false);
       if (!abi.valid || !abi.func_type) {
         if (current_ctx_) {
           current_ctx_->ReportCodegenFailure();

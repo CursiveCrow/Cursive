@@ -511,7 +511,8 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
                          std::optional<unsigned> call_conv_override,
                          const std::vector<IRValue>* source_args,
                          llvm::Value** result_storage_out,
-                         llvm::Value* preferred_result_storage) {
+                         llvm::Value* preferred_result_storage,
+                         bool foreign_boundary_mode_independent) {
   if (!builder_base || !callee) {
     return nullptr;
   }
@@ -523,7 +524,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
       ret_type,
       use_c_abi_aggregate_sret,
       /*foreign_boundary_mode_independent=*/
-      (ffi_import_boundary || use_c_abi_aggregate_sret));
+      (ffi_import_boundary || foreign_boundary_mode_independent));
   if (!abi.valid || !abi.func_type) {
     if (LowerCtx* ctx = emitter.GetCurrentCtx()) {
       ctx->ReportCodegenFailure();
