@@ -268,10 +268,10 @@ std::string SuggestFlag(std::string_view unknown) {
       "--log", "--log-file", "--trace", "--trace-filter", "--trace-level",
       "--debug", "--conformance", "--emit-ir",
       "--phase1-only", "--no-output",
-      "--verbose", "-v", "--quiet", "-q",
+      "--verbose", "-v",
   };
   std::string_view best;
-  std::size_t best_dist = 4;  // threshold: suggest only if distance <= 3
+  std::size_t best_dist = unknown.size() <= 2 ? 1 : 4;
   for (const auto& flag : known_flags) {
     const auto dist = LevenshteinDistance(unknown, flag);
     if (dist < best_dist) {
@@ -387,10 +387,6 @@ CliParseResult ParseArgs(int argc, char** argv) {
     }
     if (arg == "--verbose" || arg == "-v") {
       opts.verbosity = Verbosity::Verbose;
-      continue;
-    }
-    if (arg == "--quiet" || arg == "-q") {
-      opts.verbosity = Verbosity::Quiet;
       continue;
     }
     if (arg == "--check") {
@@ -986,7 +982,6 @@ OPTIONS
   -h, --help                 Show this help message
   -V, --version              Show version information
   -v, --verbose              Show detailed build information
-  -q, --quiet                Suppress progress output, show only errors
   --color <auto|always|never> Control colored output (default: auto)
   --check                    Type-check only (no code generation or linking)
   --assembly <name>          Select assembly to build (auto-selects if only one

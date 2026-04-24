@@ -100,7 +100,7 @@
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/expr/call.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/memory/calls.h"
 

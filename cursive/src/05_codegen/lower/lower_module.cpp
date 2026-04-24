@@ -84,7 +84,7 @@
 #include "00_core/assert_spec.h"
 #include "00_core/process_config.h"
 #include "00_core/symbols.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/attributes/ffi_library_attrs.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/record_methods.h"

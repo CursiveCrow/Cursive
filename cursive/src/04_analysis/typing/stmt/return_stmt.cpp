@@ -20,7 +20,7 @@
 #include "00_core/assert_spec.h"
 #include "00_core/span.h"
 #include "02_source/ast/ast.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/contracts/verification.h"
 #include "04_analysis/memory/regions.h"
 #include "04_analysis/typing/type_equiv.h"

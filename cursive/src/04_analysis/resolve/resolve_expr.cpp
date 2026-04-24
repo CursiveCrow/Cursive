@@ -21,7 +21,7 @@
 #include <type_traits>
 
 #include "00_core/assert_spec.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/caps/cap_system.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 #include "04_analysis/resolve/resolve_items.h"

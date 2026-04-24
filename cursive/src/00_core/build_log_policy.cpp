@@ -44,8 +44,14 @@ bool ShouldEmitSummaryOutputMessage(std::string_view message) {
       StartsWith(message, "incremental mode=") ||
       StartsWith(message, "incremental-disabled") ||
       StartsWith(message, "incremental-warning") ||
+      StartsWith(message, "codegen-context-start") ||
+      StartsWith(message, "codegen-context-finish") ||
+      StartsWith(message, "codegen-context-error") ||
       StartsWith(message, "obj-phase-start") ||
       StartsWith(message, "obj-phase-finish") ||
+      StartsWith(message, "obj-codegen-batch") ||
+      StartsWith(message, "obj-codegen-start") ||
+      StartsWith(message, "obj-codegen-finish") ||
       StartsWith(message, "obj-progress") ||
       StartsWith(message, "obj-none") ||
       StartsWith(message, "obj-collision") ||
@@ -53,6 +59,8 @@ bool ShouldEmitSummaryOutputMessage(std::string_view message) {
       StartsWith(message, "obj-write-error") ||
       StartsWith(message, "ir-phase-start") ||
       StartsWith(message, "ir-phase-finish") ||
+      StartsWith(message, "ir-codegen-start") ||
+      StartsWith(message, "ir-codegen-finish") ||
       StartsWith(message, "ir-progress") ||
       StartsWith(message, "ir-skip") ||
       StartsWith(message, "ir-collision") ||
@@ -71,6 +79,12 @@ bool ShouldEmitSummaryCodegenMessage(std::string_view message) {
   return StartsWith(message, "cache-build-start") ||
          StartsWith(message, "cache-build-finish") ||
          StartsWith(message, "cache-build-error") ||
+         StartsWith(message, "cache-register-start") ||
+         StartsWith(message, "cache-register-finish") ||
+         StartsWith(message, "cache-lower-start") ||
+         StartsWith(message, "cache-lower-mid") ||
+         StartsWith(message, "cache-lower-finish") ||
+         StartsWith(message, "cache-lower-skip") ||
          StartsWith(message, "cache-lower-error") ||
          StartsWith(message, "emit-ir-error") ||
          StartsWith(message, "emit-obj-error");
@@ -79,7 +93,7 @@ bool ShouldEmitSummaryCodegenMessage(std::string_view message) {
 }  // namespace
 
 BuildLogMode ResolveBuildLogMode(const BuildLogResolveOptions& options) {
-  if (!options.channel_enabled || GetVerbosity() == Verbosity::Quiet) {
+  if (!options.channel_enabled) {
     return BuildLogMode::None;
   }
   if (options.debug_enabled || GetVerbosity() == Verbosity::Verbose) {

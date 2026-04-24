@@ -1,151 +1,151 @@
 
 procedure run_issue33_class_duplicate_param_names(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Operations\\Generated\\issue33_class_duplicate_param_names\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_class_duplicate_param_names.json 2> build\\main\\logs\\compile_checks\\issue33_class_duplicate_param_names.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SEM-2713\\\"\" build\\main\\logs\\compile_checks\\issue33_class_duplicate_param_names.json >nul"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Operations\\Generated\\issue33_class_duplicate_param_names\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_class_duplicate_param_names.json 2> build\\main\\logs\\compile_checks\\issue33_class_duplicate_param_names.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SEM-2713\\\"\" build\\main\\logs\\compile_checks\\issue33_class_duplicate_param_names.json >nul"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_class_duplicate_param_names")
 }
 
 procedure run_issue33_class_member_terminator_required(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Operations\\Generated\\issue33_class_member_terminator_required\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_class_member_terminator_required.json 2> build\\main\\logs\\compile_checks\\issue33_class_member_terminator_required.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Operations\\Generated\\issue33_class_member_terminator_required\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_class_member_terminator_required.json 2> build\\main\\logs\\compile_checks\\issue33_class_member_terminator_required.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_class_member_terminator_required")
 }
 
 procedure run_issue33_class_self_param_forbidden(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Operations\\Generated\\issue33_class_self_param_forbidden\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_class_self_param_forbidden.json 2> build\\main\\logs\\compile_checks\\issue33_class_self_param_forbidden.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SEM-3011\\\"\" build\\main\\logs\\compile_checks\\issue33_class_self_param_forbidden.json >nul"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Operations\\Generated\\issue33_class_self_param_forbidden\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_class_self_param_forbidden.json 2> build\\main\\logs\\compile_checks\\issue33_class_self_param_forbidden.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SEM-3011\\\"\" build\\main\\logs\\compile_checks\\issue33_class_self_param_forbidden.json >nul"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_class_self_param_forbidden")
 }
 
 procedure run_issue33_modal_duplicate_param_names(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Operations\\Generated\\issue33_modal_duplicate_param_names\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_modal_duplicate_param_names.json 2> build\\main\\logs\\compile_checks\\issue33_modal_duplicate_param_names.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SEM-2713\\\"\" build\\main\\logs\\compile_checks\\issue33_modal_duplicate_param_names.json >nul"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Operations\\Generated\\issue33_modal_duplicate_param_names\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_modal_duplicate_param_names.json 2> build\\main\\logs\\compile_checks\\issue33_modal_duplicate_param_names.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SEM-2713\\\"\" build\\main\\logs\\compile_checks\\issue33_modal_duplicate_param_names.json >nul"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_modal_duplicate_param_names")
 }
 
 procedure run_issue33_modal_self_param_forbidden(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Operations\\Generated\\issue33_modal_self_param_forbidden\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_modal_self_param_forbidden.json 2> build\\main\\logs\\compile_checks\\issue33_modal_self_param_forbidden.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SEM-3011\\\"\" build\\main\\logs\\compile_checks\\issue33_modal_self_param_forbidden.json >nul"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Operations\\Generated\\issue33_modal_self_param_forbidden\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_modal_self_param_forbidden.json 2> build\\main\\logs\\compile_checks\\issue33_modal_self_param_forbidden.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SEM-3011\\\"\" build\\main\\logs\\compile_checks\\issue33_modal_self_param_forbidden.json >nul"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_modal_self_param_forbidden")
 }
 
 procedure run_no_ambient_explicit_context_flow(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance no_ambient_explicit_context_flow.log ..\\TestProjects\\Operations\\Generated\\no_ambient_explicit_context_flow\\Main.cursive > build\\main\\logs\\compile_checks\\no_ambient_explicit_context_flow.json 2> build\\main\\logs\\compile_checks\\no_ambient_explicit_context_flow.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance no_ambient_explicit_context_flow.log ..\\TestProjects\\Operations\\Generated\\no_ambient_explicit_context_flow\\Main.cursive > build\\main\\logs\\compile_checks\\no_ambient_explicit_context_flow.json 2> build\\main\\logs\\compile_checks\\no_ambient_explicit_context_flow.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "no_ambient_explicit_context_flow")
 }
 
 procedure run_issue33_expr_helper_trace(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue33_expr_helper_trace.log ..\\TestProjects\\Operations\\Generated\\issue33_expr_helper_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_expr_helper_trace.json 2> build\\main\\logs\\compile_checks\\issue33_expr_helper_trace.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue33_expr_helper_trace.log ..\\TestProjects\\Operations\\Generated\\issue33_expr_helper_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_expr_helper_trace.json 2> build\\main\\logs\\compile_checks\\issue33_expr_helper_trace.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_expr_helper_trace")
 }
 
 procedure run_issue33_alloc_typing_trace(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue33_alloc_typing_trace.log ..\\TestProjects\\Operations\\Generated\\issue33_alloc_typing_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_alloc_typing_trace.json 2> build\\main\\logs\\compile_checks\\issue33_alloc_typing_trace.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue33_alloc_typing_trace.log ..\\TestProjects\\Operations\\Generated\\issue33_alloc_typing_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_alloc_typing_trace.json 2> build\\main\\logs\\compile_checks\\issue33_alloc_typing_trace.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_alloc_typing_trace")
 }
 
 procedure run_issue33_alloc_implicit_no_region(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue33_alloc_implicit_no_region.log ..\\TestProjects\\Operations\\Generated\\issue33_alloc_implicit_no_region\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_alloc_implicit_no_region.json 2> build\\main\\logs\\compile_checks\\issue33_alloc_implicit_no_region.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue33_alloc_implicit_no_region.log ..\\TestProjects\\Operations\\Generated\\issue33_alloc_implicit_no_region\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_alloc_implicit_no_region.json 2> build\\main\\logs\\compile_checks\\issue33_alloc_implicit_no_region.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_alloc_implicit_no_region")
 }
 
 procedure run_issue33_alloc_explicit_frozen_region(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue33_alloc_explicit_frozen_region.log ..\\TestProjects\\Operations\\Generated\\issue33_alloc_explicit_frozen_region\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_alloc_explicit_frozen_region.json 2> build\\main\\logs\\compile_checks\\issue33_alloc_explicit_frozen_region.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue33_alloc_explicit_frozen_region.log ..\\TestProjects\\Operations\\Generated\\issue33_alloc_explicit_frozen_region\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_alloc_explicit_frozen_region.json 2> build\\main\\logs\\compile_checks\\issue33_alloc_explicit_frozen_region.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_alloc_explicit_frozen_region")
 }
 
 procedure run_issue549_array_index_nonconst_rejected(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue549_array_index_nonconst_rejected.log ..\\TestProjects\\Operations\\Generated\\issue549_array_index_nonconst_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue549_array_index_nonconst_rejected.json 2> build\\main\\logs\\compile_checks\\issue549_array_index_nonconst_rejected.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue549_array_index_nonconst_rejected.log ..\\TestProjects\\Operations\\Generated\\issue549_array_index_nonconst_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue549_array_index_nonconst_rejected.json 2> build\\main\\logs\\compile_checks\\issue549_array_index_nonconst_rejected.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue549_array_index_nonconst_rejected")
 }
 
 procedure run_issue52_packed_field_ref_arg_enforced(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_packed_field_ref_arg_enforced.log ..\\TestProjects\\Operations\\Generated\\issue52_packed_field_ref_arg_enforced\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_packed_field_ref_arg_enforced.json 2> build\\main\\logs\\compile_checks\\issue52_packed_field_ref_arg_enforced.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_packed_field_ref_arg_enforced.log ..\\TestProjects\\Operations\\Generated\\issue52_packed_field_ref_arg_enforced\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_packed_field_ref_arg_enforced.json 2> build\\main\\logs\\compile_checks\\issue52_packed_field_ref_arg_enforced.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_packed_field_ref_arg_enforced")
 }
 
 procedure run_Invoke_Issue52PackedFieldRefArgUnsafeCase(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Operations\\Generated\\Invoke_Issue52PackedFieldRefArgUnsafeCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue52PackedFieldRefArgUnsafeCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue52PackedFieldRefArgUnsafeCase.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Operations\\Generated\\Invoke_Issue52PackedFieldRefArgUnsafeCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue52PackedFieldRefArgUnsafeCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue52PackedFieldRefArgUnsafeCase.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "Invoke-Issue52PackedFieldRefArgUnsafeCase")
 }
 
 procedure run_Invoke_Issue52GenericDefaultTypeArgsCase(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Operations\\Generated\\Invoke_Issue52GenericDefaultTypeArgsCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue52GenericDefaultTypeArgsCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue52GenericDefaultTypeArgsCase.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Operations\\Generated\\Invoke_Issue52GenericDefaultTypeArgsCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue52GenericDefaultTypeArgsCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue52GenericDefaultTypeArgsCase.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "Invoke-Issue52GenericDefaultTypeArgsCase")
 }
 
 procedure run_issue52_if_case_trace(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_if_case_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_if_case_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_if_case_trace.json 2> build\\main\\logs\\compile_checks\\issue52_if_case_trace.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_if_case_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_if_case_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_if_case_trace.json 2> build\\main\\logs\\compile_checks\\issue52_if_case_trace.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_if_case_trace")
 }
 
 procedure run_issue52_if_case_clause_unreachable_irrefutable(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_if_case_clause_unreachable_irrefutable.log ..\\TestProjects\\Operations\\Generated\\issue52_if_case_clause_unreachable_irrefutable\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_irrefutable.json 2> build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_irrefutable.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_if_case_clause_unreachable_irrefutable.log ..\\TestProjects\\Operations\\Generated\\issue52_if_case_clause_unreachable_irrefutable\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_irrefutable.json 2> build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_irrefutable.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_if_case_clause_unreachable_irrefutable")
 }
 
 procedure run_issue52_if_case_clause_unreachable_enum_duplicate(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_if_case_clause_unreachable_enum_duplicate.log ..\\TestProjects\\Operations\\Generated\\issue52_if_case_clause_unreachable_enum_duplicate\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_enum_duplicate.json 2> build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_enum_duplicate.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_if_case_clause_unreachable_enum_duplicate.log ..\\TestProjects\\Operations\\Generated\\issue52_if_case_clause_unreachable_enum_duplicate\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_enum_duplicate.json 2> build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_enum_duplicate.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_if_case_clause_unreachable_enum_duplicate")
 }
 
 procedure run_issue52_if_case_clause_unreachable_union_duplicate(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_if_case_clause_unreachable_union_duplicate.log ..\\TestProjects\\Operations\\Generated\\issue52_if_case_clause_unreachable_union_duplicate\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_union_duplicate.json 2> build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_union_duplicate.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_if_case_clause_unreachable_union_duplicate.log ..\\TestProjects\\Operations\\Generated\\issue52_if_case_clause_unreachable_union_duplicate\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_union_duplicate.json 2> build\\main\\logs\\compile_checks\\issue52_if_case_clause_unreachable_union_duplicate.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_if_case_clause_unreachable_union_duplicate")
 }
 
 procedure run_issue52_solve_stmt_inference_trace(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_solve_stmt_inference_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_solve_stmt_inference_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_solve_stmt_inference_trace.json 2> build\\main\\logs\\compile_checks\\issue52_solve_stmt_inference_trace.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_solve_stmt_inference_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_solve_stmt_inference_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_solve_stmt_inference_trace.json 2> build\\main\\logs\\compile_checks\\issue52_solve_stmt_inference_trace.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_solve_stmt_inference_trace")
 }
 
 procedure run_issue52_field_access_record_trace(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_field_access_record_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_field_access_record_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_field_access_record_trace.json 2> build\\main\\logs\\compile_checks\\issue52_field_access_record_trace.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_field_access_record_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_field_access_record_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_field_access_record_trace.json 2> build\\main\\logs\\compile_checks\\issue52_field_access_record_trace.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_field_access_record_trace")
 }
 
 procedure run_issue52_field_access_enum_diag(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_field_access_enum_diag.log ..\\TestProjects\\Operations\\Generated\\issue52_field_access_enum_diag\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_field_access_enum_diag.json 2> build\\main\\logs\\compile_checks\\issue52_field_access_enum_diag.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_field_access_enum_diag.log ..\\TestProjects\\Operations\\Generated\\issue52_field_access_enum_diag\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_field_access_enum_diag.json 2> build\\main\\logs\\compile_checks\\issue52_field_access_enum_diag.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_field_access_enum_diag")
 }
 
 procedure run_issue52_range_lift_trace(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_range_lift_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_range_lift_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_range_lift_trace.json 2> build\\main\\logs\\compile_checks\\issue52_range_lift_trace.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_range_lift_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_range_lift_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_range_lift_trace.json 2> build\\main\\logs\\compile_checks\\issue52_range_lift_trace.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_range_lift_trace")
 }
 
 procedure run_issue52_transmute_invalid_target_warning(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_transmute_invalid_target_warning.log ..\\TestProjects\\Operations\\Generated\\issue52_transmute_invalid_target_warning\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_transmute_invalid_target_warning.json 2> build\\main\\logs\\compile_checks\\issue52_transmute_invalid_target_warning.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_transmute_invalid_target_warning.log ..\\TestProjects\\Operations\\Generated\\issue52_transmute_invalid_target_warning\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_transmute_invalid_target_warning.json 2> build\\main\\logs\\compile_checks\\issue52_transmute_invalid_target_warning.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_transmute_invalid_target_warning")
 }
 
 procedure run_issue52_async_try_trace(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_async_try_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_async_try_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_async_try_trace.json 2> build\\main\\logs\\compile_checks\\issue52_async_try_trace.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_async_try_trace.log ..\\TestProjects\\Operations\\Generated\\issue52_async_try_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_async_try_trace.json 2> build\\main\\logs\\compile_checks\\issue52_async_try_trace.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_async_try_trace")
 }
 
 procedure run_issue52_async_try_infallible_err(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_async_try_infallible_err.log ..\\TestProjects\\Operations\\Generated\\issue52_async_try_infallible_err\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_async_try_infallible_err.json 2> build\\main\\logs\\compile_checks\\issue52_async_try_infallible_err.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_async_try_infallible_err.log ..\\TestProjects\\Operations\\Generated\\issue52_async_try_infallible_err\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_async_try_infallible_err.json 2> build\\main\\logs\\compile_checks\\issue52_async_try_infallible_err.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_async_try_infallible_err")
 }
 
 procedure run_issue52_transition_borrow_trace_no_call(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_transition_borrow_trace_no_call.log ..\\TestProjects\\Operations\\Generated\\issue52_transition_borrow_trace_no_call\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_transition_borrow_trace_no_call.json 2> build\\main\\logs\\compile_checks\\issue52_transition_borrow_trace_no_call.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_transition_borrow_trace_no_call.log ..\\TestProjects\\Operations\\Generated\\issue52_transition_borrow_trace_no_call\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_transition_borrow_trace_no_call.json 2> build\\main\\logs\\compile_checks\\issue52_transition_borrow_trace_no_call.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_transition_borrow_trace_no_call")
 }
 
 procedure run_issue52_metatheory_hooks(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue52_metatheory_hooks.log ..\\TestProjects\\Operations\\Generated\\issue52_metatheory_hooks\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_metatheory_hooks.json 2> build\\main\\logs\\compile_checks\\issue52_metatheory_hooks.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue52_metatheory_hooks.log ..\\TestProjects\\Operations\\Generated\\issue52_metatheory_hooks\\Main.cursive > build\\main\\logs\\compile_checks\\issue52_metatheory_hooks.json 2> build\\main\\logs\\compile_checks\\issue52_metatheory_hooks.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue52_metatheory_hooks")
 }
 
 procedure run_issue539_shared_closure_escape_allowed(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue539_shared_closure_escape_allowed.log ..\\TestProjects\\Operations\\Generated\\issue539_shared_closure_escape_allowed\\Main.cursive > build\\main\\logs\\compile_checks\\issue539_shared_closure_escape_allowed.json 2> build\\main\\logs\\compile_checks\\issue539_shared_closure_escape_allowed.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue539_shared_closure_escape_allowed.log ..\\TestProjects\\Operations\\Generated\\issue539_shared_closure_escape_allowed\\Main.cursive > build\\main\\logs\\compile_checks\\issue539_shared_closure_escape_allowed.json 2> build\\main\\logs\\compile_checks\\issue539_shared_closure_escape_allowed.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue539_shared_closure_escape_allowed")
 }
 
 procedure run_issue59_alloc_raw_outside_unsafe(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue59_alloc_raw_outside_unsafe.log ..\\TestProjects\\Operations\\Generated\\issue59_alloc_raw_outside_unsafe\\Main.cursive > build\\main\\logs\\compile_checks\\issue59_alloc_raw_outside_unsafe.json 2> build\\main\\logs\\compile_checks\\issue59_alloc_raw_outside_unsafe.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue59_alloc_raw_outside_unsafe.log ..\\TestProjects\\Operations\\Generated\\issue59_alloc_raw_outside_unsafe\\Main.cursive > build\\main\\logs\\compile_checks\\issue59_alloc_raw_outside_unsafe.json 2> build\\main\\logs\\compile_checks\\issue59_alloc_raw_outside_unsafe.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue59_alloc_raw_outside_unsafe")
 }
 
 procedure run_Invoke_Issue61KeyPathResolutionConformanceCase(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Operations\\Generated\\Invoke_Issue61KeyPathResolutionConformanceCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue61KeyPathResolutionConformanceCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue61KeyPathResolutionConformanceCase.stderr & if errorlevel 2 exit /b 1"
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Operations\\Generated\\Invoke_Issue61KeyPathResolutionConformanceCase\\Main.cursive > build\\main\\logs\\compile_checks\\Invoke_Issue61KeyPathResolutionConformanceCase.json 2> build\\main\\logs\\compile_checks\\Invoke_Issue61KeyPathResolutionConformanceCase.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "Invoke-Issue61KeyPathResolutionConformanceCase")
 }
 

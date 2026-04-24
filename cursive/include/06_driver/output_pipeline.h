@@ -87,8 +87,6 @@ struct OutputPipelineDeps {
       std::reference_wrapper<const std::vector<ast::ASTModule>>>(
       const project::Project& project)>
       resolve_project_ast_modules;
-  std::function<frontend::ParseModulesResult(const project::Project& project)>
-      resolve_ast_modules;
   std::function<std::optional<SharedLibraryExports>(
       const project::Project& project)>
       resolve_shared_library_exports;

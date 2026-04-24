@@ -8,7 +8,7 @@
 #include <string_view>
 #include <variant>
 
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_expr.h"

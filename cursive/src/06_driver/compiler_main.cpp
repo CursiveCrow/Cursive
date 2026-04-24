@@ -42,6 +42,7 @@
 #include <vector>
 
 #include "06_driver/cli.h"
+#include "06_driver/comptime_options.h"
 #include "06_driver/compiler_main.h"
 #include "06_driver/output_pipeline.h"
 #include "06_driver/pipeline.h"
@@ -86,7 +87,7 @@
 #include "04_analysis/conformance/conformance.h"
 #include "04_analysis/ffi/unwind_surface.h"
 #include "04_analysis/resolve/assembly_import_graph.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/resolve/resolve_items.h"
 #include "04_analysis/resolve/resolver.h"
 #include "04_analysis/resolve/scopes.h"
@@ -753,19 +754,6 @@ std::vector<cursive::ast::ASTModule> FilterAstModulesByModuleInfo(
   }
   return filtered;
 }
-
-cursive::frontend::ComptimePassOptions BuildComptimeOptions(
-    const cursive::project::Project& project) {
-  cursive::frontend::ComptimePassOptions options;
-  options.project_root = project.root;
-  options.fallback_source_root = project.source_root;
-  options.source_roots_by_assembly.reserve(project.assemblies.size());
-  for (const auto& assembly : project.assemblies) {
-    options.source_roots_by_assembly[assembly.name] = assembly.source_root;
-  }
-  return options;
-}
-
 
 void EmitExternalCode(cursive::core::DiagnosticStream& diags,
                       std::string_view code,
@@ -1453,7 +1441,6 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
   {
     core::Verbosity core_verbosity = core::Verbosity::Normal;
     switch (opts->verbosity) {
-      case Verbosity::Quiet: core_verbosity = core::Verbosity::Quiet; break;
       case Verbosity::Normal: core_verbosity = core::Verbosity::Normal; break;
       case Verbosity::Verbose: core_verbosity = core::Verbosity::Verbose; break;
     }
@@ -1622,10 +1609,9 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
   const auto project_root = project::FindProjectRoot(input_path);
 
   core::DiagnosticStream diags;
-  const bool is_quiet = opts->verbosity == Verbosity::Quiet;
   const bool is_verbose = opts->verbosity == Verbosity::Verbose;
   const bool show_build_progress =
-      is_quiet ? false : (is_verbose ? true : BuildProgressEnabled());
+      is_verbose ? true : BuildProgressEnabled();
   const bool use_color = core::IsColorEnabledWithOverride(stderr, color_override);
   const auto build_start = std::chrono::steady_clock::now();
 
@@ -2622,14 +2608,6 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
                               const std::vector<ast::ASTModule>>> {
                     return std::cref(*front_end_ast_modules);
                   };
-                  out_deps.resolve_ast_modules =
-                      [front_end_ast_modules](const project::Project& p)
-                          -> frontend::ParseModulesResult {
-                    frontend::ParseModulesResult parsed;
-                    parsed.modules =
-                        FilterAstModulesForProject(*front_end_ast_modules, p);
-                    return parsed;
-                  };
                   out_deps.resolve_shared_library_exports =
                       [ensure_cache](const project::Project& p)
                           -> std::optional<driver::SharedLibraryExports> {
@@ -2651,7 +2629,10 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
                     if (!cache || !cache->ok.load()) {
                       return false;
                     }
-                    return PrepareSharedLibraryCodegenContext(p, *cache, exports);
+                    if (!PrepareSharedLibraryCodegenContext(p, *cache, exports)) {
+                      return false;
+                    }
+                    return PopulateCodegenModules(*cache, p);
                   };
                   out_deps.incremental_module =
                       [ensure_incremental](const project::ModuleInfo& module,
@@ -2776,7 +2757,7 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
     core::RenderOptions render_opts;
     render_opts.color = use_color;
     render_opts.terminal_width = core::TerminalWidth();
-    render_opts.context_lines = is_quiet ? 0 : 1;
+    render_opts.context_lines = 1;
     for (const auto& diag : ordered) {
       std::cerr << core::RenderRich(diag, source_registry, render_opts)
                 << "\n";

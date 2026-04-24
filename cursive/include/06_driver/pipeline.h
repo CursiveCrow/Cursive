@@ -49,13 +49,13 @@ std::optional<std::string> EmitObjForModule(
     project::TargetProfile target_profile);
 
 std::optional<std::string> CodegenObj(
-    const CodegenCache& cache,
+    CodegenCache& cache,
     const project::ModuleInfo& module,
     const project::Project& project,
     project::TargetProfile target_profile);
 
 std::optional<std::string> CodegenIR(
-    const CodegenCache& cache,
+    CodegenCache& cache,
     const project::ModuleInfo& module,
     const project::Project& project,
     project::TargetProfile target_profile,
@@ -70,8 +70,8 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
 
 std::optional<std::size_t> EnsureCodegenModule(CodegenCache& cache,
                                                std::string_view module_path);
-std::shared_ptr<const ModuleCodegen> EnsureCodegenModuleEntry(
-    CodegenCache& cache, std::string_view module_path);
+std::shared_ptr<const ModuleCodegen> FindCodegenModuleEntry(
+    const CodegenCache& cache, std::string_view module_path);
 bool PopulateCodegenModules(CodegenCache& cache, const project::Project& project);
 void ConfigureCodegenContextForProject(CodegenCache& cache,
                                        const project::Project& project);

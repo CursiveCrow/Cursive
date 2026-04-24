@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_lower.h"
 #include "04_analysis/typing/type_predicates.h"

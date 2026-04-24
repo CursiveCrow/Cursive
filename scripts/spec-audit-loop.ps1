@@ -1605,7 +1605,7 @@ function Run-MainRepoWindowsBuild {
             $previousEap = $ErrorActionPreference
             $ErrorActionPreference = 'Continue'
             try {
-                $null = & $compilerPath --incremental off --diag-json --quiet Main.cursive 2>&1 |
+                $null = & $compilerPath --incremental off --diag-json Main.cursive 2>&1 |
                     Tee-Object -FilePath $script:MainBuildLogFile -Append
                 $helloBuildExitCode = $LASTEXITCODE
             } finally {
@@ -1657,7 +1657,7 @@ function Run-MainRepoWindowsBuild {
             $previousEap = $ErrorActionPreference
             $ErrorActionPreference = 'Continue'
             try {
-                $null = & $compilerPath --incremental off --diag-json --quiet --log-file $helloRuntimeLog 'Main\Main.cursive' 2>&1 |
+                $null = & $compilerPath --incremental off --diag-json --log-file $helloRuntimeLog 'Main\Main.cursive' 2>&1 |
                     Tee-Object -FilePath $script:MainBuildLogFile -Append
                 $helloFullBuildExitCode = $LASTEXITCODE
             } finally {

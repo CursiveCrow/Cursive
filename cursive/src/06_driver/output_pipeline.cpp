@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <mutex>
 #include <thread>
 #include <optional>
 #include <sstream>
@@ -35,9 +36,7 @@
 #include "01_project/target_profile.h"
 #include "01_project/tool_resolution.h"
 #include "02_source/ast/ast.h"
-#include "02_source/parser/parse_modules.h"
-#include "03_comptime/comptime.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/attributes/ffi_library_attrs.h"
 #include "04_analysis/resolve/assembly_import_graph.h"
 
@@ -67,6 +66,11 @@ core::BuildLogMode ResolveOutputLogMode() {
   return core::ResolveBuildLogMode(options);
 }
 
+std::mutex& BuildProgressMutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
 void LogBuildProgress(const std::string& message) {
   const core::BuildLogMode mode = ResolveOutputLogMode();
   if (mode == core::BuildLogMode::None) {
@@ -81,12 +85,15 @@ void LogBuildProgress(const std::string& message) {
   const bool debug_output =
       core::IsDebugEnabled("pipeline") || core::IsDebugEnabled("output");
   if (debug_output) {
+    std::lock_guard<std::mutex> lock(BuildProgressMutex());
     std::cerr << "[trace][build] output pid=" << CurrentProcessId() << " "
               << message << "\n";
+    std::cerr.flush();
   } else {
+    std::lock_guard<std::mutex> lock(BuildProgressMutex());
     std::cerr << "[info][build] output " << message << "\n";
+    std::cerr.flush();
   }
-  std::cerr.flush();
 }
 
 
@@ -668,37 +675,6 @@ std::string ComputeLinkFingerprint(
 
 }  // namespace
 
-struct ParsedAstModulesResult {
-  std::optional<std::vector<ast::ASTModule>> modules;
-  core::DiagnosticStream diags;
-};
-
-ParsedAstModulesResult ParseAstModulesForProject(const Project& project,
-                                                 const OutputPipelineDeps& deps) {
-  if (deps.resolve_ast_modules) {
-    auto parsed = deps.resolve_ast_modules(project);
-    return {std::move(parsed.modules), std::move(parsed.diags)};
-  }
-
-  auto parsed =
-      frontend::ParseModules(project.modules, project.source_root, project.assembly.name);
-  if (!parsed.modules.has_value() || core::HasError(parsed.diags)) {
-    return {std::move(parsed.modules), std::move(parsed.diags)};
-  }
-
-  return {std::move(parsed.modules), std::move(parsed.diags)};
-}
-frontend::ComptimePassOptions BuildComptimeOptions(const Project& project) {
-  frontend::ComptimePassOptions options;
-  options.project_root = project.root;
-  options.fallback_source_root = project.source_root;
-  options.source_roots_by_assembly.reserve(project.assemblies.size());
-  for (const auto& assembly : project.assemblies) {
-    options.source_roots_by_assembly[assembly.name] = assembly.source_root;
-  }
-  return options;
-}
-
 LinkPlan BuildOutputLinkPlan(const Project& project,
                              TargetProfile target_profile,
                              const std::vector<ast::ASTModule>& ast_modules,
@@ -794,7 +770,6 @@ struct OutputCoordinatorState {
   TargetProfile target_profile;
   const OutputPipelineDeps& deps;
   const std::vector<ast::ASTModule>* project_ast_modules = nullptr;
-  std::optional<std::vector<ast::ASTModule>> owned_project_ast_modules;
   std::unordered_map<std::string, std::vector<ast::ASTModule>> ast_by_assembly;
   std::unordered_map<std::string, OutputArtifacts> built_artifacts;
   std::optional<analysis::AssemblyImportGraph> graph;
@@ -934,33 +909,11 @@ bool EnsureProjectAstModulesLoaded(const Project& base_project,
     }
   }
 
-  std::vector<ast::ASTModule> phase1_modules;
-  for (const auto& assembly : base_project.assemblies) {
-    const Project assembly_project = AssemblyProject(base_project, assembly);
-    auto parsed = ParseAstModulesForProject(assembly_project, state.deps);
-    for (const auto& diag : parsed.diags) {
-      core::Emit(diags, diag);
-    }
-    if (!parsed.modules.has_value() || core::HasError(parsed.diags)) {
-      return false;
-    }
-    phase1_modules.insert(phase1_modules.end(),
-                          std::make_move_iterator(parsed.modules->begin()),
-                          std::make_move_iterator(parsed.modules->end()));
-  }
-
-  auto expanded =
-      frontend::ExecuteComptime(phase1_modules, BuildComptimeOptions(base_project));
-  for (const auto& diag : expanded.diags) {
-    core::Emit(diags, diag);
-  }
-  if (!expanded.modules.has_value() || core::HasError(expanded.diags)) {
-    return false;
-  }
-
-  state.owned_project_ast_modules = std::move(*expanded.modules);
-  state.project_ast_modules = &*state.owned_project_ast_modules;
-  return true;
+  EmitInternalDiagnostic(
+      diags,
+      "OutputPipeline requires the Phase 2/3 project AST module set from the "
+      "driver; refusing to re-parse or re-run compile-time execution");
+  return false;
 }
 
 bool LoadAstForAssembly(const Project& base_project,
@@ -1027,28 +980,8 @@ bool EnsureAssemblyGraphLoaded(const Project& project,
     return true;
   }
 
-  if (state.project_ast_modules == nullptr &&
-      state.deps.resolve_project_ast_modules) {
-    auto full_modules = state.deps.resolve_project_ast_modules(project);
-    if (full_modules.has_value()) {
-      state.project_ast_modules = &full_modules->get();
-    }
-  }
-
-  if (state.project_ast_modules == nullptr) {
-    std::vector<ast::ASTModule> all_modules;
-    for (const auto& assembly : project.assemblies) {
-      if (!LoadAstForAssembly(project, assembly.name, state, diags)) {
-        return false;
-      }
-      const auto ast_it = state.ast_by_assembly.find(assembly.name);
-      if (ast_it != state.ast_by_assembly.end()) {
-        all_modules.insert(all_modules.end(), ast_it->second.begin(),
-                           ast_it->second.end());
-      }
-    }
-    state.owned_project_ast_modules = std::move(all_modules);
-    state.project_ast_modules = &*state.owned_project_ast_modules;
+  if (!EnsureProjectAstModulesLoaded(project, state, diags)) {
+    return false;
   }
 
   state.graph = analysis::BuildAssemblyImportGraph(project, *state.project_ast_modules);
@@ -1146,6 +1079,13 @@ OutputPipelineResult OutputPipelineSingleAssembly(
     SharedLibraryExports exports;
     exports.export_symbols = link_plan.export_symbols;
     exports.data_export_symbols = link_plan.data_export_symbols;
+    if (show_build_progress) {
+      std::ostringstream oss;
+      oss << "codegen-context-start assembly=" << project.assembly.name
+          << " export_symbols=" << exports.export_symbols.size()
+          << " data_export_symbols=" << exports.data_export_symbols.size();
+      LogBuildProgress(oss.str());
+    }
     if (!deps.prepare_codegen_context(project, exports)) {
       if (show_build_progress) {
         LogBuildProgress("codegen-context-error");
@@ -1155,6 +1095,11 @@ OutputPipelineResult OutputPipelineSingleAssembly(
       diag.message = "project codegen context preparation failed";
       core::Emit(result.diags, diag);
       return result;
+    }
+    if (show_build_progress) {
+      std::ostringstream oss;
+      oss << "codegen-context-finish assembly=" << project.assembly.name;
+      LogBuildProgress(oss.str());
     }
   }
 
@@ -1295,7 +1240,14 @@ OutputPipelineResult OutputPipelineSingleAssembly(
     const std::size_t hw = std::thread::hardware_concurrency();
     const std::size_t workers = std::min<std::size_t>(
         obj_codegen_indices.size(), hw == 0 ? 4 : hw);
+    if (show_build_progress) {
+      std::ostringstream oss;
+      oss << "obj-codegen-batch total=" << obj_codegen_indices.size()
+          << " workers=" << workers;
+      LogBuildProgress(oss.str());
+    }
     std::atomic<std::size_t> next_job{0};
+    std::atomic<std::size_t> completed_jobs{0};
     std::vector<std::thread> pool;
     pool.reserve(workers);
 
@@ -1308,12 +1260,34 @@ OutputPipelineResult OutputPipelineSingleAssembly(
           }
           const std::size_t module_idx = obj_codegen_indices[slot];
           const auto& module = project.modules[module_idx];
+          if (show_build_progress) {
+            std::ostringstream oss;
+            oss << "obj-codegen-start index=" << (slot + 1) << "/"
+                << obj_codegen_indices.size()
+                << " module=" << module.path;
+            LogBuildProgress(oss.str());
+          }
           auto bytes = deps.codegen_obj(module, project);
+          const std::size_t completed = completed_jobs.fetch_add(1) + 1;
           if (!bytes.has_value()) {
             obj_states[module_idx].codegen_failed = true;
+            if (show_build_progress) {
+              std::ostringstream oss;
+              oss << "obj-codegen-finish index=" << completed << "/"
+                  << obj_codegen_indices.size()
+                  << " module=" << module.path << " ok=false";
+              LogBuildProgress(oss.str());
+            }
             continue;
           }
           obj_states[module_idx].bytes = std::move(*bytes);
+          if (show_build_progress) {
+            std::ostringstream oss;
+            oss << "obj-codegen-finish index=" << completed << "/"
+                << obj_codegen_indices.size()
+                << " module=" << module.path << " ok=true";
+            LogBuildProgress(oss.str());
+          }
         }
       });
     }
@@ -1321,14 +1295,43 @@ OutputPipelineResult OutputPipelineSingleAssembly(
       worker.join();
     }
   } else {
+    if (show_build_progress && !obj_codegen_indices.empty()) {
+      std::ostringstream oss;
+      oss << "obj-codegen-batch total=" << obj_codegen_indices.size()
+          << " workers=1";
+      LogBuildProgress(oss.str());
+    }
+    std::size_t completed_jobs = 0;
     for (const auto module_idx : obj_codegen_indices) {
       const auto& module = project.modules[module_idx];
+      if (show_build_progress) {
+        std::ostringstream oss;
+        oss << "obj-codegen-start index=" << (completed_jobs + 1) << "/"
+            << obj_codegen_indices.size()
+            << " module=" << module.path;
+        LogBuildProgress(oss.str());
+      }
       auto bytes = deps.codegen_obj(module, project);
+      ++completed_jobs;
       if (!bytes.has_value()) {
         obj_states[module_idx].codegen_failed = true;
+        if (show_build_progress) {
+          std::ostringstream oss;
+          oss << "obj-codegen-finish index=" << completed_jobs << "/"
+              << obj_codegen_indices.size()
+              << " module=" << module.path << " ok=false";
+          LogBuildProgress(oss.str());
+        }
         continue;
       }
       obj_states[module_idx].bytes = std::move(*bytes);
+      if (show_build_progress) {
+        std::ostringstream oss;
+        oss << "obj-codegen-finish index=" << completed_jobs << "/"
+            << obj_codegen_indices.size()
+            << " module=" << module.path << " ok=true";
+        LogBuildProgress(oss.str());
+      }
     }
   }
 
@@ -1540,9 +1543,9 @@ OutputPipelineResult OutputPipelineSingleAssembly(
       }
 
       if (emit_ir == "ll") {
-        if (show_detailed_progress) {
+        if (show_build_progress) {
           std::ostringstream oss;
-          oss << "ir-codegen mode=ll module=" << module.path
+          oss << "ir-codegen-start mode=ll module=" << module.path
               << " index=" << ir_index << "/" << ir_total
               << " path=" << ir_path.generic_string();
           LogBuildProgress(oss.str());
@@ -1575,6 +1578,13 @@ OutputPipelineResult OutputPipelineSingleAssembly(
           SPEC_RULE("Output-Pipeline-Err");
           return result;
         }
+        if (show_build_progress) {
+          std::ostringstream oss;
+          oss << "ir-codegen-finish mode=ll module=" << module.path
+              << " index=" << ir_index << "/" << ir_total
+              << " bytes=" << ll_bytes->size();
+          LogBuildProgress(oss.str());
+        }
         if (show_detailed_progress) {
           std::ostringstream oss;
           oss << "ir-written mode=ll module=" << module.path
@@ -1604,9 +1614,9 @@ OutputPipelineResult OutputPipelineSingleAssembly(
         ++ir_rebuilt;
         maybe_log_ir_progress();
       } else {
-        if (show_detailed_progress) {
+        if (show_build_progress) {
           std::ostringstream oss;
-          oss << "ir-codegen mode=bc module=" << module.path
+          oss << "ir-codegen-start mode=bc module=" << module.path
               << " index=" << ir_index << "/" << ir_total
               << " path=" << ir_path.generic_string();
           LogBuildProgress(oss.str());
@@ -1664,6 +1674,13 @@ OutputPipelineResult OutputPipelineSingleAssembly(
           EmitExternal(result.diags, "E-OUT-0403");
           SPEC_RULE("Output-Pipeline-Err");
           return result;
+        }
+        if (show_build_progress) {
+          std::ostringstream oss;
+          oss << "ir-codegen-finish mode=bc module=" << module.path
+              << " index=" << ir_index << "/" << ir_total
+              << " bytes=" << bc_bytes->size();
+          LogBuildProgress(oss.str());
         }
         if (show_detailed_progress) {
           std::ostringstream oss;

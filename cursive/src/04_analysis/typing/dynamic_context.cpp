@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 
 namespace cursive::analysis {
 

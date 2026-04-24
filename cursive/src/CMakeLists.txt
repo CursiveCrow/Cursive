@@ -133,7 +133,17 @@ add_custom_target(validate_diagnostic_spec_sync
   VERBATIM
 )
 
-add_dependencies(cursive_core generate_static_rule_registry generate_diagnostic_registry validate_diagnostic_spec_sync)
+add_custom_target(validate_phase_includes
+  COMMAND ${Python3_EXECUTABLE}
+          "${CURSIVE_TOOLS_DIR}/validate_phase_includes.py"
+          --source-root "${CMAKE_SOURCE_DIR}"
+  DEPENDS
+          "${CURSIVE_TOOLS_DIR}/validate_phase_includes.py"
+  COMMENT "Validating compiler phase include direction"
+  VERBATIM
+)
+
+add_dependencies(cursive_core generate_static_rule_registry generate_diagnostic_registry validate_diagnostic_spec_sync validate_phase_includes)
 
 if(WIN32)
   set(ICU_ROOT "${CURSIVE_EXTERN_DIR}/icu/win64")
@@ -221,6 +231,7 @@ add_library(cursive_source STATIC
   02_source/ast/ast_dump.cpp
   02_source/ast/nodes/ast_nodes.cpp
   02_source/ast/validate/validate_common.cpp
+  02_source/attributes/attribute_registry.cpp
   02_source/lexer/keyword_policy.cpp
   02_source/lexer/lexer.cpp
   02_source/lexer/lexer_ident.cpp
@@ -359,6 +370,16 @@ add_library(cursive_source STATIC
   02_source/parser/type/type_common.cpp
   02_source/parser/type/type_path.cpp
   02_source/parser/type/union_type.cpp
+)
+
+target_include_directories(cursive_source PUBLIC
+  ${CMAKE_SOURCE_DIR}/include
+  ${CURSIVE_REPO_ROOT}
+)
+
+target_compile_features(cursive_source PUBLIC cxx_std_20)
+
+add_library(cursive_comptime STATIC
   03_comptime/common.cpp
   03_comptime/derive.cpp
   03_comptime/eval.cpp
@@ -370,15 +391,14 @@ add_library(cursive_source STATIC
   03_comptime/rewrite.cpp
 )
 
-target_include_directories(cursive_source PUBLIC
+target_include_directories(cursive_comptime PUBLIC
   ${CMAKE_SOURCE_DIR}/include
   ${CURSIVE_REPO_ROOT}
 )
 
-target_compile_features(cursive_source PUBLIC cxx_std_20)
+target_compile_features(cursive_comptime PUBLIC cxx_std_20)
 
 add_library(cursive_analysis STATIC
-  04_analysis/attributes/attribute_registry.cpp
   04_analysis/attributes/attribute_targets.cpp
   04_analysis/attributes/attribute_validate.cpp
   04_analysis/attributes/ffi_library_attrs.cpp
@@ -397,7 +417,6 @@ add_library(cursive_analysis STATIC
   04_analysis/composite/classes.cpp
   04_analysis/composite/enums.cpp
   04_analysis/composite/function_types.cpp
-  04_analysis/composite/reflect_bridge.cpp
   04_analysis/composite/record_methods.cpp
   04_analysis/composite/records.cpp
   04_analysis/composite/tuples.cpp
@@ -857,6 +876,7 @@ endif()
 
 target_link_libraries(cursive_project PUBLIC cursive_core)
 target_link_libraries(cursive_source PUBLIC cursive_core)
+target_link_libraries(cursive_comptime PUBLIC cursive_core cursive_source)
 target_link_libraries(cursive_analysis PUBLIC cursive_core cursive_source cursive_project)
 target_link_libraries(cursive_codegen PUBLIC cursive_analysis)
 
@@ -877,6 +897,7 @@ target_compile_features(cursive-debug PRIVATE cxx_std_20)
 
 add_executable(cursive
   06_driver/cli.cpp
+  06_driver/comptime_options.cpp
   06_driver/compiler_main.cpp
   06_driver/main.cpp
   06_driver/options.cpp
@@ -888,7 +909,7 @@ add_executable(cursive
 
 set_target_properties(cursive PROPERTIES OUTPUT_NAME "Cursive")
 
-target_link_libraries(cursive PRIVATE cursive_core cursive_project cursive_analysis cursive_codegen cursive_source)
+target_link_libraries(cursive PRIVATE cursive_core cursive_project cursive_source cursive_comptime cursive_analysis cursive_codegen)
 
 target_include_directories(cursive PRIVATE
   ${CMAKE_SOURCE_DIR}/include

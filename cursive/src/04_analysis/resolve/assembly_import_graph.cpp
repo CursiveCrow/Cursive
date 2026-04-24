@@ -15,7 +15,7 @@
 #include "01_project/deterministic_order.h"
 #include "01_project/outputs.h"
 #include "02_source/module_paths.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 
 namespace cursive::analysis {
 

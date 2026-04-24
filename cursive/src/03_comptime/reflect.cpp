@@ -13,7 +13,6 @@
 #include "00_core/unicode.h"
 #include "02_source/ast/ast_dump.h"
 #include "02_source/module_paths.h"
-#include "04_analysis/composite/reflect_bridge.h"
 
 namespace cursive::frontend::comptime_internal {
 
@@ -1013,6 +1012,98 @@ std::vector<ast::ClassPath> ResolveReflectClassPathListInContext(
   return out;
 }
 
+std::string ReflectClassPathKey(const ast::ClassPath& path) {
+  return core::StringOfPath(path);
+}
+
+std::optional<NamedDeclRef> ResolveReflectClassDeclInContext(
+    const CtEnv& env,
+    const ast::ModulePath& accessor_module,
+    const ast::ClassPath& path) {
+  const auto resolved = ResolveReflectClassPathInContext(env, accessor_module, path);
+  const auto decl = ResolveUniqueNamedDeclInContext(env, accessor_module, resolved);
+  if (decl.has_value() && decl->kind == NamedDeclKind::Class &&
+      decl->class_decl != nullptr) {
+    return decl;
+  }
+  return std::nullopt;
+}
+
+bool ReflectClassSubtypesInContext(const CtEnv& env,
+                                   const ast::ModulePath& accessor_module,
+                                   const ast::ClassPath& sub,
+                                   const ast::ClassPath& sup,
+                                   std::unordered_set<std::string>& visiting) {
+  const auto resolved_sub =
+      ResolveReflectClassPathInContext(env, accessor_module, sub);
+  const auto resolved_sup =
+      ResolveReflectClassPathInContext(env, accessor_module, sup);
+  if (PathEq(resolved_sub, resolved_sup)) {
+    return true;
+  }
+
+  const std::string visit_key = ReflectClassPathKey(resolved_sub);
+  if (!visiting.insert(visit_key).second) {
+    return false;
+  }
+
+  const auto decl =
+      ResolveReflectClassDeclInContext(env, accessor_module, resolved_sub);
+  if (!decl.has_value() || decl->class_decl == nullptr) {
+    visiting.erase(visit_key);
+    return false;
+  }
+
+  for (const auto& super : decl->class_decl->supers) {
+    if (ReflectClassSubtypesInContext(env, decl->module_path, super,
+                                      resolved_sup, visiting)) {
+      visiting.erase(visit_key);
+      return true;
+    }
+  }
+
+  visiting.erase(visit_key);
+  return false;
+}
+
+const std::vector<ast::ClassPath>* ReflectNominalImplementsList(
+    const ReflectNominalTarget& target) {
+  switch (target.decl.kind) {
+    case NamedDeclKind::Record:
+      return target.decl.record != nullptr ? &target.decl.record->implements
+                                           : nullptr;
+    case NamedDeclKind::Enum:
+      return target.decl.enum_decl != nullptr
+                 ? &target.decl.enum_decl->implements
+                 : nullptr;
+    case NamedDeclKind::Modal:
+      return target.decl.modal != nullptr ? &target.decl.modal->implements
+                                          : nullptr;
+    default:
+      return nullptr;
+  }
+}
+
+bool ReflectNominalImplementsForm(const CtEnv& env,
+                                  const ReflectNominalTarget& target,
+                                  const ast::ClassPath& form_path) {
+  const auto* impls = ReflectNominalImplementsList(target);
+  if (impls == nullptr) {
+    return false;
+  }
+
+  const auto resolved_form =
+      ResolveReflectClassPathInContext(env, target.decl.module_path, form_path);
+  for (const auto& impl : *impls) {
+    std::unordered_set<std::string> visiting;
+    if (ReflectClassSubtypesInContext(env, target.decl.module_path, impl,
+                                      resolved_form, visiting)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 CtValue MakeTypeCategoryValue(std::string_view variant) {
   auto value = std::make_shared<CtEnum>();
   value->path = {"TypeCategory"};
@@ -1539,27 +1630,12 @@ std::optional<EvalResult> EvalIntrospectMethod(const ast::MethodCallExpr& call,
     } else {
       return std::optional<EvalResult>{MakeBoolResult(false)};
     }
-    const auto canonical_type = CanonicalizeReflectType(env, *type);
-    ast::ASTModule current_overlay;
-    current_overlay.path = env.current_module;
-    if (env.current_module_items != nullptr) {
-      current_overlay.items = *env.current_module_items;
+    const auto target = ResolveReflectNominalTarget(env, *type);
+    if (!target.has_value()) {
+      return std::optional<EvalResult>{MakeBoolResult(false)};
     }
-    std::vector<const ast::ASTModule*> reflect_modules = env.available_modules;
-    bool replaced_current = false;
-    for (const ast::ASTModule*& module : reflect_modules) {
-      if (module != nullptr && PathEq(module->path, env.current_module)) {
-        module = &current_overlay;
-        replaced_current = true;
-        break;
-      }
-    }
-    if (!replaced_current) {
-      reflect_modules.push_back(&current_overlay);
-    }
-    return std::optional<EvalResult>{MakeBoolResult(analysis::ReflectImplementsForm(
-        reflect_modules, env.available_module_names, env.current_module,
-        canonical_type, form_path))};
+    return std::optional<EvalResult>{
+        MakeBoolResult(ReflectNominalImplementsForm(env, *target, form_path))};
   }
 
   return std::nullopt;

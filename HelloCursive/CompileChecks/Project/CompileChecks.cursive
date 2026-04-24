@@ -2,6 +2,6 @@ import testsupport
 
 public procedure runCompileChecks(ctx: Context) -> i32 {
     let command: string@View =
-        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Project\\LinkKindWrongUse\\Main.cursive > build\\main\\logs\\compile_checks\\project_link_kind_wrong_use.json 2> build\\main\\logs\\compile_checks\\project_link_kind_wrong_use.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-PRJ-0208\\\"\" build\\main\\logs\\compile_checks\\project_link_kind_wrong_use.json >nul"
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Project\\LinkKindWrongUse\\Main.cursive > build\\main\\logs\\compile_checks\\project_link_kind_wrong_use.json 2> build\\main\\logs\\compile_checks\\project_link_kind_wrong_use.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-PRJ-0208\\\"\" build\\main\\logs\\compile_checks\\project_link_kind_wrong_use.json >nul"
     return testsupport::runCompileCheckCommand(ctx, command, "project/link_kind_wrong_use")
 }

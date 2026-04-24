@@ -63,7 +63,7 @@
 #include <unordered_set>
 
 #include "04_analysis/generics/monomorphize.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/typing/type_lower.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/checks.h"

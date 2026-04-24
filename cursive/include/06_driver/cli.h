@@ -19,7 +19,6 @@ enum class ColorMode {
 };
 
 enum class Verbosity {
-  Quiet,
   Normal,
   Verbose,
 };
@@ -54,7 +53,7 @@ struct CliOptions {
   std::optional<project::TargetProfile> target_profile_override; // --target-profile
   std::vector<std::string> debug_subsystems;                 // --debug
   ColorMode color_mode = ColorMode::Auto;  // --color
-  Verbosity verbosity = Verbosity::Normal; // -v/--verbose, -q/--quiet
+  Verbosity verbosity = Verbosity::Normal; // -v/--verbose
   std::string input_path;
   bool emit_ir = false;              // --emit-ir
   bool do_init = false;              // init subcommand

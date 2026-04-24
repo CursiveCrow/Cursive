@@ -49,7 +49,7 @@ void SetManifestRuntimeLib(std::optional<std::string> path);
 std::optional<std::string> ManifestRuntimeLib();
 
 // Verbosity level for build output.
-enum class Verbosity { Quiet, Normal, Verbose };
+enum class Verbosity { Normal, Verbose };
 
 void SetVerbosity(Verbosity level);
 Verbosity GetVerbosity();

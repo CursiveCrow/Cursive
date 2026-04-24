@@ -2,7 +2,7 @@ import testsupport
 
 public procedure runCompileChecks(ctx: Context) -> i32 {
     let command: string@View =
-        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet ..\\TestProjects\\Modals\\Diagnostics\\ModalNoStates\\Main.cursive > build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.json 2> build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2050\\\"\" build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.json >nul"
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Modals\\Diagnostics\\ModalNoStates\\Main.cursive > build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.json 2> build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2050\\\"\" build\\main\\logs\\compile_checks\\modals_diagnostics_modal_no_states.json >nul"
     let status_seed: i32 =
         testsupport::runCompileCheckCommand(ctx, command, "modals/diagnostics/modal_no_states")
     if (status_seed != 0) {
@@ -10,7 +10,7 @@ public procedure runCompileChecks(ctx: Context) -> i32 {
     }
 
     let modal_ref_apply_command: string@View =
-        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance modal_ref_type_apply.log ..\\TestProjects\\Modals\\Diagnostics\\ModalRefTypeApplyConformance\\Main.cursive > build\\main\\logs\\compile_checks\\modal_ref_type_apply.json 2> build\\main\\logs\\compile_checks\\modal_ref_type_apply.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"result\" ..\\TestProjects\\Modals\\Diagnostics\\ModalRefTypeApplyConformance\\build\\probe\\logs\\conformance\\modal_ref_type_apply.log >nul"
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance modal_ref_type_apply.log ..\\TestProjects\\Modals\\Diagnostics\\ModalRefTypeApplyConformance\\Main.cursive > build\\main\\logs\\compile_checks\\modal_ref_type_apply.json 2> build\\main\\logs\\compile_checks\\modal_ref_type_apply.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"result\" ..\\TestProjects\\Modals\\Diagnostics\\ModalRefTypeApplyConformance\\build\\probe\\logs\\conformance\\modal_ref_type_apply.log >nul"
     let modal_ref_apply_status: i32 = testsupport::runCompileCheckCommand(
         ctx,
         modal_ref_apply_command,
@@ -21,7 +21,7 @@ public procedure runCompileChecks(ctx: Context) -> i32 {
     }
 
     let modal_ref_subst_default_command: string@View =
-        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue987_modal_ref_subst_default.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue987_modal_ref_subst_default\\Main.cursive > build\\main\\logs\\compile_checks\\issue987_modal_ref_subst_default.json 2> build\\main\\logs\\compile_checks\\issue987_modal_ref_subst_default.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalRefSubst\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue987_modal_ref_subst_default\\build\\probe\\logs\\conformance\\issue987_modal_ref_subst_default.log >nul"
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue987_modal_ref_subst_default.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue987_modal_ref_subst_default\\Main.cursive > build\\main\\logs\\compile_checks\\issue987_modal_ref_subst_default.json 2> build\\main\\logs\\compile_checks\\issue987_modal_ref_subst_default.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalRefSubst\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue987_modal_ref_subst_default\\build\\probe\\logs\\conformance\\issue987_modal_ref_subst_default.log >nul"
     let modal_ref_subst_default_status: i32 = testsupport::runCompileCheckCommand(
         ctx,
         modal_ref_subst_default_command,
@@ -32,7 +32,7 @@ public procedure runCompileChecks(ctx: Context) -> i32 {
     }
 
     let modal_payload_default_subst_command: string@View =
-        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue988_modal_payload_default_subst.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue988_modal_payload_default_subst\\Main.cursive > build\\main\\logs\\compile_checks\\issue988_modal_payload_default_subst.json 2> build\\main\\logs\\compile_checks\\issue988_modal_payload_default_subst.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalPayloadMap\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue988_modal_payload_default_subst\\build\\probe\\logs\\conformance\\issue988_modal_payload_default_subst.log >nul"
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue988_modal_payload_default_subst.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue988_modal_payload_default_subst\\Main.cursive > build\\main\\logs\\compile_checks\\issue988_modal_payload_default_subst.json 2> build\\main\\logs\\compile_checks\\issue988_modal_payload_default_subst.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalPayloadMap\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue988_modal_payload_default_subst\\build\\probe\\logs\\conformance\\issue988_modal_payload_default_subst.log >nul"
     let modal_payload_default_subst_status: i32 = testsupport::runCompileCheckCommand(
         ctx,
         modal_payload_default_subst_command,
@@ -43,7 +43,7 @@ public procedure runCompileChecks(ctx: Context) -> i32 {
     }
 
     let modal_decl_of_command: string@View =
-        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --quiet --conformance issue986_modal_decl_of_direct.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue986_modal_decl_of_direct\\Main.cursive > build\\main\\logs\\compile_checks\\issue986_modal_decl_of_direct.json 2> build\\main\\logs\\compile_checks\\issue986_modal_decl_of_direct.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalDeclOf\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue986_modal_decl_of_direct\\build\\probe\\logs\\conformance\\issue986_modal_decl_of_direct.log >nul"
+        "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue986_modal_decl_of_direct.log ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue986_modal_decl_of_direct\\Main.cursive > build\\main\\logs\\compile_checks\\issue986_modal_decl_of_direct.json 2> build\\main\\logs\\compile_checks\\issue986_modal_decl_of_direct.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"ModalDeclOf\" ..\\TestProjects\\Modals\\Diagnostics\\Generated\\issue986_modal_decl_of_direct\\build\\probe\\logs\\conformance\\issue986_modal_decl_of_direct.log >nul"
     return testsupport::runCompileCheckCommand(
         ctx,
         modal_decl_of_command,

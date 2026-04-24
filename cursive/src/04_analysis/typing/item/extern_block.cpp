@@ -30,7 +30,7 @@
 #include "04_analysis/typing/type_wf.h"
 #include "04_analysis/typing/types.h"
 #include "04_analysis/typing/type_predicates.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/attributes/ffi_library_attrs.h"
 #include "04_analysis/contracts/contract_check.h"
 #include "01_project/ffi_library.h"

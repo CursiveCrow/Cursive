@@ -12,7 +12,7 @@
 //
 // =============================================================================
 
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 
 #include <algorithm>
 #include <optional>

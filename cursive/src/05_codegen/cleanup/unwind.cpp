@@ -61,7 +61,7 @@
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "00_core/assert_spec.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 
 #include <cstdint>
 #include <string>

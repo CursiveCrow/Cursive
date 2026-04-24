@@ -1450,7 +1450,7 @@ Set-Location (Join-Path '$(escape_powershell_literal "$hello_dir_windows")' 'Com
 \$compileChecksDir = (Get-Location).Path
 Write-Host \"COMMAND_LABEL=hello-cursive-compilechecks-build\"
 Write-Host \"HelloCursiveCompilerPath=\$compilerPath\"
-& \$compilerPath --incremental off --diag-json --quiet Main.cursive
+& \$compilerPath --incremental off --diag-json Main.cursive
 \$helloBuildExit = \$LASTEXITCODE
 Write-Host \"COMMAND_EXIT=\$helloBuildExit\"
 if (\$helloBuildExit -ne 0) {
@@ -1484,7 +1484,7 @@ Remove-Item -LiteralPath \$helloRuntimeLog -Force -ErrorAction SilentlyContinue
 Write-Host 'COMMAND_LABEL=hello-cursive-full-build'
 Write-Host \"HelloCursiveCompilerPath=\$compilerPath\"
 Write-Host \"HelloCursiveRuntimeLog=\$helloRuntimeLog\"
-& \$compilerPath --incremental off --diag-json --quiet --log-file \$helloRuntimeLog 'Main\Main.cursive'
+& \$compilerPath --incremental off --diag-json --log-file \$helloRuntimeLog 'Main\Main.cursive'
 \$helloFullBuildExit = \$LASTEXITCODE
 Write-Host \"COMMAND_EXIT=\$helloFullBuildExit\"
 if (\$helloFullBuildExit -ne 0) {

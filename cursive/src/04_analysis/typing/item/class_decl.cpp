@@ -27,7 +27,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/memory/borrow_bind.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/dynamic_context.h"

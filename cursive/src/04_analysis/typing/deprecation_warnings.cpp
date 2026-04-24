@@ -3,7 +3,7 @@
 #include <string>
 
 #include "00_core/diagnostic_messages.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 
 namespace cursive::analysis {
 

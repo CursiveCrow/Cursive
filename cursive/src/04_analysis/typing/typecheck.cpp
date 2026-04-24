@@ -28,7 +28,7 @@
 #include "00_core/diagnostics.h"
 #include "00_core/process_config.h"
 #include "00_core/symbols.h"
-#include "04_analysis/attributes/attribute_registry.h"
+#include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/caps/cap_system.h"
 #include "04_analysis/conformance/conformance.h"

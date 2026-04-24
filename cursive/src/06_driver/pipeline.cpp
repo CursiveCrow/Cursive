@@ -946,13 +946,13 @@ std::optional<std::string> EmitObjForModule(
   return object_bytes;
 }
 
-std::optional<std::string> CodegenObj(const CodegenCache& cache,
+std::optional<std::string> CodegenObj(CodegenCache& cache,
                                       const project::ModuleInfo& module,
                                       const project::Project& project,
                                       project::TargetProfile target_profile) {
-  auto& mutable_cache = const_cast<CodegenCache&>(cache);
-  const auto lowered = EnsureCodegenModuleEntry(mutable_cache, module.path);
+  const auto lowered = FindCodegenModuleEntry(cache, module.path);
   if (!lowered) {
+    cache.ok.store(false);
     return std::nullopt;
   }
   auto bytes = EmitObjForModule(cache, *lowered, project, target_profile);
@@ -962,7 +962,7 @@ std::optional<std::string> CodegenObj(const CodegenCache& cache,
   return bytes;
 }
 
-std::optional<std::string> CodegenIR(const CodegenCache& cache,
+std::optional<std::string> CodegenIR(CodegenCache& cache,
                                      const project::ModuleInfo& module,
                                      const project::Project& project,
                                      project::TargetProfile target_profile,
@@ -970,9 +970,9 @@ std::optional<std::string> CodegenIR(const CodegenCache& cache,
   if (!(emit_ir == "ll" || emit_ir == "bc")) {
     return std::nullopt;
   }
-  auto& mutable_cache = const_cast<CodegenCache&>(cache);
-  const auto lowered = EnsureCodegenModuleEntry(mutable_cache, module.path);
+  const auto lowered = FindCodegenModuleEntry(cache, module.path);
   if (!lowered) {
+    cache.ok.store(false);
     return std::nullopt;
   }
   auto bytes = EmitIRForModule(cache, *lowered, project, target_profile);
@@ -1258,12 +1258,8 @@ std::optional<std::size_t> EnsureCodegenModule(CodegenCache& cache,
   return lowered_index;
 }
 
-std::shared_ptr<const ModuleCodegen> EnsureCodegenModuleEntry(
-    CodegenCache& cache, std::string_view module_path) {
-  if (!EnsureCodegenModule(cache, module_path).has_value()) {
-    return nullptr;
-  }
-
+std::shared_ptr<const ModuleCodegen> FindCodegenModuleEntry(
+    const CodegenCache& cache, std::string_view module_path) {
   std::lock_guard<std::mutex> lock(cache.module_mu);
   const std::string key(module_path);
   if (const auto it = cache.module_entries.find(key);
