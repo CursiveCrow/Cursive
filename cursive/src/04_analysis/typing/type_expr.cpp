@@ -3,7 +3,8 @@
 // =============================================================================
 //
 // SPEC REFERENCE: CursiveSpecification.md
-//   Section 5.2.12: Expression Typing
+//   Chapter 16: Expressions
+//   Section 8.3: Type Inference
 //   - ExprJudg: Expression judgments
 //   - Lift-Expr: Context lifting
 //   - Place-Check: Place expression checking

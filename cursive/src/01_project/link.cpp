@@ -21,6 +21,7 @@
 #include "00_core/process_config.h"
 #include "00_core/runtime_abi.h"
 #include "00_core/compiler_support.h"
+#include "01_project/assemblies.h"
 #include "01_project/compiler_support_paths.h"
 #include "01_project/outputs.h"
 #include "01_project/project.h"
@@ -128,8 +129,7 @@ void EmitExternal(core::DiagnosticStream& diags, std::string_view code) {
 }
 
 bool IsSharedLibraryProject(const Project& project) {
-  return project.assembly.kind == "library" &&
-         project.assembly.link_kind == "shared";
+  return IsSharedLibrary(project);
 }
 
 void AppendExistingUniqueDir(std::vector<std::filesystem::path>& out,

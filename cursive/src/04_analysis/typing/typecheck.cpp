@@ -28,6 +28,7 @@
 #include "00_core/diagnostics.h"
 #include "00_core/process_config.h"
 #include "00_core/symbols.h"
+#include "01_project/assemblies.h"
 #include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/caps/cap_system.h"
@@ -762,8 +763,8 @@ TypecheckResult TypecheckModules(
   }
 
   if (!core::HasError(result.diags)) {
-    const bool require_main = !ctx.project ||
-        ctx.project->assembly.kind == "executable";
+    const bool require_main =
+        !ctx.project || project::IsExecutable(*ctx.project);
     if (require_main) {
       const auto main_check = MainCheckProject(ctx, modules);
       if (!main_check.diags.empty()) {

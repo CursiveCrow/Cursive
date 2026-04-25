@@ -3,18 +3,19 @@
 // =============================================================================
 //
 // SPEC REFERENCE:
-//   CursiveSpecification.md §0.3 (lines 186-204) - Observable Compiler Behavior
-//   CursiveSpecification.md §5.9.6 (lines 10569-10590) - Program Entry Point
-//   CursiveSpecification.md §1.1 (lines 230-240) - Conformance
+//   CursiveSpecification.md section 1.1 - Conformance and phase order
+//   CursiveSpecification.md section 3 - Project and compilation model
+//   CursiveSpecification.md section 15 - Program entry point and contracts
+//   CursiveSpecification.md section 24 - Lowering, lifecycle, and backend
 //
 // Phase Orchestration:
-//   Phase 0: Build/Project Model (§2)
-//   Phase 1: Parse (§3)
-//   Phase 2: Compile-Time Execution (§4)
-//   Phase 3: Name Resolution + Type Checking (§5)
-//   Phase 4: Code Generation (§6)
+//   Phase 0: Build/project validation
+//   Phase 1: Parse and aggregate modules
+//   Phase 2: Compile-time execution
+//   Phase 3: Name resolution and type checking
+//   Phase 4: Lowering and output pipeline
 //
-// Exit Code Semantics (from spec §0.3):
+// Exit Code Semantics:
 //   0 = Compilation succeeded (no errors)
 //   1 = Compilation failed (at least one error)
 //   2 = CLI parse error (invalid arguments)
@@ -45,6 +46,8 @@
 #include "06_driver/cli.h"
 #include "06_driver/comptime_options.h"
 #include "06_driver/compiler_main.h"
+#include "06_driver/fingerprints.h"
+#include "06_driver/incremental.h"
 #include "06_driver/output_pipeline.h"
 #include "06_driver/pipeline.h"
 #include "06_driver/shared_library_exports.h"
@@ -102,6 +105,16 @@
 #include "05_codegen/intrinsics/builtins.h"
 
 namespace {
+
+using cursive::driver::BuildIncrementalBuildData;
+using cursive::driver::BuildIncrementalBuildKey;
+using cursive::driver::ComputeLinkFingerprint;
+using cursive::driver::ComputeModuleSourceHash;
+using cursive::driver::HashFields;
+using cursive::driver::IncrementalEnabled;
+using cursive::driver::IncrementalManifestPath;
+using cursive::driver::IsExternalDependencyMarker;
+using cursive::driver::LoadIncrementalManifest;
 
 std::vector<std::uint8_t> PathFilenameUtf8Bytes(
     const std::filesystem::path& path) {
@@ -389,187 +402,6 @@ std::filesystem::path ResolveCurrentExecutablePath(const char* argv0) {
   }
 
   return {};
-}
-
-bool IncrementalEnabled() {
-  // Priority: CLI --incremental > manifest [build] incremental > default(true)
-  const std::optional<bool> override = cursive::core::IncrementalOverride();
-  if (override.has_value()) {
-    return *override;
-  }
-  const std::optional<bool> manifest = cursive::core::ManifestIncremental();
-  if (manifest.has_value()) {
-    return *manifest;
-  }
-  return true;
-}
-
-void MixHashByte(std::uint64_t& hash, std::uint8_t byte) {
-  hash ^= static_cast<std::uint64_t>(byte);
-  hash *= cursive::core::kFNVPrime64;
-}
-
-void MixHashString(std::uint64_t& hash, std::string_view value) {
-  for (const unsigned char ch : value) {
-    MixHashByte(hash, static_cast<std::uint8_t>(ch));
-  }
-  MixHashByte(hash, 0xFFU);
-}
-
-std::optional<std::string> ComputeFileSourceHash(
-    const std::filesystem::path& file,
-    cursive::core::DiagnosticStream& diags) {
-  const auto bytes = cursive::frontend::ReadBytesDefault(file);
-  for (const auto& diag : bytes.diags) {
-    cursive::core::Emit(diags, diag);
-  }
-  if (!bytes.bytes.has_value()) {
-    return std::nullopt;
-  }
-
-  std::uint64_t hash = cursive::core::kFNVOffset64;
-  for (const auto byte : *bytes.bytes) {
-    MixHashByte(hash, byte);
-  }
-  return cursive::core::Hex64(hash);
-}
-
-std::optional<std::string> HashFileBytes(const std::filesystem::path& file) {
-  std::ifstream in(file, std::ios::binary);
-  if (!in) {
-    return std::nullopt;
-  }
-  std::string buffer((std::istreambuf_iterator<char>(in)),
-                     std::istreambuf_iterator<char>());
-  if (!in && !in.eof()) {
-    return std::nullopt;
-  }
-  return cursive::core::Hex64(cursive::core::FNV1a64(buffer));
-}
-
-std::string LinkInputFingerprintField(const std::filesystem::path& path) {
-  const std::string normalized = cursive::core::Normalize(path.generic_string());
-  const auto hash = HashFileBytes(path);
-  if (!hash.has_value()) {
-    return normalized + ":missing";
-  }
-  return normalized + ":" + *hash;
-}
-
-bool IsExternalDependencyMarker(std::string_view dep) {
-  constexpr std::string_view marker = "__external__:";
-  return dep.size() >= marker.size() &&
-         dep.compare(0, marker.size(), marker) == 0;
-}
-
-std::string CompilerFingerprintField() {
-  if (g_compiler_executable_path.empty()) {
-    return "compiler=<unknown>";
-  }
-  std::error_code ec;
-  std::filesystem::path normalized =
-      std::filesystem::weakly_canonical(g_compiler_executable_path, ec);
-  if (ec) {
-    ec.clear();
-    normalized = std::filesystem::absolute(g_compiler_executable_path, ec);
-    if (ec) {
-      normalized = g_compiler_executable_path;
-    }
-  }
-  return "compiler=" + LinkInputFingerprintField(normalized);
-}
-
-std::string HashFields(const std::vector<std::string>& fields) {
-  std::uint64_t hash = cursive::core::kFNVOffset64;
-  for (const auto& field : fields) {
-    MixHashString(hash, field);
-  }
-  return cursive::core::Hex64(hash);
-}
-
-std::optional<std::string> ComputeModuleSourceHash(
-    const cursive::project::ModuleInfo& module,
-    cursive::core::DiagnosticStream& diags) {
-  const auto unit = cursive::project::CompilationUnit(module.dir);
-  for (const auto& diag : unit.diags) {
-    cursive::core::Emit(diags, diag);
-  }
-  if (cursive::core::HasError(unit.diags)) {
-    return std::nullopt;
-  }
-
-  std::uint64_t hash = cursive::core::kFNVOffset64;
-  MixHashString(hash, module.path);
-
-  for (const auto& file : unit.files) {
-    MixHashString(hash, cursive::core::Normalize(file.generic_string()));
-    const auto file_hash = ComputeFileSourceHash(file, diags);
-    if (!file_hash.has_value()) {
-      return std::nullopt;
-    }
-    MixHashString(hash, *file_hash);
-    MixHashByte(hash, 0x00U);
-  }
-
-  return cursive::core::Hex64(hash);
-}
-
-std::optional<std::string> ResolveImportedModule(
-    const cursive::ast::ImportDecl& import,
-    const std::unordered_set<std::string>& known_modules) {
-  if (import.path.empty()) {
-    return std::nullopt;
-  }
-
-  std::string candidate;
-  std::optional<std::string> best;
-  for (std::size_t i = 0; i < import.path.size(); ++i) {
-    if (i > 0) {
-      candidate.append("::");
-    }
-    candidate.append(import.path[i]);
-    if (known_modules.find(candidate) != known_modules.end()) {
-      best = candidate;
-    }
-  }
-  return best;
-}
-
-std::unordered_map<std::string, std::vector<std::string>> BuildModuleDeps(
-    const std::vector<cursive::ast::ASTModule>& modules,
-    const std::unordered_set<std::string>& known_modules) {
-  std::unordered_map<std::string, std::vector<std::string>> deps_by_module;
-  deps_by_module.reserve(modules.size());
-
-  for (const auto& module : modules) {
-    const std::string module_path = cursive::core::StringOfPath(module.path);
-    if (known_modules.find(module_path) == known_modules.end()) {
-      continue;
-    }
-
-    std::unordered_set<std::string> dep_set;
-    for (const auto& item : module.items) {
-      const auto* import = std::get_if<cursive::ast::ImportDecl>(&item);
-      if (!import) {
-        continue;
-      }
-      const auto target = ResolveImportedModule(*import, known_modules);
-      if (!target.has_value()) {
-        dep_set.insert("__external__:" + cursive::core::StringOfPath(import->path));
-        continue;
-      }
-      if (*target == module_path) {
-        continue;
-      }
-      dep_set.insert(*target);
-    }
-
-    std::vector<std::string> deps(dep_set.begin(), dep_set.end());
-    std::sort(deps.begin(), deps.end());
-    deps_by_module[module_path] = std::move(deps);
-  }
-
-  return deps_by_module;
 }
 
 const char* VisibilitySignature(cursive::ast::Visibility vis) {
@@ -1849,379 +1681,11 @@ std::optional<cursive::project::TargetProfile> ResolveSelectedTargetProfile(
   return std::nullopt;
 }
 
-std::string BuildIncrementalBuildKey(const cursive::project::Project& project,
-                                     cursive::project::TargetProfile target_profile,
-                                     const cursive::driver::CliOptions& opts) {
-  std::vector<std::string> fields;
-  fields.reserve(18);
-  fields.push_back("v3");
-  fields.push_back(cursive::driver::GetVersionString());
-  fields.push_back(CompilerFingerprintField());
-  fields.push_back(project.assembly.name);
-  fields.push_back(project.assembly.kind);
-  fields.push_back(project.assembly.link_kind.value_or("none"));
-  fields.push_back(std::string(
-      cursive::project::TargetProfileName(target_profile)));
-  fields.push_back(project.root.generic_string());
-  fields.push_back(project.source_root.generic_string());
-  fields.push_back(project.outputs.root.generic_string());
-  fields.push_back(project.assembly.emit_ir.value_or("none"));
-  fields.push_back(std::string("log_enabled=") + (opts.log_enabled ? "1" : "0"));
-  fields.push_back(std::string("log_to_console=") +
-                   (opts.log_to_console ? "1" : "0"));
-  fields.push_back(std::string("log_to_file=") + (opts.log_to_file ? "1" : "0"));
-  fields.push_back(std::string("trace=") + (opts.trace ? "1" : "0"));
-  fields.push_back("trace_filter_mask=" +
-                   std::to_string(opts.trace_filter_mask.value_or(0u)));
-  fields.push_back("trace_min_level=" +
-                   std::to_string(opts.trace_min_level.value_or(0u)));
-  fields.push_back("log_file=" + EffectiveRuntimeLogFilePath(project, opts));
-  if (const auto runtime_lib =
-          cursive::project::ResolveRuntimeLib(project, target_profile);
-      runtime_lib.has_value()) {
-    fields.push_back("runtime_lib=" + LinkInputFingerprintField(*runtime_lib));
-  } else {
-    fields.push_back("runtime_lib=<missing>");
-  }
-  return HashFields(fields);
-}
-
-struct IncrementalBuildDataResult {
-  bool ok = false;
-  std::string build_key;
-  std::unordered_map<std::string, cursive::driver::IncrementalModuleInfo>
-      modules;
-};
-
-IncrementalBuildDataResult BuildIncrementalBuildData(
-    const cursive::project::Project& project,
-    cursive::project::TargetProfile target_profile,
-    const std::vector<cursive::ast::ASTModule>& resolved_modules,
-    const cursive::driver::CliOptions& opts,
-    cursive::core::DiagnosticStream& diags) {
-  IncrementalBuildDataResult result;
-
-  std::unordered_set<std::string> module_set;
-  module_set.reserve(std::max(project.modules.size(), resolved_modules.size()));
-  for (const auto& module : resolved_modules) {
-    module_set.insert(cursive::core::StringOfPath(module.path));
-  }
-  for (const auto& module : project.modules) {
-    module_set.insert(module.path);
-  }
-
-  const auto deps_by_module = BuildModuleDeps(resolved_modules, module_set);
-
-  std::unordered_map<std::string, std::string> source_hashes;
-  source_hashes.reserve(project.modules.size());
-  for (const auto& module : project.modules) {
-    const auto source_hash = ComputeModuleSourceHash(module, diags);
-    if (!source_hash.has_value()) {
-      return result;
-    }
-    source_hashes[module.path] = *source_hash;
-  }
-
-  std::unordered_map<std::string, const cursive::ast::ASTModule*>
-      ast_by_module;
-  ast_by_module.reserve(resolved_modules.size());
-  for (const auto& module : resolved_modules) {
-    ast_by_module[cursive::core::StringOfPath(module.path)] = &module;
-  }
-
-  SourceTextCache source_text_cache(diags);
-  std::unordered_map<std::string, std::string> own_public_hashes;
-  own_public_hashes.reserve(project.modules.size());
-  for (const auto& module : project.modules) {
-    const auto ast_it = ast_by_module.find(module.path);
-    if (ast_it == ast_by_module.end() || ast_it->second == nullptr) {
-      own_public_hashes[module.path] = source_hashes[module.path];
-      continue;
-    }
-    own_public_hashes[module.path] =
-        ComputeModuleInterfaceHash(*ast_it->second, source_text_cache);
-  }
-
-  result.build_key = BuildIncrementalBuildKey(project, target_profile, opts);
-  result.modules.reserve(project.modules.size());
-
-  std::unordered_map<std::string, std::string> public_hash_cache;
-  public_hash_cache.reserve(project.modules.size());
-  std::unordered_set<std::string> public_hash_visiting;
-
-  std::function<std::string(const std::string&)> compute_public_hash =
-      [&](const std::string& module_path) -> std::string {
-    const auto cached_it = public_hash_cache.find(module_path);
-    if (cached_it != public_hash_cache.end()) {
-      return cached_it->second;
-    }
-
-    const auto own_it = own_public_hashes.find(module_path);
-    const std::string own_hash =
-        own_it != own_public_hashes.end() ? own_it->second : "missing";
-
-    if (public_hash_visiting.find(module_path) != public_hash_visiting.end()) {
-      std::vector<std::string> cycle_fields;
-      cycle_fields.reserve(6);
-      cycle_fields.push_back("public-v1");
-      cycle_fields.push_back(result.build_key);
-      cycle_fields.push_back(module_path);
-      cycle_fields.push_back("own=" + own_hash);
-      cycle_fields.push_back("cycle=1");
-      const std::string cycle_hash = HashFields(cycle_fields);
-      public_hash_cache[module_path] = cycle_hash;
-      return cycle_hash;
-    }
-
-    public_hash_visiting.insert(module_path);
-
-    std::vector<std::string> fields;
-    const auto dep_it = deps_by_module.find(module_path);
-    const std::size_t dep_count =
-        dep_it != deps_by_module.end() ? dep_it->second.size() : 0;
-    fields.reserve(5 + dep_count);
-    fields.push_back("public-v1");
-    fields.push_back(result.build_key);
-    fields.push_back(module_path);
-    fields.push_back("own=" + own_hash);
-
-    if (dep_it != deps_by_module.end()) {
-      for (const auto& dep : dep_it->second) {
-        const auto dep_own_it = own_public_hashes.find(dep);
-        if (dep_own_it == own_public_hashes.end()) {
-          fields.push_back("dep=" + dep + ":missing");
-          continue;
-        }
-        fields.push_back("dep=" + dep + ":" + compute_public_hash(dep));
-      }
-    }
-
-    const std::string out = HashFields(fields);
-    public_hash_visiting.erase(module_path);
-    public_hash_cache[module_path] = out;
-    return out;
-  };
-
-  std::unordered_map<std::string, std::string> full_hash_cache;
-  full_hash_cache.reserve(project.modules.size());
-  std::unordered_set<std::string> full_hash_visiting;
-
-  std::function<std::string(const std::string&)> compute_full_hash =
-      [&](const std::string& module_path) -> std::string {
-    const auto cached_it = full_hash_cache.find(module_path);
-    if (cached_it != full_hash_cache.end()) {
-      return cached_it->second;
-    }
-
-    const auto source_it = source_hashes.find(module_path);
-    const std::string source_hash =
-        source_it != source_hashes.end() ? source_it->second : "missing";
-
-    if (full_hash_visiting.find(module_path) != full_hash_visiting.end()) {
-      std::vector<std::string> cycle_fields;
-      cycle_fields.reserve(5);
-      cycle_fields.push_back("v3");
-      cycle_fields.push_back(result.build_key);
-      cycle_fields.push_back(module_path);
-      cycle_fields.push_back("source=" + source_hash);
-      cycle_fields.push_back("public=" + compute_public_hash(module_path));
-      cycle_fields.push_back("cycle=1");
-      const std::string cycle_hash = HashFields(cycle_fields);
-      full_hash_cache[module_path] = cycle_hash;
-      return cycle_hash;
-    }
-
-    full_hash_visiting.insert(module_path);
-
-    std::vector<std::string> fields;
-    const auto dep_it = deps_by_module.find(module_path);
-    const std::size_t dep_count =
-        dep_it != deps_by_module.end() ? dep_it->second.size() : 0;
-    fields.reserve(6 + dep_count);
-    fields.push_back("v3");
-    fields.push_back(result.build_key);
-    fields.push_back(module_path);
-    fields.push_back("source=" + source_hash);
-    fields.push_back("public=" + compute_public_hash(module_path));
-
-    if (dep_it != deps_by_module.end()) {
-      for (const auto& dep : dep_it->second) {
-        const auto dep_public_it = own_public_hashes.find(dep);
-        if (dep_public_it == own_public_hashes.end()) {
-          fields.push_back("dep=" + dep + ":missing");
-          continue;
-        }
-        fields.push_back("dep=" + dep + ":" + compute_public_hash(dep));
-      }
-    }
-
-    const std::string out = HashFields(fields);
-    full_hash_visiting.erase(module_path);
-    full_hash_cache[module_path] = out;
-    return out;
-  };
-
-  for (const auto& module : project.modules) {
-    cursive::driver::IncrementalModuleInfo info;
-    info.source_hash = source_hashes[module.path];
-    info.public_hash = compute_public_hash(module.path);
-
-    const auto dep_it = deps_by_module.find(module.path);
-    if (dep_it != deps_by_module.end()) {
-      info.dependencies = dep_it->second;
-    }
-
-    info.full_hash = compute_full_hash(module.path);
-
-    result.modules[module.path] = std::move(info);
-  }
-
-  result.ok = true;
-  return result;
-}
-
-struct IncrementalManifestModuleState {
-  cursive::driver::IncrementalModuleInfo info;
-  std::string obj_hash;
-  std::string ir_hash;
-};
-
-struct IncrementalManifestState {
-  std::string format = "1";
-  std::string assembly;
-  std::string build_key;
-  std::string emit_ir;
-  std::string kind;
-  std::string link_fingerprint;
-  std::unordered_map<std::string, IncrementalManifestModuleState> modules;
-};
-
-std::vector<std::string> SplitByChar(std::string_view text, char sep) {
-  std::vector<std::string> out;
-  std::size_t start = 0;
-  while (start <= text.size()) {
-    const std::size_t pos = text.find(sep, start);
-    if (pos == std::string_view::npos) {
-      out.emplace_back(text.substr(start));
-      break;
-    }
-    out.emplace_back(text.substr(start, pos - start));
-    start = pos + 1;
-  }
-  return out;
-}
-
-std::filesystem::path IncrementalManifestPath(
-    const cursive::project::Project& project) {
-  return project.outputs.root / ".cursive-incremental" /
-         (project.assembly.name + ".manifest");
-}
-
-std::optional<IncrementalManifestState> LoadIncrementalManifest(
-    const std::filesystem::path& path) {
-  std::ifstream in(path, std::ios::binary);
-  if (!in) {
-    return std::nullopt;
-  }
-
-  IncrementalManifestState state;
-  std::string line;
-  while (std::getline(in, line)) {
-    if (line.empty()) {
-      continue;
-    }
-    const auto fields = SplitByChar(line, '\t');
-    if (fields.empty()) {
-      continue;
-    }
-    if (fields[0] == "H" && fields.size() >= 3) {
-      if (fields[1] == "format") {
-        state.format = fields[2];
-      } else if (fields[1] == "assembly") {
-        state.assembly = fields[2];
-      } else if (fields[1] == "build_key") {
-        state.build_key = fields[2];
-      } else if (fields[1] == "emit_ir") {
-        state.emit_ir = fields[2];
-      } else if (fields[1] == "kind") {
-        state.kind = fields[2];
-      } else if (fields[1] == "link") {
-        state.link_fingerprint = fields[2];
-      }
-      continue;
-    }
-    if (fields[0] != "M" || fields.size() < 8) {
-      continue;
-    }
-
-    IncrementalManifestModuleState module_state;
-    module_state.info.source_hash = fields[2];
-    module_state.info.public_hash = fields[3];
-    module_state.info.full_hash = fields[4];
-    module_state.obj_hash = fields[5];
-    module_state.ir_hash = fields[6];
-    if (!fields[7].empty()) {
-      module_state.info.dependencies = SplitByChar(fields[7], ',');
-    }
-    state.modules[fields[1]] = std::move(module_state);
-  }
-
-  if (!in && !in.eof()) {
-    return std::nullopt;
-  }
-  return state;
-}
-
 std::string EffectiveEmitIR(const cursive::project::Project& project) {
   if (project.assembly.emit_ir.has_value()) {
     return *project.assembly.emit_ir;
   }
-  return project.assembly.kind == "executable" ? "none" : "ll";
-}
-
-std::string ComputeLinkFingerprint(
-    const cursive::project::Project& project,
-    cursive::project::TargetProfile target_profile,
-    const std::string& build_key,
-    const std::unordered_map<std::string, IncrementalManifestModuleState>& modules,
-    const std::vector<std::filesystem::path>& link_inputs,
-    const std::optional<std::filesystem::path>& runtime_lib,
-    std::string_view emit_ir) {
-  std::vector<std::string> fields;
-  fields.reserve(8 + project.modules.size() + link_inputs.size());
-  fields.push_back("v5");
-  fields.push_back(build_key);
-  fields.push_back(project.assembly.name);
-  fields.push_back(project.assembly.kind);
-  fields.push_back(project.assembly.link_kind.value_or("none"));
-  fields.push_back(
-      std::string(cursive::project::TargetProfileName(target_profile)));
-  fields.push_back(std::string(emit_ir));
-  if (runtime_lib.has_value()) {
-    fields.push_back("runtime=" + LinkInputFingerprintField(*runtime_lib));
-  }
-  if (const auto map_path = cursive::project::MapPath(project, target_profile);
-      map_path.has_value()) {
-    fields.push_back("map=windows-sidecar");
-    fields.push_back("map_path=" +
-                     cursive::core::Normalize(map_path->generic_string()));
-  }
-  for (const auto& input : link_inputs) {
-    fields.push_back("input=" + LinkInputFingerprintField(input));
-  }
-
-  for (const auto& module : project.modules) {
-    const auto it = modules.find(module.path);
-    if (it == modules.end()) {
-      fields.push_back(module.path + ":missing");
-      continue;
-    }
-    const auto& mod = it->second;
-    fields.push_back(module.path + ":" + mod.info.full_hash + ":" +
-                     mod.obj_hash + ":" + mod.ir_hash);
-  }
-
-  return HashFields(fields);
+  return cursive::project::IsExecutable(project) ? "none" : "ll";
 }
 
 struct IncrementalNoopCheckResult {
@@ -2247,33 +1711,6 @@ BuildModuleInfoMapForAssemblies(
     }
   }
   return modules;
-}
-
-bool LinkableArtifactExists(const cursive::project::Project& project,
-                            cursive::project::TargetProfile target_profile) {
-  std::error_code ec;
-  const auto primary =
-      cursive::project::PrimaryArtifactPath(project, target_profile);
-  if (!primary.has_value() ||
-      !std::filesystem::exists(*primary, ec) || ec) {
-    return false;
-  }
-  if (const auto import_lib =
-          cursive::project::ImportLibPath(project, target_profile);
-      import_lib.has_value()) {
-    ec.clear();
-    if (!std::filesystem::exists(*import_lib, ec) || ec) {
-      return false;
-    }
-  }
-  if (const auto map_path = cursive::project::MapPath(project, target_profile);
-      map_path.has_value()) {
-    ec.clear();
-    if (!std::filesystem::exists(*map_path, ec) || ec) {
-      return false;
-    }
-  }
-  return true;
 }
 
 FullProjectNoopCheckResult CheckWholeProjectNoopReuse(
@@ -2309,6 +1746,12 @@ FullProjectNoopCheckResult CheckWholeProjectNoopReuse(
 
   for (const auto& assembly : project.assemblies) {
     const auto assembly_project = cursive::project::AssemblyProject(project, assembly);
+    // Link fingerprints depend on parsed extern specs and output link planning.
+    if (cursive::project::IsLinkable(assembly_project.assembly)) {
+      result.reason = "linkable-requires-link-fingerprint:" + assembly.name;
+      return result;
+    }
+
     const auto manifest_path = IncrementalManifestPath(assembly_project);
     const auto manifest = LoadIncrementalManifest(manifest_path);
     if (!manifest.has_value()) {
@@ -2317,7 +1760,12 @@ FullProjectNoopCheckResult CheckWholeProjectNoopReuse(
     }
 
     const std::string build_key =
-        BuildIncrementalBuildKey(assembly_project, target_profile, opts);
+        BuildIncrementalBuildKey(
+            assembly_project,
+            target_profile,
+            opts,
+            g_compiler_executable_path,
+            EffectiveRuntimeLogFilePath(assembly_project, opts));
     const std::string emit_ir = EffectiveEmitIR(assembly_project);
     const bool compatible =
         manifest->format == "1" &&
@@ -2349,12 +1797,6 @@ FullProjectNoopCheckResult CheckWholeProjectNoopReuse(
       result.modules += 1;
     }
 
-    if (cursive::project::IsLinkable(assembly_project.assembly) &&
-        !LinkableArtifactExists(assembly_project, target_profile)) {
-      result.reason = "artifact-missing:" + assembly.name;
-      return result;
-    }
-
     result.assemblies += 1;
   }
 
@@ -2375,7 +1817,7 @@ IncrementalNoopCheckResult CheckIncrementalNoopReuse(
     result.reason = "disabled";
     return result;
   }
-  if (project.assembly.kind != "executable") {
+  if (!cursive::project::IsExecutable(project)) {
     result.reason = "non-executable";
     return result;
   }
@@ -2391,7 +1833,12 @@ IncrementalNoopCheckResult CheckIncrementalNoopReuse(
   }
 
   const std::string build_key =
-      BuildIncrementalBuildKey(project, target_profile, opts);
+      BuildIncrementalBuildKey(
+          project,
+          target_profile,
+          opts,
+          g_compiler_executable_path,
+          EffectiveRuntimeLogFilePath(project, opts));
   const std::string emit_ir = EffectiveEmitIR(project);
   const bool compatible = manifest->format == "1" &&
                           manifest->assembly == project.assembly.name &&
@@ -2423,8 +1870,16 @@ IncrementalNoopCheckResult CheckIncrementalNoopReuse(
     }
   }
 
+  SourceTextCache source_text_cache(diags);
+  const auto module_interface_hash =
+      [&source_text_cache](const cursive::ast::ASTModule& module) {
+        return ComputeModuleInterfaceHash(module, source_text_cache);
+      };
   auto current_incremental =
-      BuildIncrementalBuildData(project, target_profile, parsed_modules, opts,
+      BuildIncrementalBuildData(project,
+                                parsed_modules,
+                                build_key,
+                                module_interface_hash,
                                 diags);
   if (!current_incremental.ok) {
     result.reason = "fingerprint-failed";
@@ -2477,10 +1932,16 @@ IncrementalNoopCheckResult CheckIncrementalNoopReuse(
                                                    target_profile);
   const auto runtime_lib =
       cursive::project::ResolveRuntimeLib(project, target_profile);
+  cursive::project::LinkPlan link_plan;
+  link_plan.target_profile = target_profile;
+  if (const auto link_mode = cursive::project::LinkMode(project);
+      link_mode.has_value()) {
+    link_plan.output_kind = *link_mode;
+  }
   const std::string link_fingerprint =
       ComputeLinkFingerprint(project, target_profile, build_key,
                              manifest->modules, link_inputs,
-                             runtime_lib, emit_ir);
+                             runtime_lib, link_plan, emit_ir);
   if (link_fingerprint != manifest->link_fingerprint) {
     result.reason = "link-fingerprint-mismatch";
     return result;
@@ -2860,6 +2321,8 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
         std::cerr.flush();
       }
       if (global_noop.reusable) {
+        phase1_ok = true;
+        phase2_ok = true;
         resolve_ok = true;
         typecheck_ok = true;
         phase4_ok = true;
@@ -3407,10 +2870,9 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
             lower_ctx.sigma = &ctx.sigma;
             lower_ctx.target_profile = target_profile;
             lower_ctx.executable_project =
-                sema_project.assembly.kind == "executable";
+                cursive::project::IsExecutable(sema_project);
             lower_ctx.shared_library_project =
-                sema_project.assembly.kind == "library" &&
-                sema_project.assembly.link_kind.value_or("shared") == "shared";
+                cursive::project::IsSharedLibrary(sema_project);
             lower_ctx.log_enabled = opts->log_enabled;
             lower_ctx.log_to_console = opts->log_to_console;
             lower_ctx.log_to_file = opts->log_to_file;
@@ -3655,8 +3117,24 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
                         "phase=codegen incremental=fingerprint-start assembly=" +
                         p.assembly.name + " modules=" +
                         std::to_string(p.modules.size()));
+                    const std::string build_key =
+                        BuildIncrementalBuildKey(
+                            p,
+                            target_profile,
+                            *opts,
+                            g_compiler_executable_path,
+                            EffectiveRuntimeLogFilePath(p, *opts));
+                    SourceTextCache source_text_cache(diags);
+                    const auto module_interface_hash =
+                        [&source_text_cache](const ast::ASTModule& module) {
+                          return ComputeModuleInterfaceHash(module,
+                                                            source_text_cache);
+                        };
                     auto incremental = BuildIncrementalBuildData(
-                        p, target_profile, build_ast_modules, *opts,
+                        p,
+                        build_ast_modules,
+                        build_key,
+                        module_interface_hash,
                         diags);
                     const auto elapsed =
                         std::chrono::duration_cast<std::chrono::milliseconds>(

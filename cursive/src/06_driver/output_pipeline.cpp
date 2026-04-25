@@ -4,11 +4,8 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cstdint>
 #include <cstdlib>
-#include <fstream>
 #include <iostream>
-#include <iterator>
 #include <mutex>
 #include <thread>
 #include <optional>
@@ -24,7 +21,6 @@
 #include "00_core/host_primitives.h"
 #include "00_core/path.h"
 #include "00_core/process_config.h"
-#include "00_core/hash.h"
 #include "00_core/symbols.h"
 #include "01_project/compiler_support_paths.h"
 #include "01_project/ir_assembly.h"
@@ -39,6 +35,8 @@
 #include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/attributes/ffi_library_attrs.h"
 #include "04_analysis/resolve/assembly_import_graph.h"
+#include "06_driver/fingerprints.h"
+#include "06_driver/incremental.h"
 
 namespace cursive::driver {
 
@@ -102,26 +100,6 @@ std::string_view EmitIrMode(const Project& project) {
     return *project.assembly.emit_ir;
   }
   return "none";
-}
-
-bool IsExecutable(const Project& project) {
-  return project.assembly.kind == "executable";
-}
-
-bool IsLibrary(const Project& project) {
-  return project.assembly.kind == "library";
-}
-
-bool IsDependency(const Project& project) {
-  return project.assembly.kind == "dependency";
-}
-
-bool IsSharedLibrary(const Project& project) {
-  return IsLibrary(project) && project.assembly.link_kind == "shared";
-}
-
-bool IsStaticLibrary(const Project& project) {
-  return IsLibrary(project) && project.assembly.link_kind == "static";
 }
 
 bool IsDistinct(const std::vector<std::filesystem::path>& paths) {
@@ -390,287 +368,9 @@ void NormalizeSharedLibraryExports(SharedLibraryExports& exports) {
   normalize(exports.data_export_symbols);
 }
 
-bool IncrementalEnabled() {
-  const std::optional<bool> override = cursive::core::IncrementalOverride();
-  if (override.has_value()) {
-    return *override;
-  }
-  const std::optional<bool> manifest = cursive::core::ManifestIncremental();
-  if (manifest.has_value()) {
-    return *manifest;
-  }
-  return true;
-}
-
-void HashMixByte(std::uint64_t& hash, std::uint8_t byte) {
-  hash ^= static_cast<std::uint64_t>(byte);
-  hash *= core::kFNVPrime64;
-}
-
-void HashMixString(std::uint64_t& hash, std::string_view value) {
-  for (const unsigned char ch : value) {
-    HashMixByte(hash, static_cast<std::uint8_t>(ch));
-  }
-  HashMixByte(hash, 0xFFU);
-}
-
-std::string HashFields(const std::vector<std::string>& fields) {
-  std::uint64_t hash = core::kFNVOffset64;
-  for (const auto& field : fields) {
-    HashMixString(hash, field);
-  }
-  return core::Hex64(hash);
-}
-
-std::string HashBytes(std::string_view bytes) {
-  return core::Hex64(core::FNV1a64(bytes));
-}
-
-std::optional<std::string> HashFileBytes(const std::filesystem::path& path) {
-  std::ifstream in(path, std::ios::binary);
-  if (!in) {
-    return std::nullopt;
-  }
-  std::string buffer((std::istreambuf_iterator<char>(in)),
-                     std::istreambuf_iterator<char>());
-  if (!in && !in.eof()) {
-    return std::nullopt;
-  }
-  return HashBytes(buffer);
-}
-
-std::string LinkInputFingerprintField(const std::filesystem::path& path) {
-  const std::string normalized = core::Normalize(path.generic_string());
-  const auto hash = HashFileBytes(path);
-  if (!hash.has_value()) {
-    return normalized + ":missing";
-  }
-  return normalized + ":" + *hash;
-}
-
-std::vector<std::string> SplitByChar(std::string_view text, char sep) {
-  std::vector<std::string> out;
-  std::size_t start = 0;
-  while (start <= text.size()) {
-    const std::size_t pos = text.find(sep, start);
-    if (pos == std::string_view::npos) {
-      out.emplace_back(text.substr(start));
-      break;
-    }
-    out.emplace_back(text.substr(start, pos - start));
-    start = pos + 1;
-  }
-  return out;
-}
-
-std::string JoinByChar(const std::vector<std::string>& values, char sep) {
-  std::ostringstream oss;
-  for (std::size_t i = 0; i < values.size(); ++i) {
-    if (i > 0) {
-      oss << sep;
-    }
-    oss << values[i];
-  }
-  return oss.str();
-}
-
-struct IncrementalManifestModuleState {
-  IncrementalModuleInfo info;
-  std::string obj_hash;
-  std::string ir_hash;
-};
-
-struct IncrementalManifestState {
-  std::string format = "1";
-  std::string assembly;
-  std::string build_key;
-  std::string emit_ir;
-  std::string kind;
-  std::string link_kind;
-  std::string link_fingerprint;
-  std::unordered_map<std::string, IncrementalManifestModuleState> modules;
-};
-
-std::filesystem::path IncrementalDirPath(const Project& project) {
-  return project.outputs.root / ".cursive-incremental";
-}
-
-std::filesystem::path IncrementalManifestPath(const Project& project) {
-  return IncrementalDirPath(project) / (project.assembly.name + ".manifest");
-}
-
 bool FileExists(const std::filesystem::path& path) {
   std::error_code ec;
   return std::filesystem::exists(path, ec) && !ec;
-}
-
-std::optional<IncrementalManifestState> LoadIncrementalManifest(
-    const std::filesystem::path& path) {
-  std::ifstream in(path, std::ios::binary);
-  if (!in) {
-    return std::nullopt;
-  }
-
-  IncrementalManifestState state;
-  std::string line;
-  while (std::getline(in, line)) {
-    if (line.empty()) {
-      continue;
-    }
-    const auto fields = SplitByChar(line, '	');
-    if (fields.empty()) {
-      continue;
-    }
-    if (fields[0] == "H" && fields.size() >= 3) {
-      if (fields[1] == "format") {
-        state.format = fields[2];
-      } else if (fields[1] == "assembly") {
-        state.assembly = fields[2];
-      } else if (fields[1] == "build_key") {
-        state.build_key = fields[2];
-      } else if (fields[1] == "emit_ir") {
-        state.emit_ir = fields[2];
-      } else if (fields[1] == "kind") {
-        state.kind = fields[2];
-      } else if (fields[1] == "link_kind") {
-        state.link_kind = fields[2];
-      } else if (fields[1] == "link") {
-        state.link_fingerprint = fields[2];
-      }
-      continue;
-    }
-    if (fields[0] != "M" || fields.size() < 8) {
-      continue;
-    }
-
-    IncrementalManifestModuleState module_state;
-    module_state.info.source_hash = fields[2];
-    module_state.info.public_hash = fields[3];
-    module_state.info.full_hash = fields[4];
-    module_state.obj_hash = fields[5];
-    module_state.ir_hash = fields[6];
-    if (!fields[7].empty()) {
-      module_state.info.dependencies = SplitByChar(fields[7], ',');
-    }
-    state.modules[fields[1]] = std::move(module_state);
-  }
-
-  if (!in && !in.eof()) {
-    return std::nullopt;
-  }
-  return state;
-}
-
-bool SaveIncrementalManifest(const Project& project,
-                             const OutputPipelineDeps& deps,
-                             const IncrementalManifestState& state) {
-  const auto dir = IncrementalDirPath(project);
-  if (!deps.ensure_dir(dir)) {
-    return false;
-  }
-
-  std::ostringstream out;
-  out << "H	format	" << state.format << "\n";
-  out << "H	assembly	" << state.assembly << "\n";
-  out << "H	build_key	" << state.build_key << "\n";
-  out << "H	emit_ir	" << state.emit_ir << "\n";
-  out << "H	kind	" << state.kind << "\n";
-  out << "H	link_kind	" << state.link_kind << "\n";
-  out << "H	link	" << state.link_fingerprint << "\n";
-
-  for (const auto& module : project.modules) {
-    const auto it = state.modules.find(module.path);
-    if (it == state.modules.end()) {
-      continue;
-    }
-    const auto& mod = it->second;
-    out << "M	" << module.path << "	" << mod.info.source_hash << "	"
-        << mod.info.public_hash << "	" << mod.info.full_hash << "	"
-        << mod.obj_hash << "	" << mod.ir_hash << "	"
-        << JoinByChar(mod.info.dependencies, ',') << "\n";
-  }
-
-  const auto manifest = IncrementalManifestPath(project);
-  return deps.write_file(manifest, out.str());
-}
-
-std::string ComputeLinkFingerprint(
-    const Project& project,
-    TargetProfile target_profile,
-    const std::string& build_key,
-    const std::unordered_map<std::string, IncrementalManifestModuleState>& modules,
-    const std::vector<std::filesystem::path>& link_inputs,
-    const std::optional<std::filesystem::path>& runtime_lib,
-    const LinkPlan& plan,
-    std::string_view emit_ir) {
-  std::vector<std::string> fields;
-  fields.reserve(10 + project.modules.size() + link_inputs.size() +
-                 plan.export_symbols.size() + plan.data_export_symbols.size());
-  fields.push_back("v6");
-  fields.push_back(build_key);
-  fields.push_back("target=" + std::string(TargetProfileName(plan.target_profile)));
-  fields.push_back(project.assembly.name);
-  fields.push_back(project.assembly.kind);
-  fields.push_back(project.assembly.link_kind.value_or("none"));
-  fields.push_back(std::string(emit_ir));
-  if (IsStaticLibrary(project)) {
-    fields.push_back("output=archive");
-  } else {
-    fields.push_back(plan.output_kind == LinkOutputKind::SharedLibrary
-                         ? "output=shared"
-                         : "output=exe");
-  }
-  switch (plan.shared_library_lifecycle_mode) {
-    case SharedLibraryLifecycleMode::None:
-      fields.push_back("lifecycle=none");
-      break;
-    case SharedLibraryLifecycleMode::WindowsEntry:
-      fields.push_back("lifecycle=windows-entry");
-      break;
-    case SharedLibraryLifecycleMode::PosixCtorDtor:
-      fields.push_back("lifecycle=posix-ctor-dtor");
-      break;
-  }
-  fields.push_back("entry=" + plan.entry_symbol.value_or(""));
-  std::vector<std::string> exports = plan.export_symbols;
-  std::sort(exports.begin(), exports.end());
-  exports.erase(std::unique(exports.begin(), exports.end()), exports.end());
-  for (const auto& symbol : exports) {
-    fields.push_back("export=" + symbol);
-  }
-  std::vector<std::string> data_exports = plan.data_export_symbols;
-  std::sort(data_exports.begin(), data_exports.end());
-  data_exports.erase(std::unique(data_exports.begin(), data_exports.end()),
-                     data_exports.end());
-  for (const auto& symbol : data_exports) {
-    fields.push_back("export-data=" + symbol);
-  }
-  if (runtime_lib.has_value()) {
-    fields.push_back("runtime=" + LinkInputFingerprintField(*runtime_lib));
-  }
-  if (const auto map_path = MapPath(project, target_profile);
-      map_path.has_value()) {
-    fields.push_back("map=windows-sidecar");
-    fields.push_back("map_path=" + core::Normalize(map_path->generic_string()));
-  }
-  const auto materialized_link_inputs =
-      MaterializeLinkInputsForTool(project, target_profile, link_inputs);
-  for (const auto& input : materialized_link_inputs) {
-    fields.push_back("input=" + LinkInputFingerprintField(input));
-  }
-
-  for (const auto& module : project.modules) {
-    auto it = modules.find(module.path);
-    if (it == modules.end()) {
-      fields.push_back(module.path + ":missing");
-      continue;
-    }
-    const auto& mod = it->second;
-    fields.push_back(module.path + ":" + mod.info.full_hash + ":" +
-                     mod.obj_hash + ":" + mod.ir_hash);
-  }
-
-  return HashFields(fields);
 }
 
 }  // namespace
@@ -1799,7 +1499,8 @@ OutputPipelineResult OutputPipelineSingleAssembly(
     if (!incremental_enabled) {
       return;
     }
-    if (!SaveIncrementalManifest(project, deps, next_manifest) &&
+    if (!SaveIncrementalManifest(project, deps.ensure_dir, deps.write_file,
+                                 next_manifest) &&
         show_build_progress) {
       LogBuildProgress("incremental-warning reason=manifest-write-failed");
     }

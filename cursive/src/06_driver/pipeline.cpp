@@ -3,9 +3,9 @@
 // =============================================================================
 //
 // SPEC REFERENCE:
-//   CursiveSpecification.md §2.5 (lines 1526-1643) - Output Pipeline
-//   CursiveSpecification.md §1.1 (lines 232-240) - Conformance
-//   CursiveSpecification.md §6 (lines 14221-14326) - Phase 4: Code Generation
+//   CursiveSpecification.md Section 1.1 - Conformance
+//   CursiveSpecification.md Section 3.6 - Output Artifacts and Linking
+//   CursiveSpecification.md Chapter 24 - Common Lowering, Program Lifecycle, and Backend
 //
 // =============================================================================
 
@@ -35,6 +35,7 @@
 #include "00_core/process_config.h"
 #include "00_core/source_text.h"
 #include "00_core/symbols.h"
+#include "01_project/assemblies.h"
 #include "01_project/ir_assembly.h"
 #include "01_project/project.h"
 #include "01_project/tool_resolution.h"
@@ -405,7 +406,7 @@ bool IsRootModule(const project::Project& project,
 }
 
 bool WithEntry(const project::Project& project, const ModuleCodegen& module) {
-  return project.assembly.kind == "executable" &&
+  return project::IsExecutable(project) &&
          IsRootModule(project, module) &&
          module.main_symbol.has_value();
 }
@@ -452,19 +453,17 @@ void ConfigureCodegenContextForProjectImpl(CodegenCache& cache,
   }
   const auto project_modules = BuildProjectModuleKeySet(project);
 
-  cache.ctx.executable_project = project.assembly.kind == "executable";
-  cache.ctx.shared_library_project =
-      project.assembly.kind == "library" &&
-      project.assembly.link_kind.value_or("shared") == "shared";
-  cache.ctx.hosted_library = project.assembly.kind == "library";
+  cache.ctx.executable_project = project::IsExecutable(project);
+  cache.ctx.shared_library_project = project::IsSharedLibrary(project);
+  cache.ctx.hosted_library = project::IsLibrary(project);
   cache.ctx.project_entry_module = SelectProjectEntryModule(project);
 
   cache.ctx.dependency_assembly_names.clear();
   cache.ctx.library_assembly_names.clear();
   for (const auto& assembly : project.assemblies) {
-    if (assembly.kind == "dependency") {
+    if (project::IsDependency(assembly)) {
       cache.ctx.dependency_assembly_names.insert(assembly.name);
-    } else if (assembly.kind == "library") {
+    } else if (project::IsLibrary(assembly)) {
       cache.ctx.library_assembly_names.insert(assembly.name);
     }
   }

@@ -13,6 +13,7 @@
 #include "01_project/project.h"
 #include "02_source/ast/ast.h"
 #include "02_source/parser/parse_modules.h"
+#include "06_driver/incremental_state.h"
 
 namespace cursive::driver {
 
@@ -27,13 +28,6 @@ struct OutputArtifacts {
 struct OutputPipelineResult {
   std::optional<OutputArtifacts> artifacts;
   core::DiagnosticStream diags;
-};
-
-struct IncrementalModuleInfo {
-  std::string source_hash;
-  std::string public_hash;
-  std::string full_hash;
-  std::vector<std::string> dependencies;
 };
 
 struct CodegenObjectAndIR {

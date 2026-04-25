@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "00_core/symbols.h"
+#include "01_project/assemblies.h"
 #include "01_project/deterministic_order.h"
 #include "01_project/link.h"
 #include "05_codegen/globals/globals.h"
@@ -14,11 +15,6 @@
 namespace cursive::driver {
 
 namespace {
-
-bool IsSharedLibraryOutput(const project::Project& project) {
-  return project.assembly.kind == "library" &&
-         project.assembly.link_kind.value_or("shared") == "shared";
-}
 
 void SortStringsDeterministically(std::vector<std::string>& values) {
   std::sort(values.begin(), values.end(),
@@ -31,7 +27,7 @@ void SortStringsDeterministically(std::vector<std::string>& values) {
 std::vector<std::string> ComputeSharedLibraryExportSymbols(
     const project::Project& project,
     const CodegenCache& cache) {
-  if (!IsSharedLibraryOutput(project)) {
+  if (!project::IsSharedLibrary(project)) {
     return {};
   }
 
@@ -118,7 +114,7 @@ std::vector<std::string> ComputeSharedLibraryExportSymbols(
 std::vector<std::string> ComputeSharedLibraryDataExportSymbols(
     const project::Project& project,
     const CodegenCache& cache) {
-  if (!IsSharedLibraryOutput(project)) {
+  if (!project::IsSharedLibrary(project)) {
     return {};
   }
 
@@ -154,7 +150,7 @@ std::vector<std::string> ComputeSharedLibraryDataExportSymbols(
 std::optional<SharedLibraryExports> ResolveSharedLibraryExports(
     const project::Project& project,
     const CodegenCache& cache) {
-  if (!IsSharedLibraryOutput(project)) {
+  if (!project::IsSharedLibrary(project)) {
     return SharedLibraryExports{};
   }
 
@@ -187,7 +183,7 @@ bool PrepareSharedLibraryCodegenContext(
     CodegenCache& cache,
     const SharedLibraryExports& exports) {
   ConfigureCodegenContextForProject(cache, project);
-  if (!IsSharedLibraryOutput(project)) {
+  if (!project::IsSharedLibrary(project)) {
     cache.ctx.shared_library_export_symbols.clear();
     return true;
   }

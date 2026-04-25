@@ -2,8 +2,8 @@
 // MIGRATION MAPPING: assemblies.cpp (NEW FILE)
 // =============================================================================
 //
-// SPEC REFERENCE: CursiveSpecification.md Section 2.2 (lines 1161-1166)
-//   - 2.2. Assemblies
+// SPEC REFERENCE: CursiveSpecification.md Section 3.2
+//   - Projects, manifests, and assemblies
 //   - AssemblyKind definition
 //   - Assembly record validation
 //
@@ -25,21 +25,18 @@
 // =============================================================================
 //
 // 1. AssemblyKind validation
-//    - SPEC RULE: AssemblyKind = {`executable`, `library`}
-//    - SPEC REF: Lines 748-749
+//    - SPEC RULE: AssemblyKind = {`executable`, `library`, `dependency`}
 //    - SPEC RULE: A_0.kind in AssemblyKind => A_0 : Assembly
-//    - SPEC REF: Lines 1163-1165
 //
 // 2. Assembly record accessors
 //    - SPEC RULE: Assemblies(P) = P.assemblies
 //    - SPEC RULE: Assembly(P) = P.assembly
 //    - SPEC RULE: AsmNames(P) = [A.name | A in Assemblies(P)]
 //    - SPEC RULE: AsmByName(P, n) = A iff A in Assemblies(P) and A.name = n
-//    - SPEC REF: Lines 756-759
 //
 // 3. Assembly record structure
-//    - SPEC: Assembly = <name, kind, root, out_dir, emit_ir, source_root, outputs, modules>
-//    - SPEC REF: Line 752
+//    - SPEC: Assembly = <name, kind, link_kind, root, out_dir, emit_ir,
+//      source_root, outputs, modules>
 //
 // =============================================================================
 // CONTENT TO EXTRACT FROM EXISTING FILES
@@ -59,13 +56,12 @@
 // =============================================================================
 //
 // 1. bool IsValidAssemblyKind(std::string_view kind)
-//    - PURPOSE: Check if kind is "executable" or "library"
+//    - PURPOSE: Check if kind is "executable", "library", or "dependency"
 //    - SPEC RULE: k in AssemblyKind
 //
 // 2. bool IsExecutable(const Assembly& assembly)
 //    - PURPOSE: Check if assembly is an executable
 //    - SPEC RULE: Executable(P) <=> P.assembly.kind = `executable`
-//    - SPEC REF: Line 194
 //
 // 3. bool IsLibrary(const Assembly& assembly)
 //    - PURPOSE: Check if assembly is a library
@@ -106,8 +102,8 @@
 //
 // 3. Consider adding validation functions for Assembly records
 //
-// 4. The IsExecutable() helper is currently duplicated in outputs.cpp
-//    RECOMMENDATION: Move here as the canonical location
+// 4. Assembly and project kind helpers are canonical here. Driver/output code
+//    should call these helpers rather than comparing kind strings directly.
 //
 // =============================================================================
 // SPEC RULE ANNOTATIONS (to be added during implementation)
@@ -180,6 +176,30 @@ bool IsSharedLibrary(const Assembly& assembly) {
 bool IsStaticLibrary(const Assembly& assembly) {
   SpecDefsAssemblyModel();
   return IsLibrary(assembly) && assembly.link_kind == "static";
+}
+
+bool IsExecutable(const Project& project) {
+  return IsExecutable(project.assembly);
+}
+
+bool IsLibrary(const Project& project) {
+  return IsLibrary(project.assembly);
+}
+
+bool IsDependency(const Project& project) {
+  return IsDependency(project.assembly);
+}
+
+bool IsLinkable(const Project& project) {
+  return IsLinkable(project.assembly);
+}
+
+bool IsSharedLibrary(const Project& project) {
+  return IsSharedLibrary(project.assembly);
+}
+
+bool IsStaticLibrary(const Project& project) {
+  return IsStaticLibrary(project.assembly);
 }
 
 std::vector<std::string> GetAssemblyNames(const Project& project) {

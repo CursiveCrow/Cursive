@@ -143,7 +143,26 @@ add_custom_target(validate_phase_includes
   VERBATIM
 )
 
-add_dependencies(cursive_core generate_static_rule_registry generate_diagnostic_registry validate_diagnostic_spec_sync validate_phase_includes)
+add_custom_target(validate_ast_phase_coverage
+  COMMAND ${Python3_EXECUTABLE}
+          "${CURSIVE_TOOLS_DIR}/validate_ast_phase_coverage.py"
+          --source-root "${CMAKE_SOURCE_DIR}"
+  DEPENDS
+          "${CURSIVE_TOOLS_DIR}/validate_ast_phase_coverage.py"
+          "${CMAKE_SOURCE_DIR}/include/02_source/ast/nodes/ast_exprs.h"
+          "${CMAKE_SOURCE_DIR}/src/04_analysis/typing/type_expr.cpp"
+          "${CMAKE_SOURCE_DIR}/src/05_codegen/lower/expr/expr_common.cpp"
+  COMMENT "Validating AST expression phase coverage"
+  VERBATIM
+)
+
+add_dependencies(cursive_core
+  generate_static_rule_registry
+  generate_diagnostic_registry
+  validate_diagnostic_spec_sync
+  validate_phase_includes
+  validate_ast_phase_coverage
+)
 
 if(WIN32)
   set(ICU_ROOT "${CURSIVE_EXTERN_DIR}/icu/win64")
@@ -899,6 +918,8 @@ add_executable(cursive
   06_driver/cli.cpp
   06_driver/comptime_options.cpp
   06_driver/compiler_main.cpp
+  06_driver/fingerprints.cpp
+  06_driver/incremental.cpp
   06_driver/main.cpp
   06_driver/options.cpp
   06_driver/output_pipeline.cpp

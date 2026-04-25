@@ -3,8 +3,9 @@
 // =============================================================================
 //
 // SPEC REFERENCE: CursiveSpecification.md
-//   - Section 6.12 LLVM 21 Backend Requirements (lines 17287-17650)
-//   - LowerIRDecl rules (lines 17600-17645)
+//   - Chapter 24 Common Lowering, Program Lifecycle, and Backend
+//   - Section 24.7 Backend Requirements
+//   - Section 24.8 Output and Backend Diagnostics
 //   - IR to LLVM emission
 //   - Procedure body emission
 //   - Global variable emission

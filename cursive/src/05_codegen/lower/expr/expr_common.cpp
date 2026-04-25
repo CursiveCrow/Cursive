@@ -285,7 +285,8 @@ LowerResult LowerExprImpl(const ast::Expr& expr, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, ast::QualifiedApplyExpr>) {
           return LowerQualifiedApply(node, ctx);
         } else {
-          IRValue value = ctx.FreshTempValue("unknown_expr");
+          ctx.ReportCodegenFailure();
+          IRValue value = ctx.FreshTempValue("unhandled_expr_unlowerable");
           return LowerResult{EmptyIR(), value};
         }
       },

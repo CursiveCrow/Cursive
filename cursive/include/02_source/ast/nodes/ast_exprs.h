@@ -6,7 +6,7 @@
 // contains all struct definitions for expression nodes in the Cursive grammar,
 // plus the ExprNode variant and Expr wrapper.
 //
-// SPEC REFERENCE: CursiveSpecification.md Section 3.3.2.4 - Expression Nodes
+// SPEC REFERENCE: CursiveSpecification.md Section 5.2 and Appendix C.3
 //
 // Expr = (Span, ExprNode)
 // ExprNode variants by category:

@@ -11,6 +11,7 @@
 #include "00_core/path.h"
 #include "00_core/process_config.h"
 #include "00_core/symbols.h"
+#include "01_project/assemblies.h"
 #include "01_project/module_discovery.h"
 #include "01_project/project.h"
 #include "01_project/target_profile.h"
@@ -24,22 +25,6 @@ std::string_view EmitIrMode(const Project& project) {
     return *project.assembly.emit_ir;
   }
   return "none";
-}
-
-bool IsExecutable(const Project& project) {
-  return project.assembly.kind == "executable";
-}
-
-bool IsLibrary(const Project& project) {
-  return project.assembly.kind == "library";
-}
-
-bool IsSharedLibrary(const Project& project) {
-  return IsLibrary(project) && project.assembly.link_kind == "shared";
-}
-
-bool IsStaticLibrary(const Project& project) {
-  return IsLibrary(project) && project.assembly.link_kind == "static";
 }
 
 bool UnderPath(const std::filesystem::path& path,

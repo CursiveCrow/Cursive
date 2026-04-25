@@ -8,7 +8,7 @@
 //   Declares utility functions for AST node inspection, span extraction,
 //   and category checks. These are implemented in ast_nodes.cpp.
 //
-// SPEC REFERENCE: CursiveSpecification.md Section 3.3.2 (Lines 2620-2639)
+// SPEC REFERENCE: CursiveSpecification.md Section 5.2 and Appendix C
 //
 // ===========================================================================
 
