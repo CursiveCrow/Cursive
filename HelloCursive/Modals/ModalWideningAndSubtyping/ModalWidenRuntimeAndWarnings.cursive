@@ -1,9 +1,9 @@
 modal ModalWidenLargePayloadProbe {
     @Large {
-        payload: [i64; 40]
+        payload: [i32; 40]
     }
     @Small {
-        value: i64
+        value: i32
     }
 }
 
@@ -29,12 +29,12 @@ public procedure RunModalWidenRuntimeAndWarnings(ctx: Context) -> i32 {
         }
     let widened_large: ModalWidenLargePayloadProbe = widen(large_state)
 
-    let widen_runtime_metric: i64 = if widened_large is {
+    let widen_runtime_metric: i32 = if widened_large is {
         @Large { payload: payload } { payload[0] + payload[39] }
         @Small { value: value } { value }
     }
 
-    let widen_runtime_ok: bool = widen_runtime_metric == 41i64
+    let widen_runtime_ok: bool = widen_runtime_metric == 41
     let widen_runtime_ok_log: bool =
         [[log(label: "observed-modals-modal-widen-runtime", expected: true)]]
         widen_runtime_ok

@@ -17,7 +17,8 @@ public procedure RunKeyModeInferenceReadWrite(ctx: Context) -> i32 {
     }
 
     # gate write {
-        gate = gate + 5
+        let rmw_warning_48 = gate
+        gate = rmw_warning_48 + 5
     }
 
     var read_after_write: i32 = 0

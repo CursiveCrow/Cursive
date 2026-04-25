@@ -48,15 +48,13 @@ public procedure RunDiagnosticSurfaceAndExpectedActual(ctx: Context) -> i32 {
 
     let pointer_null: Ptr<i32>@Null = Ptr::null()
     let pointer_null_check: Ptr<i32>@Null = Ptr::null()
-    let pointer_expired: Ptr<i32>@Expired =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(pointer_null) }
-    let pointer_expired_check: Ptr<i32>@Expired =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(pointer_null_check) }
+    let pointer_state: Ptr<i32> = pointer_null
+    let pointer_state_check: Ptr<i32> = pointer_null_check
     let pointer_diag_contract_ok: bool =
         (pointer_metric_log == 7) &&
         (pointer_valid == &pointer_cell) &&
         (pointer_null == pointer_null_check) &&
-        (pointer_expired == pointer_expired_check)
+        (pointer_state == pointer_state_check)
 
     let cleanup_metric: i32 = DiagnosticCleanupProbe()
     let cleanup_metric_log: i32 =

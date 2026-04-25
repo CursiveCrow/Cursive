@@ -39,10 +39,8 @@ record DefaultConstructorProbe {
 }
 
 procedure DefaultCtorPanicSource() -> i32 {
-    let ptr_null: Ptr<i32>@Null = Ptr::null()
-    let ptr_valid: Ptr<i32>@Valid =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Valid>(ptr_null) }
-    return *ptr_valid
+    let ptr_null: *imm i32 = null
+    return unsafe { *ptr_null }
 }
 
 record DefaultCtorPanicProbe {

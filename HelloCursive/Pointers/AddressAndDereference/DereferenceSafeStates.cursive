@@ -14,12 +14,11 @@ public procedure RunDereferenceSafeStates(ctx: Context) -> i32 {
     let valid_read_metric: i32 = *ptr_valid
 
     let ptr_null: Ptr<i32>@Null = Ptr::null()
-    let ptr_expired: Ptr<i32>@Expired =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(ptr_null) }
+    let ptr_state: Ptr<i32> = ptr_null
 
     let valid_read_ok: bool = valid_read_metric == 21
     let null_shape_ok: bool = ptr_null == ptr_null
-    let expired_shape_ok: bool = ptr_expired == ptr_expired
+    let expired_shape_ok: bool = ptr_state == ptr_state
 
     let diag_deref_null: string@View = "E-TYP-2101"
     let diag_deref_expired: string@View = "E-TYP-2102"

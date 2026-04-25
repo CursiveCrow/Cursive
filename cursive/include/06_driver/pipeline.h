@@ -10,6 +10,7 @@
 #include "00_core/source_text.h"
 #include "01_project/project.h"
 #include "06_driver/codegen_cache.h"
+#include "06_driver/output_pipeline.h"
 #include "04_analysis/resolve/resolve_items.h"
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/typecheck.h"
@@ -54,6 +55,13 @@ std::optional<std::string> CodegenObj(
     const project::ModuleInfo& module,
     const project::Project& project,
     project::TargetProfile target_profile);
+
+std::optional<CodegenObjectAndIR> CodegenObjAndIR(
+    CodegenCache& cache,
+    const project::ModuleInfo& module,
+    const project::Project& project,
+    project::TargetProfile target_profile,
+    std::string_view emit_ir);
 
 std::optional<std::string> CodegenIR(
     CodegenCache& cache,

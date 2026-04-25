@@ -35,10 +35,8 @@ public procedure RunOrderingDefaultsAndFenceSurface(ctx: Context) -> i32 {
         let release_base: i32 = [[release]] release_slot
         let release_next: i32 = release_base + 4
         release_slot = release_next
-        # release_slot release read {
-            let seq_snapshot: i32 = [[seqcst]] release_slot
-            release_snapshot = seq_snapshot
-        }
+        let seq_snapshot: i32 = [[seqcst]] release_slot
+        release_snapshot = seq_snapshot
     }
 
     var acqrel_slot: shared i32 = 1

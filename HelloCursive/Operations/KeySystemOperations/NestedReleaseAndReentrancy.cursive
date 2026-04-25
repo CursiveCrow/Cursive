@@ -69,28 +69,26 @@ procedure VerifyNestedReleaseReentrancyItem(ctx: Context, scope: string@View, mo
     var syntax_metric: i32 = 0
     [[log(label: "operations-log-transition_move")]]
     # syntax_slot read {
-        # syntax_slot read {
-            syntax_metric = syntax_slot
-        }
+        syntax_metric = syntax_slot
     }
     [[log(label: "operations-log-transition_move")]]
     var release_snapshot: i32 = 0
     [[log(label: "operations-log-transition_move")]]
     # static_slot write {
-        static_slot = static_slot + 1
-        # static_slot release read {
-            release_snapshot = static_slot
-        }
-        static_slot = static_slot + 2
+        let rmw_warning_15 = static_slot
+        static_slot = rmw_warning_15 + 1
+        release_snapshot = static_slot
+        let rmw_warning_16 = static_slot
+        static_slot = rmw_warning_16 + 2
     }
     let static_metric: i32 = static_slot
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
     # runtime_slot write {
-        runtime_slot = runtime_slot + 2
-        # runtime_slot write {
-            runtime_slot = runtime_slot + 3
-        }
+        let rmw_warning_17 = runtime_slot
+        runtime_slot = rmw_warning_17 + 2
+        let rmw_warning_18 = runtime_slot
+        runtime_slot = rmw_warning_18 + 3
     }
     [[log(label: "operations-log-transition_move")]]
     let diag_nested_mode_change_no_release_ok: bool = diag_nested_mode_change_no_release == "E-CON-0012"

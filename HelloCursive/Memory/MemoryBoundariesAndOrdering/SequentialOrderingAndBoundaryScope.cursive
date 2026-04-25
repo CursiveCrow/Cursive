@@ -10,7 +10,8 @@ public procedure RunSequentialOrderingAndBoundaryScope(ctx: Context) -> i32 {
 
     var first_slot: shared i32 = 2
     # first_slot write {
-        first_slot = first_slot + 3
+        let rmw_warning_3 = first_slot
+        first_slot = rmw_warning_3 + 3
     }
 
     var read_back_metric: i32 = 0
@@ -20,10 +21,12 @@ public procedure RunSequentialOrderingAndBoundaryScope(ctx: Context) -> i32 {
 
     var second_slot: shared i32 = 1
     # second_slot write {
-        second_slot = second_slot + 2
+        let rmw_warning_4 = second_slot
+        second_slot = rmw_warning_4 + 2
     }
     # second_slot write {
-        second_slot = second_slot * 3
+        let rmw_warning_5 = second_slot
+        second_slot = rmw_warning_5 * 3
     }
 
     let second_metric: i32 = second_slot

@@ -14,17 +14,17 @@ public procedure RunKeyStateAcquireRelease(ctx: Context) -> i32 {
     var release_write_metric: i32 = 0
     var post_release_metric: i32 = 0
 
-    # gate read {
+    # gate write {
         outer_read_metric = gate
-        # gate release write {
-            gate = gate + 3
-            release_write_metric = gate
-        }
+        let rmw_warning_51 = gate
+        gate = rmw_warning_51 + 3
+        release_write_metric = gate
         post_release_metric = gate
     }
 
     # gate write {
-        gate = gate + 2
+        let rmw_warning_52 = gate
+        gate = rmw_warning_52 + 2
     }
     let final_gate_metric: i32 = gate
 

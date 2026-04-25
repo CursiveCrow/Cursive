@@ -76,7 +76,8 @@ procedure VerifyKeyAcquisitionItem(ctx: Context, scope: string@View, move item_i
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
     # explicit_slot write {
-        explicit_slot = explicit_slot + 3
+        let rmw_warning_6 = explicit_slot
+        explicit_slot = rmw_warning_6 + 3
     }
     let static_metric: i32 = explicit_slot
     [[log(label: "operations-log-transition_move")]]

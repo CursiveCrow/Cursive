@@ -1167,6 +1167,9 @@ OutputPipelineResult OutputPipelineSingleAssembly(
 
   bool any_obj_rebuilt = false;
   bool any_ir_rebuilt = false;
+  const bool can_codegen_obj_and_ir =
+      (emit_ir == "ll" || emit_ir == "bc") &&
+      static_cast<bool>(deps.codegen_obj_and_ir);
   std::vector<std::filesystem::path> objs;
   objs.reserve(project.modules.size());
   struct ObjEmitState {
@@ -1175,6 +1178,7 @@ OutputPipelineResult OutputPipelineSingleAssembly(
     bool reused = false;
     std::string reused_hash;
     std::optional<std::string> bytes;
+    std::optional<std::string> ir_bytes;
     bool codegen_failed = false;
   };
   std::vector<ObjEmitState> obj_states(project.modules.size());
@@ -1197,6 +1201,20 @@ OutputPipelineResult OutputPipelineSingleAssembly(
     oss << "obj-progress index=" << obj_index << "/" << obj_total
         << " reused=" << obj_reused << " rebuilt=" << obj_rebuilt;
     LogBuildProgress(oss.str());
+  };
+
+  auto codegen_object = [&](const ModuleInfo& module)
+      -> std::optional<CodegenObjectAndIR> {
+    if (can_codegen_obj_and_ir) {
+      return deps.codegen_obj_and_ir(module, project, emit_ir);
+    }
+    auto bytes = deps.codegen_obj(module, project);
+    if (!bytes.has_value()) {
+      return std::nullopt;
+    }
+    CodegenObjectAndIR emitted;
+    emitted.object = std::move(*bytes);
+    return emitted;
   };
 
   if (show_build_progress) {
@@ -1267,9 +1285,9 @@ OutputPipelineResult OutputPipelineSingleAssembly(
                 << " module=" << module.path;
             LogBuildProgress(oss.str());
           }
-          auto bytes = deps.codegen_obj(module, project);
+          auto emitted = codegen_object(module);
           const std::size_t completed = completed_jobs.fetch_add(1) + 1;
-          if (!bytes.has_value()) {
+          if (!emitted.has_value()) {
             obj_states[module_idx].codegen_failed = true;
             if (show_build_progress) {
               std::ostringstream oss;
@@ -1280,7 +1298,8 @@ OutputPipelineResult OutputPipelineSingleAssembly(
             }
             continue;
           }
-          obj_states[module_idx].bytes = std::move(*bytes);
+          obj_states[module_idx].bytes = std::move(emitted->object);
+          obj_states[module_idx].ir_bytes = std::move(emitted->ir);
           if (show_build_progress) {
             std::ostringstream oss;
             oss << "obj-codegen-finish index=" << completed << "/"
@@ -1311,9 +1330,9 @@ OutputPipelineResult OutputPipelineSingleAssembly(
             << " module=" << module.path;
         LogBuildProgress(oss.str());
       }
-      auto bytes = deps.codegen_obj(module, project);
+      auto emitted = codegen_object(module);
       ++completed_jobs;
-      if (!bytes.has_value()) {
+      if (!emitted.has_value()) {
         obj_states[module_idx].codegen_failed = true;
         if (show_build_progress) {
           std::ostringstream oss;
@@ -1324,7 +1343,8 @@ OutputPipelineResult OutputPipelineSingleAssembly(
         }
         continue;
       }
-      obj_states[module_idx].bytes = std::move(*bytes);
+      obj_states[module_idx].bytes = std::move(emitted->object);
+      obj_states[module_idx].ir_bytes = std::move(emitted->ir);
       if (show_build_progress) {
         std::ostringstream oss;
         oss << "obj-codegen-finish index=" << completed_jobs << "/"
@@ -1488,7 +1508,9 @@ OutputPipelineResult OutputPipelineSingleAssembly(
       oss << "ir-phase-start mode=" << emit_ir << " total=" << ir_total;
       LogBuildProgress(oss.str());
     }
-    for (const auto& module : project.modules) {
+    for (std::size_t module_idx = 0; module_idx < project.modules.size();
+         ++module_idx) {
+      const auto& module = project.modules[module_idx];
       ++ir_index;
       const auto ir_path = IRPath(project, target_profile, module, emit_ir);
 
@@ -1538,6 +1560,79 @@ OutputPipelineResult OutputPipelineSingleAssembly(
         }
         state.ir_hash = reused_ir_hash;
         ++ir_reused;
+        maybe_log_ir_progress();
+        continue;
+      }
+
+      const auto& obj_state = obj_states[module_idx];
+      if (obj_state.ir_bytes.has_value()) {
+        if (show_build_progress) {
+          std::ostringstream oss;
+          oss << "ir-codegen-start mode=" << emit_ir
+              << " module=" << module.path
+              << " index=" << ir_index << "/" << ir_total
+              << " path=" << ir_path.generic_string();
+          LogBuildProgress(oss.str());
+        }
+        const std::string& ir_bytes = *obj_state.ir_bytes;
+        SPEC_RULE("CodegenIR-LLVM");
+        if (!deps.write_file(ir_path, ir_bytes)) {
+          if (show_build_progress) {
+            std::ostringstream oss;
+            oss << "ir-write-error mode=" << emit_ir
+                << " module=" << module.path
+                << " path=" << ir_path.generic_string();
+            LogBuildProgress(oss.str());
+          }
+          core::HostPrimFail(core::HostPrim::WriteFile, true);
+          SPEC_RULE("Emit-IR-Err");
+          SPEC_RULE("Out-IR-Err");
+          EmitExternal(result.diags, "E-OUT-0403");
+          SPEC_RULE("Output-Pipeline-Err");
+          return result;
+        }
+        if (show_build_progress) {
+          std::ostringstream oss;
+          oss << "ir-codegen-finish mode=" << emit_ir
+              << " module=" << module.path
+              << " index=" << ir_index << "/" << ir_total
+              << " bytes=" << ir_bytes.size();
+          LogBuildProgress(oss.str());
+        }
+        if (show_detailed_progress) {
+          std::ostringstream oss;
+          oss << "ir-written mode=" << emit_ir
+              << " module=" << module.path
+              << " index=" << ir_index << "/" << ir_total
+              << " path=" << ir_path.generic_string() << " bytes="
+              << ir_bytes.size();
+          LogBuildProgress(oss.str());
+        }
+        if (emit_ir == "ll") {
+          SPEC_RULE("Emit-IR-Cons-LL");
+          SPEC_RULE("Out-IR-Cons-LL");
+        } else {
+          SPEC_RULE("Emit-IR-Cons-BC");
+          SPEC_RULE("Out-IR-Cons-BC");
+        }
+        irs.push_back(ir_path);
+        any_ir_rebuilt = true;
+
+        if (incremental_enabled) {
+          IncrementalManifestModuleState& state =
+              next_manifest.modules[module.path];
+          if (state.info.full_hash.empty()) {
+            if (module_info.has_value()) {
+              state.info = *module_info;
+            } else {
+              state.info.full_hash = HashBytes(ir_bytes);
+              state.info.source_hash = state.info.full_hash;
+              state.info.public_hash = state.info.full_hash;
+            }
+          }
+          state.ir_hash = HashBytes(ir_bytes);
+        }
+        ++ir_rebuilt;
         maybe_log_ir_progress();
         continue;
       }

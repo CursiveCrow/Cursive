@@ -76,7 +76,8 @@ procedure VerifyKeyConflictItem(ctx: Context, scope: string@View, move item_inde
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
     # write_slot write {
-        write_slot = write_slot + 5
+        let rmw_warning_7 = write_slot
+        write_slot = rmw_warning_7 + 5
     }
     let static_metric: i32 = write_slot
     [[log(label: "operations-log-transition_move")]]
@@ -88,7 +89,8 @@ procedure VerifyKeyConflictItem(ctx: Context, scope: string@View, move item_inde
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
     # runtime_write_slot write {
-        runtime_write_slot = runtime_write_slot + 3
+        let rmw_warning_8 = runtime_write_slot
+        runtime_write_slot = rmw_warning_8 + 3
     }
     [[log(label: "operations-log-transition_move")]]
     let diag_dynamic_index_ok: bool = diag_dynamic_index_conflict == "E-CON-0010"

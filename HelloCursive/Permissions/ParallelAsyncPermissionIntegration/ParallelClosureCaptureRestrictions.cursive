@@ -23,8 +23,9 @@ public procedure RunParallelClosureCaptureRestrictions(ctx: Context) -> i32 {
         let worker = spawn {
             let shared_owner_local: unique i32 = 3
             let shared_data_local: shared i32 = shared_owner_local
+            let shared_snapshot: i32 = shared_data_local
             let read_shared = |shared_delta_input: i32| -> i32 {
-                shared_data_local + shared_delta_input
+                shared_snapshot + shared_delta_input
             }
             read_shared(1)
         }

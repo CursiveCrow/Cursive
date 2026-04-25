@@ -1029,6 +1029,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   ir.inline_mode = InlineModeFor(decl.attrs);
   ir.cold = analysis::HasAttribute(decl.attrs, analysis::attrs::kCold);
   ctx.module_path = module_path;
+  const auto prev_proc_ret_type = ctx.proc_ret_type;
   const auto prev_current_proc_symbol = ctx.current_proc_symbol;
   const std::uint64_t prev_current_closure_counter = ctx.current_closure_counter;
   const std::optional<std::string> seeded_proc_symbol = ctx.current_proc_symbol;
@@ -1104,6 +1105,10 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   }
   if (!ir.ret) {
     ctx.ReportCodegenFailure();
+    ctx.PopScope();
+    ctx.proc_ret_type = prev_proc_ret_type;
+    ctx.current_proc_symbol = prev_current_proc_symbol;
+    ctx.current_closure_counter = prev_current_closure_counter;
     return ir;
   }
   log_stage("signature-ready");
@@ -1455,6 +1460,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   ctx.contract_entry_values = prev_contract_entry_values;
   ctx.contract_param_entry_values = prev_contract_param_entry_values;
   ctx.lowering_contract_postcondition = prev_lowering_contract_postcondition;
+  ctx.proc_ret_type = prev_proc_ret_type;
   ctx.current_proc_symbol = prev_current_proc_symbol;
   ctx.current_closure_counter = prev_current_closure_counter;
   log_stage("finish");

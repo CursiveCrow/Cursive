@@ -14,6 +14,7 @@
 
 #include "05_codegen/lower/expr/all_expr.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_equiv.h"
 #include "00_core/assert_spec.h"
 
 namespace cursive::codegen {
@@ -31,12 +32,12 @@ void AppendDistinctType(std::vector<analysis::TypeRef>& members,
         }
         return;
     }
-    const analysis::TypeKey candidate_key = analysis::TypeKeyOf(candidate);
     for (const auto& existing : members) {
         if (!existing) {
             continue;
         }
-        if (analysis::TypeKeyEqual(analysis::TypeKeyOf(existing), candidate_key)) {
+        const auto equiv = analysis::TypeEquiv(existing, candidate);
+        if (equiv.ok && equiv.equiv) {
             return;
         }
     }

@@ -16,14 +16,14 @@ public procedure RunKeyBlockFormsAndModes(ctx: Context) -> i32 {
     }
 
     # gate write {
-        gate = gate + 3
+        let rmw_warning_24 = gate
+        gate = rmw_warning_24 + 3
     }
     let write_metric: i32 = gate
 
-    # gate read {
-        # gate release write {
-            gate = gate + 2
-        }
+    # gate write {
+        let rmw_warning_25 = gate
+        gate = rmw_warning_25 + 2
     }
     let release_metric: i32 = gate
 

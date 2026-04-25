@@ -63,7 +63,8 @@ public procedure RunBoundaryRestrictionContracts(ctx: Context) -> i32 {
 
     var speculative_slot: shared i32 = 4
     # speculative_slot speculative write {
-        speculative_slot = speculative_slot + 6
+        let rmw_warning_2 = speculative_slot
+        speculative_slot = rmw_warning_2 + 6
     }
     let speculative_metric_log: i32 =
         [[log(label: "observed-memory-boundary-speculative-metric", expected: 10)]]

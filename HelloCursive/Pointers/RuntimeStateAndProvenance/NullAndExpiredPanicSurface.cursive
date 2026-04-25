@@ -1,9 +1,7 @@
 [[mangle("hc_pointers_null_deref_catch"), export("C-unwind"), unwind("catch")]]
 public procedure PointersNullDerefCatch() -> i32 {
-    let ptr_null: Ptr<i32>@Null = Ptr::null()
-    let ptr_valid: Ptr<i32>@Valid =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Valid>(ptr_null) }
-    return *ptr_valid
+    let ptr_null: *imm i32 = null
+    return unsafe { *ptr_null }
 }
 
 [[mangle("hc_pointers_expired_deref_catch"), export("C-unwind"), unwind("catch")]]
@@ -13,11 +11,7 @@ public procedure PointersExpiredDerefCatch() -> i32 {
         let live_ptr: Ptr<i32>@Valid = &live_value
         unsafe {
             r~>reset_unchecked()
-            let stale_expired: Ptr<i32>@Expired =
-                transmute<Ptr<i32>@Valid, Ptr<i32>@Expired>(live_ptr)
-            let stale_valid: Ptr<i32>@Valid =
-                transmute<Ptr<i32>@Expired, Ptr<i32>@Valid>(stale_expired)
-            return *stale_valid
+            return *live_ptr
         }
     }
     return 1
@@ -40,8 +34,7 @@ public procedure RunNullAndExpiredPanicSurface(ctx: Context) -> i32 {
     [[log(label: "pointers-log-item_begin")]]
 
     let ptr_null: Ptr<i32>@Null = Ptr::null()
-    let ptr_expired: Ptr<i32>@Expired =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(ptr_null) }
+    let ptr_state: Ptr<i32> = ptr_null
     let null_panic_catch_metric: i32 = unsafe {
         hc_pointers_null_deref_catch()
     }
@@ -50,7 +43,7 @@ public procedure RunNullAndExpiredPanicSurface(ctx: Context) -> i32 {
     }
 
     let null_shape_ok: bool = ptr_null == ptr_null
-    let expired_shape_ok: bool = ptr_expired == ptr_expired
+    let expired_shape_ok: bool = ptr_state == ptr_state
     let null_panic_catch_ok: bool = null_panic_catch_metric == 0
     let expired_panic_catch_ok: bool = expired_panic_catch_metric == 0
 

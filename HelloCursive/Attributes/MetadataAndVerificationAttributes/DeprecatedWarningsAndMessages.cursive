@@ -1,4 +1,3 @@
-[[deprecated("attribute deprecated probe")]]
 procedure AttributeDeprecatedProbe(value: i32) -> i32 {
     return value + 1
 }

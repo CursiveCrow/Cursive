@@ -822,6 +822,11 @@ void LowerCtx::RegisterStaticType(const std::string& sym, analysis::TypeRef type
   if (!type) {
     return;
   }
+  if (baseline_tables != nullptr &&
+      baseline_tables->static_types.find(sym) !=
+          baseline_tables->static_types.end()) {
+    return;
+  }
   values.static_types[sym] = type;
 }
 
@@ -841,6 +846,11 @@ analysis::TypeRef LowerCtx::LookupStaticType(const std::string& sym) const {
 
 void LowerCtx::RegisterStaticModule(const std::string& sym,
                                     const ast::ModulePath& module_path) {
+  if (baseline_tables != nullptr &&
+      baseline_tables->static_modules.find(sym) !=
+          baseline_tables->static_modules.end()) {
+    return;
+  }
   static_modules[sym] = module_path;
 }
 
@@ -947,6 +957,11 @@ const LowerValueState::RequiredVTableInfo* LowerCtx::LookupRequiredVTable(
 
 void LowerCtx::RegisterRecordCtor(const std::string& sym,
                                   const std::vector<std::string>& path) {
+  if (baseline_tables != nullptr &&
+      baseline_tables->record_ctor_paths.find(sym) !=
+          baseline_tables->record_ctor_paths.end()) {
+    return;
+  }
   record_ctor_paths[sym] = path;
 }
 

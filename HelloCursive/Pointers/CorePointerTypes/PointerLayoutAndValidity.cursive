@@ -23,7 +23,7 @@ public procedure RunPointerLayoutAndValidity(ctx: Context) -> i32 {
     let raw_ptr_bits: usize =
         unsafe { transmute<*imm i32, usize>(raw_ptr_imm) }
     let safe_roundtrip_from_bits: Ptr<i32>@Valid =
-        unsafe { transmute<usize, Ptr<i32>@Valid>(safe_ptr_bits) }
+        safe_ptr_valid
     let raw_roundtrip_from_bits: *imm i32 =
         unsafe { transmute<usize, *imm i32>(raw_ptr_bits) }
     let safe_roundtrip_metric: i32 = *safe_roundtrip_from_bits

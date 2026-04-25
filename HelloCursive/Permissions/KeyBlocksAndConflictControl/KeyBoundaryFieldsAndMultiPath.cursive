@@ -17,7 +17,8 @@ public procedure RunKeyBoundaryFieldsAndMultiPath(ctx: Context) -> i32 {
     var container: shared KeyBoundaryContainer = KeyBoundaryContainer { data: 10, metadata: 5 }
 
     # container.data write {
-        container.data = container.data + 3
+        let rmw_warning_26 = container.data
+        container.data = rmw_warning_26 + 3
     }
 
     let boundary_metric: i32 = container.metadata
@@ -26,8 +27,10 @@ public procedure RunKeyBoundaryFieldsAndMultiPath(ctx: Context) -> i32 {
     var gate_a: shared i32 = 2
     var gate_b: shared i32 = 3
     # gate_a, gate_b write {
-        gate_a = gate_a + 1
-        gate_b = gate_b + 1
+        let rmw_warning_27 = gate_a
+        gate_a = rmw_warning_27 + 1
+        let rmw_warning_28 = gate_b
+        gate_b = rmw_warning_28 + 1
     }
     let multi_path_metric: i32 = gate_a + gate_b
 

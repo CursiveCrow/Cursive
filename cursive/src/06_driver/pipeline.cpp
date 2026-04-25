@@ -44,6 +44,7 @@
 #include "04_analysis/typing/context.h"
 #include "04_analysis/typing/types.h"
 #include "05_codegen/ir/ir_model.h"
+#include "05_codegen/globals/globals.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_module.h"
 #include "04_analysis/layout/layout.h"
@@ -317,7 +318,33 @@ void ResetLowerContextForModule(codegen::LowerCtx& ctx,
   ctx.resolve_failed = false;
   ctx.codegen_failed = false;
   ctx.resolve_failures.clear();
+  ctx.proc_ret_type = nullptr;
   ctx.main_symbol.reset();
+  ctx.expr_prov.reset();
+  ctx.expr_region.reset();
+  ctx.expr_region_tags.reset();
+  ctx.dynamic_checks = false;
+  ctx.current_access_order.reset();
+  ctx.proc_log_enabled = false;
+  ctx.proc_log_name.clear();
+  ctx.proc_log_label.reset();
+  ctx.proc_log_expected.reset();
+  ctx.proc_log_expected_token_kind.reset();
+  ctx.proc_log_expected_is_ident = false;
+  ctx.log_enabled = false;
+  ctx.log_to_console = false;
+  ctx.log_to_file = false;
+  ctx.trace = false;
+  ctx.trace_filter_mask.reset();
+  ctx.trace_min_level.reset();
+  ctx.trace_root.clear();
+  ctx.log_file_path.clear();
+  ctx.active_contract_postcondition = nullptr;
+  ctx.contract_result_value.reset();
+  ctx.contract_entry_values.clear();
+  ctx.contract_param_entry_values.clear();
+  ctx.lowering_contract_postcondition = false;
+  ctx.values.static_types.clear();
   ctx.values.drop_glue_types.clear();
   ctx.values.parent = nullptr;
   ctx.values.value_types.clear();
@@ -326,10 +353,25 @@ void ResetLowerContextForModule(codegen::LowerCtx& ctx,
   ctx.values.required_vtables.clear();
   ctx.temp_counter = std::make_shared<std::uint64_t>(0);
   ctx.scope_stack.clear();
+  ctx.next_runtime_scope_id = 1;
   ctx.binding_states.clear();
+  ctx.local_addr_aliases.clear();
+  ctx.next_binding_id = 1;
   ctx.temp_sink = nullptr;
   ctx.temp_depth = 0;
   ctx.suppress_temp_at_depth.reset();
+  ctx.parallel_collect = nullptr;
+  ctx.parallel_collect_depth = 0;
+  ctx.capture_env.reset();
+  ctx.active_key_scopes.clear();
+  ctx.implicit_key_scope_names.clear();
+  ctx.extra_procs.clear();
+  ctx.current_proc_symbol.reset();
+  ctx.current_closure_counter = 0;
+  ctx.generic_instantiation_stack.clear();
+  ctx.generic_instantiation_in_progress.clear();
+  ctx.active_region_aliases.clear();
+  ctx.region_alias_counter = 0;
 }
 
 std::unordered_set<std::string> BuildProjectModuleKeySet(
@@ -872,11 +914,51 @@ std::optional<std::string> EmitIRForModule(
   return out;
 }
 
+std::optional<CodegenObjectAndIR> EmitObjAndOptionalIRForModule(
+    const CodegenCache& cache,
+    const ModuleCodegen& module,
+    const project::Project& project,
+    project::TargetProfile target_profile,
+    std::string_view emit_ir);
+
 std::optional<std::string> EmitObjForModule(
     const CodegenCache& cache,
     const ModuleCodegen& module,
     const project::Project& project,
     project::TargetProfile target_profile) {
+  auto emitted = EmitObjAndOptionalIRForModule(cache,
+                                               module,
+                                               project,
+                                               target_profile,
+                                               "none");
+  if (!emitted.has_value()) {
+    return std::nullopt;
+  }
+  return std::move(emitted->object);
+}
+
+std::optional<CodegenObjectAndIR> EmitObjAndIRForModule(
+    const CodegenCache& cache,
+    const ModuleCodegen& module,
+    const project::Project& project,
+    project::TargetProfile target_profile,
+    std::string_view emit_ir) {
+  if (!(emit_ir == "ll" || emit_ir == "bc")) {
+    return std::nullopt;
+  }
+  return EmitObjAndOptionalIRForModule(cache,
+                                       module,
+                                       project,
+                                       target_profile,
+                                       emit_ir);
+}
+
+std::optional<CodegenObjectAndIR> EmitObjAndOptionalIRForModule(
+    const CodegenCache& cache,
+    const ModuleCodegen& module,
+    const project::Project& project,
+    project::TargetProfile target_profile,
+    std::string_view emit_ir) {
   EnsureLLVMInit();
   const std::string module_name = ModuleNameForLog(module);
   LogCodegenProgress("emit-obj-start module=" + module_name);
@@ -884,12 +966,13 @@ std::optional<std::string> EmitObjForModule(
   const bool verify_llvm_module =
       debug_obj || core::IsDebugEnabled("pipeline") ||
       core::IsDebugEnabled("codegen");
+  const bool wants_ir_artifact = emit_ir == "ll" || emit_ir == "bc";
   auto cached = MaterializeCachedLLVMArtifacts(cache,
                                                module,
                                                project,
                                                target_profile,
                                                true,
-                                               false);
+                                               wants_ir_artifact);
   if (!cached.has_value()) {
     LogCodegenProgress("emit-obj-error module=" + module_name +
                        " stage=emit-llvm");
@@ -901,6 +984,22 @@ std::optional<std::string> EmitObjForModule(
   }
   auto& entry = **cached;
   auto& bundle = *entry.bundle;
+  std::optional<std::string> ir_bytes;
+  if (wants_ir_artifact) {
+    if (emit_ir == "ll") {
+      if (entry.ir_text.has_value()) {
+        ir_bytes = *entry.ir_text;
+      }
+    } else if (entry.bitcode.has_value()) {
+      ir_bytes = *entry.bitcode;
+    }
+    if (!ir_bytes.has_value()) {
+      LogCodegenProgress("emit-obj-error module=" + module_name +
+                         " stage=render-ir mode=" + std::string(emit_ir));
+      SPEC_RULE("EmitObj-Err");
+      return std::nullopt;
+    }
+  }
   if (verify_llvm_module) {
     std::string verify_err;
     llvm::raw_string_ostream verify_os(verify_err);
@@ -955,13 +1054,15 @@ std::optional<std::string> EmitObjForModule(
                      " stage=pass-run");
   pass.run(*bundle.module);
   SPEC_RULE("EmitObj-Ok");
-  std::string object_bytes(buffer.begin(), buffer.end());
+  CodegenObjectAndIR emitted;
+  emitted.object.assign(buffer.begin(), buffer.end());
+  emitted.ir = std::move(ir_bytes);
   entry.bundle.reset();
   entry.ir_text.reset();
   entry.bitcode.reset();
   LogCodegenProgress("emit-obj-finish module=" + module_name +
-                     " bytes=" + std::to_string(object_bytes.size()));
-  return object_bytes;
+                     " bytes=" + std::to_string(emitted.object.size()));
+  return emitted;
 }
 
 std::optional<std::string> CodegenObj(CodegenCache& cache,
@@ -978,6 +1079,29 @@ std::optional<std::string> CodegenObj(CodegenCache& cache,
     SPEC_RULE("CodegenObj-LLVM");
   }
   return bytes;
+}
+
+std::optional<CodegenObjectAndIR> CodegenObjAndIR(
+    CodegenCache& cache,
+    const project::ModuleInfo& module,
+    const project::Project& project,
+    project::TargetProfile target_profile,
+    std::string_view emit_ir) {
+  if (!(emit_ir == "ll" || emit_ir == "bc")) {
+    return std::nullopt;
+  }
+  const auto lowered = FindCodegenModuleEntry(cache, module.path);
+  if (!lowered) {
+    cache.ok.store(false);
+    return std::nullopt;
+  }
+  auto emitted =
+      EmitObjAndIRForModule(cache, *lowered, project, target_profile, emit_ir);
+  if (emitted.has_value()) {
+    SPEC_RULE("CodegenObj-LLVM");
+    SPEC_RULE("CodegenIR-LLVM");
+  }
+  return emitted;
 }
 
 std::optional<std::string> CodegenIR(CodegenCache& cache,
@@ -1093,6 +1217,44 @@ std::shared_ptr<CodegenCache> BuildCodegenCache(
         break;
       }
       LogCodegenProgress("cache-register-finish module=" + module_log_name);
+    }
+    if (cache->ok.load()) {
+      for (const auto& module : sema_ctx.sigma.mods) {
+        const std::string module_key = core::StringOfPath(module.path);
+        const std::string module_log_name = ModuleNameForPath(module_key);
+        LogCodegenProgress("cache-register-statics-start module=" +
+                           module_log_name);
+        cache->ctx.module_path = module.path;
+        cache->ctx.resolve_failed = false;
+        cache->ctx.codegen_failed = false;
+        cache->ctx.resolve_failures.clear();
+        for (const auto& item : module.items) {
+          if (const auto* static_decl =
+                  std::get_if<ast::StaticDecl>(&item)) {
+            codegen::RegisterStaticMetadata(*static_decl, module.path,
+                                            cache->ctx);
+          }
+          if (cache->ctx.resolve_failed || cache->ctx.codegen_failed) {
+            break;
+          }
+        }
+        if (cache->ctx.resolve_failed || cache->ctx.codegen_failed) {
+          LogCodegenProgress(
+              "cache-build-error stage=register-statics module=" +
+              module_log_name);
+          std::cerr << "[cursive] BuildCodegenCache: static metadata registration failed for module '"
+                    << module_key << "'"
+                    << " (resolve_failed="
+                    << (cache->ctx.resolve_failed ? "true" : "false")
+                    << ", codegen_failed="
+                    << (cache->ctx.codegen_failed ? "true" : "false")
+                    << ")\n";
+          cache->ok.store(false);
+          break;
+        }
+        LogCodegenProgress("cache-register-statics-finish module=" +
+                           module_log_name);
+      }
     }
     if (cache->ok.load()) {
       cache->ctx.FreezeLookupTables();

@@ -3689,7 +3689,7 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
                   out_deps.ensure_dir = EnsureDir;
                   out_deps.codegen_obj =
                       [ensure_cache, target_profile](const project::ModuleInfo& module,
-                                            const project::Project& p)
+                                             const project::Project& p)
                           -> std::optional<std::string> {
                     const auto cache = ensure_cache(p);
                     if (!cache || !cache->ok.load()) {
@@ -3697,9 +3697,24 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
                     }
                     return CodegenObj(*cache, module, p, target_profile);
                   };
+                  out_deps.codegen_obj_and_ir =
+                      [ensure_cache, target_profile](const project::ModuleInfo& module,
+                                             const project::Project& p,
+                                             std::string_view emit_ir)
+                          -> std::optional<driver::CodegenObjectAndIR> {
+                    const auto cache = ensure_cache(p);
+                    if (!cache || !cache->ok.load()) {
+                      return std::nullopt;
+                    }
+                    return CodegenObjAndIR(*cache,
+                                           module,
+                                           p,
+                                           target_profile,
+                                           emit_ir);
+                  };
                   out_deps.codegen_ir =
                       [ensure_cache, target_profile](const project::ModuleInfo& module,
-                                            const project::Project& p,
+                                             const project::Project& p,
                                             std::string_view emit_ir)
                           -> std::optional<std::string> {
                     const auto cache = ensure_cache(p);

@@ -111,10 +111,8 @@ public procedure host_session_next(ctx: HostedRuntimeContext) -> i32 {
 [[host_export("C-unwind"), unwind("catch"), mangle("hc_hosted_fail_zero")]]
 public procedure host_fail_zero(ctx: HostedRuntimeContext) -> i32 {
     let _ = ctx
-    let ptr_null: Ptr<i32>@Null = Ptr::null()
-    let ptr_valid: Ptr<i32>@Valid =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Valid>(ptr_null) }
-    return *ptr_valid
+    let ptr_null: *imm i32 = null
+    return unsafe { *ptr_null }
 }
 
 [[host_export("C-unwind"), unwind("catch"), mangle("hc_hosted_aggregate_result")]]
@@ -126,10 +124,8 @@ public procedure host_aggregate_result(ctx: HostedRuntimeContext) -> HostedAggre
 [[host_export("C-unwind"), unwind("catch"), mangle("hc_hosted_aggregate_fail_zero")]]
 public procedure host_aggregate_fail_zero(ctx: HostedRuntimeContext) -> HostedAggregateResult {
     let _ = ctx
-    let ptr_null: Ptr<i32>@Null = Ptr::null()
-    let ptr_valid: Ptr<i32>@Valid =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Valid>(ptr_null) }
-    let ignored_value: i32 = *ptr_valid
+    let ptr_null: *imm i32 = null
+    let ignored_value: i32 = unsafe { *ptr_null }
     let _ = ignored_value
     return BuildHostedAggregateResult()
 }

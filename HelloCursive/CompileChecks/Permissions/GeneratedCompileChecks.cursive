@@ -1,0 +1,73 @@
+procedure run_standalone_W_CON_0002(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Permissions\\Generated\\W_CON_0002\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_W_CON_0002.json 2> build\\main\\logs\\compile_checks\\standalone_W_CON_0002.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"\\\"W-CON-0002\\\"\" build\\main\\logs\\compile_checks\\standalone_W_CON_0002.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "W-CON-0002")
+}
+
+procedure run_standalone_W_CON_0003(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Permissions\\Generated\\W_CON_0003\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_W_CON_0003.json 2> build\\main\\logs\\compile_checks\\standalone_W_CON_0003.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"\\\"W-CON-0003\\\"\" build\\main\\logs\\compile_checks\\standalone_W_CON_0003.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "W-CON-0003")
+}
+
+procedure run_standalone_W_CON_0004(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Permissions\\Generated\\W_CON_0004\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_W_CON_0004.json 2> build\\main\\logs\\compile_checks\\standalone_W_CON_0004.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"\\\"W-CON-0004\\\"\" build\\main\\logs\\compile_checks\\standalone_W_CON_0004.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "W-CON-0004")
+}
+
+procedure run_standalone_W_CON_0006(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Permissions\\Generated\\W_CON_0006\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_W_CON_0006.json 2> build\\main\\logs\\compile_checks\\standalone_W_CON_0006.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"\\\"W-CON-0006\\\"\" build\\main\\logs\\compile_checks\\standalone_W_CON_0006.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "W-CON-0006")
+}
+
+procedure run_standalone_W_CON_0009(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Permissions\\Generated\\W_CON_0009\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_W_CON_0009.json 2> build\\main\\logs\\compile_checks\\standalone_W_CON_0009.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"\\\"W-CON-0009\\\"\" build\\main\\logs\\compile_checks\\standalone_W_CON_0009.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "W-CON-0009")
+}
+
+procedure run_standalone_W_CON_0010(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Permissions\\Generated\\W_CON_0010\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_W_CON_0010.json 2> build\\main\\logs\\compile_checks\\standalone_W_CON_0010.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"\\\"W-CON-0010\\\"\" build\\main\\logs\\compile_checks\\standalone_W_CON_0010.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "W-CON-0010")
+}
+
+procedure run_standalone_W_CON_0140(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Permissions\\Generated\\W_CON_0140\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_W_CON_0140.json 2> build\\main\\logs\\compile_checks\\standalone_W_CON_0140.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"\\\"W-CON-0140\\\"\" build\\main\\logs\\compile_checks\\standalone_W_CON_0140.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "W-CON-0140")
+}
+
+public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
+    let status_run_standalone_W_CON_0002: i32 = run_standalone_W_CON_0002(ctx)
+    if (status_run_standalone_W_CON_0002 != 0) {
+        return status_run_standalone_W_CON_0002
+    }
+
+    let status_run_standalone_W_CON_0003: i32 = run_standalone_W_CON_0003(ctx)
+    if (status_run_standalone_W_CON_0003 != 0) {
+        return status_run_standalone_W_CON_0003
+    }
+
+    let status_run_standalone_W_CON_0004: i32 = run_standalone_W_CON_0004(ctx)
+    if (status_run_standalone_W_CON_0004 != 0) {
+        return status_run_standalone_W_CON_0004
+    }
+
+    let status_run_standalone_W_CON_0006: i32 = run_standalone_W_CON_0006(ctx)
+    if (status_run_standalone_W_CON_0006 != 0) {
+        return status_run_standalone_W_CON_0006
+    }
+
+    let status_run_standalone_W_CON_0009: i32 = run_standalone_W_CON_0009(ctx)
+    if (status_run_standalone_W_CON_0009 != 0) {
+        return status_run_standalone_W_CON_0009
+    }
+
+    let status_run_standalone_W_CON_0010: i32 = run_standalone_W_CON_0010(ctx)
+    if (status_run_standalone_W_CON_0010 != 0) {
+        return status_run_standalone_W_CON_0010
+    }
+
+    let status_run_standalone_W_CON_0140: i32 = run_standalone_W_CON_0140(ctx)
+    if (status_run_standalone_W_CON_0140 != 0) {
+        return status_run_standalone_W_CON_0140
+    }
+
+    return 0
+}

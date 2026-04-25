@@ -31,7 +31,8 @@ public procedure RunKeyPathGrammarAndWellFormedness(ctx: Context) -> i32 {
     }
 
     # node.leaf write {
-        node.leaf = node.leaf + node.extra
+        let rmw_warning_49 = node.leaf
+        node.leaf = rmw_warning_49 + node.extra
     }
     let write_leaf_metric: i32 = node.leaf
 

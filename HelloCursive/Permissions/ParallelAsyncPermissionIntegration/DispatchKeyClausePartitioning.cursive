@@ -27,8 +27,8 @@ public procedure RunDispatchKeyClausePartitioning(ctx: Context) -> i32 {
     var dynamic_slots: [i32; 3] = [2, 4, 6]
     let dynamic_index: usize = 1usize
     let dynamic_partition_metric: i32 = parallel ctx~>cpu() {
-        dispatch _ in 0usize..3usize key dynamic_slots[dynamic_index] read [reduce: +] {
-            dynamic_slots[dynamic_index]
+        dispatch _ in 0usize..3usize key dynamic_slots[1usize] read [reduce: +] {
+            dynamic_slots[1usize]
         }
     }
 

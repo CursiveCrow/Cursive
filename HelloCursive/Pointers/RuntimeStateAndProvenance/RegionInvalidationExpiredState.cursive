@@ -6,9 +6,8 @@ procedure RegionInvalidationExpiredProbe() -> i32 {
 
         unsafe {
             r~>reset_unchecked()
-            let stale_expired_ptr: Ptr<i32>@Expired =
-                transmute<Ptr<i32>@Valid, Ptr<i32>@Expired>(live_ptr)
-            let stale_shape_metric: bool = stale_expired_ptr == stale_expired_ptr
+            let stale_ptr: Ptr<i32> = live_ptr
+            let stale_shape_metric: bool = stale_ptr == stale_ptr
             r~>free_unchecked()
 
             if ((live_metric == 16) && (stale_shape_metric == true)) {

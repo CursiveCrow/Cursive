@@ -118,6 +118,10 @@ struct EmitGlobalResult {
 // (Emit-Static-Const): `let` + constant initializer -> GlobalConst
 // (Emit-Static-Init): `var` or non-constant initializer -> GlobalZero
 // (Emit-Static-Multi): Destructuring pattern -> multiple globals
+void RegisterStaticMetadata(const ast::StaticDecl& item,
+                            const ast::ModulePath& module_path,
+                            LowerCtx& ctx);
+
 EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
                             const ast::ModulePath& module_path,
                             LowerCtx& ctx);

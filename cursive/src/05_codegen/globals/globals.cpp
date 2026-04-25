@@ -399,6 +399,56 @@ std::optional<StaticBindingInfo> StaticBindInfo(const analysis::Sigma& sigma,
 // Section 6.7 Global Emission
 // ============================================================================
 
+analysis::TypeRef StaticInitTypeForGlobal(const ast::StaticDecl& item,
+                                          const ast::ModulePath& module_path,
+                                          LowerCtx& ctx) {
+  const auto& binding = item.binding;
+  analysis::TypeRef init_type;
+  if (binding.init && ctx.expr_type) {
+    init_type = ctx.expr_type(*binding.init);
+  }
+  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
+  if (!init_type && ann_type && ctx.sigma) {
+    analysis::ScopeContext scope;
+    scope.sigma = *ctx.sigma;
+    scope.sigma_source = ctx.sigma;
+    scope.current_module = module_path;
+    if (auto lowered =
+            ::cursive::analysis::layout::LowerTypeForLayout(scope, ann_type)) {
+      init_type = *lowered;
+    }
+  }
+  return init_type;
+}
+
+void RegisterStaticMetadata(const ast::StaticDecl& item,
+                            const ast::ModulePath& module_path,
+                            LowerCtx& ctx) {
+  SPEC_DEF("RegisterStaticMetadata", "Section 6.7");
+  const auto& binding = item.binding;
+  auto static_name = StaticName(binding);
+  if (static_name.has_value()) {
+    analysis::TypeRef init_type =
+        StaticInitTypeForGlobal(item, module_path, ctx);
+    if (init_type) {
+      const std::string sym = StaticSym(item, module_path, *static_name);
+      ctx.RegisterStaticType(sym, init_type);
+      ctx.RegisterStaticModule(sym, module_path);
+    }
+    return;
+  }
+
+  auto bind_types = StaticBindTypes(binding, module_path, ctx);
+  for (const auto& [name, type] : bind_types) {
+    if (!type) {
+      continue;
+    }
+    const std::string sym = StaticSym(item, module_path, name);
+    ctx.RegisterStaticType(sym, type);
+    ctx.RegisterStaticModule(sym, module_path);
+  }
+}
+
 EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
                             const ast::ModulePath& module_path,
                             LowerCtx& ctx) {
@@ -410,20 +460,8 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
   const auto& binding = item.binding;
   auto static_name = StaticName(binding);
 
-  analysis::TypeRef init_type;
-  if (binding.init && ctx.expr_type) {
-    init_type = ctx.expr_type(*binding.init);
-  }
-  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
-  if (!init_type && ann_type && ctx.sigma) {
-    analysis::ScopeContext scope;
-    scope.sigma = *ctx.sigma;
-    scope.sigma_source = ctx.sigma;
-    scope.current_module = module_path;
-    if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, ann_type)) {
-      init_type = *lowered;
-    }
-  }
+  analysis::TypeRef init_type =
+      StaticInitTypeForGlobal(item, module_path, ctx);
 
   analysis::ScopeContext layout_scope;
   if (ctx.sigma) {
@@ -436,10 +474,7 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
   if (static_name.has_value()) {
     std::string sym = StaticSym(item, module_path, *static_name);
 
-    if (init_type) {
-      ctx.RegisterStaticType(sym, init_type);
-      ctx.RegisterStaticModule(sym, module_path);
-    }
+    RegisterStaticMetadata(item, module_path, ctx);
 
     if (binding.init) {
       if (item.mut == ast::Mutability::Let) {
@@ -491,6 +526,7 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
 
   auto names = StaticBindList(binding);
   auto bind_types = StaticBindTypes(binding, module_path, ctx);
+  RegisterStaticMetadata(item, module_path, ctx);
   for (const auto& name : names) {
     std::string sym = StaticSym(item, module_path, name);
     analysis::TypeRef type;
@@ -499,10 +535,6 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
         type = bind_type;
         break;
       }
-    }
-    if (type) {
-      ctx.RegisterStaticType(sym, type);
-      ctx.RegisterStaticModule(sym, module_path);
     }
     GlobalZero gz;
     gz.symbol = sym;

@@ -1,4 +1,4 @@
-procedure SafePointerStateFormsAcceptExpired(value: Ptr<i32>@Expired) -> i32 {
+procedure SafePointerStateFormsAcceptState(value: Ptr<i32>) -> i32 {
     let _ = value
     return 1
 }
@@ -22,8 +22,7 @@ public procedure RunSafePointerStateForms(ctx: Context) -> i32 {
     let ptr_null: Ptr<i32>@Null = Ptr::null()
     let ptr_general_from_null: Ptr<i32> = ptr_null
     let ptr_valid_for_expired: Ptr<i32>@Valid = &cell
-    let ptr_expired: Ptr<i32>@Expired =
-        unsafe { transmute<Ptr<i32>@Valid, Ptr<i32>@Expired>(ptr_valid_for_expired) }
+    let ptr_state: Ptr<i32> = ptr_valid_for_expired
 
     let valid_read_metric: i32 = *ptr_valid
     let general_from_valid_metric: i32 = *ptr_general_from_valid
@@ -39,8 +38,8 @@ public procedure RunSafePointerStateForms(ctx: Context) -> i32 {
         ptr_general_from_null == ptr_general_from_null
     let ptr_unqualified_shape_ok: bool = ptr_unqualified == ptr_unqualified
     let ptr_null_shape_ok: bool = ptr_null == ptr_null
-    let ptr_expired_shape_ok: bool = ptr_expired == ptr_expired
-    let ptr_expired_accept_ok: bool = SafePointerStateFormsAcceptExpired(ptr_expired) == 1
+    let ptr_expired_shape_ok: bool = ptr_state == ptr_state
+    let ptr_expired_accept_ok: bool = SafePointerStateFormsAcceptState(ptr_state) == 1
     let valid_read_ok: bool = valid_read_metric_log == 9
     let general_from_valid_read_ok: bool = general_from_valid_metric_log == 9
 

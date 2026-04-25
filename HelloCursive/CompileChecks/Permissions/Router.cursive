@@ -1,0 +1,5 @@
+import testsupport
+
+public procedure run(ctx: Context) -> i32 {
+    return runGeneratedCompileChecks(ctx)
+}

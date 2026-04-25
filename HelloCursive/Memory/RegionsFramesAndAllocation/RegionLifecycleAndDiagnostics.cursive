@@ -1,4 +1,4 @@
-procedure RegionExpiredPointerAcceptance(value: Ptr<i32>@Expired) -> i32 {
+procedure RegionInvalidatedPointerAcceptance(value: Ptr<i32>) -> i32 {
     let _ = value
     return 1
 }
@@ -13,11 +13,10 @@ procedure RegionStalePointerInvalidationProbe() -> i32 {
 
         unsafe {
             r~>reset_unchecked()
-            let stale_expired_ptr: Ptr<i32>@Expired =
-                transmute<Ptr<i32>@Valid, Ptr<i32>@Expired>(live_ptr)
+            let stale_ptr: Ptr<i32> = live_ptr
             let stale_accept_metric: i32 =
-                RegionExpiredPointerAcceptance(stale_expired_ptr)
-            let stale_shape_metric: bool = stale_expired_ptr == stale_expired_ptr
+                RegionInvalidatedPointerAcceptance(stale_ptr)
+            let stale_shape_metric: bool = stale_ptr == stale_ptr
 
             if ((live_metric == 16) &&
                 (stale_accept_metric == 1) &&

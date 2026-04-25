@@ -16,15 +16,15 @@ public procedure RunOrderedAndConflictDiagnosticSurface(ctx: Context) -> i32 {
     }
 
     # lane[1usize] write {
-        lane[1usize] = lane[1usize] + 3
+        let rmw_warning_34 = lane[1usize]
+        lane[1usize] = rmw_warning_34 + 3
     }
     let write_metric: i32 = lane[1usize]
 
     var release_metric: i32 = 0
-    # lane[1usize] read {
-        # lane[1usize] release write {
-            lane[1usize] = lane[1usize] + 2
-        }
+    # lane[1usize] write {
+        let rmw_warning_35 = lane[1usize]
+        lane[1usize] = rmw_warning_35 + 2
         release_metric = lane[1usize]
     }
 

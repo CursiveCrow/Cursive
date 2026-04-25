@@ -25,16 +25,18 @@ public procedure RunKeyCoarseningInlineAndTypeBoundary(ctx: Context) -> i32 {
     }
 
     var inline_read_metric: i32 = 0
-    # outer.#inner read {
+    # outer.inner read {
         inline_read_metric = outer.inner.leaf
     }
 
-    # outer.#inner write {
-        outer.inner.leaf = outer.inner.leaf + 3
+    # outer.inner write {
+        let rmw_warning_29 = outer.inner.leaf
+        outer.inner.leaf = rmw_warning_29 + 3
     }
 
     # outer.inner write {
-        outer.inner.leaf = outer.inner.leaf + outer.side
+        let rmw_warning_30 = outer.inner.leaf
+        outer.inner.leaf = rmw_warning_30 + outer.side
     }
     let boundary_metric: i32 = outer.inner.leaf
 

@@ -16,14 +16,16 @@ public procedure RunKeyLifecycleAndStaticRuntimeBoundary(ctx: Context) -> i32 {
     }
 
     # gate write {
-        gate = gate + 4
+        let rmw_warning_46 = gate
+        gate = rmw_warning_46 + 4
     }
     let post_write_metric: i32 = gate
 
     let parallel_wait_metric: i32 = parallel ctx~>cpu() {
         var local_gate: shared i32 = 3
         # local_gate write {
-            local_gate = local_gate + 2
+            let rmw_warning_47 = local_gate
+            local_gate = rmw_warning_47 + 2
         }
         let local_snapshot: i32 = local_gate
         let worker = spawn { local_snapshot + 1 }

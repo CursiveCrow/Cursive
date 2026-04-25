@@ -23,7 +23,8 @@ public procedure RunKeyRootsAndPointerBoundaries(ctx: Context) -> i32 {
     let pointer_before_metric: i32 = *ptr_left
 
     # pair.left write {
-        pair.left = pair.left + 2
+        let rmw_warning_50 = pair.left
+        pair.left = rmw_warning_50 + 2
     }
 
     let pointer_after_metric: i32 = *ptr_left

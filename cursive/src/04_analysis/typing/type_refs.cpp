@@ -95,10 +95,7 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <mutex>
 #include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
 
 #include "00_core/assert_spec.h"
@@ -503,186 +500,6 @@ static std::string BytesStateString(BytesState state) {
   return "";
 }
 
-static void AppendFingerprintAtom(std::string& out, std::string_view value) {
-  out.append(std::to_string(value.size()));
-  out.push_back(':');
-  out.append(value);
-  out.push_back(';');
-}
-
-static void AppendFingerprintNumber(std::string& out, std::uint64_t value) {
-  out.push_back('#');
-  out.append(std::to_string(value));
-  out.push_back(';');
-}
-
-static void AppendFingerprintBool(std::string& out, bool value) {
-  out.push_back(value ? '1' : '0');
-  out.push_back(';');
-}
-
-static void AppendFingerprintPath(std::string& out, const TypePath& path) {
-  AppendFingerprintNumber(out, path.size());
-  for (const auto& segment : path) {
-    AppendFingerprintAtom(out, segment);
-  }
-}
-
-static void AppendTypeFingerprintImpl(const TypeRef& type,
-                                      std::string& out,
-                                      std::unordered_set<const Type*>& seen);
-
-static void AppendTypeVectorFingerprint(const std::vector<TypeRef>& types,
-                                        std::string& out,
-                                        std::unordered_set<const Type*>& seen) {
-  AppendFingerprintNumber(out, types.size());
-  for (const auto& type : types) {
-    AppendTypeFingerprintImpl(type, out, seen);
-  }
-}
-
-static void AppendTypeFingerprintImpl(const TypeRef& type,
-                                      std::string& out,
-                                      std::unordered_set<const Type*>& seen) {
-  if (!type) {
-    AppendFingerprintAtom(out, "null");
-    return;
-  }
-  if (!seen.insert(type.get()).second) {
-    AppendFingerprintAtom(out, "cycle");
-    AppendFingerprintNumber(out,
-                            reinterpret_cast<std::uintptr_t>(type.get()));
-    return;
-  }
-
-  std::visit(
-      [&](const auto& node) {
-        using T = std::decay_t<decltype(node)>;
-        AppendFingerprintNumber(out, TagKeyOf(type->node));
-        if constexpr (std::is_same_v<T, TypePrim>) {
-          AppendFingerprintAtom(out, node.name);
-        } else if constexpr (std::is_same_v<T, TypeVar>) {
-          AppendFingerprintNumber(out, node.id);
-        } else if constexpr (std::is_same_v<T, TypeRange>) {
-          AppendFingerprintNumber(out, 0);
-          AppendTypeFingerprintImpl(node.base, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeRangeInclusive>) {
-          AppendFingerprintNumber(out, 1);
-          AppendTypeFingerprintImpl(node.base, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeRangeFrom>) {
-          AppendFingerprintNumber(out, 2);
-          AppendTypeFingerprintImpl(node.base, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeRangeTo>) {
-          AppendFingerprintNumber(out, 3);
-          AppendTypeFingerprintImpl(node.base, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeRangeToInclusive>) {
-          AppendFingerprintNumber(out, 4);
-          AppendTypeFingerprintImpl(node.base, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeRangeFull>) {
-          AppendFingerprintNumber(out, 5);
-        } else if constexpr (std::is_same_v<T, TypePerm>) {
-          AppendFingerprintNumber(out, PermKeyOf(node.perm));
-          AppendTypeFingerprintImpl(node.base, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeUnion>) {
-          AppendTypeVectorFingerprint(node.members, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeFunc>) {
-          AppendFingerprintNumber(out, node.params.size());
-          for (const auto& param : node.params) {
-            AppendFingerprintBool(out, param.mode.has_value());
-            if (param.mode.has_value()) {
-              AppendFingerprintNumber(out, ModeKeyOf(param.mode));
-            }
-            AppendTypeFingerprintImpl(param.type, out, seen);
-          }
-          AppendTypeFingerprintImpl(node.ret, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeTuple>) {
-          AppendTypeVectorFingerprint(node.elements, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeArray>) {
-          AppendTypeFingerprintImpl(node.element, out, seen);
-          AppendFingerprintNumber(out, node.length);
-        } else if constexpr (std::is_same_v<T, TypeSlice>) {
-          AppendTypeFingerprintImpl(node.element, out, seen);
-        } else if constexpr (std::is_same_v<T, TypePtr>) {
-          AppendTypeFingerprintImpl(node.element, out, seen);
-          AppendFingerprintBool(out, node.state.has_value());
-          if (node.state.has_value()) {
-            AppendFingerprintNumber(out, PtrStateKeyOf(node.state));
-          }
-        } else if constexpr (std::is_same_v<T, TypeRawPtr>) {
-          AppendFingerprintNumber(out, QualKeyOf(node.qual));
-          AppendTypeFingerprintImpl(node.element, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeString>) {
-          AppendFingerprintBool(out, node.state.has_value());
-          AppendFingerprintNumber(out, StateKeyOf<StringState>(node.state));
-        } else if constexpr (std::is_same_v<T, TypeBytes>) {
-          AppendFingerprintBool(out, node.state.has_value());
-          AppendFingerprintNumber(out, StateKeyOf<BytesState>(node.state));
-        } else if constexpr (std::is_same_v<T, TypeDynamic>) {
-          AppendFingerprintPath(out, node.path);
-        } else if constexpr (std::is_same_v<T, TypeModalState>) {
-          AppendFingerprintPath(out, ModalRefPath(node.modal_ref));
-          AppendTypeVectorFingerprint(ModalRefArgs(node.modal_ref), out, seen);
-          AppendFingerprintAtom(out, node.state);
-        } else if constexpr (std::is_same_v<T, TypeApply>) {
-          AppendFingerprintPath(out, node.path);
-          AppendTypeVectorFingerprint(node.args, out, seen);
-        } else if constexpr (std::is_same_v<T, TypePathType>) {
-          AppendFingerprintPath(out, node.path);
-          AppendTypeVectorFingerprint(node.generic_args, out, seen);
-        } else if constexpr (std::is_same_v<T, TypeOpaque>) {
-          AppendFingerprintPath(out, node.class_path);
-          AppendFingerprintAtom(out, node.origin_span.file);
-          AppendFingerprintNumber(out, node.origin_span.start_offset);
-          AppendFingerprintNumber(out, node.origin_span.end_offset);
-        } else if constexpr (std::is_same_v<T, TypeRefine>) {
-          AppendTypeFingerprintImpl(node.base, out, seen);
-          AppendFingerprintBool(out, static_cast<bool>(node.predicate));
-          if (node.predicate) {
-            AppendFingerprintNumber(
-                out, reinterpret_cast<std::uintptr_t>(node.predicate.get()));
-            AppendFingerprintAtom(out, node.predicate->span.file);
-            AppendFingerprintNumber(out, node.predicate->span.start_offset);
-            AppendFingerprintNumber(out, node.predicate->span.end_offset);
-          }
-        } else if constexpr (std::is_same_v<T, TypeClosure>) {
-          AppendFingerprintNumber(out, node.params.size());
-          for (const auto& [is_move, param_type] : node.params) {
-            AppendFingerprintBool(out, is_move);
-            AppendTypeFingerprintImpl(param_type, out, seen);
-          }
-          AppendTypeFingerprintImpl(node.ret, out, seen);
-          AppendFingerprintBool(out, node.deps_opt.has_value());
-          if (node.deps_opt.has_value()) {
-            AppendFingerprintNumber(out, node.deps_opt->size());
-            for (const auto& dep : *node.deps_opt) {
-              AppendFingerprintAtom(out, dep.name);
-              AppendTypeFingerprintImpl(dep.type, out, seen);
-            }
-          }
-        }
-      },
-      type->node);
-
-  seen.erase(type.get());
-}
-
-static std::string TypeFingerprintOf(const TypeRef& type) {
-  std::string out;
-  std::unordered_set<const Type*> seen;
-  AppendTypeFingerprintImpl(type, out, seen);
-  return out;
-}
-
-static std::unordered_map<std::string, std::weak_ptr<Type>>& TypeInterner() {
-  static std::unordered_map<std::string, std::weak_ptr<Type>> interner;
-  return interner;
-}
-
-static std::mutex& TypeInternerMutex() {
-  static std::mutex mu;
-  return mu;
-}
-
 }  // namespace
 
 bool IsPermInC0(Permission perm) {
@@ -711,21 +528,6 @@ TypeRef MakeType(TypeNode node) {
   SpecDefsTypeRepr();
   auto candidate = std::make_shared<Type>();
   candidate->node = std::move(node);
-
-  const std::string fingerprint = TypeFingerprintOf(candidate);
-  {
-    std::lock_guard<std::mutex> lock(TypeInternerMutex());
-    auto& interner = TypeInterner();
-    if (const auto it = interner.find(fingerprint); it != interner.end()) {
-      if (auto existing = it->second.lock()) {
-        return existing;
-      }
-      interner.erase(it);
-    }
-    const TypeKey key = TypeKeyOf(*candidate);
-    candidate->cached_key = std::make_shared<const TypeKey>(key);
-    interner.emplace(fingerprint, candidate);
-  }
   return candidate;
 }
 
@@ -1256,31 +1058,31 @@ static TypeKey ComputeTypeKey(const Type& type) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(KeyAtom::Number(0));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.base))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.base))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeRangeInclusive>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(KeyAtom::Number(1));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.base))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.base))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeRangeFrom>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(KeyAtom::Number(2));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.base))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.base))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeRangeTo>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(KeyAtom::Number(3));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.base))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.base))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeRangeToInclusive>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(KeyAtom::Number(4));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.base))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.base))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeRangeFull>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
@@ -1291,19 +1093,19 @@ static TypeKey ComputeTypeKey(const Type& type) {
           key.atoms.push_back(KeyAtom::Number(node.elements.size()));
           for (const auto& elem : node.elements) {
             key.atoms.push_back(
-                KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*elem))));
+                KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(elem))));
           }
           return key;
         } else if constexpr (std::is_same_v<T, TypeArray>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.element))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.element))));
           key.atoms.push_back(KeyAtom::Number(node.length));
           return key;
         } else if constexpr (std::is_same_v<T, TypeSlice>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.element))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.element))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeFunc>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
@@ -1311,10 +1113,10 @@ static TypeKey ComputeTypeKey(const Type& type) {
           for (const auto& param : node.params) {
             key.atoms.push_back(KeyAtom::Number(ModeKeyOf(param.mode)));
             key.atoms.push_back(KeyAtom::Key(
-                std::make_shared<TypeKey>(TypeKeyOf(*param.type))));
+                std::make_shared<TypeKey>(TypeKeyOf(param.type))));
           }
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.ret))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.ret))));
           return key;
         } else if constexpr (std::is_same_v<T, TypePathType>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
@@ -1324,7 +1126,7 @@ static TypeKey ComputeTypeKey(const Type& type) {
             std::vector<TypeKey> arg_keys;
             arg_keys.reserve(node.generic_args.size());
             for (const auto& arg : node.generic_args) {
-              arg_keys.push_back(TypeKeyOf(*arg));
+              arg_keys.push_back(TypeKeyOf(arg));
             }
             key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(arg_keys)));
           }
@@ -1336,7 +1138,7 @@ static TypeKey ComputeTypeKey(const Type& type) {
           std::vector<TypeKey> arg_keys;
           arg_keys.reserve(node.args.size());
           for (const auto& arg : node.args) {
-            arg_keys.push_back(TypeKeyOf(*arg));
+            arg_keys.push_back(TypeKeyOf(arg));
           }
           key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(arg_keys)));
           return key;
@@ -1350,7 +1152,7 @@ static TypeKey ComputeTypeKey(const Type& type) {
             std::vector<TypeKey> arg_keys;
             arg_keys.reserve(modal_args.size());
             for (const auto& arg : modal_args) {
-              arg_keys.push_back(TypeKeyOf(*arg));
+              arg_keys.push_back(TypeKeyOf(arg));
             }
             key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(arg_keys)));
           }
@@ -1382,7 +1184,7 @@ static TypeKey ComputeTypeKey(const Type& type) {
         } else if constexpr (std::is_same_v<T, TypeRefine>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.base))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.base))));
           if (node.predicate) {
             key.atoms.push_back(KeyAtom::String(node.predicate->span.file));
             key.atoms.push_back(
@@ -1395,20 +1197,20 @@ static TypeKey ComputeTypeKey(const Type& type) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(KeyAtom::Number(PtrStateKeyOf(node.state)));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.element))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.element))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeRawPtr>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(KeyAtom::Number(QualKeyOf(node.qual)));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.element))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.element))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeUnion>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           std::vector<TypeKey> member_keys;
           member_keys.reserve(node.members.size());
           for (const auto& member : node.members) {
-            member_keys.push_back(TypeKeyOf(*member));
+            member_keys.push_back(TypeKeyOf(member));
           }
           std::stable_sort(member_keys.begin(), member_keys.end(),
                            [](const TypeKey& lhs, const TypeKey& rhs) {
@@ -1420,21 +1222,36 @@ static TypeKey ComputeTypeKey(const Type& type) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           key.atoms.push_back(KeyAtom::Number(PermKeyOf(node.perm)));
           key.atoms.push_back(
-              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.base))));
+              KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.base))));
           return key;
         } else if constexpr (std::is_same_v<T, TypeClosure>) {
           key.atoms.push_back(KeyAtom::Number(TagKeyOf(type.node)));
           std::vector<std::shared_ptr<TypeKey>> param_keys;
           for (const auto& [is_move, param_type] : node.params) {
+            param_keys.push_back(
+                std::make_shared<TypeKey>(TypeKey{{KeyAtom::Number(is_move ? 1 : 0)}}));
             if (param_type) {
               param_keys.push_back(
-                  std::make_shared<TypeKey>(TypeKeyOf(*param_type)));
+                  std::make_shared<TypeKey>(TypeKeyOf(param_type)));
             }
           }
           key.atoms.push_back(KeyAtom::KeyList(param_keys));
           if (node.ret) {
             key.atoms.push_back(
-                KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(*node.ret))));
+                KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(node.ret))));
+          }
+          key.atoms.push_back(KeyAtom::Number(node.deps_opt.has_value() ? 1 : 0));
+          if (node.deps_opt.has_value()) {
+            std::vector<TypeKey> dep_keys;
+            dep_keys.reserve(node.deps_opt->size());
+            for (const auto& dep : *node.deps_opt) {
+              TypeKey dep_key;
+              dep_key.atoms.push_back(KeyAtom::String(dep.name));
+              dep_key.atoms.push_back(
+                  KeyAtom::Key(std::make_shared<TypeKey>(TypeKeyOf(dep.type))));
+              dep_keys.push_back(std::move(dep_key));
+            }
+            key.atoms.push_back(KeyAtom::KeyList(MakeKeyList(dep_keys)));
           }
           return key;
         } else {
@@ -1447,9 +1264,6 @@ static TypeKey ComputeTypeKey(const Type& type) {
 
 TypeKey TypeKeyOf(const Type& type) {
   SpecDefsTypeKey();
-  if (type.cached_key) {
-    return *type.cached_key;
-  }
   return ComputeTypeKey(type);
 }
 
@@ -1488,7 +1302,10 @@ std::vector<TypeRef> SortUnionMembers(const std::vector<TypeRef>& members) {
   std::vector<Entry> entries;
   entries.reserve(members.size());
   for (const auto& member : members) {
-    entries.push_back(Entry{member, TypeKeyOf(*member)});
+    if (!member) {
+      continue;
+    }
+    entries.push_back(Entry{member, TypeKeyOf(member)});
   }
   std::stable_sort(entries.begin(), entries.end(),
                    [](const Entry& lhs, const Entry& rhs) {

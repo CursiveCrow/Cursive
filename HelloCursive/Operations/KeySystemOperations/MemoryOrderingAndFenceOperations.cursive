@@ -69,7 +69,8 @@ procedure VerifyMemoryOrderingFenceItem(ctx: Context, scope: string@View, move i
     [[log(label: "operations-log-runtime_phase_move")]]
     [[log(label: "operations-log-transition_move")]]
     # syntax_slot write {
-        syntax_slot = syntax_slot + 3
+        let rmw_warning_12 = syntax_slot
+        syntax_slot = rmw_warning_12 + 3
     }
     var syntax_metric: i32 = 0
     # syntax_slot read {
@@ -78,10 +79,12 @@ procedure VerifyMemoryOrderingFenceItem(ctx: Context, scope: string@View, move i
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
     # static_slot write {
-        static_slot = static_slot + 2
+        let rmw_warning_13 = static_slot
+        static_slot = rmw_warning_13 + 2
     }
     # static_slot write {
-        static_slot = static_slot * 2
+        let rmw_warning_14 = static_slot
+        static_slot = rmw_warning_14 * 2
     }
     let static_metric: i32 = static_slot
     var fence_metric: i32 = 0

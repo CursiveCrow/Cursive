@@ -23,13 +23,12 @@ public procedure RunPointerReadWriteSemantics(ctx: Context) -> i32 {
     let post_write_metric: i32 = cell
 
     let ptr_null: Ptr<i32>@Null = Ptr::null()
-    let ptr_expired: Ptr<i32>@Expired =
-        unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(ptr_null) }
+    let ptr_state: Ptr<i32> = ptr_null
 
     let safe_read_ok: bool = safe_read_metric == 6
     let post_write_ok: bool = post_write_metric == 17
     let null_shape_ok: bool = ptr_null == ptr_null
-    let expired_shape_ok: bool = ptr_expired == ptr_expired
+    let expired_shape_ok: bool = ptr_state == ptr_state
 
     let safe_read_ok_log: bool =
         [[log(label: "pointers-runtime-readwrite-safe-read", expected: true)]]

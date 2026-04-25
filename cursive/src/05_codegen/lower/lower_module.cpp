@@ -500,6 +500,32 @@ ProcIR LowerProcLike(const std::string& symbol,
   ProcIR ir;
   ir.symbol = symbol;
   ctx.module_path = module_path;
+  const auto prev_proc_ret_type = ctx.proc_ret_type;
+  const auto prev_current_proc_symbol = ctx.current_proc_symbol;
+  const std::uint64_t prev_current_closure_counter =
+      ctx.current_closure_counter;
+  const auto prev_expr_prov = ctx.expr_prov;
+  const auto prev_expr_region = ctx.expr_region;
+  const auto prev_expr_region_tags = ctx.expr_region_tags;
+  const auto prev_active_contract_postcondition =
+      ctx.active_contract_postcondition;
+  const auto prev_contract_result_value = ctx.contract_result_value;
+  const auto prev_contract_entry_values = ctx.contract_entry_values;
+  const auto prev_contract_param_entry_values =
+      ctx.contract_param_entry_values;
+  const bool prev_lowering_contract_postcondition =
+      ctx.lowering_contract_postcondition;
+
+  ctx.current_proc_symbol = symbol;
+  ctx.current_closure_counter = 0;
+  ctx.expr_prov.reset();
+  ctx.expr_region.reset();
+  ctx.expr_region_tags.reset();
+  ctx.active_contract_postcondition = nullptr;
+  ctx.contract_result_value.reset();
+  ctx.contract_entry_values.clear();
+  ctx.contract_param_entry_values.clear();
+  ctx.lowering_contract_postcondition = false;
 
   ctx.PushScope(false, false);
   ctx.RegisterRuntimeScopeExit();
@@ -517,6 +543,7 @@ ProcIR LowerProcLike(const std::string& symbol,
   }
 
   ir.ret = ret_type ? ret_type : analysis::MakeTypePrim("()");
+  ctx.proc_ret_type = ir.ret;
 
   if (ctx.NeedsPanicOutForSymbol(ir.symbol)) {
     ir.params.push_back(PanicOutParam());
@@ -547,6 +574,18 @@ ProcIR LowerProcLike(const std::string& symbol,
   }
 
   ir.body = SeqIR(std::move(body_seq));
+  ctx.proc_ret_type = prev_proc_ret_type;
+  ctx.current_proc_symbol = prev_current_proc_symbol;
+  ctx.current_closure_counter = prev_current_closure_counter;
+  ctx.expr_prov = prev_expr_prov;
+  ctx.expr_region = prev_expr_region;
+  ctx.expr_region_tags = prev_expr_region_tags;
+  ctx.active_contract_postcondition = prev_active_contract_postcondition;
+  ctx.contract_result_value = prev_contract_result_value;
+  ctx.contract_entry_values = prev_contract_entry_values;
+  ctx.contract_param_entry_values = prev_contract_param_entry_values;
+  ctx.lowering_contract_postcondition =
+      prev_lowering_contract_postcondition;
   return ir;
 }
 
@@ -973,6 +1012,9 @@ bool RegisterModuleSignatures(const ast::ASTModule& module, LowerCtx& ctx) {
               ctx.RegisterLocalContractInfo(sig.symbol, *contract);
             }
           } else if constexpr (std::is_same_v<T, ast::RecordDecl>) {
+            std::vector<std::string> record_path = module.path;
+            record_path.push_back(node.name);
+            ctx.RegisterRecordCtor(ScopedSym(record_path), record_path);
             for (const auto& member : node.members) {
               if (const auto* method = std::get_if<ast::MethodDecl>(&member)) {
                 register_user_proc(

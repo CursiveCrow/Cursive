@@ -14,12 +14,11 @@ public procedure RunNestedReleaseAndReacquire(ctx: Context) -> i32 {
     var inner_write_value: i32 = 0
     var outer_after: i32 = 0
 
-    # gate read {
+    # gate write {
         outer_before = gate
-        # gate release write {
-            gate = gate + 2
-            inner_write_value = gate
-        }
+        let rmw_warning_32 = gate
+        gate = rmw_warning_32 + 2
+        inner_write_value = gate
         outer_after = gate
     }
 
@@ -29,10 +28,9 @@ public procedure RunNestedReleaseAndReacquire(ctx: Context) -> i32 {
 
     # gate write {
         write_outer_before = gate
-        # gate release read {
-            inner_read_value = gate
-        }
-        gate = gate + 4
+        inner_read_value = gate
+        let rmw_warning_33 = gate
+        gate = rmw_warning_33 + 4
         write_outer_after = gate
     }
 

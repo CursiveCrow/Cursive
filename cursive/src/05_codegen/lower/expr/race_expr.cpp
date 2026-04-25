@@ -17,6 +17,7 @@
 #include "05_codegen/lower/pattern/pattern_common.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/cleanup/cleanup.h"
+#include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/types.h"
 #include "00_core/assert_spec.h"
 #include <utility>
@@ -44,12 +45,12 @@ void AppendDistinctType(std::vector<analysis::TypeRef>& members,
         }
         return;
     }
-    const analysis::TypeKey candidate_key = analysis::TypeKeyOf(candidate);
     for (const auto& existing : members) {
         if (!existing) {
             continue;
         }
-        if (analysis::TypeKeyEqual(analysis::TypeKeyOf(existing), candidate_key)) {
+        const auto equiv = analysis::TypeEquiv(existing, candidate);
+        if (equiv.ok && equiv.equiv) {
             return;
         }
     }

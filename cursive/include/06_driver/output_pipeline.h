@@ -36,6 +36,11 @@ struct IncrementalModuleInfo {
   std::vector<std::string> dependencies;
 };
 
+struct CodegenObjectAndIR {
+  std::string object;
+  std::optional<std::string> ir;
+};
+
 struct SharedLibraryExports {
   std::vector<std::string> export_symbols;
   std::vector<std::string> data_export_symbols;
@@ -46,6 +51,11 @@ struct OutputPipelineDeps {
   std::function<std::optional<std::string>(const project::ModuleInfo& module,
                                            const project::Project& project)>
       codegen_obj;
+  std::function<std::optional<CodegenObjectAndIR>(
+      const project::ModuleInfo& module,
+      const project::Project& project,
+      std::string_view emit_ir)>
+      codegen_obj_and_ir;
   std::function<std::optional<std::string>(const project::ModuleInfo& module,
                                            const project::Project& project,
                                            std::string_view emit_ir)>

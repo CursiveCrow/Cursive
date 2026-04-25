@@ -74,7 +74,7 @@ procedure VerifyUnsafeCastItem(ctx: Context, scope: string@View, move item_index
     let syntax_metric: i32 = UnsafeCastReadRaw(raw_ptr)
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
-    let static_bool: bool = unsafe { transmute<u8, bool>(one_u8) }
+    let static_bool: bool = one_u8 == 1u8
     let static_metric: i32 = if (static_bool) { 1 } else { 0 }
     [[log(label: "operations-log-transition_move")]]
     let diag_transmute_unsafe_ok: bool = diag_transmute_unsafe == "E-MEM-3030"

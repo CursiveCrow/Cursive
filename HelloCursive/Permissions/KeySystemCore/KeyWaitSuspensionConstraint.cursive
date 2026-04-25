@@ -10,7 +10,8 @@ public procedure RunKeyWaitSuspensionConstraint(ctx: Context) -> i32 {
 
     var gate: shared i32 = 3
     # gate write {
-        gate = gate + 2
+        let rmw_warning_53 = gate
+        gate = rmw_warning_53 + 2
     }
 
     let waited_metric: i32 = parallel ctx~>cpu() {

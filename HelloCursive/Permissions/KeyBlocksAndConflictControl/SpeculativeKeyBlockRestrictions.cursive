@@ -16,20 +16,24 @@ public procedure RunSpeculativeKeyBlockRestrictions(ctx: Context) -> i32 {
 
     var syntax_slot: shared i32 = 2
     # syntax_slot speculative write {
-        syntax_slot = syntax_slot + 1
+        let rmw_warning_41 = syntax_slot
+        syntax_slot = rmw_warning_41 + 1
     }
     let syntax_metric: i32 = syntax_slot
 
     var static_pair: shared SpeculativeKeyPair = SpeculativeKeyPair { left: 1, right: 2 }
     # static_pair.left, static_pair.right speculative write {
-        static_pair.left = static_pair.left + 2
-        static_pair.right = static_pair.right + 1
+        let rmw_warning_42 = static_pair.left
+        static_pair.left = rmw_warning_42 + 2
+        let rmw_warning_43 = static_pair.right
+        static_pair.right = rmw_warning_43 + 1
     }
     let static_metric: i32 = static_pair.left + static_pair.right
 
     var runtime_slot: shared i32 = 4
     # runtime_slot speculative write {
-        runtime_slot = runtime_slot + 3
+        let rmw_warning_44 = runtime_slot
+        runtime_slot = rmw_warning_44 + 3
     }
 
     let diag_nested_key: string@View = "E-CON-0090"

@@ -11,23 +11,28 @@ public procedure RunSpeculativeCommitRetryFallback(ctx: Context) -> i32 {
 
     var slot: shared i32 = 4
     # slot speculative write {
-        slot = slot + 2
+        let rmw_warning_36 = slot
+        slot = rmw_warning_36 + 2
     }
     let commit_metric: i32 = slot
 
     var pair: shared [i32; 2] = [3, 5]
     # pair[0usize], pair[1usize] speculative write {
-        pair[0usize] = pair[0usize] + 1
-        pair[1usize] = pair[1usize] + 2
+        let rmw_warning_37 = pair[0usize]
+        pair[0usize] = rmw_warning_37 + 1
+        let rmw_warning_38 = pair[1usize]
+        pair[1usize] = rmw_warning_38 + 2
     }
     let pair_metric: i32 = pair[0usize] + pair[1usize]
 
     var retry_gate: shared i32 = 10
     # retry_gate speculative write {
-        retry_gate = retry_gate + 1
+        let rmw_warning_39 = retry_gate
+        retry_gate = rmw_warning_39 + 1
     }
     # retry_gate speculative write {
-        retry_gate = retry_gate + 2
+        let rmw_warning_40 = retry_gate
+        retry_gate = rmw_warning_40 + 2
     }
     let retry_metric: i32 = retry_gate
 

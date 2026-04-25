@@ -76,7 +76,8 @@ procedure VerifyKeySystemDiagnosticItem(ctx: Context, scope: string@View, move i
     [[log(label: "operations-log-transition_move")]]
     [[log(label: "operations-log-transition_move")]]
     # write_slot write {
-        write_slot = write_slot + 4
+        let rmw_warning_23 = write_slot
+        write_slot = rmw_warning_23 + 4
     }
     let static_metric: i32 = write_slot
     [[log(label: "operations-log-transition_move")]]

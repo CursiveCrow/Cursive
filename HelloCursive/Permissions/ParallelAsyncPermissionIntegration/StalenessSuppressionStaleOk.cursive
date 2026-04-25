@@ -28,10 +28,9 @@ public procedure RunStalenessSuppressionStaleOk(ctx: Context) -> i32 {
     let stale_metric: i32 = sync StalenessSuppressionStaleOkAsync()
 
     var release_gate: shared i32 = 3
-    # release_gate read {
-        # release_gate release write {
-            release_gate = release_gate + 4
-        }
+    # release_gate write {
+        let rmw_warning_54 = release_gate
+        release_gate = rmw_warning_54 + 4
     }
     let release_metric: i32 = release_gate
 

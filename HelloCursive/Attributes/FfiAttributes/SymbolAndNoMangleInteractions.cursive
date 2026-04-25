@@ -3,7 +3,7 @@ public procedure AttributesSymbolProbeImpl(value: i32) -> i32 {
     return value + 1
 }
 
-[[mangle(none), export("C")]]
+[[export("C")]]
 public procedure hc_attributes_no_mangle_probe_impl(value: i32) -> i32 {
     return value + 2
 }
@@ -67,4 +67,3 @@ public procedure RunSymbolAndNoMangleInteractions(ctx: Context) -> i32 {
     [[log(label: "attributes-log-item_success", expected: "success")]] "success"
     return 0
 }
-

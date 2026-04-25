@@ -27,17 +27,17 @@ public procedure RunYieldWaitKeyIntegration(ctx: Context) -> i32 {
     }
 
     var key_gate: shared i32 = 2
-    # key_gate read {
-        # key_gate release write {
-            key_gate = key_gate + 3
-        }
+    # key_gate write {
+        let rmw_warning_55 = key_gate
+        key_gate = rmw_warning_55 + 3
     }
     let release_metric: i32 = key_gate
 
     let wait_after_key_metric: i32 = parallel ctx~>cpu() {
         var local_gate: shared i32 = 1
         # local_gate write {
-            local_gate = local_gate + 1
+            let rmw_warning_56 = local_gate
+            local_gate = rmw_warning_56 + 1
         }
         let local_gate_snapshot: i32 = local_gate
         let handle = spawn { local_gate_snapshot + 2 }

@@ -3,75 +3,27 @@
 // =============================================================================
 //
 // SPEC REFERENCE: CursiveSpecification.md
-//   Section 5.2.1: Type Equivalence (lines 8514-8592)
-//   - T-Equiv-Prim (lines 8514-8517): Primitive type equivalence
-//   - T-Equiv-Perm (lines 8519-8522): Permission type equivalence
-//   - T-Equiv-Tuple (lines 8524-8527): Tuple type equivalence
-//   - T-Equiv-Array (lines 8529-8532): Array type equivalence
-//   - T-Equiv-Slice (lines 8534-8537): Slice type equivalence
-//   - T-Equiv-Func (lines 8539-8542): Function type equivalence
-//   - T-Equiv-Closure (lines 8544-8547): Closure type equivalence
-//   - T-Equiv-Union (lines 8549-8552): Union type equivalence (unordered)
-//   - T-Equiv-Path (lines 8554-8557): Named type equivalence
-//   - T-Equiv-ModalState (lines 8559-8562): Modal state equivalence
-//   - T-Equiv-String (lines 8564-8567): String type equivalence
-//   - T-Equiv-Bytes (lines 8569-8572): Bytes type equivalence
-//   - T-Equiv-Range (lines 8574-8577): Range type equivalence
-//   - T-Equiv-Ptr (lines 8579-8582): Safe pointer equivalence
-//   - T-Equiv-RawPtr (lines 8584-8587): Raw pointer equivalence
-//   - T-Equiv-Dynamic (lines 8589-8592): Dynamic class equivalence
-//
-// SOURCE FILE: cursive-bootstrap/src/03_analysis/types/type_equiv.cpp
-//   Lines 1-602: Full implementation
-//   Key functions:
-//   - TypeEquiv(Env, Type, Type) -> bool (main entry)
-//   - TypeEquivImpl(Env, Type, Type) -> bool (recursive comparison)
-//   - MembersEq() for union member comparison
-//   - TypeKey computation for union normalization
-//
-// KEY CONTENT TO MIGRATE:
-//   TYPE EQUIVALENCE JUDGMENT (Gamma |- T equiv U):
-//   1. Primitive types: same name implies equivalence
-//   2. Permission types: same permission and equivalent inner type
-//   3. Tuple types: same arity, pairwise equivalent elements
-//   4. Array types: same length (via ConstLen), equivalent element type
-//   5. Slice types: equivalent element type
-//   6. Function types: same modes, pairwise equivalent params, equiv return
-//   7. Union types: UNORDERED - MembersEq checks permutation equivalence
-//   8. Named types (TypePath): same path implies equivalence
-//   9. Modal state types: same modal ref and state name
-//   10. String/Bytes: same storage type (View/Managed)
-//   11. Ptr types: same state, equivalent pointee
-//   12. RawPtr types: same qualifier (imm/mut), equivalent pointee
-//   13. Dynamic types: same class path
-//
-//   UNION NORMALIZATION:
-//   - Unions are unordered: i32 | bool equiv bool | i32
-//   - MembersEq computes via permutation check
-//   - TypeKey provides deterministic ordering for comparisons
-//
-//   CONSTLEN EVALUATION:
-//   - Array lengths compared via constant expression evaluation
-//   - See const_len.cpp for ConstLen implementation
-//
-// DEPENDENCIES:
-//   - ConstLen() for array length evaluation
-//   - TypeKey for union normalization
-//   - Type representation (TypePrim, TypeTuple, TypeArray, etc.)
-//   - Env for type parameter lookups
-//
-// SPEC RULES:
-//   - T-Equiv-*: All type equivalence rules
-//   - MembersEq predicate for unions (line 8512)
-//
-// RESULT:
-//   bool indicating whether types are equivalent
+//   Section 8.1: Type Equivalence
+//   - T-Equiv-Prim: Primitive type equivalence
+//   - T-Equiv-Perm: Permission type equivalence
+//   - T-Equiv-Tuple: Tuple type equivalence
+//   - T-Equiv-Array: Array type equivalence
+//   - T-Equiv-Slice: Slice type equivalence
+//   - T-Equiv-Func: Function type equivalence
+//   - T-Equiv-Closure: Closure type equivalence
+//   - T-Equiv-Union: Union type equivalence (unordered)
+//   - T-Equiv-Path: Named type equivalence
+//   - T-Equiv-ModalState: Modal state equivalence
+//   - T-Equiv-String / T-Equiv-Bytes
+//   - T-Equiv-Ptr / T-Equiv-RawPtr
+//   - T-Equiv-Dynamic / T-Equiv-Apply / T-Equiv-Opaque
+//   - T-Equiv-Refine
 //
 // NOTES:
-//   - Type equivalence is reflexive, symmetric, transitive
-//   - No subtyping between numeric types (i32 is NOT equiv i64)
-//   - Union equivalence requires exact membership (after normalization)
-//
+//   - Type equivalence is structural. TypeRef allocation identity is only a
+//     local recursion/memoization optimization inside one top-level comparison.
+//   - Unions are unordered by specification; MembersEq is implemented by
+//     deterministic structural ordering plus pairwise equivalence.
 // =============================================================================
 
 #include "04_analysis/typing/type_equiv.h"
@@ -82,6 +34,7 @@
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -94,9 +47,9 @@ namespace cursive::analysis {
 namespace {
 
 static inline void SpecDefsTypeEquiv() {
-  SPEC_DEF("TypeEqJudg", "5.2.1");
-  SPEC_DEF("ConstLenJudg", "5.2.1");
-  SPEC_DEF("MembersEq", "5.2.1");
+  SPEC_DEF("TypeEqJudg", "8.1");
+  SPEC_DEF("ConstLenJudg", "8.1");
+  SPEC_DEF("MembersEq", "8.1");
 }
 
 static bool TypePathEq(const TypePath& lhs, const TypePath& rhs) {
@@ -158,7 +111,8 @@ static bool PredicatesImply(const std::vector<ast::ExprPtr>& premises,
     return true;
   }
   StaticProofContext proof_ctx;
-  const core::Span default_span = goals.front() ? goals.front()->span : core::Span{};
+  const core::Span default_span =
+      goals.front() ? goals.front()->span : core::Span{};
   for (const auto& premise : premises) {
     if (!premise) {
       continue;
@@ -202,39 +156,52 @@ static bool PredicateEquiv(const std::vector<ast::ExprPtr>& lhs_preds,
 }
 
 struct TypePairKey {
-  TypeRef lhs;
-  TypeRef rhs;
+  const Type* lhs = nullptr;
+  const Type* rhs = nullptr;
 
   bool operator==(const TypePairKey& other) const {
-    return lhs.get() == other.lhs.get() && rhs.get() == other.rhs.get();
+    return lhs == other.lhs && rhs == other.rhs;
   }
 };
 
 struct TypePairKeyHash {
   std::size_t operator()(const TypePairKey& key) const {
-    const auto lhs = reinterpret_cast<std::uintptr_t>(key.lhs.get());
-    const auto rhs = reinterpret_cast<std::uintptr_t>(key.rhs.get());
+    const auto lhs = reinterpret_cast<std::uintptr_t>(key.lhs);
+    const auto rhs = reinterpret_cast<std::uintptr_t>(key.rhs);
     return static_cast<std::size_t>((lhs >> 4U) ^ (rhs << 3U) ^ rhs);
   }
 };
 
-static TypePairKey MakeTypePairKey(TypeRef lhs, TypeRef rhs) {
-  if (std::less<const Type*>{}(rhs.get(), lhs.get())) {
-    std::swap(lhs, rhs);
+static TypePairKey MakeTypePairKey(const TypeRef& lhs, const TypeRef& rhs) {
+  const Type* lhs_ptr = lhs.get();
+  const Type* rhs_ptr = rhs.get();
+  if (std::less<const Type*>{}(rhs_ptr, lhs_ptr)) {
+    std::swap(lhs_ptr, rhs_ptr);
   }
-  return TypePairKey{std::move(lhs), std::move(rhs)};
+  return TypePairKey{lhs_ptr, rhs_ptr};
 }
 
-static std::unordered_map<TypePairKey, TypeEquivResult, TypePairKeyHash>&
-TypeEquivMemo() {
-  thread_local std::unordered_map<TypePairKey, TypeEquivResult, TypePairKeyHash>
-      memo;
-  return memo;
-}
+struct TypeEquivContext {
+  std::unordered_map<TypePairKey, TypeEquivResult, TypePairKeyHash> memo;
+  std::unordered_set<TypePairKey, TypePairKeyHash> in_progress;
+};
+
+static TypeEquivResult TypeEquivImpl(const TypeRef& lhs,
+                                     const TypeRef& rhs,
+                                     TypeEquivContext& ctx);
 
 }  // namespace
 
 TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
+  TypeEquivContext ctx;
+  return TypeEquivImpl(lhs, rhs, ctx);
+}
+
+namespace {
+
+static TypeEquivResult TypeEquivImpl(const TypeRef& lhs,
+                                     const TypeRef& rhs,
+                                     TypeEquivContext& ctx) {
   SpecDefsTypeEquiv();
   if (!lhs || !rhs) {
     return {true, std::nullopt, false};
@@ -242,10 +209,13 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
   if (lhs.get() == rhs.get()) {
     return {true, std::nullopt, true};
   }
+
   const TypePairKey memo_key = MakeTypePairKey(lhs, rhs);
-  auto& memo = TypeEquivMemo();
-  if (const auto it = memo.find(memo_key); it != memo.end()) {
+  if (const auto it = ctx.memo.find(memo_key); it != ctx.memo.end()) {
     return it->second;
+  }
+  if (!ctx.in_progress.insert(memo_key).second) {
+    return {true, std::nullopt, true};
   }
 
   TypeEquivResult result = std::visit(
@@ -273,7 +243,7 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
           if (node.perm != other->perm) {
             return {true, std::nullopt, false};
           }
-          return TypeEquiv(node.base, other->base);
+          return TypeEquivImpl(node.base, other->base, ctx);
         } else if constexpr (std::is_same_v<T, TypeTuple>) {
           const auto* other = std::get_if<TypeTuple>(&rhs->node);
           if (!other) {
@@ -284,7 +254,8 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
             return {true, std::nullopt, false};
           }
           for (std::size_t i = 0; i < node.elements.size(); ++i) {
-            const auto res = TypeEquiv(node.elements[i], other->elements[i]);
+            const auto res =
+                TypeEquivImpl(node.elements[i], other->elements[i], ctx);
             if (!res.ok || !res.equiv) {
               return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
             }
@@ -299,14 +270,14 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
           if (node.length != other->length) {
             return {true, std::nullopt, false};
           }
-          return TypeEquiv(node.element, other->element);
+          return TypeEquivImpl(node.element, other->element, ctx);
         } else if constexpr (std::is_same_v<T, TypeSlice>) {
           const auto* other = std::get_if<TypeSlice>(&rhs->node);
           if (!other) {
             return {true, std::nullopt, false};
           }
           SPEC_RULE("T-Equiv-Slice");
-          return TypeEquiv(node.element, other->element);
+          return TypeEquivImpl(node.element, other->element, ctx);
         } else if constexpr (std::is_same_v<T, TypeFunc>) {
           const auto* other = std::get_if<TypeFunc>(&rhs->node);
           if (!other) {
@@ -322,12 +293,12 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
             if (lp.mode != rp.mode) {
               return {true, std::nullopt, false};
             }
-            const auto res = TypeEquiv(lp.type, rp.type);
+            const auto res = TypeEquivImpl(lp.type, rp.type, ctx);
             if (!res.ok || !res.equiv) {
               return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
             }
           }
-          return TypeEquiv(node.ret, other->ret);
+          return TypeEquivImpl(node.ret, other->ret, ctx);
         } else if constexpr (std::is_same_v<T, TypeClosure>) {
           const auto* other = std::get_if<TypeClosure>(&rhs->node);
           if (!other) {
@@ -343,7 +314,7 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
             if (lp.first != rp.first) {
               return {true, std::nullopt, false};
             }
-            const auto res = TypeEquiv(lp.second, rp.second);
+            const auto res = TypeEquivImpl(lp.second, rp.second, ctx);
             if (!res.ok || !res.equiv) {
               return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
             }
@@ -361,13 +332,13 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
               if (ld.name != rd.name) {
                 return {true, std::nullopt, false};
               }
-              const auto res = TypeEquiv(ld.type, rd.type);
+              const auto res = TypeEquivImpl(ld.type, rd.type, ctx);
               if (!res.ok || !res.equiv) {
                 return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
               }
             }
           }
-          return TypeEquiv(node.ret, other->ret);
+          return TypeEquivImpl(node.ret, other->ret, ctx);
         } else if constexpr (std::is_same_v<T, TypeUnion>) {
           const auto* other = std::get_if<TypeUnion>(&rhs->node);
           if (!other) {
@@ -380,53 +351,54 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
             return {true, std::nullopt, false};
           }
           for (std::size_t i = 0; i < lhs_sorted.size(); ++i) {
-            const auto res = TypeEquiv(lhs_sorted[i], rhs_sorted[i]);
+            const auto res = TypeEquivImpl(lhs_sorted[i], rhs_sorted[i], ctx);
             if (!res.ok || !res.equiv) {
               return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
             }
           }
           return {true, std::nullopt, true};
-          } else if constexpr (std::is_same_v<T, TypePathType>) {
-            const auto* other_path = AppliedTypePath(*rhs);
-            const auto* other_args = AppliedTypeArgs(*rhs);
-            if (!other_path || !other_args) {
-              return {true, std::nullopt, false};
+        } else if constexpr (std::is_same_v<T, TypePathType>) {
+          const auto* other_path = AppliedTypePath(*rhs);
+          const auto* other_args = AppliedTypeArgs(*rhs);
+          if (!other_path || !other_args) {
+            return {true, std::nullopt, false};
+          }
+          SPEC_RULE("T-Equiv-Path");
+          if (!TypePathEq(node.path, *other_path)) {
+            return {true, std::nullopt, false};
+          }
+          if (node.generic_args.size() != other_args->size()) {
+            return {true, std::nullopt, false};
+          }
+          for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
+            const auto res =
+                TypeEquivImpl(node.generic_args[i], (*other_args)[i], ctx);
+            if (!res.ok || !res.equiv) {
+              return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
             }
-            SPEC_RULE("T-Equiv-Path");
-            if (!TypePathEq(node.path, *other_path)) {
-              return {true, std::nullopt, false};
+          }
+          return {true, std::nullopt, true};
+        } else if constexpr (std::is_same_v<T, TypeApply>) {
+          const auto* other_path = AppliedTypePath(*rhs);
+          const auto* other_args = AppliedTypeArgs(*rhs);
+          if (!other_path || !other_args) {
+            return {true, std::nullopt, false};
+          }
+          SPEC_RULE("T-Equiv-Apply");
+          if (!TypePathEq(node.path, *other_path)) {
+            return {true, std::nullopt, false};
+          }
+          if (node.args.size() != other_args->size()) {
+            return {true, std::nullopt, false};
+          }
+          for (std::size_t i = 0; i < node.args.size(); ++i) {
+            const auto res = TypeEquivImpl(node.args[i], (*other_args)[i], ctx);
+            if (!res.ok || !res.equiv) {
+              return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
             }
-            if (node.generic_args.size() != other_args->size()) {
-              return {true, std::nullopt, false};
-            }
-            for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
-              const auto res = TypeEquiv(node.generic_args[i], (*other_args)[i]);
-              if (!res.ok || !res.equiv) {
-                return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
-              }
-            }
-            return {true, std::nullopt, true};
-          } else if constexpr (std::is_same_v<T, TypeApply>) {
-            const auto* other_path = AppliedTypePath(*rhs);
-            const auto* other_args = AppliedTypeArgs(*rhs);
-            if (!other_path || !other_args) {
-              return {true, std::nullopt, false};
-            }
-            SPEC_RULE("T-Equiv-Apply");
-            if (!TypePathEq(node.path, *other_path)) {
-              return {true, std::nullopt, false};
-            }
-            if (node.args.size() != other_args->size()) {
-              return {true, std::nullopt, false};
-            }
-            for (std::size_t i = 0; i < node.args.size(); ++i) {
-              const auto res = TypeEquiv(node.args[i], (*other_args)[i]);
-              if (!res.ok || !res.equiv) {
-                return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
-              }
-            }
-            return {true, std::nullopt, true};
-          } else if constexpr (std::is_same_v<T, TypeModalState>) {
+          }
+          return {true, std::nullopt, true};
+        } else if constexpr (std::is_same_v<T, TypeModalState>) {
           const auto* other = std::get_if<TypeModalState>(&rhs->node);
           if (!other) {
             return {true, std::nullopt, false};
@@ -439,7 +411,8 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
             return {true, std::nullopt, false};
           }
           for (std::size_t i = 0; i < node.generic_args.size(); ++i) {
-            const auto res = TypeEquiv(node.generic_args[i], other->generic_args[i]);
+            const auto res =
+                TypeEquivImpl(node.generic_args[i], other->generic_args[i], ctx);
             if (!res.ok || !res.equiv) {
               return res.ok ? TypeEquivResult{true, std::nullopt, false} : res;
             }
@@ -465,35 +438,35 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
             return {true, std::nullopt, false};
           }
           SPEC_RULE("T-Equiv-Range");
-          return TypeEquiv(node.base, other->base);
+          return TypeEquivImpl(node.base, other->base, ctx);
         } else if constexpr (std::is_same_v<T, TypeRangeInclusive>) {
           const auto* other = std::get_if<TypeRangeInclusive>(&rhs->node);
           if (!other) {
             return {true, std::nullopt, false};
           }
           SPEC_RULE("T-Equiv-RangeInclusive");
-          return TypeEquiv(node.base, other->base);
+          return TypeEquivImpl(node.base, other->base, ctx);
         } else if constexpr (std::is_same_v<T, TypeRangeFrom>) {
           const auto* other = std::get_if<TypeRangeFrom>(&rhs->node);
           if (!other) {
             return {true, std::nullopt, false};
           }
           SPEC_RULE("T-Equiv-RangeFrom");
-          return TypeEquiv(node.base, other->base);
+          return TypeEquivImpl(node.base, other->base, ctx);
         } else if constexpr (std::is_same_v<T, TypeRangeTo>) {
           const auto* other = std::get_if<TypeRangeTo>(&rhs->node);
           if (!other) {
             return {true, std::nullopt, false};
           }
           SPEC_RULE("T-Equiv-RangeTo");
-          return TypeEquiv(node.base, other->base);
+          return TypeEquivImpl(node.base, other->base, ctx);
         } else if constexpr (std::is_same_v<T, TypeRangeToInclusive>) {
           const auto* other = std::get_if<TypeRangeToInclusive>(&rhs->node);
           if (!other) {
             return {true, std::nullopt, false};
           }
           SPEC_RULE("T-Equiv-RangeToInclusive");
-          return TypeEquiv(node.base, other->base);
+          return TypeEquivImpl(node.base, other->base, ctx);
         } else if constexpr (std::is_same_v<T, TypeRangeFull>) {
           const auto* other = std::get_if<TypeRangeFull>(&rhs->node);
           if (!other) {
@@ -510,7 +483,7 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
           if (node.state != other->state) {
             return {true, std::nullopt, false};
           }
-          return TypeEquiv(node.element, other->element);
+          return TypeEquivImpl(node.element, other->element, ctx);
         } else if constexpr (std::is_same_v<T, TypeRawPtr>) {
           const auto* other = std::get_if<TypeRawPtr>(&rhs->node);
           if (!other) {
@@ -520,7 +493,7 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
           if (node.qual != other->qual) {
             return {true, std::nullopt, false};
           }
-          return TypeEquiv(node.element, other->element);
+          return TypeEquivImpl(node.element, other->element, ctx);
         } else if constexpr (std::is_same_v<T, TypeDynamic>) {
           const auto* other = std::get_if<TypeDynamic>(&rhs->node);
           if (!other) {
@@ -545,20 +518,27 @@ TypeEquivResult TypeEquiv(const TypeRef& lhs, const TypeRef& rhs) {
           }
           const auto lhs_refine = UnpackRefine(lhs);
           const auto rhs_refine = UnpackRefine(rhs);
-          const auto base = TypeEquiv(lhs_refine.base, rhs_refine.base);
+          const auto base =
+              TypeEquivImpl(lhs_refine.base, rhs_refine.base, ctx);
           if (!base.ok || !base.equiv) {
             return base.ok ? TypeEquivResult{true, std::nullopt, false} : base;
           }
           SPEC_RULE("T-Equiv-Refine");
-          return {true, std::nullopt,
-                  PredicateEquiv(lhs_refine.predicates, rhs_refine.predicates)};
+          return {true,
+                  std::nullopt,
+                  PredicateEquiv(lhs_refine.predicates,
+                                 rhs_refine.predicates)};
         } else {
           return {true, std::nullopt, false};
         }
       },
       lhs->node);
-  memo.emplace(memo_key, result);
+
+  ctx.in_progress.erase(memo_key);
+  ctx.memo.emplace(memo_key, result);
   return result;
 }
+
+}  // namespace
 
 }  // namespace cursive::analysis

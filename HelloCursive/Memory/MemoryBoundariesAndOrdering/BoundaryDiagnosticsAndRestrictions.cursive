@@ -10,7 +10,8 @@ public procedure RunBoundaryDiagnosticsAndRestrictions(ctx: Context) -> i32 {
 
     var order_slot: shared i32 = 1
     # order_slot write {
-        order_slot = order_slot + 2
+        let rmw_warning_1 = order_slot
+        order_slot = rmw_warning_1 + 2
     }
     var order_read_metric: i32 = 0
     # order_slot read {

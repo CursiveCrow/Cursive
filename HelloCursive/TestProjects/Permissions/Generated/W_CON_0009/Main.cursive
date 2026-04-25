@@ -1,0 +1,9 @@
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let shared_owner: unique i32 = 3
+    let shared_data: shared i32 = shared_owner
+    let read_shared = |delta: i32| -> i32 {
+        shared_data + delta
+    }
+    return read_shared(1)
+}

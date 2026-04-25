@@ -22,13 +22,12 @@ public procedure RunKeyCompatibilityCoverage(ctx: Context) -> i32 {
     var same_path_read_metric: i32 = 0
     # pair.left read {
         same_path_read_metric = pair.left
-        # pair.left read {
-            same_path_read_metric = same_path_read_metric + pair.left
-        }
+        same_path_read_metric += pair.left
     }
 
     # pair.right write {
-        pair.right = pair.right + 4
+        let rmw_warning_45 = pair.right
+        pair.right = rmw_warning_45 + 4
     }
 
     var disjoint_read_metric: i32 = 0

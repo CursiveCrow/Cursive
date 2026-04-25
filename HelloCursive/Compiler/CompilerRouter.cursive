@@ -16,7 +16,7 @@ public procedure runSystemExitProbeIfRequested(ctx: Context) -> bool {
     return false
 }
 
-[[dynamic, mangle("hc_compiler_runtime_contract_fail_catch"), export("C-unwind"), unwind("catch")]]
+[[mangle("hc_compiler_runtime_contract_fail_catch"), export("C-unwind"), unwind("catch")]]
 public procedure compilerRuntimeContractFailCatch(value: i32) -> i32
 {
     return value

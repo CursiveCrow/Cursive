@@ -7,6 +7,7 @@ import Types::CoreSystem
 import Attributes::FfiAttributes
 import Attributes::AttributeDiagnostics
 import Operations
+import Permissions
 import Modals::Diagnostics as ModalDiagnostics
 import testsupport
 
@@ -61,9 +62,14 @@ public procedure main(move ctx: Context) -> i32 {
         return 18
     }
 
+    let status_permissions: i32 = Permissions::run(ctx)
+    if (status_permissions != 0) {
+        return 19
+    }
+
     let status_modals: i32 = ModalDiagnostics::run(ctx)
     if (status_modals != 0) {
-        return 19
+        return 20
     }
 
     return 0

@@ -16,7 +16,8 @@ public procedure RunKeyConflictDetectionAndReadWriteProhibition(ctx: Context) ->
     }
 
     # slots[2usize] write {
-        slots[2usize] = slots[2usize] + 4
+        let rmw_warning_31 = slots[2usize]
+        slots[2usize] = rmw_warning_31 + 4
     }
 
     var post_write_metric: i32 = 0

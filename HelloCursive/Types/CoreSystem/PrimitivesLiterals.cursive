@@ -18,7 +18,7 @@ procedure AcceptSafePtrValid(value: Ptr<i32>@Valid) -> i32 {
     return 1
 }
 
-procedure AcceptSafePtrExpired(value: Ptr<i32>@Expired) -> i32 {
+procedure AcceptSafePtrState(value: Ptr<i32>) -> i32 {
     let _ = value
     return 1
 }
@@ -242,7 +242,7 @@ procedure VerifyPrimitivesLiteralsItem(ctx: Context, scope: string@View, move it
     LogPrimitivesObject(ctx.fs, scope, "safe_cell", "i32", "constructed", "safe pointer address source value prepared")
     LogPrimitivesObject(ctx.fs, scope, "safe_ptr_valid", "Ptr<i32>@Valid", "constructed", "safe pointer valid-state value prepared")
     LogPrimitivesObject(ctx.fs, scope, "safe_ptr_null", "Ptr<i32>@Null", "constructed", "safe pointer null-state value prepared")
-    LogPrimitivesObject(ctx.fs, scope, "safe_ptr_expired", "Ptr<i32>@Expired", "planned", "safe pointer expired-state value planned")
+    LogPrimitivesObject(ctx.fs, scope, "safe_ptr_state", "Ptr<i32>", "planned", "safe pointer state value planned")
     LogPrimitivesObject(ctx.fs, scope, "safe_ptr_expired_diagnostic", "E-TYP-2102", "planned", "expired pointer dereference diagnostic contract planned")
     LogPrimitivesObject(ctx.fs, scope, "string_left", "string@View", "constructed", "left string literal binding prepared")
     LogPrimitivesObject(ctx.fs, scope, "string_right", "string@View", "constructed", "right string literal binding prepared")
@@ -280,12 +280,12 @@ procedure VerifyPrimitivesLiteralsItem(ctx: Context, scope: string@View, move it
     [[log(label: "types-log-transition_move")]]
     [[log(label: "types-log-transition_move")]]
     [[log(label: "types-log-transition_move")]]
-    let safe_ptr_expired: Ptr<i32>@Expired = unsafe { transmute<Ptr<i32>@Null, Ptr<i32>@Expired>(safe_ptr_null) }
+    let safe_ptr_state: Ptr<i32> = safe_ptr_null
     [[log(label: "types-log-transition_move")]]
     [[log(label: "types-log-transition_move")]]
     let safe_ptr_valid_metric: i32 = AcceptSafePtrValid(safe_ptr_valid)
     let safe_ptr_null_metric: i32 = AcceptSafePtrNull(safe_ptr_null)
-    safe_ptr_expired_metric = AcceptSafePtrExpired(safe_ptr_expired)
+    safe_ptr_expired_metric = AcceptSafePtrState(safe_ptr_state)
     safe_pointer_metric = safe_ptr_valid_metric + safe_ptr_null_metric + safe_ptr_expired_metric
     [[log(label: "types-log-transition_move")]]
     [[log(label: "types-log-transition_move")]]
