@@ -21,8 +21,7 @@ procedure LogInferenceObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunInferenceConstraintsItem(
     ctx: Context,
@@ -39,7 +38,6 @@ procedure RunInferenceConstraintsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -48,17 +46,12 @@ procedure RunInferenceConstraintsItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -89,38 +82,26 @@ procedure InferenceBoolLabel(value: bool) -> string@View {
 }
 
 procedure VerifyInferenceConstraintsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let inferred_lhs = 14
     let inferred_rhs = 9
     let inferred_pair = (inferred_lhs, inferred_rhs)
     LogInferenceObject(ctx.fs, scope, "inferred_pair", "(i32,i32)", "constructed", "bidirectional inference tuple source prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let inferred_total = AddPair(inferred_pair.0, inferred_pair.1)
-    [[log(label: "types-log-transition_move")]]
     let local_choose_flag: bool = inferred_total == 23
     let local_choose_true: i32 = inferred_total - 3
     let local_choose_false: i32 = 0
     LogInferenceObject(ctx.fs, scope, "local_choose_inputs", "bool,i32,i32", "constructed", "local inference branch inputs prepared")
-    [[log(label: "types-log-transition_move")]]
     let local_value = ChooseValue(local_choose_flag, local_choose_true, local_choose_false)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let inferred_total_checked: i32 = IdentityInfer(inferred_total)
     let constraint_bool = (local_value == 20) && (inferred_total_checked == 23)
     let solve_true: i32 = 1
     let solve_false: i32 = 0
-    [[log(label: "types-log-transition_move")]]
     LogInferenceObject(ctx.fs, scope, "constraint_solver_inputs", "bool,i32,i32", "constructed", "constraint-solving branch inputs prepared")
-    [[log(label: "types-log-transition_move")]]
     let solved_join = ChooseValue(constraint_bool, solve_true, solve_false)
-    [[log(label: "types-log-transition_move")]]
     LogInferenceObject(ctx.fs, scope, "ambiguity_seed", "i32", "constructed", "ambiguity fallback seed prepared")
-    [[log(label: "types-log-transition_move")]]
     let ambiguity_seed: i32 = 42
     let ambiguity_fallback: i32 = IdentityInfer(ambiguity_seed)
-    [[log(label: "types-log-transition_move")]]
     let inference_diag_ok = (ambiguity_fallback == 42) && constraint_bool && (solved_join == 1)
 
     let observed_bidirectional_step: string@View = "observed-bidirectional-inference-metric"
@@ -148,19 +129,18 @@ procedure VerifyInferenceConstraintsItem(ctx: Context, scope: string@View, move 
     let ambiguity_metric_passed: bool = ambiguity_fallback == 42
     let diagnostics_metric_passed: bool = inference_diag_ok
 
-    let bidirectional_metric_passed_log_actual = [[log(label: "observed-bidirectional-inference-metric", expected: "23")]] bidirectional_metric_label
+    let bidirectional_metric_passed_log_actual = bidirectional_metric_label
     let bidirectional_metric_passed_with_log: bool = bidirectional_metric_passed && (bidirectional_metric_passed_log_actual == expected_bidirectional)
-    let local_metric_passed_log_actual = [[log(label: "observed-local-inference-metric", expected: "20")]] local_metric_label
+    let local_metric_passed_log_actual = local_metric_label
     let local_metric_passed_with_log: bool = local_metric_passed && (local_metric_passed_log_actual == expected_local)
-    let constraint_generation_metric_passed_log_actual = [[log(label: "observed-constraint-generation-metric", expected: "true")]] constraint_generation_metric_label
+    let constraint_generation_metric_passed_log_actual = constraint_generation_metric_label
     let constraint_generation_metric_passed_with_log: bool = constraint_generation_metric_passed && (constraint_generation_metric_passed_log_actual == expected_constraint_generation)
-    let constraint_solving_metric_passed_log_actual = [[log(label: "observed-constraint-solving-metric", expected: "1")]] constraint_solving_metric_label
+    let constraint_solving_metric_passed_log_actual = constraint_solving_metric_label
     let constraint_solving_metric_passed_with_log: bool = constraint_solving_metric_passed && (constraint_solving_metric_passed_log_actual == expected_constraint_solving)
-    let ambiguity_metric_passed_log_actual = [[log(label: "observed-ambiguity-fallback-metric", expected: "42")]] ambiguity_metric_label
+    let ambiguity_metric_passed_log_actual = ambiguity_metric_label
     let ambiguity_metric_passed_with_log: bool = ambiguity_metric_passed && (ambiguity_metric_passed_log_actual == expected_ambiguity)
-    let diagnostics_metric_passed_log_actual = [[log(label: "observed-inference-diagnostics-metric", expected: "true")]] diagnostics_metric_label
+    let diagnostics_metric_passed_log_actual = diagnostics_metric_label
     let diagnostics_metric_passed_with_log: bool = diagnostics_metric_passed && (diagnostics_metric_passed_log_actual == expected_diagnostics)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunInferenceConstraintsItem(
             ctx,
@@ -313,6 +293,5 @@ procedure RunInferenceConstraints(ctx: Context) -> i32 {
         return status_InferenceDiagnostics
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

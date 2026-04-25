@@ -25,8 +25,7 @@ procedure LogUnionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunUnionsPropagationItem(
     ctx: Context,
@@ -43,7 +42,6 @@ procedure RunUnionsPropagationItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -52,17 +50,12 @@ procedure RunUnionsPropagationItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -86,51 +79,37 @@ procedure UnionMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let constructed: i32 | bool = 5
     LogUnionObject(ctx.fs, scope, "constructed", "i32|bool", "constructed", "union construction source prepared")
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let construction_metric = if constructed is {
         _: i32 { 5 }
         _: bool { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
     let nested_union: i32 | bool | i32 = 7
     LogUnionObject(ctx.fs, scope, "nested_union", "i32|bool|i32", "constructed", "nested union source prepared for flattening")
-    [[log(label: "types-log-transition_move")]]
     let flattened_union: bool | i32 = nested_union
     let flatten_metric = if flattened_union is {
         _: i32 { 7 }
         _: bool { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
     let alias_nested: NestedUnionAlias = true
     LogUnionObject(ctx.fs, scope, "alias_nested", "NestedUnionAlias", "constructed", "alias-expanded nested union source prepared")
-    [[log(label: "types-log-transition_move")]]
     let normalized: bool | i32 = alias_nested
     let normalize_metric = if normalized is {
         _: bool { 1 }
         _: i32 { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
     let distinct_members_generic_source: i32 | bool | i32 = 9
     LogUnionObject(ctx.fs, scope, "distinct_members_generic_source", "i32|bool|i32", "constructed", "duplicate union source prepared for generic inference")
-    [[log(label: "types-log-transition_move")]]
     let distinct_members_generic_metric: i32 = AcceptDistinctMembersGeneric(distinct_members_generic_source)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let propagated: bool = PropagateUnionValue()
     let propagate_metric: i32 = if (propagated) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
     let pattern_union: i32 | bool = true
     LogUnionObject(ctx.fs, scope, "pattern_union", "i32|bool", "constructed", "union pattern narrowing source prepared")
-    [[log(label: "types-log-transition_move")]]
     let pattern_metric = if pattern_union is {
         _: bool { 1 }
         _: i32 { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
     let refined_member: UnionPositiveI32 = 7
     let equivalent_members_union: i32 | bool = refined_member
     let set_members_metric: i32 = if equivalent_members_union is {
@@ -140,12 +119,10 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
     let expected_set_members_metric: string@View = "1"
     let set_members_metric_label: string@View = UnionMetricLabel(set_members_metric)
     let set_members_metric_log_actual =
-        [[log(label: "observed-union-set-members-metric", expected: "1")]]
         set_members_metric_label
     let set_members_passed: bool =
         (set_members_metric == 1) &&
         (set_members_metric_log_actual == expected_set_members_metric)
-    [[log(label: "types-log-transition_move")]]
     let observed_construction_step: string@View = "observed-union-construction-metric"
     let observed_flatten_step: string@View = "observed-union-flattening-metric"
     let observed_normalize_step: string@View = "observed-union-normalization-metric"
@@ -171,19 +148,18 @@ procedure VerifyUnionsPropagationItem(ctx: Context, scope: string@View, move ite
     let propagate_metric_passed: bool = propagate_metric == 1
     let pattern_metric_passed: bool = pattern_metric == 1
 
-    let construction_metric_passed_log_actual = [[log(label: "observed-union-construction-metric", expected: "5")]] construction_metric_label
+    let construction_metric_passed_log_actual = construction_metric_label
     let construction_metric_passed_with_log: bool = construction_metric_passed && (construction_metric_passed_log_actual == expected_construction)
-    let flatten_metric_passed_log_actual = [[log(label: "observed-union-flattening-metric", expected: "7")]] flatten_metric_label
+    let flatten_metric_passed_log_actual = flatten_metric_label
     let flatten_metric_passed_with_log: bool = flatten_metric_passed && (flatten_metric_passed_log_actual == expected_flatten)
-    let normalize_metric_passed_log_actual = [[log(label: "observed-union-normalization-metric", expected: "1")]] normalize_metric_label
+    let normalize_metric_passed_log_actual = normalize_metric_label
     let normalize_metric_passed_with_log: bool = normalize_metric_passed && (normalize_metric_passed_log_actual == expected_normalize)
-    let distinct_members_metric_passed_log_actual = [[log(label: "observed-union-distinct-members-metric", expected: "9")]] distinct_members_metric_label
+    let distinct_members_metric_passed_log_actual = distinct_members_metric_label
     let distinct_members_metric_passed_with_log: bool = distinct_members_metric_passed && (distinct_members_metric_passed_log_actual == expected_distinct_members)
-    let propagate_metric_passed_log_actual = [[log(label: "observed-union-propagation-metric", expected: "1")]] propagate_metric_label
+    let propagate_metric_passed_log_actual = propagate_metric_label
     let propagate_metric_passed_with_log: bool = propagate_metric_passed && (propagate_metric_passed_log_actual == expected_propagate)
-    let pattern_metric_passed_log_actual = [[log(label: "observed-union-pattern-metric", expected: "1")]] pattern_metric_label
+    let pattern_metric_passed_log_actual = pattern_metric_label
     let pattern_metric_passed_with_log: bool = pattern_metric_passed && (pattern_metric_passed_log_actual == expected_pattern)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunUnionsPropagationItem(
             ctx,
@@ -358,6 +334,5 @@ procedure RunUnionsPropagation(ctx: Context) -> i32 {
         return status_UnionSetMembers
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

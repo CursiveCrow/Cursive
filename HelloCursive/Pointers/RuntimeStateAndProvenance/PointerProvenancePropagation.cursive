@@ -12,8 +12,6 @@ procedure PointerProvenancePropagationMetricLabel(value: i32) -> string@View {
 
 public procedure RunPointerProvenancePropagation(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let seed: ProvenancePropagationRecord = ProvenancePropagationRecord {
         pair: (5, 8),
         values: [3, 6, 9]
@@ -33,16 +31,12 @@ public procedure RunPointerProvenancePropagation(ctx: Context) -> i32 {
     let chain_pair_ptr: Ptr<i32>@Valid = &*pair_ptr
     let chain_metric: i32 = *chain_pair_ptr
     let pair_metric_log: i32 =
-        [[log(label: "observed-pointers-runtime-provenance-pair-metric", expected: 8)]]
         pair_metric
     let values_metric_log: i32 =
-        [[log(label: "observed-pointers-runtime-provenance-values-metric", expected: 9)]]
         values_metric
     let raw_metric_log: i32 =
-        [[log(label: "observed-pointers-runtime-provenance-raw-metric", expected: 8)]]
         raw_metric
     let chain_metric_log: i32 =
-        [[log(label: "observed-pointers-runtime-provenance-chain-metric", expected: 8)]]
         chain_metric
 
     let pair_addr_bits: usize =
@@ -61,13 +55,10 @@ public procedure RunPointerProvenancePropagation(ctx: Context) -> i32 {
         (chain_metric_log == 8)
 
     let provenance_path_ok_log: bool =
-        [[log(label: "pointers-runtime-provenance-path-runtime", expected: true)]]
         provenance_path_ok
     let addr_chain_ok_log: bool =
-        [[log(label: "pointers-runtime-provenance-chain-address-stable", expected: true)]]
         addr_chain_ok
     let addr_distinct_ok_log: bool =
-        [[log(label: "pointers-runtime-provenance-distinct-path-address", expected: true)]]
         addr_distinct_ok
 
     let metric_ok: bool =
@@ -77,13 +68,10 @@ public procedure RunPointerProvenancePropagation(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 27 } else { 0 }
     let metric_label: string@View = PointerProvenancePropagationMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-runtime-provenance-propagation-metric", expected: "27")]]
         metric_label
     if (metric_log_actual != "27") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

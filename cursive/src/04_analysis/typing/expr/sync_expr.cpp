@@ -232,8 +232,6 @@ struct YieldUsageFinder {
               VisitKeyPath(path);
             }
             VisitBlock(node.body);
-          } else if constexpr (std::is_same_v<T, ast::LogStmt>) {
-            VisitAttributes(node.attrs);
           } else {
             // ContinueStmt / ErrorStmt have no subexpressions.
           }

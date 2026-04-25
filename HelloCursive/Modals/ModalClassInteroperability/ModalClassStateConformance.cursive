@@ -27,7 +27,7 @@ procedure ModalClassStateConformanceMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalClassStateConformance(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let end_value: ModalConformanceImpl@End =
         ModalConformanceImpl@End { id: 10, status: 5 }
@@ -39,17 +39,14 @@ public procedure RunModalClassStateConformance(ctx: Context) -> i32 {
     }
 
     let runtime_metric_log: i32 =
-        [[log(label: "observed-modals-modal-class-state-conformance-runtime", expected: 15)]]
         runtime_metric
 
     let missing_state_diag: string@View = "E-TYP-2403"
     let missing_state_diag_log: string@View =
-        [[log(label: "modals-modal-class-missing-state-diagnostic", expected: "E-TYP-2403")]]
         missing_state_diag
 
     let mod_059: string@View = "MOD-059"
     let mod_059_log: string@View =
-        [[log(label: "modals-modal-class-feature-059", expected: "MOD-059")]]
         mod_059
 
     let runtime_ok: bool =
@@ -57,19 +54,17 @@ public procedure RunModalClassStateConformance(ctx: Context) -> i32 {
         (missing_state_diag_log == "E-TYP-2403") &&
         (mod_059_log == "MOD-059")
     let runtime_ok_log: bool =
-        [[log(label: "modals-modal-class-state-conformance-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 15 } else { 0 }
     let metric_label: string@View = ModalClassStateConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-class-state-conformance-metric", expected: "15")]]
         metric_label
     if (metric_log_actual != "15") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

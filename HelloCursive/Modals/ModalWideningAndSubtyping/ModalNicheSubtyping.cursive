@@ -15,7 +15,7 @@ procedure ModalNicheSubtypingMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalNicheSubtyping(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let payload_state: ModalNicheSubtypeProbe@Payload =
         ModalNicheSubtypeProbe@Payload { value: 9 }
@@ -35,24 +35,19 @@ public procedure RunModalNicheSubtyping(ctx: Context) -> i32 {
     }
 
     let explicit_metric_log: i32 =
-        [[log(label: "observed-modals-modal-niche-explicit", expected: 9)]]
         explicit_metric
     let implicit_metric_log: i32 =
-        [[log(label: "observed-modals-modal-niche-implicit", expected: 5)]]
         implicit_metric
 
     let non_niche_diag: string@View = "E-TYP-2070"
     let non_niche_diag_log: string@View =
-        [[log(label: "modals-widen-non-niche-diagnostic", expected: "E-TYP-2070")]]
         non_niche_diag
 
     let mod_012: string@View = "MOD-012"
     let mod_013: string@View = "MOD-013"
     let mod_012_log: string@View =
-        [[log(label: "modals-widen-niche-subtyping-feature-012", expected: "MOD-012")]]
         mod_012
     let mod_013_log: string@View =
-        [[log(label: "modals-widen-niche-subtyping-feature-013", expected: "MOD-013")]]
         mod_013
 
     let runtime_ok: bool =
@@ -62,19 +57,17 @@ public procedure RunModalNicheSubtyping(ctx: Context) -> i32 {
         (mod_012_log == "MOD-012") &&
         (mod_013_log == "MOD-013")
     let runtime_ok_log: bool =
-        [[log(label: "modals-widen-niche-subtyping-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 14 } else { 0 }
     let metric_label: string@View = ModalNicheSubtypingMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-niche-subtyping-metric", expected: "14")]]
         metric_label
     if (metric_log_actual != "14") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

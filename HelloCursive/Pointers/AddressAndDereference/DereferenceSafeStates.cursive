@@ -7,8 +7,6 @@ procedure DereferenceSafeStatesMetricLabel(value: i32) -> string@View {
 
 public procedure RunDereferenceSafeStates(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let value: i32 = 21
     let ptr_valid: Ptr<i32>@Valid = &value
     let valid_read_metric: i32 = *ptr_valid
@@ -24,24 +22,19 @@ public procedure RunDereferenceSafeStates(ctx: Context) -> i32 {
     let diag_deref_expired: string@View = "E-TYP-2102"
 
     let diag_deref_null_logged: string@View =
-        [[log(label: "pointers-deref-safe-diag-null", expected: "E-TYP-2101")]]
         diag_deref_null
     let diag_deref_null_ok: bool =
         diag_deref_null_logged == "E-TYP-2101"
     let diag_deref_expired_logged: string@View =
-        [[log(label: "pointers-deref-safe-diag-expired", expected: "E-TYP-2102")]]
         diag_deref_expired
     let diag_deref_expired_ok: bool =
         diag_deref_expired_logged == "E-TYP-2102"
 
     let valid_read_ok_log: bool =
-        [[log(label: "pointers-deref-safe-valid-read", expected: true)]]
         valid_read_ok
     let null_shape_ok_log: bool =
-        [[log(label: "pointers-deref-safe-null-shape", expected: true)]]
         null_shape_ok
     let expired_shape_ok_log: bool =
-        [[log(label: "pointers-deref-safe-expired-shape", expected: true)]]
         expired_shape_ok
 
     let metric_ok: bool =
@@ -53,13 +46,10 @@ public procedure RunDereferenceSafeStates(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 24 } else { 0 }
     let metric_label: string@View = DereferenceSafeStatesMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-deref-safe-states-metric", expected: "24")]]
         metric_label
     if (metric_log_actual != "24") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

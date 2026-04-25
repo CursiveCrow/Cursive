@@ -82,8 +82,7 @@ procedure LogRangeExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure RangeExpressionMetricLabel(value: i32) -> string@View {
     if (value == 6) {
@@ -116,30 +115,23 @@ procedure RunRangeExpressionFormsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyRangeExpressionFormsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogRangeExpressionObject(ctx.fs, scope, "range_forms_decl", "range-expression-set", "constructed", "all range-form declarations prepared")
     LogRangeExpressionObject(ctx.fs, scope, "range_iterable_metrics", "i32", "constructed", "exclusive/inclusive range iteration metrics prepared")
     LogRangeExpressionObject(ctx.fs, scope, "range_to_bound_metrics", "i32", "constructed", "to/to-inclusive range iteration metrics prepared")
     LogRangeExpressionObject(ctx.fs, scope, "range_value_windows", "[i32]", "constructed", "standalone range values prepared for later slicing")
     LogRangeExpressionObject(ctx.fs, scope, "range_control_metrics", "i32", "constructed", "range bound evaluation-order control probes prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let range_exclusive: Range<usize> = 0usize..3usize
     let range_inclusive: RangeInclusive<usize> = 0usize..=3usize
     let range_from: RangeFrom<usize> = 1usize..
@@ -147,17 +139,12 @@ procedure VerifyRangeExpressionFormsItem(ctx: Context, scope: string@View, move 
     let range_to_inclusive: RangeToInclusive<usize> = ..=3usize
     let range_full: RangeFull = ..
     let forms_metric: i32 = 6
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let exclusive_count: i32 = CountExclusiveRange()
     let inclusive_count: i32 = CountInclusiveRange()
     let iteration_metric: i32 = exclusive_count + inclusive_count
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let to_metric: i32 = parallel ctx~>cpu() { dispatch _ in ..3usize [reduce: +] { 1 } }
     let to_inclusive_metric: i32 = parallel ctx~>cpu() { dispatch _ in ..=3usize [reduce: +] { 1 } }
     let bounded_range_metric: i32 = to_metric + to_inclusive_metric
-    [[log(label: "operations-log-transition_move")]]
     let range_values: [i32; 5] = [2, 4, 6, 8, 10]
     let dynamic_start: usize = 1usize
     let dynamic_end: usize = 3usize
@@ -177,26 +164,22 @@ procedure VerifyRangeExpressionFormsItem(ctx: Context, scope: string@View, move 
         to_window[2usize] +
         to_inclusive_window[3usize] +
         full_window[4usize]
-    [[log(label: "operations-log-transition_move")]]
     var range_eval_ok_order: i32 = 0
     let range_eval_ok_ptr: Ptr<i32>@Valid = &range_eval_ok_order
     var range_eval_ok_raw: *mut i32 =
         unsafe { transmute<Ptr<i32>@Valid, *mut i32>(range_eval_ok_ptr) }
     let range_eval_ok_metric: i32 =
         EvaluateRangeWindowMetric(range_values, range_eval_ok_raw)
-    [[log(label: "operations-log-transition_move")]]
     var range_eval_lo_order: i32 = 0
     let range_eval_lo_ptr: Ptr<i32>@Valid = &range_eval_lo_order
     var range_eval_lo_raw: *mut i32 =
         unsafe { transmute<Ptr<i32>@Valid, *mut i32>(range_eval_lo_ptr) }
     let range_eval_lo_metric: i32 = EvaluateRangeControlLoProbe(range_eval_lo_raw)
-    [[log(label: "operations-log-transition_move")]]
     var range_eval_hi_order: i32 = 0
     let range_eval_hi_ptr: Ptr<i32>@Valid = &range_eval_hi_order
     var range_eval_hi_raw: *mut i32 =
         unsafe { transmute<Ptr<i32>@Valid, *mut i32>(range_eval_hi_ptr) }
     let range_eval_hi_metric: i32 = EvaluateRangeControlHiProbe(range_eval_hi_raw)
-    [[log(label: "operations-log-transition_move")]]
     let runtime_metric: i32 = forms_metric + iteration_metric + bounded_range_metric
 
     let observed_forms_step: string@View = "observed-range-forms-declaration-metric"
@@ -215,25 +198,18 @@ procedure VerifyRangeExpressionFormsItem(ctx: Context, scope: string@View, move 
     let iteration_passed: bool = iteration_metric == 7
     let bounded_passed: bool = bounded_range_metric == 7
     let range_value_metric_log: i32 =
-        [[log(label: "observed-range-value-materialization-metric", expected: 50)]]
         range_value_metric
     let range_eval_ok_metric_log: i32 =
-        [[log(label: "observed-range-eval-catch-ok-metric", expected: 12)]]
         range_eval_ok_metric
     let range_eval_ok_order_log: i32 =
-        [[log(label: "observed-range-eval-catch-ok-order", expected: 12)]]
         range_eval_ok_order
     let range_eval_lo_metric_log: i32 =
-        [[log(label: "observed-range-eval-catch-lo-metric", expected: 17)]]
         range_eval_lo_metric
     let range_eval_lo_order_log: i32 =
-        [[log(label: "observed-range-eval-catch-lo-order", expected: 1)]]
         range_eval_lo_order
     let range_eval_hi_metric_log: i32 =
-        [[log(label: "observed-range-eval-catch-hi-metric", expected: 17)]]
         range_eval_hi_metric
     let range_eval_hi_order_log: i32 =
-        [[log(label: "observed-range-eval-catch-hi-order", expected: 12)]]
         range_eval_hi_order
     let range_value_passed: bool = range_value_metric_log == 50
     let range_eval_ok_passed: bool =
@@ -246,16 +222,12 @@ procedure VerifyRangeExpressionFormsItem(ctx: Context, scope: string@View, move 
         (range_eval_hi_metric_log == 17) &&
         (range_eval_hi_order_log == 12)
     let range_value_passed_log: bool =
-        [[log(label: "observed-range-value-materialization-ok", expected: true)]]
         range_value_passed
     let range_eval_ok_passed_log: bool =
-        [[log(label: "observed-range-eval-catch-ok", expected: true)]]
         range_eval_ok_passed
     let range_eval_lo_passed_log: bool =
-        [[log(label: "observed-range-eval-catch-lo", expected: true)]]
         range_eval_lo_passed
     let range_eval_hi_passed_log: bool =
-        [[log(label: "observed-range-eval-catch-hi", expected: true)]]
         range_eval_hi_passed
     let runtime_passed: bool =
         (runtime_metric == 20) &&
@@ -264,15 +236,14 @@ procedure VerifyRangeExpressionFormsItem(ctx: Context, scope: string@View, move 
         range_eval_lo_passed_log &&
         range_eval_hi_passed_log
 
-    let forms_passed_log_actual = [[log(label: "observed-range-forms-declaration-metric", expected: "6")]] forms_label
+    let forms_passed_log_actual = forms_label
     let forms_passed_with_log: bool = forms_passed && (forms_passed_log_actual == forms_label)
-    let iteration_passed_log_actual = [[log(label: "observed-range-iteration-metric", expected: "7")]] iteration_label
+    let iteration_passed_log_actual = iteration_label
     let iteration_passed_with_log: bool = iteration_passed && (iteration_passed_log_actual == iteration_label)
-    let bounded_passed_log_actual = [[log(label: "observed-range-to-bounded-metric", expected: "7")]] bounded_label
+    let bounded_passed_log_actual = bounded_label
     let bounded_passed_with_log: bool = bounded_passed && (bounded_passed_log_actual == bounded_label)
-    let runtime_passed_log_actual = [[log(label: "observed-range-runtime-aggregate-metric", expected: "20")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunRangeExpressionFormsItem(
             ctx,
@@ -359,6 +330,5 @@ procedure RunRangeExpressionForms(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

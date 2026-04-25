@@ -19,8 +19,6 @@ procedure PermissionsDiagnosticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunPermissionsDiagnostics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     let receiver_unique_source: unique i32 = 9
     let unique_metric: i32 = PermissionDiagReadUnique(receiver_unique_source)
     let shared_metric: i32 = {
@@ -69,10 +67,10 @@ public procedure RunPermissionsDiagnostics(ctx: Context) -> i32 {
         (reactivation_shared_metric == 21) &&
         (reactivation_unique_metric == 21)
 
-    let receiver_lattice_ok_log: bool = [[log(label: "memory-permissions-diagnostic-receiver-lattice", expected: true)]] receiver_lattice_ok
-    let unique_binding_ok_log: bool = [[log(label: "memory-permissions-diagnostic-unique-binding", expected: true)]] unique_binding_ok
-    let unique_restore_ok_log: bool = [[log(label: "memory-permissions-diagnostic-unique-restored", expected: true)]] unique_restore_ok
-    let unique_reactivation_ok_log: bool = [[log(label: "memory-permissions-diagnostic-unique-reactivation", expected: true)]] unique_reactivation_ok
+    let receiver_lattice_ok_log: bool = receiver_lattice_ok
+    let unique_binding_ok_log: bool = unique_binding_ok
+    let unique_restore_ok_log: bool = unique_restore_ok
+    let unique_reactivation_ok_log: bool = unique_reactivation_ok
 
     let metric_ok: bool =
         (receiver_lattice_ok_log == true) &&
@@ -81,12 +79,10 @@ public procedure RunPermissionsDiagnostics(ctx: Context) -> i32 {
         (unique_reactivation_ok_log == true)
     let metric: i32 = if (metric_ok) { 42 } else { 0 }
     let metric_label: string@View = PermissionsDiagnosticsMetricLabel(metric)
-    let metric_log_actual = [[log(label: "observed-memory-permissions-diagnostics-metric", expected: "42")]] metric_label
+    let metric_log_actual = metric_label
     if (metric_log_actual != "42") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

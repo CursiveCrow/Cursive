@@ -1718,10 +1718,6 @@ StmtTypeResult TypeKeyBlockStmt(const ScopeContext& ctx,
         return {false, statement_attr_validation.diag_id, {}, {},
                 statement_attr_validation.message};
       }
-      if (const auto log_diag = ValidateLogAttributesForObservedType(
-              ctx, statement_attrs, MakeTypePrim("()"), env)) {
-        return {false, log_diag, {}, {}};
-      }
     }
 
     if (!key_block_attrs.empty()) {

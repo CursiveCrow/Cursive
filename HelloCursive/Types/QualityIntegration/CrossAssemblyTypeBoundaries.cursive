@@ -13,8 +13,7 @@ procedure LogBoundaryObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunCrossAssemblyTypeBoundariesItem(
     ctx: Context,
@@ -31,7 +30,6 @@ procedure RunCrossAssemblyTypeBoundariesItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -40,17 +38,12 @@ procedure RunCrossAssemblyTypeBoundariesItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -65,22 +58,16 @@ procedure BoundaryMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyCrossAssemblyTypeBoundariesItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let permissions_metric: i32 = permissions::PermissionsBoundaryMetric()
     LogBoundaryObject(ctx.fs, scope, "permissions_metric", "i32", "constructed", "permissions assembly boundary metric computed")
-    [[log(label: "types-log-transition_move")]]
     let pointers_metric: i32 = pointers::PointersBoundaryMetric()
     LogBoundaryObject(ctx.fs, scope, "pointers_metric", "i32", "constructed", "pointers assembly boundary metric computed")
-    [[log(label: "types-log-transition_move")]]
     let modal_metric: i32 = modals::ModalsBoundaryMetric()
     LogBoundaryObject(ctx.fs, scope, "modal_metric", "i32", "constructed", "modals assembly boundary metric computed")
-    [[log(label: "types-log-transition_move")]]
     let contracts_metric: i32 = contracts::ContractsBoundaryMetric()
     LogBoundaryObject(ctx.fs, scope, "contracts_metric", "i32", "constructed", "contracts assembly boundary metric computed")
-    [[log(label: "types-log-transition_move")]]
     let concurrency_metric: i32 = concurrency::concurrencyBoundaryMetric(ctx)
     LogBoundaryObject(ctx.fs, scope, "concurrency_metric", "i32", "constructed", "concurrency assembly boundary metric computed")
-    [[log(label: "types-log-transition_move")]]
     let ffi_metric: i32 = ffi::ffiBoundaryMetric()
     LogBoundaryObject(ctx.fs, scope, "ffi_metric", "i32", "constructed", "ffi assembly boundary metric computed")
 
@@ -109,19 +96,18 @@ procedure VerifyCrossAssemblyTypeBoundariesItem(ctx: Context, scope: string@View
     let concurrency_metric_passed: bool = concurrency_metric == 1
     let ffi_metric_passed: bool = ffi_metric == 1
 
-    let permissions_metric_passed_log_actual = [[log(label: "observed-permissions-boundary-metric", expected: "1")]] permissions_metric_label
+    let permissions_metric_passed_log_actual = permissions_metric_label
     let permissions_metric_passed_with_log: bool = permissions_metric_passed && (permissions_metric_passed_log_actual == expected_permissions)
-    let pointers_metric_passed_log_actual = [[log(label: "observed-pointers-boundary-metric", expected: "1")]] pointers_metric_label
+    let pointers_metric_passed_log_actual = pointers_metric_label
     let pointers_metric_passed_with_log: bool = pointers_metric_passed && (pointers_metric_passed_log_actual == expected_pointers)
-    let modals_metric_passed_log_actual = [[log(label: "observed-modals-boundary-metric", expected: "1")]] modals_metric_label
+    let modals_metric_passed_log_actual = modals_metric_label
     let modals_metric_passed_with_log: bool = modals_metric_passed && (modals_metric_passed_log_actual == expected_modals)
-    let contracts_metric_passed_log_actual = [[log(label: "observed-contracts-boundary-metric", expected: "1")]] contracts_metric_label
+    let contracts_metric_passed_log_actual = contracts_metric_label
     let contracts_metric_passed_with_log: bool = contracts_metric_passed && (contracts_metric_passed_log_actual == expected_contracts)
-    let concurrency_metric_passed_log_actual = [[log(label: "observed-concurrency-boundary-metric", expected: "1")]] concurrency_metric_label
+    let concurrency_metric_passed_log_actual = concurrency_metric_label
     let concurrency_metric_passed_with_log: bool = concurrency_metric_passed && (concurrency_metric_passed_log_actual == expected_concurrency)
-    let ffi_metric_passed_log_actual = [[log(label: "observed-ffi-boundary-metric", expected: "1")]] ffi_metric_label
+    let ffi_metric_passed_log_actual = ffi_metric_label
     let ffi_metric_passed_with_log: bool = ffi_metric_passed && (ffi_metric_passed_log_actual == expected_ffi)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunCrossAssemblyTypeBoundariesItem(
             ctx,
@@ -274,6 +260,5 @@ procedure RunCrossAssemblyTypeBoundaries(ctx: Context) -> i32 {
         return status_FfiBoundary
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

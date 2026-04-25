@@ -17,8 +17,6 @@ procedure ProvenanceDeferProbe() -> i32 {
 }
 
 public procedure RunProvenanceDiagnostics(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     let stack_value: i32 = 6
     let stack_ptr: Ptr<i32>@Valid = &stack_value
     let stack_read_metric: i32 = *stack_ptr
@@ -41,9 +39,8 @@ public procedure RunProvenanceDiagnostics(ctx: Context) -> i32 {
         let region_value: i32 = r ^ 7
         let region_ptr: Ptr<i32>@Valid = &region_value
         let region_runtime_ok: bool = (*region_ptr) == 7
-        let region_runtime_ok_log: bool = [[log(label: "memory-provenance-runtime-region", expected: true)]] region_runtime_ok
+        let region_runtime_ok_log: bool = region_runtime_ok
         if (region_runtime_ok_log != true) {
-            [[log(label: "memory-log-item_fail")]]
             return 1
         }
 
@@ -51,9 +48,8 @@ public procedure RunProvenanceDiagnostics(ctx: Context) -> i32 {
             let frame_value: i32 = r ^ 8
             let frame_ptr: Ptr<i32>@Valid = &frame_value
             let frame_runtime_ok: bool = (*frame_ptr) == 8
-            let frame_runtime_ok_log: bool = [[log(label: "memory-provenance-runtime-frame-target", expected: true)]] frame_runtime_ok
+            let frame_runtime_ok_log: bool = frame_runtime_ok
             if (frame_runtime_ok_log != true) {
-                [[log(label: "memory-log-item_fail")]]
                 return 1
             }
         }
@@ -68,7 +64,7 @@ public procedure RunProvenanceDiagnostics(ctx: Context) -> i32 {
             let inner_value: i32 = inner_region ^ 7
             let inner_ptr: Ptr<i32>@Valid = &inner_value
             let nested_region_ok: bool = (*outer_ptr == 4) && (*inner_ptr == 7)
-            let nested_region_ok_log: bool = [[log(label: "memory-provenance-runtime-nested-region-order", expected: true)]] nested_region_ok
+            let nested_region_ok_log: bool = nested_region_ok
             nested_region_order_runtime_ok = nested_region_ok_log == true
         }
     }
@@ -91,31 +87,27 @@ public procedure RunProvenanceDiagnostics(ctx: Context) -> i32 {
     let cleanup_runtime_ok: bool = cleanup_metric == 5
 
     let stack_runtime_ok_log: bool =
-        [[log(label: "memory-provenance-runtime-stack", expected: true)]]
         stack_runtime_ok
     let capture_runtime_ok_log: bool =
-        [[log(label: "memory-provenance-runtime-capture-closure-async", expected: true)]]
         capture_runtime_ok
     let heap_runtime_ok_log: bool =
-        [[log(label: "memory-provenance-runtime-heap", expected: true)]]
         heap_runtime_ok
     let cleanup_runtime_ok_log: bool =
-        [[log(label: "memory-provenance-runtime-cleanup", expected: true)]]
         cleanup_runtime_ok
 
     let diag_escape_err: string@View = "E-MEM-3020"
     let diag_async_capture_lifetime_err: string@View = "E-CON-0280"
     let diag_async_operation_escape_err: string@View = "E-CON-0281"
 
-    let diag_escape_err_log: string@View = [[log(label: "memory-provenance-diagnostic-code-escape", expected: "E-MEM-3020")]] diag_escape_err
-    let diag_async_capture_lifetime_err_log: string@View = [[log(label: "memory-provenance-diagnostic-code-async-capture-lifetime", expected: "E-CON-0280")]] diag_async_capture_lifetime_err
-    let diag_async_operation_escape_err_log: string@View = [[log(label: "memory-provenance-diagnostic-code-async-operation-escape", expected: "E-CON-0281")]] diag_async_operation_escape_err
+    let diag_escape_err_log: string@View = diag_escape_err
+    let diag_async_capture_lifetime_err_log: string@View = diag_async_capture_lifetime_err
+    let diag_async_operation_escape_err_log: string@View = diag_async_operation_escape_err
 
     let diag_matrix_ok: bool =
         (diag_escape_err_log == "E-MEM-3020") &&
         (diag_async_capture_lifetime_err_log == "E-CON-0280") &&
         (diag_async_operation_escape_err_log == "E-CON-0281")
-    let diag_matrix_ok_log: bool = [[log(label: "memory-provenance-diagnostic-matrix", expected: true)]] diag_matrix_ok
+    let diag_matrix_ok_log: bool = diag_matrix_ok
 
     let metric_ok: bool = (stack_runtime_ok_log == true) &&
         (capture_runtime_ok_log == true) &&
@@ -126,13 +118,10 @@ public procedure RunProvenanceDiagnostics(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 63 } else { 0 }
     let metric_label: string@View = ProvenanceDiagnosticsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-memory-provenance-diagnostics-metric", expected: "63")]]
         metric_label
     if (metric_log_actual != "63") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

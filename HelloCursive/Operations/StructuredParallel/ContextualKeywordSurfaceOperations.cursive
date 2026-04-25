@@ -36,21 +36,20 @@ procedure RunContextualKeywordSurfaceOperations(ctx: Context) -> i32 {
     let wait_label: string@View = ContextualKeywordMetricLabel(wait_metric)
     let aggregate_label: string@View = ContextualKeywordMetricLabel(aggregate_metric)
 
-    let identifiers_log: string@View = [[log(label: "observed-structured-parallel-contextual-identifiers-metric", expected: "23")]] identifiers_label
-    let dispatch_log: string@View = [[log(label: "observed-structured-parallel-contextual-key-clause-metric", expected: "6")]] dispatch_label
-    let wait_log: string@View = [[log(label: "observed-structured-parallel-contextual-wait-metric", expected: "23")]] wait_label
-    let aggregate_log: string@View = [[log(label: "observed-structured-parallel-contextual-aggregate-metric", expected: "52")]] aggregate_label
+    let identifiers_log: string@View = identifiers_label
+    let dispatch_log: string@View = dispatch_label
+    let wait_log: string@View = wait_label
+    let aggregate_log: string@View = aggregate_label
 
     let runtime_ok: bool =
         (identifiers_log == "23") &&
         (dispatch_log == "6") &&
         (wait_log == "23") &&
         (aggregate_log == "52")
-    let runtime_ok_log: bool = [[log(label: "structured-parallel-contextual-keywords-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
     if (runtime_ok_log == false) {
         return 1
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

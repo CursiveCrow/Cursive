@@ -37,7 +37,7 @@ procedure FileSystemKindConformanceCodeLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemKindConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let runtime_logs_dir_path: string@View = "build/main/logs/runtime"
@@ -118,30 +118,22 @@ public procedure RunFileSystemKindConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-kind-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let probe_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-kind-probe-dir-ready", expected: true)]]
         probe_dir_ready
     let probe_file_ready_log: bool =
-        [[log(label: "observed-modals-fs-kind-probe-file-ready", expected: true)]]
         probe_file_ready
     let dir_kind_is_dir_log: bool =
-        [[log(label: "observed-modals-fs-kind-dir-is-dir", expected: true)]]
         dir_kind_is_dir
     let dir_kind_code_label: string@View = FileSystemKindConformanceCodeLabel(dir_kind_code)
     let dir_kind_code_label_log: string@View =
-        [[log(label: "observed-modals-fs-kind-dir-kind-code")]]
         dir_kind_code_label
     let file_kind_is_file_log: bool =
-        [[log(label: "observed-modals-fs-kind-file-is-file", expected: true)]]
         file_kind_is_file
     let file_kind_code_label: string@View = FileSystemKindConformanceCodeLabel(file_kind_code)
     let file_kind_code_label_log: string@View =
-        [[log(label: "observed-modals-fs-kind-file-kind-code")]]
         file_kind_code_label
     let missing_kind_errors_log: bool =
-        [[log(label: "observed-modals-fs-kind-missing-errors", expected: true)]]
         missing_kind_errors
 
     let metric: i32 = if (
@@ -156,7 +148,6 @@ public procedure RunFileSystemKindConformance(ctx: Context) -> i32 {
     ) { 6 } else { 0 }
     let metric_label: string@View = FileSystemKindConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-kind-metric", expected: "6")]]
         metric_label
 
     let cleanup_probe_file: () | IoError = fs~>remove(probe_file_path)
@@ -165,10 +156,10 @@ public procedure RunFileSystemKindConformance(ctx: Context) -> i32 {
     let _ = cleanup_probe_dir
 
     if (metric_log_actual != "6") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

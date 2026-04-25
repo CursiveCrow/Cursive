@@ -18,8 +18,6 @@ procedure AddressOfCompositePathsMetricLabel(value: i32) -> string@View {
 
 public procedure RunAddressOfCompositePaths(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let root: AddressCompositeRoot = AddressCompositeRoot {
         left: AddressCompositeLeaf {
             value: 10,
@@ -39,16 +37,12 @@ public procedure RunAddressOfCompositePaths(ctx: Context) -> i32 {
     let left_index_metric: i32 = *ptr_left_index
     let right_tuple_metric: i32 = *ptr_right_tuple
     let left_value_metric_log: i32 =
-        [[log(label: "observed-pointers-address-composite-left-field", expected: 10)]]
         left_value_metric
     let left_tuple_metric_log: i32 =
-        [[log(label: "observed-pointers-address-composite-left-tuple", expected: 8)]]
         left_tuple_metric
     let left_index_metric_log: i32 =
-        [[log(label: "observed-pointers-address-composite-left-index", expected: 6)]]
         left_index_metric
     let right_tuple_metric_log: i32 =
-        [[log(label: "observed-pointers-address-composite-right-tuple", expected: 11)]]
         right_tuple_metric
 
     let path_metric: i32 =
@@ -57,12 +51,10 @@ public procedure RunAddressOfCompositePaths(ctx: Context) -> i32 {
         left_index_metric +
         right_tuple_metric
     let path_metric_log: i32 =
-        [[log(label: "observed-pointers-address-composite-path-sum", expected: 35)]]
         path_metric
     let path_ok: bool = path_metric == 35
 
     let path_ok_log: bool =
-        [[log(label: "pointers-address-composite-runtime-paths", expected: true)]]
         (path_ok &&
         (left_value_metric_log == 10) &&
         (left_tuple_metric_log == 8) &&
@@ -75,13 +67,10 @@ public procedure RunAddressOfCompositePaths(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 28 } else { 0 }
     let metric_label: string@View = AddressOfCompositePathsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-address-composite-paths-metric", expected: "28")]]
         metric_label
     if (metric_log_actual != "28") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

@@ -6,7 +6,7 @@ procedure FileSystemEnsureDirConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemEnsureDirConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -128,25 +128,18 @@ public procedure RunFileSystemEnsureDirConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-ensure-dir-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let ensure_dir_created_log: bool =
-        [[log(label: "observed-modals-fs-ensure-dir-created", expected: true)]]
         ensure_dir_created
     let leaf_exists_after_create_log: bool =
-        [[log(label: "observed-modals-fs-ensure-dir-leaf-exists", expected: true)]]
         leaf_exists_after_create
     let ensure_dir_idempotent_log: bool =
-        [[log(label: "observed-modals-fs-ensure-dir-idempotent", expected: true)]]
         ensure_dir_idempotent
     let open_dir_leaf_ok_log: bool =
-        [[log(label: "observed-modals-fs-ensure-dir-open-leaf", expected: true)]]
         open_dir_leaf_ok
     let collision_rejected_log: bool =
-        [[log(label: "observed-modals-fs-ensure-dir-file-collision-error", expected: true)]]
         collision_rejected
     let collision_preserved_log: bool =
-        [[log(label: "observed-modals-fs-ensure-dir-file-collision-preserved", expected: true)]]
         collision_preserved
 
     let metric: i32 = if (
@@ -160,7 +153,6 @@ public procedure RunFileSystemEnsureDirConformance(ctx: Context) -> i32 {
     ) { 7 } else { 0 }
     let metric_label: string@View = FileSystemEnsureDirConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-ensure-dir-metric", expected: "7")]]
         metric_label
 
     let cleanup_probe_leaf: () | IoError = fs~>remove(probe_leaf_path)
@@ -173,10 +165,10 @@ public procedure RunFileSystemEnsureDirConformance(ctx: Context) -> i32 {
     let _ = cleanup_collision
 
     if (metric_log_actual != "7") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

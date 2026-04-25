@@ -19,7 +19,7 @@ procedure SharedReceiverWriteModesMetricLabel(value: i32) -> string@View {
 
 public procedure RunSharedReceiverWriteModes(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let seed: unique SharedReceiverWriteModesProbe = SharedReceiverWriteModesProbe { value: 22 }
     let shared_probe: shared SharedReceiverWriteModesProbe = seed
@@ -28,24 +28,24 @@ public procedure RunSharedReceiverWriteModes(ctx: Context) -> i32 {
     let sync_metric: i32 = shared_probe~>read_sync()
     let write_mode_anchor: string@View = "shared-allows-tilde-and-tilde-percent"
 
-    let read_metric_log: i32 = [[log(label: "observed-permissions-shared-recv-read", expected: 22)]] read_metric
-    let sync_metric_log: i32 = [[log(label: "observed-permissions-shared-recv-sync", expected: 22)]] sync_metric
-    let write_mode_anchor_log: string@View = [[log(label: "permissions-shared-recv-write-mode-anchor", expected: "shared-allows-tilde-and-tilde-percent")]] write_mode_anchor
+    let read_metric_log: i32 = read_metric
+    let sync_metric_log: i32 = sync_metric
+    let write_mode_anchor_log: string@View = write_mode_anchor
 
     let runtime_ok: bool =
         (read_metric_log == 22) &&
         (sync_metric_log == 22) &&
         (write_mode_anchor_log == "shared-allows-tilde-and-tilde-percent")
-    let runtime_ok_log: bool = [[log(label: "permissions-shared-recv-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 22 } else { 0 }
     let metric_label: string@View = SharedReceiverWriteModesMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-shared-recv-metric", expected: "22")]] metric_label
+    let metric_label_log: string@View = metric_label
     if (metric_label_log != "22") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

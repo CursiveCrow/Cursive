@@ -16,20 +16,20 @@ public procedure RunProvenanceClassesAndPropagation(ctx: Context) -> i32 {
         let region_value: i32 = r ^ 8
         let region_ptr: Ptr<i32>@Valid = &region_value
         let region_ok: bool = (*region_ptr) == 8
-        let region_ok_log: bool = [[log(label: "memory-provenance-region-class", expected: true)]] region_ok
+        let region_ok_log: bool = region_ok
         if (region_ok_log != true) {
             let fail_marker: string@View = "memory-provenance-classes-fail"
-            [[log(label: "memory-log-item_fail")]] fail_marker
+            fail_marker
             return 1
         }
     }
 
-    [[log(label: "memory-provenance-probe-after-region")]] true
+    true
 
-    [[log(label: "memory-provenance-probe-before-to_managed")]] true
+    true
     let managed_heap_result: string@Managed | AllocationError =
         string::to_managed("hp", ctx.heap)
-    [[log(label: "memory-provenance-probe-after-to_managed")]] true
+    true
     var heap_metric: i32 = -1
     if managed_heap_result is {
         managed_text: unique string@Managed {
@@ -48,11 +48,11 @@ public procedure RunProvenanceClassesAndPropagation(ctx: Context) -> i32 {
     let place_ok: bool = (*place_alias_ptr) == 6
     let expr_ok: bool = (read_metric + 2) == 8
 
-    let stack_ok_log: bool = [[log(label: "memory-provenance-stack-class", expected: true)]] stack_ok
-    let global_ok_log: bool = [[log(label: "memory-provenance-global-class", expected: true)]] global_ok
-    let heap_ok_log: bool = [[log(label: "memory-provenance-heap-class", expected: true)]] heap_ok
-    let place_ok_log: bool = [[log(label: "memory-provenance-place-propagation", expected: true)]] place_ok
-    let expr_ok_log: bool = [[log(label: "memory-provenance-expression-propagation", expected: true)]] expr_ok
+    let stack_ok_log: bool = stack_ok
+    let global_ok_log: bool = global_ok
+    let heap_ok_log: bool = heap_ok
+    let place_ok_log: bool = place_ok
+    let expr_ok_log: bool = expr_ok
 
     let metric: i32 = if (stack_ok &&
         global_ok &&
@@ -65,14 +65,14 @@ public procedure RunProvenanceClassesAndPropagation(ctx: Context) -> i32 {
         (place_ok_log == true) &&
         (expr_ok_log == true)) { 19 } else { 0 }
     let metric_label: string@View = ProvenanceClassesMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-provenance-classes-metric", expected: "19")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "19") {
         let fail_marker: string@View = "memory-provenance-classes-fail"
-        [[log(label: "memory-log-item_fail")]] fail_marker
+        fail_marker
         return 1
     }
 
     let success_marker: string@View = "memory-provenance-classes-success"
-    [[log(label: "memory-log-memory_item_success")]] success_marker
+    success_marker
     return 0
 }

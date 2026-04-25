@@ -1,48 +1,48 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "contracts-log-section_start", expected: "section-start")]] "section-start"
+    "section-start"
 
     let status_contract_check_machine_semantics: i32 = RunContractCheckMachineSemantics(ctx)
     if (status_contract_check_machine_semantics != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_contract_check_machine_semantics
     }
 
     let status_contract_violation_payload_semantics: i32 = RunContractViolationPayloadSemantics(ctx)
     if (status_contract_violation_payload_semantics != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_contract_violation_payload_semantics
     }
 
     let status_dynamic_contract_check_insertion: i32 = RunDynamicContractCheckInsertion(ctx)
     if (status_dynamic_contract_check_insertion != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_dynamic_contract_check_insertion
     }
 
     let status_refinement_contract_check_integration: i32 = RunRefinementContractCheckIntegration(ctx)
     if (status_refinement_contract_check_integration != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_refinement_contract_check_integration
     }
 
     let status_static_proof_and_decidable_predicates: i32 = RunStaticProofAndDecidablePredicates(ctx)
     if (status_static_proof_and_decidable_predicates != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_static_proof_and_decidable_predicates
     }
 
     let status_verification_facts_and_propagation: i32 = RunVerificationFactsAndPropagation(ctx)
     if (status_verification_facts_and_propagation != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_verification_facts_and_propagation
     }
 
     let status_verification_locations_and_contexts: i32 = RunVerificationLocationsAndContexts(ctx)
     if (status_verification_locations_and_contexts != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_verification_locations_and_contexts
     }
 
-    [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+    "section-end"
     return 0
 }

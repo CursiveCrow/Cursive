@@ -7,14 +7,14 @@ procedure AttributeWarningMatrixMetricLabel(value: i32) -> string@View {
 
 public procedure RunAttributeWarningMatrix(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
-    let w0601: string@View = [[log(label: "attributes-warning-0601", expected: "W-CNF-0601")]] "W-CNF-0601"
-    let w2451: string@View = [[log(label: "attributes-warning-2451", expected: "W-MOD-2451")]] "W-MOD-2451"
-    let w2452: string@View = [[log(label: "attributes-warning-2452", expected: "W-MOD-2452")]] "W-MOD-2452"
-    let w0401: string@View = [[log(label: "attributes-warning-0401", expected: "W-CON-0401")]] "W-CON-0401"
-    let w3350: string@View = [[log(label: "attributes-warning-3350", expected: "W-SYS-3350")]] "W-SYS-3350"
-    let w3355: string@View = [[log(label: "attributes-warning-3355", expected: "W-SYS-3355")]] "W-SYS-3355"
+    let w0601: string@View = "W-CNF-0601"
+    let w2451: string@View = "W-MOD-2451"
+    let w2452: string@View = "W-MOD-2452"
+    let w0401: string@View = "W-CON-0401"
+    let w3350: string@View = "W-SYS-3350"
+    let w3355: string@View = "W-SYS-3355"
 
     let runtime_ok: bool =
         (w0601 == "W-CNF-0601") &&
@@ -23,17 +23,17 @@ public procedure RunAttributeWarningMatrix(ctx: Context) -> i32 {
         (w0401 == "W-CON-0401") &&
         (w3350 == "W-SYS-3350") &&
         (w3355 == "W-SYS-3355")
-    let runtime_ok_log: bool = [[log(label: "attributes-warning-matrix-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 92 } else { 0 }
     let metric_label: string@View = AttributeWarningMatrixMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-warning-matrix-metric", expected: "92")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "92") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

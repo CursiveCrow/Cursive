@@ -244,15 +244,6 @@ namespace cursive::ast
     cursive::core::Span span;
   };
 
-  /// LogStmt: standalone [[log(...)]] checkpoint statement
-  /// Emits a trace record with the observed value () and type ().
-  /// The label argument is optional; when omitted the record still logs ().
-  struct LogStmt
-  {
-    AttributeList attrs;
-    cursive::core::Span span;
-  };
-
   /// ErrorStmt: parse-error sentinel node
   /// Represents a statement that failed to parse. Allows the parser
   /// to continue after errors for better error recovery.
@@ -288,8 +279,6 @@ namespace cursive::ast
       UnsafeBlockStmt,
       CtStmt,
       KeyBlockStmt,
-      // Log checkpoint statement
-      LogStmt,
       ErrorStmt>;
 
   // ===========================================================================

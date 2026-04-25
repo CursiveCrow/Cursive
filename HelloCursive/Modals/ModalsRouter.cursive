@@ -9,9 +9,9 @@ import ModalClassInteroperability
 import Diagnostics
 
 procedure ModalsLogGroupStatus(group_name: string@View, status: i32) -> () {
-    [[log(label: "modals-log-group-name", expected: "group")]] "group"
-    [[log(label: "observed-modals-group-name")]] group_name
-    [[log(label: "observed-modals-group-status", expected: 0)]] status
+    "group"
+    group_name
+    status
     return ()
 }
 

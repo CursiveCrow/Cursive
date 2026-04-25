@@ -66,8 +66,7 @@ procedure LogRecordsObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunRecordsItem(
     ctx: Context,
@@ -84,7 +83,6 @@ procedure RunRecordsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -93,17 +91,12 @@ procedure RunRecordsItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -139,34 +132,22 @@ procedure RecordsMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyRecordsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let declared: TypeRecordCase = TypeRecordCase { left: 3, right: 4, bias: 0 }
     LogRecordsObject(ctx.fs, scope, "declared", "TypeRecordCase", "constructed", "declared record value prepared")
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let declared_sum: i32 = declared.left + declared.right
-    [[log(label: "types-log-transition_move")]]
     let constructed: TypeRecordCase = TypeRecordCase { left: 4, right: 5, bias: 0 }
     LogRecordsObject(ctx.fs, scope, "constructed", "TypeRecordCase", "constructed", "record literal value prepared")
-    [[log(label: "types-log-transition_move")]]
     let constructed_sum: i32 = constructed.left + constructed.right
-    [[log(label: "types-log-transition_move")]]
     var updated: TypeRecordCase = TypeRecordCase { left: 1, right: 2, bias: 0 }
     LogRecordsObject(ctx.fs, scope, "updated", "TypeRecordCase", "constructed", "mutable record for update typing prepared")
-    [[log(label: "types-log-transition_move")]]
     updated.left = 6
     updated.right = 5
     let updated_sum: i32 = updated.left + updated.right
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let field_access_value: i32 = declared.right
-    [[log(label: "types-log-transition_move")]]
     let default_right: i32 = 3
     LogRecordsObject(ctx.fs, scope, "default_right", "i32", "constructed", "default constructor override input prepared")
-    [[log(label: "types-log-transition_move")]]
     let defaulted: TypeRecordCase = BuildRecordWithDefaults(default_right)
     let default_total: i32 = defaulted.left + defaulted.right + defaulted.bias
-    [[log(label: "types-log-transition_move")]]
     var record_eval_order: i32 = 0
     let record_eval_ptr: Ptr<i32>@Valid = &record_eval_order
     var record_eval_raw: *mut i32 =
@@ -177,24 +158,19 @@ procedure VerifyRecordsItem(ctx: Context, scope: string@View, move item_index: i
         bias: AdvanceRecordEvalOrder(record_eval_raw, 3)
     }
     LogRecordsObject(ctx.fs, scope, "record_eval_value", "TypeRecordCase", "constructed", "record evaluation-order probe prepared")
-    [[log(label: "types-log-transition_move")]]
     let record_eval_metric: i32 =
         record_eval_value.left + record_eval_value.right + record_eval_value.bias + record_eval_order
-    [[log(label: "types-log-transition_move")]]
     var record_ctrl_order: i32 = 0
     let record_ctrl_ptr: Ptr<i32>@Valid = &record_ctrl_order
     var record_ctrl_raw: *mut i32 =
         unsafe { transmute<Ptr<i32>@Valid, *mut i32>(record_ctrl_ptr) }
     let record_ctrl_result: i32 = EvaluateRecordControlProbe(record_ctrl_raw)
-    [[log(label: "types-log-transition_move")]]
     let default_ctor_value: DefaultConstructorProbe = DefaultConstructorProbe()
     LogRecordsObject(ctx.fs, scope, "default_ctor_value", "DefaultConstructorProbe", "constructed", "default record constructor probe prepared")
-    [[log(label: "types-log-transition_move")]]
     let default_ctor_metric: i32 = default_ctor_value.first + default_ctor_value.second
     let default_ctor_catch_metric: i32 = unsafe {
         hc_types_record_ctor_catch()
     }
-    [[log(label: "types-log-transition_move")]]
     let observed_declared_step: string@View = "observed-record-declared-metric"
     let observed_constructed_step: string@View = "observed-record-construction-metric"
     let observed_updated_step: string@View = "observed-record-update-metric"
@@ -242,29 +218,28 @@ procedure VerifyRecordsItem(ctx: Context, scope: string@View, move item_index: i
         (default_ctor_value.second == 7)
     let default_ctor_catch_metric_passed: bool = default_ctor_catch_metric == 0
 
-    let declared_metric_passed_log_actual = [[log(label: "observed-record-declared-metric", expected: "7")]] declared_metric_label
+    let declared_metric_passed_log_actual = declared_metric_label
     let declared_metric_passed_with_log: bool = declared_metric_passed && (declared_metric_passed_log_actual == expected_declared)
-    let constructed_metric_passed_log_actual = [[log(label: "observed-record-construction-metric", expected: "9")]] constructed_metric_label
+    let constructed_metric_passed_log_actual = constructed_metric_label
     let constructed_metric_passed_with_log: bool = constructed_metric_passed && (constructed_metric_passed_log_actual == expected_constructed)
-    let updated_metric_passed_log_actual = [[log(label: "observed-record-update-metric", expected: "11")]] updated_metric_label
+    let updated_metric_passed_log_actual = updated_metric_label
     let updated_metric_passed_with_log: bool = updated_metric_passed && (updated_metric_passed_log_actual == expected_updated)
-    let field_metric_passed_log_actual = [[log(label: "observed-field-access-metric", expected: "4")]] field_metric_label
+    let field_metric_passed_log_actual = field_metric_label
     let field_metric_passed_with_log: bool = field_metric_passed && (field_metric_passed_log_actual == expected_field)
-    let default_metric_passed_log_actual = [[log(label: "observed-default-fields-metric", expected: "14")]] default_metric_label
+    let default_metric_passed_log_actual = default_metric_label
     let default_metric_passed_with_log: bool = default_metric_passed && (default_metric_passed_log_actual == expected_default)
-    let record_eval_metric_passed_log_actual = [[log(label: "observed-record-eval-order-metric", expected: "259")]] record_eval_metric_label
+    let record_eval_metric_passed_log_actual = record_eval_metric_label
     let record_eval_metric_passed_with_log: bool =
         record_eval_metric_passed && (record_eval_metric_passed_log_actual == expected_record_eval)
-    let record_ctrl_metric_passed_log_actual = [[log(label: "observed-record-control-propagation-metric", expected: "17")]] record_ctrl_metric_label
+    let record_ctrl_metric_passed_log_actual = record_ctrl_metric_label
     let record_ctrl_metric_passed_with_log: bool =
         record_ctrl_metric_passed && (record_ctrl_metric_passed_log_actual == expected_record_ctrl)
-    let default_ctor_metric_passed_log_actual = [[log(label: "observed-default-record-ctor-metric", expected: "12")]] default_ctor_metric_label
+    let default_ctor_metric_passed_log_actual = default_ctor_metric_label
     let default_ctor_metric_passed_with_log: bool =
         default_ctor_metric_passed && (default_ctor_metric_passed_log_actual == expected_default_ctor)
-    let default_ctor_catch_metric_passed_log_actual = [[log(label: "observed-default-record-ctor-catch-metric", expected: "0")]] default_ctor_catch_metric_label
+    let default_ctor_catch_metric_passed_log_actual = default_ctor_catch_metric_label
     let default_ctor_catch_metric_passed_with_log: bool =
         default_ctor_catch_metric_passed && (default_ctor_catch_metric_passed_log_actual == expected_default_ctor_catch)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunRecordsItem(
             ctx,
@@ -483,6 +458,5 @@ procedure RunRecords(ctx: Context) -> i32 {
         return status_DefaultRecordConstructorCatch
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

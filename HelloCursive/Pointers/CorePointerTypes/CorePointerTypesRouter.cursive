@@ -1,42 +1,33 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "pointers-log-section_start")]]
-
     let status_safe: i32 = RunSafePointerStateForms(ctx)
     if (status_safe != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_safe
     }
 
     let status_llvm_attr: i32 = RunLlvmPointerAttributeMappingCoverage(ctx)
     if (status_llvm_attr != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_llvm_attr
     }
 
     let status_raw: i32 = RunRawPointerForms(ctx)
     if (status_raw != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_raw
     }
 
     let status_null: i32 = RunNullPointerForms(ctx)
     if (status_null != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_null
     }
 
     let status_layout: i32 = RunPointerLayoutAndValidity(ctx)
     if (status_layout != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_layout
     }
 
     let status_opaque: i32 = RunOpaquePointerModelCoverage(ctx)
     if (status_opaque != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_opaque
     }
 
-    [[log(label: "pointers-log-section_end")]]
     return 0
 }

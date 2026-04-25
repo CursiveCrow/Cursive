@@ -79,13 +79,10 @@ public procedure run(ctx: Context) -> i32 {
     let session_metric_second: i32 = HostedSessionNextValue()
 
     let context_metric_log: i32 =
-        [[log(label: "observed-hostedshared-context-metric", expected: 21)]]
         context_metric
     let session_metric_first_log: i32 =
-        [[log(label: "observed-hostedshared-session-first-metric", expected: 101)]]
         session_metric_first
     let session_metric_second_log: i32 =
-        [[log(label: "observed-hostedshared-session-second-metric", expected: 202)]]
         session_metric_second
 
     if ((context_metric_log != 21) ||

@@ -29,8 +29,7 @@ procedure LogRefinementValue(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunRefinementTypesItem(
     ctx: Context,
@@ -47,7 +46,6 @@ procedure RunRefinementTypesItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -56,17 +54,12 @@ procedure RunRefinementTypesItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -91,7 +84,6 @@ procedure RefinementMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyRefinementTypesItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let refined_positive: PositiveI32 = 7
     LogRefinementValue(ctx.fs, scope, "refined_positive", "constructed", "positive refinement value constructed")
     let refined_bounded: PositiveUnderTenI32 = 7
@@ -99,31 +91,15 @@ procedure VerifyRefinementTypesItem(ctx: Context, scope: string@View, move item_
     let negative_probe: i32 = -3
     LogRefinementValue(ctx.fs, scope, "negative_probe", "constructed", "negative runtime probe prepared for rejection branch")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let predicate_runtime_ok: bool = IsPositiveRuntime(refined_positive)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let bounded_runtime_ok: bool = IsPositiveUnderTenRuntime(refined_bounded)
     let bounded_literal_probe: i32 = 7
     let bounded_literal_runtime_ok: bool = IsPositiveUnderTenRuntime(bounded_literal_probe)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let rejected_runtime_ok: bool = if (IsPositiveRuntime(negative_probe)) { false } else { true }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let accepted_positive: i32 = AcceptPositive(refined_positive)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let accepted_bounded: i32 = AcceptPositiveUnderTen(refined_bounded)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let accepted_bounded_as_positive: i32 = AcceptPositive(refined_bounded)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let accepted_alias_from_positive: i32 = AcceptPositiveAlias(refined_positive)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-runtime_phase_move")]]
     let predicate_syntax_metric: i32 = if (predicate_runtime_ok) { 1 } else { 0 }
     let refinement_construction_metric: i32 = accepted_positive
     let verification_boundary_metric: i32 = if (bounded_runtime_ok && (accepted_bounded == 7)) { 1 } else { 0 }
@@ -152,15 +128,15 @@ procedure VerifyRefinementTypesItem(ctx: Context, scope: string@View, move item_
     let refinement_construction_metric_passed: bool = refinement_construction_metric == 7
     let refinement_diagnostic_metric_passed: bool = refinement_diagnostic_metric == 1
 
-    let bounded_runtime_ok_passed_log_actual = [[log(label: "observed-bounded-runtime-ok", expected: "true")]] bounded_runtime_ok_label
+    let bounded_runtime_ok_passed_log_actual = bounded_runtime_ok_label
     let bounded_runtime_ok_passed_with_log: bool = bounded_runtime_ok_passed && (bounded_runtime_ok_passed_log_actual == expected_true)
-    let bounded_literal_runtime_ok_passed_log_actual = [[log(label: "observed-bounded-literal-runtime-ok", expected: "true")]] bounded_literal_runtime_ok_label
+    let bounded_literal_runtime_ok_passed_log_actual = bounded_literal_runtime_ok_label
     let bounded_literal_runtime_ok_passed_with_log: bool = bounded_literal_runtime_ok_passed && (bounded_literal_runtime_ok_passed_log_actual == expected_true)
-    let accepted_bounded_passed_log_actual = [[log(label: "observed-accepted-bounded", expected: "7")]] accepted_bounded_label
+    let accepted_bounded_passed_log_actual = accepted_bounded_label
     let accepted_bounded_passed_with_log: bool = accepted_bounded_passed && (accepted_bounded_passed_log_actual == expected_bounded_value)
-    let verification_metric_passed_log_actual = [[log(label: "observed-verification-boundary-metric", expected: "1")]] verification_boundary_metric_label
+    let verification_metric_passed_log_actual = verification_boundary_metric_label
     let verification_metric_passed_with_log: bool = verification_metric_passed && (verification_metric_passed_log_actual == expected_verification_metric)
-    let refinement_interop_metric_passed_log_actual = [[log(label: "observed-refinement-interop-metric", expected: "1")]] refinement_interop_metric_label
+    let refinement_interop_metric_passed_log_actual = refinement_interop_metric_label
     let refinement_interop_metric_passed_with_log: bool = refinement_interop_metric_passed && (refinement_interop_metric_passed_log_actual == expected_refinement_interop_metric)
     if (item_index == 0) {
         return RunRefinementTypesItem(
@@ -292,6 +268,5 @@ procedure RunRefinementTypes(ctx: Context) -> i32 {
         return status_RefinementDiagnostics
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

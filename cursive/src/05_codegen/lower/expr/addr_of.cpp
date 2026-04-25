@@ -59,7 +59,7 @@ bool AddrOfNeedsIndexCheck(const ast::Expr& base, const LowerCtx& ctx) {
   return true;
 }
 
-// addr_of log/dynamic attribute handling now uses shared utilities from expr_common.h
+// addr_of dynamic attribute handling now uses shared utilities from expr_common.h
 
 // Join module path components with "::"
 std::string ModulePathString(const std::vector<std::string>& path) {
@@ -412,15 +412,6 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
           }
           LowerResult out = node.expr ? LowerAddrOf(*node.expr, ctx)
                                       : LowerResult{EmptyIR(), ctx.FreshTempValue("addr_of_attr")};
-          analysis::TypeRef actual_type = ctx.LookupValueType(out.value);
-          if (!actual_type && ctx.expr_type && node.expr) {
-            actual_type = ctx.expr_type(*node.expr);
-          }
-          IRPtr log_ir =
-              EmitLogAttributeTrace(node.attrs, place.span, out.value, actual_type, "addr_of", ctx);
-          if (log_ir && !std::holds_alternative<IROpaque>(log_ir->node)) {
-            out.ir = SeqIR({out.ir, log_ir});
-          }
           ctx.dynamic_checks = prev_dynamic;
           return out;
         } else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>) {

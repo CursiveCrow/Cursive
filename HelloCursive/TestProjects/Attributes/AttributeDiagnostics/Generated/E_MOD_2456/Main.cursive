@@ -1,4 +1,0 @@
-[[log(bad: 1)]]
-public procedure main(move ctx: Context) -> i32 {
-    return 0
-}

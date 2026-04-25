@@ -1,6 +1,4 @@
 public procedure runConcurrencySpawnWaitExercise(ctx: Context) -> i32 {
-    [[log(label: "concurrency-log-item_begin")]]
-
     let spawn_result: i32 = parallel ctx~>cpu() {
         let h1 = spawn { 3 };
         let h2 = spawn { 7 };
@@ -9,42 +7,34 @@ public procedure runConcurrencySpawnWaitExercise(ctx: Context) -> i32 {
         v1 + v2
     }
 
-    let spawn_result_log: i32 = [[log(label: "observed-concurrency-spawn-wait-result", expected: 10)]] spawn_result
+    let spawn_result_log: i32 = spawn_result
     let spawn_ok: bool = spawn_result_log == 10
-    let spawn_ok_log: bool = [[log(label: "concurrency-spawn-wait-runtime", expected: true)]] spawn_ok
+    let spawn_ok_log: bool = spawn_ok
 
     if (spawn_ok_log != true) {
-        [[log(label: "concurrency-log-item_fail")]]
         return 1
     }
-    [[log(label: "concurrency-log-item_success")]]
     return 0
 }
 
 public procedure runConcurrencyDispatchReductionExercise(ctx: Context) -> i32 {
-    [[log(label: "concurrency-log-item_begin")]]
-
     let dispatch_sum: i32 = parallel ctx~>cpu() {
         dispatch i in 0usize..6usize [reduce: +] {
             i as i32
         }
     }
 
-    let dispatch_sum_log: i32 = [[log(label: "observed-concurrency-dispatch-reduction-sum", expected: 15)]] dispatch_sum
+    let dispatch_sum_log: i32 = dispatch_sum
     let dispatch_ok: bool = dispatch_sum_log == 15
-    let dispatch_ok_log: bool = [[log(label: "concurrency-dispatch-reduction-runtime", expected: true)]] dispatch_ok
+    let dispatch_ok_log: bool = dispatch_ok
 
     if (dispatch_ok_log != true) {
-        [[log(label: "concurrency-log-item_fail")]]
         return 1
     }
-    [[log(label: "concurrency-log-item_success")]]
     return 0
 }
 
 public procedure runConcurrencyCancelTokenExercise(ctx: Context) -> i32 {
-    [[log(label: "concurrency-log-item_begin")]]
-
     let cancel_token_owner: unique (CancelToken@Active;) = (CancelToken::new();)
     let cancel_token: shared CancelToken@Active = move cancel_token_owner.0
     let cancel_modal: CancelToken = widen(cancel_token)
@@ -56,52 +46,42 @@ public procedure runConcurrencyCancelTokenExercise(ctx: Context) -> i32 {
         if ((before == false) && (after == true)) { 1 } else { 0 }
     }
 
-    let cancel_result_log: i32 = [[log(label: "observed-concurrency-cancel-token-result", expected: 1)]] cancel_result
+    let cancel_result_log: i32 = cancel_result
     let cancel_ok: bool = cancel_result_log == 1
-    let cancel_ok_log: bool = [[log(label: "concurrency-cancel-token-runtime", expected: true)]] cancel_ok
+    let cancel_ok_log: bool = cancel_ok
 
     if (cancel_ok_log != true) {
-        [[log(label: "concurrency-log-item_fail")]]
         return 1
     }
-    [[log(label: "concurrency-log-item_success")]]
     return 0
 }
 
 public procedure runConcurrencyNamedBlockExercise(ctx: Context) -> i32 {
-    [[log(label: "concurrency-log-item_begin")]]
-
     let named_result: i32 = parallel ctx~>cpu() [name: "concurrency-named-block"] {
         spawn [name: "worker-alpha"] { 6 }
     }
 
-    let named_result_log: i32 = [[log(label: "observed-concurrency-named-block-result", expected: 6)]] named_result
+    let named_result_log: i32 = named_result
     let named_ok: bool = named_result_log == 6
-    let named_ok_log: bool = [[log(label: "concurrency-named-block-runtime", expected: true)]] named_ok
+    let named_ok_log: bool = named_ok
 
     if (named_ok_log != true) {
-        [[log(label: "concurrency-log-item_fail")]]
         return 1
     }
-    [[log(label: "concurrency-log-item_success")]]
     return 0
 }
 
 public procedure runConcurrencyInlineDomainExercise(ctx: Context) -> i32 {
-    [[log(label: "concurrency-log-item_begin")]]
-
     let inline_result: i32 = parallel ctx~>inline() {
         spawn { 21 }
     }
 
-    let inline_result_log: i32 = [[log(label: "observed-concurrency-inline-domain-result", expected: 21)]] inline_result
+    let inline_result_log: i32 = inline_result
     let inline_ok: bool = inline_result_log == 21
-    let inline_ok_log: bool = [[log(label: "concurrency-inline-domain-runtime", expected: true)]] inline_ok
+    let inline_ok_log: bool = inline_ok
 
     if (inline_ok_log != true) {
-        [[log(label: "concurrency-log-item_fail")]]
         return 1
     }
-    [[log(label: "concurrency-log-item_success")]]
     return 0
 }

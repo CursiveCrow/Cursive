@@ -52,19 +52,15 @@ procedure RunIROperationLoweringCoverage(ctx: Context) -> i32 {
 
     let lowering_surface_ok: bool = total_metric == 52
     let lowering_surface_ok_log: bool =
-        [[log(label: "operations-expression-ir-lowering-surface", expected: true)]]
         lowering_surface_ok
 
     let metric: i32 = if ((lowering_surface_ok_log == true) && lowering_surface_ok) { 52 } else { 0 }
     let metric_label: string@View = IROperationLoweringMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-operations-expression-ir-lowering-metric", expected: "52")]]
         metric_label
     if (metric_log_actual != "52") {
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }

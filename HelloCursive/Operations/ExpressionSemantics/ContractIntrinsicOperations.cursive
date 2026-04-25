@@ -20,8 +20,7 @@ procedure LogContractIntrinsicObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure ContractIntrinsicMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -51,32 +50,22 @@ procedure RunContractIntrinsicOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyContractIntrinsicOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogContractIntrinsicObject(ctx.fs, scope, "contract_probe_single", "procedure(i32)->i32", "constructed", "single-parameter contract probe prepared")
     LogContractIntrinsicObject(ctx.fs, scope, "contract_probe_pair", "procedure(i32,i32)->i32", "constructed", "pair-parameter contract probe prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let single_metric: i32 = ContractIntrinsicProbeSingle(3)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let pair_metric: i32 = ContractIntrinsicProbePair(2, 4)
-    [[log(label: "operations-log-transition_move")]]
     let runtime_metric: i32 = single_metric + pair_metric
 
     let observed_single_step: string@View = "observed-contract-single-metric"
@@ -92,13 +81,12 @@ procedure VerifyContractIntrinsicOperationsItem(ctx: Context, scope: string@View
     let pair_passed: bool = pair_metric == 6
     let runtime_passed: bool = runtime_metric == 11
 
-    let single_passed_log_actual = [[log(label: "observed-contract-single-metric", expected: "5")]] single_label
+    let single_passed_log_actual = single_label
     let single_passed_with_log: bool = single_passed && (single_passed_log_actual == single_label)
-    let pair_passed_log_actual = [[log(label: "observed-contract-pair-metric", expected: "6")]] pair_label
+    let pair_passed_log_actual = pair_label
     let pair_passed_with_log: bool = pair_passed && (pair_passed_log_actual == pair_label)
-    let runtime_passed_log_actual = [[log(label: "observed-contract-runtime-aggregate-metric", expected: "11")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunContractIntrinsicOperationsItem(
             ctx,
@@ -185,6 +173,5 @@ procedure RunContractIntrinsicOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

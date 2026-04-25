@@ -35,8 +35,7 @@ procedure LogPanicUnwindingObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure PanicUnwindingMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -65,22 +64,17 @@ procedure RunPanicUnwindingItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyPanicUnwindingItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let diag_runtime_type_panic: string@View = "P-TYP-1953"
     let diag_runtime_semantic_panic: string@View = "P-SEM-2861"
 
@@ -89,19 +83,14 @@ procedure VerifyPanicUnwindingItem(ctx: Context, scope: string@View, move item_i
     LogPanicUnwindingObject(ctx.fs, scope, "diag_runtime_type_panic", "diagnostic-code", "constructed", "runtime panic typing diagnostic mapping prepared")
     LogPanicUnwindingObject(ctx.fs, scope, "diag_runtime_semantic_panic", "diagnostic-code", "constructed", "runtime panic semantic diagnostic mapping prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let syntax_metric: i32 = UnwindBreakCleanupProbe()
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_metric: i32 = UnwindNestedCleanupProbe()
-    [[log(label: "operations-log-transition_move")]]
     let diag_runtime_type_ok: bool = diag_runtime_type_panic == "P-TYP-1953"
     let diag_runtime_semantic_ok: bool = diag_runtime_semantic_panic == "P-SEM-2861"
 
-    let diag_runtime_type_ok_log_actual = [[log(label: "diagnostic-runtime-type-panic", expected: "P-TYP-1953")]] diag_runtime_type_panic
+    let diag_runtime_type_ok_log_actual = diag_runtime_type_panic
     let diag_runtime_type_ok_with_log: bool = diag_runtime_type_ok && (diag_runtime_type_ok_log_actual == diag_runtime_type_panic)
-    let diag_runtime_semantic_ok_log_actual = [[log(label: "diagnostic-runtime-semantic-panic", expected: "P-SEM-2861")]] diag_runtime_semantic_panic
+    let diag_runtime_semantic_ok_log_actual = diag_runtime_semantic_panic
     let diag_runtime_semantic_ok_with_log: bool = diag_runtime_semantic_ok && (diag_runtime_semantic_ok_log_actual == diag_runtime_semantic_panic)
     let diag_count: i32 = if (diag_runtime_type_ok && diag_runtime_semantic_ok) { 2 } else { 0 }
     let runtime_metric: i32 = syntax_metric + static_metric + diag_count
@@ -111,15 +100,14 @@ procedure VerifyPanicUnwindingItem(ctx: Context, scope: string@View, move item_i
     let runtime_passed: bool = runtime_metric == 18
 
     let actual_label_1: string@View = PanicUnwindingMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-panic-unwinding-syntax-metric", expected: "5")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = PanicUnwindingMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-panic-unwinding-static-metric", expected: "11")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = PanicUnwindingMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-panic-unwinding-runtime-metric", expected: "18")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunPanicUnwindingItem(
             ctx,
@@ -206,6 +194,5 @@ procedure RunPanicAndUnwindingOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

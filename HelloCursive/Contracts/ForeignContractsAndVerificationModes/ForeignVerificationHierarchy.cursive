@@ -51,7 +51,7 @@ procedure ForeignVerificationHierarchyMetricLabel(value: i32) -> string@View {
 
 public procedure RunForeignVerificationHierarchy(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let static_value: i32 = unsafe { hc_contracts_foreign_hierarchy_static_impl(2) }
     let default_value: i32 = unsafe { hc_contracts_foreign_hierarchy_default_impl(2) }
@@ -60,35 +60,27 @@ public procedure RunForeignVerificationHierarchy(ctx: Context) -> i32 {
     }
 
     let static_value_is_negative_log: bool =
-        [[log(label: "observed-contracts-foreign-hierarchy-static-negative", expected: true)]]
         static_value < 0
     let default_value_is_negative_log: bool =
-        [[log(label: "observed-contracts-foreign-hierarchy-default-negative", expected: true)]]
         default_value < 0
     let dynamic_panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-hierarchy-dynamic-catch", expected: 0)]]
         dynamic_panic_catch_metric
 
     let static_mode_skips_runtime_check: bool = static_value_is_negative_log == true
     let dynamic_mode_enforces_runtime_check: bool = dynamic_panic_catch_metric_log == 0
     let default_mode_skips_runtime_check: bool = default_value_is_negative_log == true
     let static_mode_skips_runtime_check_log: bool =
-        [[log(label: "contracts-foreign-verification-hierarchy-static-mode", expected: true)]]
         static_mode_skips_runtime_check
     let dynamic_mode_enforces_runtime_check_log: bool =
-        [[log(label: "contracts-foreign-verification-hierarchy-dynamic-mode", expected: true)]]
         dynamic_mode_enforces_runtime_check
     let default_mode_skips_runtime_check_log: bool =
-        [[log(label: "contracts-foreign-verification-hierarchy-default-mode", expected: true)]]
         default_mode_skips_runtime_check
 
     let con_072: string@View = "CON-072"
     let con_074: string@View = "CON-074"
     let con_072_log: string@View =
-        [[log(label: "contracts-foreign-verification-hierarchy-feature-072", expected: "CON-072")]]
         con_072
     let con_074_log: string@View =
-        [[log(label: "contracts-foreign-verification-hierarchy-feature-074", expected: "CON-074")]]
         con_074
 
     let runtime_ok: bool =
@@ -101,19 +93,17 @@ public procedure RunForeignVerificationHierarchy(ctx: Context) -> i32 {
         (con_072_log == "CON-072") &&
         (con_074_log == "CON-074")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-verification-hierarchy-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 28 } else { 0 }
     let metric_label: string@View = ForeignVerificationHierarchyMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-verification-hierarchy-metric", expected: "28")]]
         metric_label
     if (metric_log_actual != "28") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

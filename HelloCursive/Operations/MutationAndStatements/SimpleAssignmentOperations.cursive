@@ -11,8 +11,7 @@ procedure LogSimpleAssignmentObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure SimpleAssignmentMetricLabel(value: i32) -> string@View {
     if (value == 3) {
@@ -41,22 +40,17 @@ procedure RunSimpleAssignmentItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifySimpleAssignmentItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let diag_assign_not_place: string@View = "E-SEM-3131"
     let diag_assign_type_mismatch: string@View = "E-SEM-3133"
 
@@ -66,28 +60,21 @@ procedure VerifySimpleAssignmentItem(ctx: Context, scope: string@View, move item
     LogSimpleAssignmentObject(ctx.fs, scope, "diag_assign_not_place", "diagnostic-code", "constructed", "assign-not-place diagnostic mapping prepared")
     LogSimpleAssignmentObject(ctx.fs, scope, "diag_assign_type_mismatch", "diagnostic-code", "constructed", "assign-type-mismatch diagnostic mapping prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var syntax_slot: i32 = 1
     syntax_slot = 3
     let syntax_metric: i32 = syntax_slot
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var static_carrier: SimpleAssignmentCarrier = SimpleAssignmentCarrier { field: 2, other: 4 }
     static_carrier.field = 6
     let static_metric: i32 = static_carrier.field
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var runtime_array: [i32; 3] = [1, 2, 3]
     runtime_array[1usize] = 7
     let runtime_array_metric: i32 = runtime_array[1usize]
-    [[log(label: "operations-log-transition_move")]]
     let diag_assign_not_place_ok: bool = diag_assign_not_place == "E-SEM-3131"
     let diag_assign_type_mismatch_ok: bool = diag_assign_type_mismatch == "E-SEM-3133"
 
-    let diag_assign_not_place_ok_log_actual = [[log(label: "diagnostic-simple-assign-not-place", expected: "E-SEM-3131")]] diag_assign_not_place
+    let diag_assign_not_place_ok_log_actual = diag_assign_not_place
     let diag_assign_not_place_ok_with_log: bool = diag_assign_not_place_ok && (diag_assign_not_place_ok_log_actual == diag_assign_not_place)
-    let diag_assign_type_mismatch_ok_log_actual = [[log(label: "diagnostic-simple-assign-type-mismatch", expected: "E-SEM-3133")]] diag_assign_type_mismatch
+    let diag_assign_type_mismatch_ok_log_actual = diag_assign_type_mismatch
     let diag_assign_type_mismatch_ok_with_log: bool = diag_assign_type_mismatch_ok && (diag_assign_type_mismatch_ok_log_actual == diag_assign_type_mismatch)
     let diag_count: i32 = if (diag_assign_not_place_ok && diag_assign_type_mismatch_ok) { 2 } else { 0 }
     let runtime_metric: i32 = runtime_array_metric + diag_count
@@ -97,15 +84,14 @@ procedure VerifySimpleAssignmentItem(ctx: Context, scope: string@View, move item
     let runtime_passed: bool = runtime_metric == 9
 
     let actual_label_1: string@View = SimpleAssignmentMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-simple-assignment-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = SimpleAssignmentMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-simple-assignment-static-metric", expected: "6")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = SimpleAssignmentMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-simple-assignment-runtime-metric", expected: "9")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunSimpleAssignmentItem(
             ctx,
@@ -192,6 +178,5 @@ procedure RunSimpleAssignmentOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

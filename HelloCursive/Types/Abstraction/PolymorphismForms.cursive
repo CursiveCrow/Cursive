@@ -31,8 +31,7 @@ procedure LogPolyObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunPolymorphismFormsItem(
     ctx: Context,
@@ -49,7 +48,6 @@ procedure RunPolymorphismFormsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -58,17 +56,12 @@ procedure RunPolymorphismFormsItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -104,7 +97,6 @@ procedure MetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyPolymorphismFormsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     LogPolyObject(ctx.fs, scope, "dynamic_fs", "DynamicClassObject", "constructed", "dynamic class object borrowed from runtime context")
     var dynamic_metric: i32 = 0
 
@@ -118,22 +110,13 @@ procedure VerifyPolymorphismFormsItem(ctx: Context, scope: string@View, move ite
     let object_safe_value = MakeOpaqueMetric(object_safe_seed)
     LogPolyObject(ctx.fs, scope, "object_safe_value", "Opaque<PolyMetric>", "constructed", "object-safety probe value constructed")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     dynamic_metric = DynamicFileSystemDispatch(ctx.fs)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let opaque_metric: i32 = opaque_value~>metric()
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let erasure_metric: i32 = if erased_value is {
         erased_int: i32 { erased_int }
         _: bool { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let object_safety_metric: i32 = object_safe_value~>metric() + 2
-    [[log(label: "types-log-transition_move")]]
     let dynamic_metric_label: string@View = MetricLabel(dynamic_metric)
     let opaque_metric_label: string@View = MetricLabel(opaque_metric)
     let erasure_metric_label: string@View = MetricLabel(erasure_metric)
@@ -153,15 +136,14 @@ procedure VerifyPolymorphismFormsItem(ctx: Context, scope: string@View, move ite
     let erasure_metric_passed: bool = erasure_metric == 3
     let object_safety_metric_passed: bool = object_safety_metric == 6
 
-    let dynamic_metric_passed_log_actual = [[log(label: "observed-dynamic-metric", expected: "1")]] dynamic_metric_label
+    let dynamic_metric_passed_log_actual = dynamic_metric_label
     let dynamic_metric_passed_with_log: bool = dynamic_metric_passed && (dynamic_metric_passed_log_actual == expected_dynamic_label)
-    let opaque_metric_passed_log_actual = [[log(label: "observed-opaque-metric", expected: "5")]] opaque_metric_label
+    let opaque_metric_passed_log_actual = opaque_metric_label
     let opaque_metric_passed_with_log: bool = opaque_metric_passed && (opaque_metric_passed_log_actual == expected_opaque_label)
-    let erasure_metric_passed_log_actual = [[log(label: "observed-erasure-metric", expected: "3")]] erasure_metric_label
+    let erasure_metric_passed_log_actual = erasure_metric_label
     let erasure_metric_passed_with_log: bool = erasure_metric_passed && (erasure_metric_passed_log_actual == expected_erasure_label)
-    let object_safety_metric_passed_log_actual = [[log(label: "observed-object-safety-metric", expected: "6")]] object_safety_metric_label
+    let object_safety_metric_passed_log_actual = object_safety_metric_label
     let object_safety_metric_passed_with_log: bool = object_safety_metric_passed && (object_safety_metric_passed_log_actual == expected_object_safety_label)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunPolymorphismFormsItem(
             ctx,
@@ -270,6 +252,5 @@ procedure RunPolymorphismForms(ctx: Context) -> i32 {
         return status_ObjectSafetyRequirements
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

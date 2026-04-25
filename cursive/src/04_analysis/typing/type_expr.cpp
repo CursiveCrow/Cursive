@@ -322,7 +322,6 @@ bool StmtContainsKeyedOrSharedDataAccess(const ScopeContext& ctx,
           return ExprContainsKeyedOrSharedDataAccess(ctx, type_ctx,
                                                      node.value_opt, env);
         } else if constexpr (std::is_same_v<T, ast::ContinueStmt> ||
-                             std::is_same_v<T, ast::LogStmt> ||
                              std::is_same_v<T, ast::ErrorStmt>) {
           return false;
         } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
@@ -651,16 +650,6 @@ bool ExprContainsKeyedOrSharedDataAccess(const ScopeContext& ctx,
       expr->node);
 }
 
-const ast::Token* FindNamedTokenArg(const ast::AttributeItem& attr,
-                                    std::string_view key) {
-  for (const auto& arg : attr.args) {
-    if (!arg.key.has_value() || *arg.key != key) {
-      continue;
-    }
-    return std::get_if<ast::Token>(&arg.value);
-  }
-  return nullptr;
-}
 
 static TypeRef ProjectFilesType() { return MakeTypePath({"ProjectFiles"}); }
 static TypeRef TypeEmitterType() { return MakeTypePath({"TypeEmitter"}); }
@@ -2782,57 +2771,6 @@ static std::optional<std::string_view> CtForbiddenTypeDiag(
   return std::nullopt;
 }
 
-
-std::optional<std::string_view> ValidateLogAttributesForObservedTypeImpl(
-    const ScopeContext& ctx,
-    const ast::AttributeList& attr_list,
-    const TypeRef& observed_type,
-    const TypeEnv& env) {
-  for (const auto& attr : attr_list) {
-    if (attr.name != ::cursive::analysis::attrs::kLog) {
-      continue;
-    }
-
-    const ast::Token* expected_token = FindNamedTokenArg(attr, "expected");
-    if (!expected_token) {
-      continue;
-    }
-
-    if (!EqType(observed_type)) {
-      return "E-MOD-2458";
-    }
-
-    if (expected_token->kind == lexer::TokenKind::Identifier) {
-      // Identifier expected: resolve the binding in scope and check type
-      // compatibility with the observed type.
-      const auto binding = BindOf(env, expected_token->lexeme);
-      if (!binding.has_value()) {
-        return "E-MOD-2457";
-      }
-      const auto perm = PermOfType(binding->type);
-      if (perm != Permission::Const && perm != Permission::Unique) {
-        return "E-MOD-2457";
-      }
-      // Check that the binding's type is compatible with the observed type
-      // via subtyping in either direction (equality-comparable).
-      const auto fwd = Subtyping(ctx, binding->type, observed_type);
-      const auto rev = Subtyping(ctx, observed_type, binding->type);
-      if (!(fwd.ok && fwd.subtype) && !(rev.ok && rev.subtype)) {
-        return "E-MOD-2457";
-      }
-      continue;
-    }
-
-    ast::LiteralExpr expected_lit;
-    expected_lit.literal = *expected_token;
-    const auto lit_check = CheckLiteralExpr(ctx, expected_lit, observed_type);
-    if (!lit_check.ok) {
-      return "E-MOD-2457";
-    }
-  }
-  return std::nullopt;
-}
-
 void EmitDeprecatedBindingReferenceWarning(
     const TypeBinding& binding,
     const StmtTypeContext& type_ctx,
@@ -3343,12 +3281,6 @@ static ExprTypeResult TypeExprImpl(const ScopeContext& ctx,
             r.diag_id = *diag;
             return r;
           }
-          if (const auto log_diag =
-                  ValidateLogAttributesForObservedTypeImpl(ctx, node.attrs, inner.type, env)) {
-            ExprTypeResult r;
-            r.diag_id = *log_diag;
-            return r;
-          }
           return inner;
         } else if constexpr (std::is_same_v<T, ast::LiteralExpr>) {
           return TypeLiteralExprLocal(ctx, node);
@@ -3711,12 +3643,6 @@ static PlaceTypeResult TypePlaceImpl(const ScopeContext& ctx,
             r.diag_id = *diag;
             return r;
           }
-          if (const auto log_diag =
-                  ValidateLogAttributesForObservedTypeImpl(ctx, node.attrs, inner.type, env)) {
-            PlaceTypeResult r;
-            r.diag_id = *log_diag;
-            return r;
-          }
           return inner;
         } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
           return expr::TypeFieldAccessPlaceImpl(ctx, type_ctx, node, env);
@@ -3750,15 +3676,6 @@ static PlaceTypeResult TypePlaceImpl(const ScopeContext& ctx,
 }
 
 }  // namespace
-
-std::optional<std::string_view> ValidateLogAttributesForObservedType(
-    const ScopeContext& ctx,
-    const ast::AttributeList& attr_list,
-    const TypeRef& observed_type,
-    const TypeEnv& env) {
-  return ValidateLogAttributesForObservedTypeImpl(ctx, attr_list, observed_type,
-                                                  env);
-}
 
 struct AliasExpandResult {
   bool ok = true;
@@ -3955,13 +3872,6 @@ CheckResult CheckExprAgainst(const ScopeContext& ctx,
     if (const auto diag = ValidateMemoryOrderAttributePlacement(
             ctx, inner_ctx, attributed->attrs, attributed->expr, env)) {
       result.diag_id = *diag;
-      result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
-      return result;
-    }
-
-    if (const auto log_diag = ValidateLogAttributesForObservedType(
-            ctx, attributed->attrs, expected, env)) {
-      result.diag_id = *log_diag;
       result.diag_span = e ? std::optional<core::Span>(e->span) : std::nullopt;
       return result;
     }

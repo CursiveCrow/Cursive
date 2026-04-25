@@ -101,7 +101,7 @@ procedure ForeignDynamicRuntimeChecksMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunForeignDynamicRuntimeChecks(ctx: Context) -> i32 {
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let seed_value: i32 = 41
     let seed_ptr_safe: Ptr<i32>@Valid = &seed_value
@@ -119,16 +119,12 @@ public procedure RunForeignDynamicRuntimeChecks(ctx: Context) -> i32 {
     }
 
     let observed_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-call", expected: 9)]]
         observed_value
     let panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-fail-catch", expected: 0)]]
         panic_catch_metric
     let ptr_no_panic_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-null-result-no-panic", expected: 17)]]
         ptr_no_panic_metric
     let ptr_fail_panic_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-null-result-fail-catch", expected: 0)]]
         ptr_fail_panic_metric
 
     let dynamic_success_path: bool = observed_value_log >= 0
@@ -136,26 +132,20 @@ public procedure RunForeignDynamicRuntimeChecks(ctx: Context) -> i32 {
     let dynamic_null_err_cond_and_null_cond_path: bool = ptr_no_panic_metric_log == 17
     let dynamic_null_result_failure_path: bool = ptr_fail_panic_metric_log == 0
     let dynamic_success_path_log: bool =
-        [[log(label: "contracts-foreign-dynamic-runtime-checks-success-path", expected: true)]]
         dynamic_success_path
     let dynamic_failure_path_log: bool =
-        [[log(label: "contracts-foreign-dynamic-runtime-checks-failure-path", expected: true)]]
         dynamic_failure_path
     let dynamic_null_err_cond_and_null_cond_path_log: bool =
-        [[log(label: "contracts-foreign-dynamic-runtime-checks-null-errcond-nullcond-path", expected: true)]]
         dynamic_null_err_cond_and_null_cond_path
     let dynamic_null_result_failure_path_log: bool =
-        [[log(label: "contracts-foreign-dynamic-runtime-checks-null-result-failure-path", expected: true)]]
         dynamic_null_result_failure_path
 
     let con_073: string@View = "CON-073"
     let con_073_log: string@View =
-        [[log(label: "contracts-foreign-dynamic-runtime-checks-feature-073", expected: "CON-073")]]
         con_073
 
     let panic_2861: string@View = "P-SEM-2861"
     let panic_2861_log: string@View =
-        [[log(label: "contracts-foreign-dynamic-runtime-checks-panic-2861", expected: "P-SEM-2861")]]
         panic_2861
 
     let runtime_ok: bool =
@@ -170,19 +160,17 @@ public procedure RunForeignDynamicRuntimeChecks(ctx: Context) -> i32 {
         (con_073_log == "CON-073") &&
         (panic_2861_log == "P-SEM-2861")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-dynamic-runtime-checks-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = ForeignDynamicRuntimeChecksMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-dynamic-runtime-checks-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

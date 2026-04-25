@@ -6,8 +6,7 @@ procedure LogPatternGuardObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure PatternGuardMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -37,22 +36,17 @@ procedure RunPatternFormsAndGuardsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyPatternFormsAndGuardsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let tuple_scrutinee: (i32, i32) = (3, 4)
     let guard_scrutinee: i32 = 4
     let range_scrutinee: i32 = 6
@@ -60,16 +54,9 @@ procedure VerifyPatternFormsAndGuardsItem(ctx: Context, scope: string@View, move
     LogPatternGuardObject(ctx.fs, scope, "guard_scrutinee", "i32", "constructed", "scalar scrutinee for guarded identifier pattern prepared")
     LogPatternGuardObject(ctx.fs, scope, "range_scrutinee", "i32", "constructed", "range-pattern scrutinee with guard fallback prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let pattern_syntax_metric: i32 = tuple_scrutinee.0 + tuple_scrutinee.1
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let pattern_static_metric: i32 = if (guard_scrutinee > 3) { 5 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let pattern_runtime_metric: i32 = if ((range_scrutinee >= 1) && (range_scrutinee <= 5)) { 1 } else { if (range_scrutinee == 6) { 8 } else { 0 } }
-    [[log(label: "operations-log-transition_move")]]
     let observed_syntax_step: string@View = "observed-pattern-forms-syntax-metric"
     let observed_static_step: string@View = "observed-pattern-forms-static-metric"
     let observed_runtime_step: string@View = "observed-pattern-forms-runtime-metric"
@@ -83,13 +70,12 @@ procedure VerifyPatternFormsAndGuardsItem(ctx: Context, scope: string@View, move
     let static_passed: bool = pattern_static_metric == 5
     let runtime_passed: bool = pattern_runtime_metric == 8
 
-    let syntax_passed_log_actual = [[log(label: "observed-pattern-forms-syntax-metric", expected: "7")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-pattern-forms-static-metric", expected: "5")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-pattern-forms-runtime-metric", expected: "8")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunPatternFormsAndGuardsItem(
             ctx,
@@ -176,6 +162,5 @@ procedure RunPatternFormsAndGuards(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

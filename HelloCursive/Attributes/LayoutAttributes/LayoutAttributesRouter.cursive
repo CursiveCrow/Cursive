@@ -1,31 +1,31 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "attributes-log-section_start", expected: "section-start")]] "section-start"
+    "section-start"
 
     let status_c_layout: i32 = RunLayoutCRecordEnumBehavior(ctx)
     if (status_c_layout != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_c_layout
     }
 
     let status_discriminant: i32 = RunLayoutDiscriminantAndApplicability(ctx)
     if (status_discriminant != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_discriminant
     }
 
     let status_packed: i32 = RunLayoutPackedAndUnsafeFieldAccess(ctx)
     if (status_packed != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_packed
     }
 
     let status_align: i32 = RunLayoutAlignAndConflictDiagnostics(ctx)
     if (status_align != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_align
     }
 
-    [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+    "section-end"
     return 0
 }
 

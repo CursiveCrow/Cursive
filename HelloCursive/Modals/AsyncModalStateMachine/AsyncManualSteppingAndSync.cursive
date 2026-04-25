@@ -17,7 +17,7 @@ procedure AsyncManualSteppingAndSyncMetricLabel(value: i32) -> string@View {
 
 public procedure RunAsyncManualSteppingAndSync(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let manual_initial_state: Async<i32, i32, i32, !> = AsyncManualStepProbe()
     let manual_initial_metric: i32 = if move manual_initial_state is {
@@ -50,28 +50,22 @@ public procedure RunAsyncManualSteppingAndSync(ctx: Context) -> i32 {
     }
     let manual_resume_supported: bool = true
     let manual_resume_supported_log: bool =
-        [[log(label: "modals-async-manual-resume-supported", expected: true)]]
         manual_resume_supported
 
     let sync_metric: i32 = sync AsyncSyncProbe()
 
     let manual_initial_metric_log: i32 =
-        [[log(label: "observed-modals-async-manual-stepping-initial", expected: 2)]]
         manual_initial_metric
     let manual_metric_log: i32 =
-        [[log(label: "observed-modals-async-manual-stepping", expected: 13)]]
         manual_metric
     let sync_metric_log: i32 =
-        [[log(label: "observed-modals-async-sync-stepping", expected: 5)]]
         sync_metric
 
     let mod_049: string@View = "MOD-049"
     let mod_050: string@View = "MOD-050"
     let mod_049_log: string@View =
-        [[log(label: "modals-async-manual-sync-feature-049", expected: "MOD-049")]]
         mod_049
     let mod_050_log: string@View =
-        [[log(label: "modals-async-manual-sync-feature-050", expected: "MOD-050")]]
         mod_050
 
     let runtime_ok: bool =
@@ -82,19 +76,17 @@ public procedure RunAsyncManualSteppingAndSync(ctx: Context) -> i32 {
         (mod_049_log == "MOD-049") &&
         (mod_050_log == "MOD-050")
     let runtime_ok_log: bool =
-        [[log(label: "modals-async-manual-sync-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 18 } else { 0 }
     let metric_label: string@View = AsyncManualSteppingAndSyncMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-async-manual-sync-metric", expected: "18")]]
         metric_label
     if (metric_log_actual != "18") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

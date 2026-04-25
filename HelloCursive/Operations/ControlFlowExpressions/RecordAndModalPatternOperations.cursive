@@ -20,8 +20,7 @@ procedure LogRecordModalPatternObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure RecordModalPatternMetricLabel(value: i32) -> string@View {
     if (value == 7) {
@@ -50,22 +49,17 @@ procedure RunRecordModalPatternItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyRecordModalPatternItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let record_scrutinee: PatternRecordProbe = PatternRecordProbe { left: 3, right: 4 }
     let modal_scrutinee: PatternModalProbe = widen(PatternModalProbe@Hot { code: 5 })
     let runtime_record_scrutinee: PatternRecordProbe = PatternRecordProbe { left: 6, right: 1 }
@@ -76,29 +70,20 @@ procedure VerifyRecordModalPatternItem(ctx: Context, scope: string@View, move it
     LogRecordModalPatternObject(ctx.fs, scope, "runtime_record_scrutinee", "PatternRecordProbe", "constructed", "runtime record-pattern aggregate probe prepared")
     LogRecordModalPatternObject(ctx.fs, scope, "runtime_modal_scrutinee", "PatternModalProbe", "constructed", "runtime modal-pattern aggregate probe prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let syntax_metric: i32 = if record_scrutinee is {
         PatternRecordProbe { left: left_value, right: right_value } { left_value + right_value }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_metric: i32 = if modal_scrutinee is {
         @Cold { code: cold_code } { cold_code }
         @Hot { code: hot_code } { hot_code + 3 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let runtime_record_metric: i32 = if runtime_record_scrutinee is {
         PatternRecordProbe { left: runtime_left, right: _ } { runtime_left + 1 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let runtime_modal_metric: i32 = if runtime_modal_scrutinee is {
         @Cold { code: cold_code } { cold_code + 5 }
         @Hot { code: hot_code } { hot_code }
     }
-    [[log(label: "operations-log-transition_move")]]
     let runtime_metric: i32 = runtime_record_metric + runtime_modal_metric - 6
 
     let syntax_passed: bool = syntax_metric == 7
@@ -106,15 +91,14 @@ procedure VerifyRecordModalPatternItem(ctx: Context, scope: string@View, move it
     let runtime_passed: bool = runtime_metric == 10
 
     let actual_label_1: string@View = RecordModalPatternMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-record-modal-pattern-syntax-metric", expected: "7")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = RecordModalPatternMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-record-modal-pattern-static-metric", expected: "8")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = RecordModalPatternMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-record-modal-pattern-runtime-metric", expected: "10")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunRecordModalPatternItem(
             ctx,
@@ -201,6 +185,5 @@ procedure RunRecordAndModalPatternOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

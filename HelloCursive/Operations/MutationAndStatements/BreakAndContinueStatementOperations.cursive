@@ -6,8 +6,7 @@ procedure LogBreakContinueObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure BreakContinueMetricLabel(value: i32) -> string@View {
     if (value == 6) {
@@ -36,28 +35,21 @@ procedure RunBreakContinueItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyBreakContinueItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogBreakContinueObject(ctx.fs, scope, "even_accumulator", "i32", "constructed", "accumulator for continue-skipping odd values prepared")
     LogBreakContinueObject(ctx.fs, scope, "loop_break_value", "i32", "constructed", "loop-expression break value probe prepared")
     LogBreakContinueObject(ctx.fs, scope, "runtime_accumulator", "i32", "constructed", "runtime break/continue mixed-path accumulator prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var loop_index: i32 = 0
     var even_accumulator: i32 = 0
     loop {
@@ -73,13 +65,9 @@ procedure VerifyBreakContinueItem(ctx: Context, scope: string@View, move item_in
         even_accumulator = even_accumulator + loop_index
     }
     let syntax_metric: i32 = even_accumulator
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_metric: i32 = loop {
         break 9
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var runtime_index: i32 = 0
     var runtime_accumulator: i32 = 0
     loop {
@@ -93,21 +81,19 @@ procedure VerifyBreakContinueItem(ctx: Context, scope: string@View, move item_in
         }
     }
     let runtime_metric: i32 = runtime_accumulator
-    [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = syntax_metric == 6
     let static_passed: bool = static_metric == 9
     let runtime_passed: bool = runtime_metric == 8
 
     let actual_label_1: string@View = BreakContinueMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-break-continue-syntax-metric", expected: "6")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = BreakContinueMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-break-continue-static-metric", expected: "9")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = BreakContinueMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-break-continue-runtime-metric", expected: "8")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunBreakContinueItem(
             ctx,
@@ -194,6 +180,5 @@ procedure RunBreakAndContinueStatementOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

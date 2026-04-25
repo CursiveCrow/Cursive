@@ -17,29 +17,24 @@ procedure ForeignAssumesSyntaxAndScopeMetricLabel(value: i32) -> string@View {
 
 public procedure RunForeignAssumesSyntaxAndScope(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let observed_value: i32 = unsafe { hc_contracts_foreign_assumes_probe_impl(3) }
     let observed_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-assumes-call", expected: 13)]]
         observed_value
 
     let con_067: string@View = "CON-067"
     let con_067_log: string@View =
-        [[log(label: "contracts-foreign-assumes-feature-067", expected: "CON-067")]]
         con_067
 
     let diag_2850: string@View = "E-SEM-2850"
     let diag_2851: string@View = "E-SEM-2851"
     let diag_2852: string@View = "E-SEM-2852"
     let diag_2850_log: string@View =
-        [[log(label: "contracts-foreign-assumes-diag-2850", expected: "E-SEM-2850")]]
         diag_2850
     let diag_2851_log: string@View =
-        [[log(label: "contracts-foreign-assumes-diag-2851", expected: "E-SEM-2851")]]
         diag_2851
     let diag_2852_log: string@View =
-        [[log(label: "contracts-foreign-assumes-diag-2852", expected: "E-SEM-2852")]]
         diag_2852
 
     let runtime_ok: bool =
@@ -49,19 +44,17 @@ public procedure RunForeignAssumesSyntaxAndScope(ctx: Context) -> i32 {
         (diag_2851_log == "E-SEM-2851") &&
         (diag_2852_log == "E-SEM-2852")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-assumes-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 40 } else { 0 }
     let metric_label: string@View = ForeignAssumesSyntaxAndScopeMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-assumes-syntax-and-scope-metric", expected: "40")]]
         metric_label
     if (metric_log_actual != "40") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

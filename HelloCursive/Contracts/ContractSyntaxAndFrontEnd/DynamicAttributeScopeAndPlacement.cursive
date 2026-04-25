@@ -18,16 +18,14 @@ procedure DynamicAttributeScopeAndPlacementMetricLabel(value: i32) -> string@Vie
 
 public procedure RunDynamicAttributeScopeAndPlacement(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let direct_value: i32 = DynamicScopeProbe(4)
     let caller_value: i32 = DynamicScopeCaller(5)
 
     let direct_value_log: i32 =
-        [[log(label: "observed-contracts-dynamic-direct", expected: 5)]]
         direct_value
     let caller_value_log: i32 =
-        [[log(label: "observed-contracts-dynamic-caller", expected: 6)]]
         caller_value
 
     let con_013: string@View = "CON-013"
@@ -36,19 +34,14 @@ public procedure RunDynamicAttributeScopeAndPlacement(ctx: Context) -> i32 {
     let con_016: string@View = "CON-016"
     let con_017: string@View = "CON-017"
     let con_013_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-feature-013", expected: "CON-013")]]
         con_013
     let con_014_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-feature-014", expected: "CON-014")]]
         con_014
     let con_015_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-feature-015", expected: "CON-015")]]
         con_015
     let con_016_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-feature-016", expected: "CON-016")]]
         con_016
     let con_017_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-feature-017", expected: "CON-017")]]
         con_017
 
     let diag_0410: string@View = "E-CON-0410"
@@ -56,16 +49,12 @@ public procedure RunDynamicAttributeScopeAndPlacement(ctx: Context) -> i32 {
     let diag_0412: string@View = "E-CON-0412"
     let warn_0401: string@View = "W-CON-0401"
     let diag_0410_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-diag-0410", expected: "E-CON-0410")]]
         diag_0410
     let diag_0411_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-diag-0411", expected: "E-CON-0411")]]
         diag_0411
     let diag_0412_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-diag-0412", expected: "E-CON-0412")]]
         diag_0412
     let warn_0401_log: string@View =
-        [[log(label: "contracts-dynamic-attribute-warn-0401", expected: "W-CON-0401")]]
         warn_0401
 
     let runtime_ok: bool =
@@ -81,19 +70,17 @@ public procedure RunDynamicAttributeScopeAndPlacement(ctx: Context) -> i32 {
         (diag_0412_log == "E-CON-0412") &&
         (warn_0401_log == "W-CON-0401")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-dynamic-attribute-scope-and-placement-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 63 } else { 0 }
     let metric_label: string@View = DynamicAttributeScopeAndPlacementMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-dynamic-attribute-scope-and-placement-metric", expected: "63")]]
         metric_label
     if (metric_log_actual != "63") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

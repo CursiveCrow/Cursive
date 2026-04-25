@@ -40,7 +40,7 @@ procedure VisibilityAccessMetricLabel(value: i32) -> string@View {
 
 public procedure RunVisibilityAccessConformance(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let probe: VisibilityAccessProbe = VisibilityAccessProbe { value: 7, label: 1 }
     let field_label: i32 = probe.label
@@ -52,14 +52,14 @@ public procedure RunVisibilityAccessConformance(ctx: Context) -> i32 {
     let modal_active: VisibilityAccessModal@Active = modal_idle~>activate()
     let active_metric: i32 = modal_active~>reveal()
 
-    let field_label_log: i32 = [[log(label: "observed-modals-visibility-field-label", expected: 1)]] field_label
-    let internal_sum_log: i32 = [[log(label: "observed-modals-visibility-internal-sum", expected: 8)]] internal_sum
-    let idle_metric_log: i32 = [[log(label: "observed-modals-visibility-idle-reveal", expected: 9)]] idle_metric
-    let active_metric_log: i32 = [[log(label: "observed-modals-visibility-active-reveal", expected: 9)]] active_metric
+    let field_label_log: i32 = field_label
+    let internal_sum_log: i32 = internal_sum
+    let idle_metric_log: i32 = idle_metric
+    let active_metric_log: i32 = active_metric
 
-    let vis_001: string@View = [[log(label: "modals-visibility-access-feature-001", expected: "VIS-ACC-001")]] "VIS-ACC-001"
-    let vis_002: string@View = [[log(label: "modals-visibility-access-feature-002", expected: "VIS-ACC-002")]] "VIS-ACC-002"
-    let vis_003: string@View = [[log(label: "modals-visibility-access-feature-003", expected: "VIS-ACC-003")]] "VIS-ACC-003"
+    let vis_001: string@View = "VIS-ACC-001"
+    let vis_002: string@View = "VIS-ACC-002"
+    let vis_003: string@View = "VIS-ACC-003"
 
     let total_metric: i32 = field_label + internal_sum + idle_metric + active_metric
 
@@ -72,16 +72,16 @@ public procedure RunVisibilityAccessConformance(ctx: Context) -> i32 {
         (vis_001 == "VIS-ACC-001") &&
         (vis_002 == "VIS-ACC-002") &&
         (vis_003 == "VIS-ACC-003")
-    let runtime_ok_log: bool = [[log(label: "modals-visibility-access-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 27 } else { 0 }
     let metric_label: string@View = VisibilityAccessMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-modals-visibility-access-metric", expected: "27")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "27") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

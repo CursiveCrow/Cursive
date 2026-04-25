@@ -7,7 +7,7 @@ procedure MemoryOrderAttributePlacementMetricLabel(value: i32) -> string@View {
 
 public procedure RunMemoryOrderAttributePlacement(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var order_slot: shared i32 = 2
     # order_slot write {
@@ -36,14 +36,14 @@ public procedure RunMemoryOrderAttributePlacement(ctx: Context) -> i32 {
         acqrel_slot = acqrel_next
     }
 
-    let order_slot_log: i32 = [[log(label: "observed-attributes-memory-order-slot", expected: 5)]] order_slot
-    let read_slot_log: i32 = [[log(label: "observed-attributes-memory-order-read", expected: 5)]] read_slot
-    let release_slot_log: i32 = [[log(label: "observed-attributes-memory-order-release", expected: 7)]] release_slot
-    let acqrel_slot_log: i32 = [[log(label: "observed-attributes-memory-order-acqrel", expected: 6)]] acqrel_slot
+    let order_slot_log: i32 = order_slot
+    let read_slot_log: i32 = read_slot
+    let release_slot_log: i32 = release_slot
+    let acqrel_slot_log: i32 = acqrel_slot
 
-    let atr_010: string@View = [[log(label: "attributes-memory-order-feature-010", expected: "ATR-010")]] "ATR-010"
-    let atr_050: string@View = [[log(label: "attributes-memory-order-feature-050", expected: "ATR-050")]] "ATR-050"
-    let atr_051: string@View = [[log(label: "attributes-memory-order-feature-051", expected: "ATR-051")]] "ATR-051"
+    let atr_010: string@View = "ATR-010"
+    let atr_050: string@View = "ATR-050"
+    let atr_051: string@View = "ATR-051"
 
     let runtime_ok: bool =
         (order_slot_log == 5) &&
@@ -53,17 +53,17 @@ public procedure RunMemoryOrderAttributePlacement(ctx: Context) -> i32 {
         (atr_010 == "ATR-010") &&
         (atr_050 == "ATR-050") &&
         (atr_051 == "ATR-051")
-    let runtime_ok_log: bool = [[log(label: "attributes-memory-order-placement-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 50 } else { 0 }
     let metric_label: string@View = MemoryOrderAttributePlacementMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-memory-order-placement-metric", expected: "50")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "50") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

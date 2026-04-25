@@ -6,7 +6,7 @@ procedure FileSystemOpenAppendConformanceMetricLabel(value: i32) -> string@View 
 }
 
 public procedure RunFileSystemOpenAppendConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -163,22 +163,16 @@ public procedure RunFileSystemOpenAppendConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-open-append-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let seed_ready_log: bool =
-        [[log(label: "observed-modals-fs-open-append-seed-ready", expected: true)]]
         seed_ready
     let append_ready_log: bool =
-        [[log(label: "observed-modals-fs-open-append-ready", expected: true)]]
         append_ready
     let open_append_length_log: i32 =
-        [[log(label: "observed-modals-fs-open-append-text-length", expected: 10)]]
         open_append_length
     let open_append_exact_text_log: bool =
-        [[log(label: "observed-modals-fs-open-append-exact-text", expected: true)]]
         open_append_exact_text
     let open_append_missing_error_log: bool =
-        [[log(label: "observed-modals-fs-open-append-missing-error", expected: true)]]
         open_append_missing_error
 
     let metric: i32 = if (
@@ -191,17 +185,16 @@ public procedure RunFileSystemOpenAppendConformance(ctx: Context) -> i32 {
     ) { 9 } else { 0 }
     let metric_label: string@View = FileSystemOpenAppendConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-open-append-metric", expected: "9")]]
         metric_label
 
     let cleanup_probe: () | IoError = fs~>remove(probe_path)
     let _ = cleanup_probe
 
     if (metric_log_actual != "9") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

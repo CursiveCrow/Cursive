@@ -18,8 +18,6 @@ procedure AddressOfPlaceRulesMetricLabel(value: i32) -> string@View {
 
 public procedure RunAddressOfPlaceRules(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     var cell: i32 = 7
     let ptr_cell: Ptr<i32>@Valid = &cell
     let ptr_cell_metric: i32 = *ptr_cell
@@ -39,22 +37,18 @@ public procedure RunAddressOfPlaceRules(ctx: Context) -> i32 {
     let diag_packed_field_unsafe: string@View = "E-TYP-2105"
 
     let diag_addr_non_place_logged: string@View =
-        [[log(label: "pointers-address-place-diag-non-place", expected: "E-TYP-2104")]]
         diag_addr_non_place
     let diag_addr_non_place_ok: bool =
         diag_addr_non_place_logged == "E-TYP-2104"
     let diag_array_index_non_usize_logged: string@View =
-        [[log(label: "pointers-address-place-diag-array-index-type", expected: "E-TYP-1812")]]
         diag_array_index_non_usize
     let diag_array_index_non_usize_ok: bool =
         diag_array_index_non_usize_logged == "E-TYP-1812"
     let diag_slice_index_non_usize_logged: string@View =
-        [[log(label: "pointers-address-place-diag-slice-index-type", expected: "E-TYP-1820")]]
         diag_slice_index_non_usize
     let diag_slice_index_non_usize_ok: bool =
         diag_slice_index_non_usize_logged == "E-TYP-1820"
     let diag_packed_field_unsafe_logged: string@View =
-        [[log(label: "pointers-address-place-diag-packed-field", expected: "E-TYP-2105")]]
         diag_packed_field_unsafe
     let diag_packed_field_unsafe_ok: bool =
         diag_packed_field_unsafe_logged == "E-TYP-2105"
@@ -65,16 +59,12 @@ public procedure RunAddressOfPlaceRules(ctx: Context) -> i32 {
     let packed_unsafe_ok: bool = packed_metric == 11
 
     let ptr_cell_ok_log: bool =
-        [[log(label: "pointers-address-place-runtime-cell", expected: true)]]
         ptr_cell_ok
     let ptr_indexed_ok_log: bool =
-        [[log(label: "pointers-address-place-runtime-indexed", expected: true)]]
         ptr_indexed_ok
     let ptr_slice_ok_log: bool =
-        [[log(label: "pointers-address-place-runtime-slice-indexed", expected: true)]]
         ptr_slice_ok
     let packed_unsafe_ok_log: bool =
-        [[log(label: "pointers-address-place-runtime-packed-unsafe", expected: true)]]
         packed_unsafe_ok
 
     let metric_ok: bool =
@@ -89,13 +79,10 @@ public procedure RunAddressOfPlaceRules(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 31 } else { 0 }
     let metric_label: string@View = AddressOfPlaceRulesMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-address-place-rules-metric", expected: "31")]]
         metric_label
     if (metric_log_actual != "31") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

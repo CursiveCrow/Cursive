@@ -16,25 +16,21 @@ extern "C" {
 
 public procedure runFfiForeignNullResultExercise(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "ffi-log-item_begin")]]
-
     let null_ptr: *imm u8 = null
     let null_result: *imm u8 = unsafe { hc_ffi_null_probe(0) }
     let is_null: bool = null_result == null_ptr
-    let is_null_log: bool = [[log(label: "observed-ffi-null-result-null-path", expected: true)]] is_null
+    let is_null_log: bool = is_null
 
     let nonnull_result: *imm u8 = unsafe { hc_ffi_null_probe(1) }
     let is_nonnull: bool = nonnull_result != null_ptr
-    let is_nonnull_log: bool = [[log(label: "observed-ffi-null-result-nonnull-path", expected: true)]] is_nonnull
+    let is_nonnull_log: bool = is_nonnull
 
     let all_ok: bool = is_null_log && is_nonnull_log
-    let all_ok_log: bool = [[log(label: "ffi-null-result-runtime", expected: true)]] all_ok
+    let all_ok_log: bool = all_ok
 
     if (all_ok_log != true) {
-        [[log(label: "ffi-log-item_fail")]]
         return 1
     }
-    [[log(label: "ffi-log-item_success")]]
     return 0
 }
 

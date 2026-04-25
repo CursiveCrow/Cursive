@@ -6,7 +6,7 @@ procedure FileSystemRemoveConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemRemoveConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -125,25 +125,18 @@ public procedure RunFileSystemRemoveConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-remove-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let file_removed_ok_log: bool =
-        [[log(label: "observed-modals-fs-remove-file-removed", expected: true)]]
         file_removed_ok
     let dir_removed_ok_log: bool =
-        [[log(label: "observed-modals-fs-remove-dir-removed", expected: true)]]
         dir_removed_ok
     let missing_remove_error_log: bool =
-        [[log(label: "observed-modals-fs-remove-missing-errors", expected: true)]]
         missing_remove_error
     let escaped_target_seeded_log: bool =
-        [[log(label: "observed-modals-fs-remove-escape-seeded", expected: true)]]
         escaped_target_seeded
     let restricted_escape_error_log: bool =
-        [[log(label: "observed-modals-fs-remove-restricted-escape-error", expected: true)]]
         restricted_escape_error
     let escaped_target_still_exists_log: bool =
-        [[log(label: "observed-modals-fs-remove-restricted-escape-preserved", expected: true)]]
         escaped_target_still_exists
 
     let metric: i32 = if (
@@ -157,7 +150,6 @@ public procedure RunFileSystemRemoveConformance(ctx: Context) -> i32 {
     ) { 7 } else { 0 }
     let metric_label: string@View = FileSystemRemoveConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-remove-metric", expected: "7")]]
         metric_label
 
     let cleanup_probe: () | IoError = fs~>remove(probe_path)
@@ -170,10 +162,10 @@ public procedure RunFileSystemRemoveConformance(ctx: Context) -> i32 {
     let _ = cleanup_escaped_target
 
     if (metric_log_actual != "7") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

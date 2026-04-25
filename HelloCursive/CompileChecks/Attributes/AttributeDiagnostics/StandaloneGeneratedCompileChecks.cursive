@@ -143,25 +143,9 @@ procedure run_standalone_E_MOD_2455(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "E-MOD-2455")
 }
 
-procedure run_standalone_E_MOD_2456(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\AttributeDiagnostics\\Generated\\E_MOD_2456\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_E_MOD_2456.json 2> build\\main\\logs\\compile_checks\\standalone_E_MOD_2456.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2456\\\"\" build\\main\\logs\\compile_checks\\standalone_E_MOD_2456.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "E-MOD-2456")
-}
 
-procedure run_standalone_E_MOD_2457(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\AttributeDiagnostics\\Generated\\E_MOD_2457\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_E_MOD_2457.json 2> build\\main\\logs\\compile_checks\\standalone_E_MOD_2457.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2457\\\"\" build\\main\\logs\\compile_checks\\standalone_E_MOD_2457.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "E-MOD-2457")
-}
 
-procedure run_standalone_E_MOD_2458(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\AttributeDiagnostics\\Generated\\E_MOD_2458\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_E_MOD_2458.json 2> build\\main\\logs\\compile_checks\\standalone_E_MOD_2458.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2458\\\"\" build\\main\\logs\\compile_checks\\standalone_E_MOD_2458.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "E-MOD-2458")
-}
 
-procedure run_standalone_E_MOD_2459(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\AttributeDiagnostics\\Generated\\E_MOD_2459\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_E_MOD_2459.json 2> build\\main\\logs\\compile_checks\\standalone_E_MOD_2459.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2459\\\"\" build\\main\\logs\\compile_checks\\standalone_E_MOD_2459.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "E-MOD-2459")
-}
 
 procedure run_standalone_E_CON_0410(ctx: Context) -> i32 {
     let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\AttributeDiagnostics\\Generated\\E_CON_0410\\Main.cursive > build\\main\\logs\\compile_checks\\standalone_E_CON_0410.json 2> build\\main\\logs\\compile_checks\\standalone_E_CON_0410.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-CON-0410\\\"\" build\\main\\logs\\compile_checks\\standalone_E_CON_0410.json >nul"
@@ -469,25 +453,9 @@ public procedure runStandaloneGeneratedCompileChecks(ctx: Context) -> i32 {
         return status_run_standalone_E_MOD_2455
     }
 
-    let status_run_standalone_E_MOD_2456: i32 = run_standalone_E_MOD_2456(ctx)
-    if (status_run_standalone_E_MOD_2456 != 0) {
-        return status_run_standalone_E_MOD_2456
-    }
 
-    let status_run_standalone_E_MOD_2457: i32 = run_standalone_E_MOD_2457(ctx)
-    if (status_run_standalone_E_MOD_2457 != 0) {
-        return status_run_standalone_E_MOD_2457
-    }
 
-    let status_run_standalone_E_MOD_2458: i32 = run_standalone_E_MOD_2458(ctx)
-    if (status_run_standalone_E_MOD_2458 != 0) {
-        return status_run_standalone_E_MOD_2458
-    }
 
-    let status_run_standalone_E_MOD_2459: i32 = run_standalone_E_MOD_2459(ctx)
-    if (status_run_standalone_E_MOD_2459 != 0) {
-        return status_run_standalone_E_MOD_2459
-    }
 
     let status_run_standalone_E_CON_0410: i32 = run_standalone_E_CON_0410(ctx)
     if (status_run_standalone_E_CON_0410 != 0) {

@@ -6,7 +6,7 @@ procedure FileSystemOpenWriteConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemOpenWriteConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -221,22 +221,16 @@ public procedure RunFileSystemOpenWriteConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-open-write-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let seed_write_ready_log: bool =
-        [[log(label: "observed-modals-fs-open-write-seed-ready", expected: true)]]
         seed_write_ready
     let open_write_ready_log: bool =
-        [[log(label: "observed-modals-fs-open-write-overwrite-ready", expected: true)]]
         open_write_ready
     let open_write_length_log: i32 =
-        [[log(label: "observed-modals-fs-open-write-text-length", expected: 6)]]
         open_write_length
     let open_write_exact_text_log: bool =
-        [[log(label: "observed-modals-fs-open-write-exact-text", expected: true)]]
         open_write_exact_text
     let open_write_missing_error_log: bool =
-        [[log(label: "observed-modals-fs-open-write-missing-error", expected: true)]]
         open_write_missing_error
 
     let metric: i32 = if (
@@ -249,17 +243,16 @@ public procedure RunFileSystemOpenWriteConformance(ctx: Context) -> i32 {
     ) { 24 } else { 0 }
     let metric_label: string@View = FileSystemOpenWriteConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-open-write-metric", expected: "24")]]
         metric_label
 
     let cleanup_probe: () | IoError = fs~>remove(probe_path)
     let _ = cleanup_probe
 
     if (metric_log_actual != "24") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

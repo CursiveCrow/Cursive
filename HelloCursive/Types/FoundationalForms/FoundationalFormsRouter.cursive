@@ -16,7 +16,7 @@ procedure LogFeatureStatus(
     let expected_zero: string@View = "0"
     let actual_status: string@View = FeatureStatusLabel(status)
     let passed: bool = status == 0
-    let passed_log_actual = [[log(label: "observed-feature-status", expected: "0")]] actual_status
+    let passed_log_actual = actual_status
     let passed_with_log: bool = passed && (passed_log_actual == expected_zero)
 }
 
@@ -34,28 +34,18 @@ public procedure runGroup(ctx: Context) -> i32 {
     let failed_reason: string@View = "feature function returned non-zero status"
     let feature_foundation: string@View = "FoundationalForms::FoundationalPredicatesAndClasses"
 
-    [[log(label: "types-log-section_start")]]
-    [[log(label: "types-log-transition")]]
     let status_foundational: i32 = RunFoundationalPredicatesAndClasses(ctx)
     let observed_foundation_step: string@View = "observed-foundational-feature-status"
     LogFeatureStatus(ctx.fs, section_name, feature_foundation, observed_foundation_step, status_foundational)
     if (status_foundational != 0) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-section_end")]]
         return status_foundational
     }
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-transition")]]
     let feature_iterator_step: string@View = "FoundationalForms::IteratorStepExercises"
     let status_iterator_step: i32 = RunIteratorStepExercises(ctx)
     let observed_iterator_step_step: string@View = "observed-iterator-step-feature-status"
     LogFeatureStatus(ctx.fs, section_name, feature_iterator_step, observed_iterator_step_step, status_iterator_step)
     if (status_iterator_step != 0) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-section_end")]]
         return status_iterator_step
     }
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-section_end")]]
     return 0
 }

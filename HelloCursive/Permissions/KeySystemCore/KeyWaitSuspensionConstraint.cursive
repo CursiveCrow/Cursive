@@ -6,7 +6,7 @@ procedure KeyWaitSuspensionMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunKeyWaitSuspensionConstraint(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var gate: shared i32 = 3
     # gate write {
@@ -27,11 +27,11 @@ public procedure RunKeyWaitSuspensionConstraint(ctx: Context) -> i32 {
     let total_metric: i32 = gate + waited_metric + post_wait_metric
     let diagnostic_code: string@View = "E-CON-0133"
 
-    let gate_log: i32 = [[log(label: "observed-permissions-KeyWaitSuspensionConstraint-gate", expected: 5)]] gate
-    let waited_log: i32 = [[log(label: "observed-permissions-KeyWaitSuspensionConstraint-waited", expected: 4)]] waited_metric
-    let post_wait_log: i32 = [[log(label: "observed-permissions-KeyWaitSuspensionConstraint-post-wait", expected: 5)]] post_wait_metric
-    let total_log: i32 = [[log(label: "observed-permissions-KeyWaitSuspensionConstraint-total", expected: 14)]] total_metric
-    let diagnostic_log: string@View = [[log(label: "permissions-KeyWaitSuspensionConstraint-diagnostic", expected: "E-CON-0133")]] diagnostic_code
+    let gate_log: i32 = gate
+    let waited_log: i32 = waited_metric
+    let post_wait_log: i32 = post_wait_metric
+    let total_log: i32 = total_metric
+    let diagnostic_log: string@View = diagnostic_code
 
     let runtime_ok: bool =
         (gate_log == 5) &&
@@ -39,17 +39,17 @@ public procedure RunKeyWaitSuspensionConstraint(ctx: Context) -> i32 {
         (post_wait_log == 5) &&
         (total_log == 14) &&
         (diagnostic_log == "E-CON-0133")
-    let runtime_ok_log: bool = [[log(label: "permissions-KeyWaitSuspensionConstraint-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 14 } else { 0 }
     let metric_label: string@View = KeyWaitSuspensionMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-KeyWaitSuspensionConstraint-metric", expected: "14")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "14") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

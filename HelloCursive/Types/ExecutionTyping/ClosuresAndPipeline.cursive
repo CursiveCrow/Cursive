@@ -21,8 +21,7 @@ procedure LogClosuresObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunClosuresAndPipelineItem(
     ctx: Context,
@@ -39,7 +38,6 @@ procedure RunClosuresAndPipelineItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -48,17 +46,12 @@ procedure RunClosuresAndPipelineItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -85,7 +78,6 @@ procedure ClosuresMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyClosuresAndPipelineItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let capture_source: i32 = 5
     let capture_closure = |input: i32| -> i32 {
         input + capture_source
@@ -93,36 +85,25 @@ procedure VerifyClosuresAndPipelineItem(ctx: Context, scope: string@View, move i
     LogClosuresObject(ctx.fs, scope, "capture_source", "i32", "constructed", "closure capture source binding prepared")
     LogClosuresObject(ctx.fs, scope, "capture_closure", "|i32|->i32", "constructed", "closure literal with lexical capture prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let closure_capture_metric: i32 = capture_closure(2)
-    [[log(label: "types-log-transition_move")]]
     let inferred_input: i32 = 4
     let inferred_param_closure: (i32) -> i32 = |value| {
         value + 1
     }
     LogClosuresObject(ctx.fs, scope, "inferred_param_closure", "|i32|->i32", "constructed", "closure literal with inferred parameter type prepared")
-    [[log(label: "types-log-transition_move")]]
     let closure_param_metric: i32 = inferred_param_closure(inferred_input)
-    [[log(label: "types-log-transition_move")]]
     let closure_return_gate: bool = true
     let inferred_return_closure = |flag: bool| ClosureReturnValue(flag)
     LogClosuresObject(ctx.fs, scope, "inferred_return_closure", "|bool|->i32", "constructed", "closure literal with inferred return type prepared")
-    [[log(label: "types-log-transition_move")]]
     let closure_return_metric: i32 = inferred_return_closure(closure_return_gate)
-    [[log(label: "types-log-transition_move")]]
     let stage1_input: i32 = 3
     let stage_one_fn: (i32) -> i32 = AddOne
     let stage_two_fn: (i32) -> i32 = MultiplyTwo
     LogClosuresObject(ctx.fs, scope, "pipeline_stage_pair", "(i32)->i32 x2", "constructed", "pipeline stage callables prepared")
-    [[log(label: "types-log-transition_move")]]
     let pipeline_io_metric: i32 = stage1_input => AddOne => MultiplyTwo
-    [[log(label: "types-log-transition_move")]]
     let pipeline_stage_seed: i32 = 4
     LogClosuresObject(ctx.fs, scope, "pipeline_stage_seed", "i32", "constructed", "pipeline stage compatibility seed prepared")
-    [[log(label: "types-log-transition_move")]]
     let pipeline_stage_metric: i32 = pipeline_stage_seed => AddOne => MultiplyTwo
-    [[log(label: "types-log-transition_move")]]
     let observed_capture_step: string@View = "observed-closure-capture-metric"
     let observed_param_step: string@View = "observed-closure-param-metric"
     let observed_return_step: string@View = "observed-closure-return-metric"
@@ -144,17 +125,16 @@ procedure VerifyClosuresAndPipelineItem(ctx: Context, scope: string@View, move i
     let pipeline_io_metric_passed: bool = pipeline_io_metric == 8
     let pipeline_stage_metric_passed: bool = pipeline_stage_metric == 10
 
-    let capture_metric_passed_log_actual = [[log(label: "observed-closure-capture-metric", expected: "7")]] capture_metric_label
+    let capture_metric_passed_log_actual = capture_metric_label
     let capture_metric_passed_with_log: bool = capture_metric_passed && (capture_metric_passed_log_actual == expected_capture)
-    let param_metric_passed_log_actual = [[log(label: "observed-closure-param-metric", expected: "5")]] param_metric_label
+    let param_metric_passed_log_actual = param_metric_label
     let param_metric_passed_with_log: bool = param_metric_passed && (param_metric_passed_log_actual == expected_param)
-    let return_metric_passed_log_actual = [[log(label: "observed-closure-return-metric", expected: "3")]] return_metric_label
+    let return_metric_passed_log_actual = return_metric_label
     let return_metric_passed_with_log: bool = return_metric_passed && (return_metric_passed_log_actual == expected_return)
-    let pipeline_io_metric_passed_log_actual = [[log(label: "observed-pipeline-io-metric", expected: "8")]] pipeline_io_metric_label
+    let pipeline_io_metric_passed_log_actual = pipeline_io_metric_label
     let pipeline_io_metric_passed_with_log: bool = pipeline_io_metric_passed && (pipeline_io_metric_passed_log_actual == expected_pipeline_io)
-    let pipeline_stage_metric_passed_log_actual = [[log(label: "observed-pipeline-stage-metric", expected: "10")]] pipeline_stage_metric_label
+    let pipeline_stage_metric_passed_log_actual = pipeline_stage_metric_label
     let pipeline_stage_metric_passed_with_log: bool = pipeline_stage_metric_passed && (pipeline_stage_metric_passed_log_actual == expected_pipeline_stage)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunClosuresAndPipelineItem(
             ctx,
@@ -285,6 +265,5 @@ procedure RunClosuresAndPipeline(ctx: Context) -> i32 {
         return status_PipelineStageCompatibility
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

@@ -651,8 +651,6 @@ bool StmtMayNeedProjectFiles(const ast::Stmt& stmt) {
             }
           }
           return false;
-        } else if constexpr (std::is_same_v<T, ast::LogStmt>) {
-          return HasFilesAttr(node.attrs);
         } else {
           return false;
         }

@@ -15,8 +15,6 @@ procedure LayoutDiagnosticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunLayoutDiagnosticsAndBitValidity(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     let pointer_cell: i32 = 7
     let ptr_value: Ptr<i32>@Valid = &pointer_cell
     let raw_ptr_value: *imm i32 =
@@ -50,12 +48,12 @@ public procedure RunLayoutDiagnosticsAndBitValidity(ctx: Context) -> i32 {
     let bit_validity_ok: bool =
         (bit_low == 0u8) && (bit_high == 255u8)
 
-    let ptr_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-ptr", expected: true)]] ptr_layout_ok
-    let raw_ptr_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-raw-ptr", expected: true)]] raw_ptr_layout_ok
-    let modal_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-modal", expected: true)]] modal_layout_ok
-    let union_niche_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-union-niche", expected: true)]] union_niche_layout_ok
-    let tuple_layout_ok_log: bool = [[log(label: "memory-layout-diagnostic-tuple", expected: true)]] tuple_layout_ok
-    let bit_validity_ok_log: bool = [[log(label: "memory-layout-diagnostic-bit-validity", expected: true)]] bit_validity_ok
+    let ptr_layout_ok_log: bool = ptr_layout_ok
+    let raw_ptr_layout_ok_log: bool = raw_ptr_layout_ok
+    let modal_layout_ok_log: bool = modal_layout_ok
+    let union_niche_layout_ok_log: bool = union_niche_layout_ok
+    let tuple_layout_ok_log: bool = tuple_layout_ok
+    let bit_validity_ok_log: bool = bit_validity_ok
 
     let metric_ok: bool =
         (ptr_layout_ok_log == true) &&
@@ -66,12 +64,10 @@ public procedure RunLayoutDiagnosticsAndBitValidity(ctx: Context) -> i32 {
         (bit_validity_ok_log == true)
     let metric: i32 = if (metric_ok) { 33 } else { 0 }
     let metric_label: string@View = LayoutDiagnosticsMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-layout-diagnostics-metric", expected: "33")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "33") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

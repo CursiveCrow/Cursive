@@ -6,8 +6,7 @@ procedure LogTupleAccessObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure AdvanceTupleAccessOrder(counter: *mut i32, move digit: i32) -> i32 {
     var counter_mut: *mut i32 = counter
@@ -80,37 +79,25 @@ procedure RunTupleElementAccessOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyTupleElementAccessOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let tuple_pair: (i32, i32) = (3, 4)
     let tuple_nested: ((i32, i32), (i32;)) = ((5, 6), (2;))
     LogTupleAccessObject(ctx.fs, scope, "tuple_pair", "(i32,i32)", "constructed", "pair tuple source prepared")
     LogTupleAccessObject(ctx.fs, scope, "tuple_nested", "((i32,i32),(i32;))", "constructed", "nested tuple source prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let tuple_syntax_metric: i32 = tuple_pair.0 + tuple_pair.1
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let tuple_static_metric: i32 = tuple_nested.0.1 + tuple_nested.1.0
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let tuple_runtime_metric: i32 = tuple_pair.0 + tuple_nested.0.0 + tuple_nested.1.0
-    [[log(label: "operations-log-transition_move")]]
     var tuple_eval_order: i32 = 0
     let tuple_eval_ptr: Ptr<i32>@Valid = &tuple_eval_order
     var tuple_eval_raw: *mut i32 =
@@ -118,13 +105,11 @@ procedure VerifyTupleElementAccessOperationsItem(ctx: Context, scope: string@Vie
     let tuple_eval_projected: i32 = BuildTupleAccessProbe(tuple_eval_raw).1
     let tuple_eval_final: i32 = tuple_eval_order
     let tuple_eval_metric: i32 = tuple_eval_projected + tuple_eval_final
-    [[log(label: "operations-log-transition_move")]]
     var tuple_ctrl_order: i32 = 0
     let tuple_ctrl_ptr: Ptr<i32>@Valid = &tuple_ctrl_order
     var tuple_ctrl_raw: *mut i32 =
         unsafe { transmute<Ptr<i32>@Valid, *mut i32>(tuple_ctrl_ptr) }
     let tuple_ctrl_metric: i32 = EvaluateTupleAccessControlProbe(tuple_ctrl_raw)
-    [[log(label: "operations-log-transition_move")]]
     let observed_syntax_step: string@View = "observed-tuple-element-syntax-metric"
     let observed_static_step: string@View = "observed-tuple-element-static-metric"
     let observed_runtime_step: string@View = "observed-tuple-element-runtime-metric"
@@ -149,17 +134,16 @@ procedure VerifyTupleElementAccessOperationsItem(ctx: Context, scope: string@Vie
         (tuple_eval_final == 78)
     let ctrl_passed: bool = (tuple_ctrl_metric == 17) && (tuple_ctrl_order == 4)
 
-    let syntax_passed_log_actual = [[log(label: "observed-tuple-element-syntax-metric", expected: "7")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-tuple-element-static-metric", expected: "8")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-tuple-element-runtime-metric", expected: "10")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    let eval_passed_log_actual = [[log(label: "observed-tuple-element-eval-sigma-metric", expected: "156")]] eval_label
+    let eval_passed_log_actual = eval_label
     let eval_passed_with_log: bool = eval_passed && (eval_passed_log_actual == eval_label)
-    let ctrl_passed_log_actual = [[log(label: "observed-tuple-element-control-propagation-metric", expected: "17")]] ctrl_label
+    let ctrl_passed_log_actual = ctrl_label
     let ctrl_passed_with_log: bool = ctrl_passed && (ctrl_passed_log_actual == ctrl_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunTupleElementAccessOperationsItem(
             ctx,
@@ -290,6 +274,5 @@ procedure RunTupleElementAccessOperations(ctx: Context) -> i32 {
         return status_ctrl
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

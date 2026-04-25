@@ -22,20 +22,20 @@ procedure InlineModesAndWarningsMetricLabel(value: i32) -> string@View {
 
 public procedure RunInlineModesAndWarnings(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let default_value: i32 = AttributeInlineDefaultProbe(4)
     let always_value: i32 = AttributeInlineAlwaysProbe(4)
     let never_value: i32 = AttributeInlineNeverProbe(4)
 
-    let default_value_log: i32 = [[log(label: "observed-attributes-inline-default", expected: 5)]] default_value
-    let always_value_log: i32 = [[log(label: "observed-attributes-inline-always", expected: 6)]] always_value
-    let never_value_log: i32 = [[log(label: "observed-attributes-inline-never", expected: 7)]] never_value
+    let default_value_log: i32 = default_value
+    let always_value_log: i32 = always_value
+    let never_value_log: i32 = never_value
 
-    let warn_2452: string@View = [[log(label: "attributes-inline-warning-2452", expected: "W-MOD-2452")]] "W-MOD-2452"
-    let atr_023: string@View = [[log(label: "attributes-inline-feature-023", expected: "ATR-023")]] "ATR-023"
-    let atr_024: string@View = [[log(label: "attributes-inline-feature-024", expected: "ATR-024")]] "ATR-024"
-    let atr_025: string@View = [[log(label: "attributes-inline-feature-025", expected: "ATR-025")]] "ATR-025"
+    let warn_2452: string@View = "W-MOD-2452"
+    let atr_023: string@View = "ATR-023"
+    let atr_024: string@View = "ATR-024"
+    let atr_025: string@View = "ATR-025"
 
     let runtime_ok: bool =
         (default_value_log == 5) &&
@@ -45,17 +45,17 @@ public procedure RunInlineModesAndWarnings(ctx: Context) -> i32 {
         (atr_023 == "ATR-023") &&
         (atr_024 == "ATR-024") &&
         (atr_025 == "ATR-025")
-    let runtime_ok_log: bool = [[log(label: "attributes-inline-modes-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = InlineModesAndWarningsMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-inline-modes-warnings-metric", expected: "21")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

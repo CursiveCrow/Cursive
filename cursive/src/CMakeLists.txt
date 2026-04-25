@@ -684,7 +684,7 @@ add_library(cursive_codegen STATIC
   05_codegen/lower/expr/error_expr.cpp
   05_codegen/lower/expr/expr_common.cpp
   05_codegen/lower/expr/expr_context.cpp
-  05_codegen/lower/expr/expr_log.cpp
+  05_codegen/lower/expr/expr_refinement.cpp
   05_codegen/lower/expr/expr_place.cpp
   05_codegen/lower/expr/field_access.cpp
   05_codegen/lower/expr/identifier.cpp

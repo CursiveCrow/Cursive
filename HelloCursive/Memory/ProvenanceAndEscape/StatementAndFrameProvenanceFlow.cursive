@@ -6,8 +6,6 @@ procedure ProvenanceStatementFlowMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunStatementAndFrameProvenanceFlow(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     var statement_metric: i32 = 0
     let base_value: i32 = 5
     let base_ptr: Ptr<i32>@Valid = &base_value
@@ -40,14 +38,14 @@ public procedure RunStatementAndFrameProvenanceFlow(ctx: Context) -> i32 {
         let region_value: i32 = r ^ 7
         let region_ptr: Ptr<i32>@Valid = &region_value
         let region_check_ok: bool = (*region_ptr) == 7
-        let region_check_ok_log: bool = [[log(label: "memory-provenance-frame-region-runtime", expected: true)]] region_check_ok
+        let region_check_ok_log: bool = region_check_ok
         frame_region_runtime_ok = region_check_ok_log == true
 
         r.frame {
             let frame_value: i32 = r ^ 6
             let frame_ptr: Ptr<i32>@Valid = &frame_value
             let frame_check_ok: bool = (*frame_ptr) == 6
-            let frame_check_ok_log: bool = [[log(label: "memory-provenance-frame-inner-runtime", expected: true)]] frame_check_ok
+            let frame_check_ok_log: bool = frame_check_ok
             frame_inner_runtime_ok = frame_check_ok_log == true
         }
     }
@@ -71,19 +69,19 @@ public procedure RunStatementAndFrameProvenanceFlow(ctx: Context) -> i32 {
     let diag_async_capture_lifetime: string@View = "E-CON-0280"
     let diag_async_operation_escape: string@View = "E-CON-0281"
 
-    let statement_flow_ok_log: bool = [[log(label: "memory-provenance-statement-flow", expected: true)]] statement_flow_ok
-    let frame_target_lifetime_ok_log: bool = [[log(label: "memory-provenance-frame-target-lifetime-surface", expected: true)]] frame_target_lifetime_ok
-    let capture_flow_ok_log: bool = [[log(label: "memory-provenance-capture-flow-surface", expected: true)]] capture_flow_ok
+    let statement_flow_ok_log: bool = statement_flow_ok
+    let frame_target_lifetime_ok_log: bool = frame_target_lifetime_ok
+    let capture_flow_ok_log: bool = capture_flow_ok
 
-    let diag_escape_assignment_log: string@View = [[log(label: "memory-provenance-diagnostic-code-assignment-escape", expected: "E-MEM-3020")]] diag_escape_assignment
-    let diag_async_capture_lifetime_log: string@View = [[log(label: "memory-provenance-diagnostic-code-async-capture-lifetime", expected: "E-CON-0280")]] diag_async_capture_lifetime
-    let diag_async_operation_escape_log: string@View = [[log(label: "memory-provenance-diagnostic-code-async-operation-escape", expected: "E-CON-0281")]] diag_async_operation_escape
+    let diag_escape_assignment_log: string@View = diag_escape_assignment
+    let diag_async_capture_lifetime_log: string@View = diag_async_capture_lifetime
+    let diag_async_operation_escape_log: string@View = diag_async_operation_escape
 
     let diag_matrix_ok: bool =
         (diag_escape_assignment_log == "E-MEM-3020") &&
         (diag_async_capture_lifetime_log == "E-CON-0280") &&
         (diag_async_operation_escape_log == "E-CON-0281")
-    let diag_matrix_ok_log: bool = [[log(label: "memory-provenance-statement-flow-diagnostic-matrix", expected: true)]] diag_matrix_ok
+    let diag_matrix_ok_log: bool = diag_matrix_ok
 
     let metric_ok: bool =
         (statement_flow_ok_log == true) &&
@@ -93,12 +91,10 @@ public procedure RunStatementAndFrameProvenanceFlow(ctx: Context) -> i32 {
 
     let metric: i32 = if (metric_ok) { 41 } else { 0 }
     let metric_label: string@View = ProvenanceStatementFlowMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-provenance-statement-flow-metric", expected: "41")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "41") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

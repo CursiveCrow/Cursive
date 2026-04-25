@@ -22,8 +22,7 @@ procedure LogUntilExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure UntilExpressionMetricLabel(value: i32) -> string@View {
     if (value == 7) {
@@ -53,38 +52,28 @@ procedure RunUntilExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyUntilExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogUntilExpressionObject(ctx.fs, scope, "until_shared_target_a", "shared i32", "constructed", "shared target for equals-three predicate prepared")
     LogUntilExpressionObject(ctx.fs, scope, "until_shared_target_b", "shared i32", "constructed", "shared target for positive predicate prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let until_seed_a: unique i32 = 3
     let until_shared_a: shared i32 = until_seed_a
     let until_future_a: Async<(), (), i32, !> = until_shared_a~>until(UntilPredicateEqualsThree, UntilActionAddFour)
     let until_metric_a: i32 = sync until_future_a
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let until_seed_b: unique i32 = 4
     let until_shared_b: shared i32 = until_seed_b
     let until_future_b: Async<(), (), i32, !> = until_shared_b~>until(UntilPredicatePositive, UntilActionDouble)
     let until_metric_b: i32 = sync until_future_b
-    [[log(label: "operations-log-transition_move")]]
     let until_runtime_metric: i32 = until_metric_a + until_metric_b
 
     let observed_until_a_step: string@View = "observed-until-predicate-action-a-metric"
@@ -100,13 +89,12 @@ procedure VerifyUntilExpressionOperationsItem(ctx: Context, scope: string@View, 
     let until_b_passed: bool = until_metric_b == 8
     let runtime_passed: bool = until_runtime_metric == 15
 
-    let until_a_passed_log_actual = [[log(label: "observed-until-predicate-action-a-metric", expected: "7")]] until_a_label
+    let until_a_passed_log_actual = until_a_label
     let until_a_passed_with_log: bool = until_a_passed && (until_a_passed_log_actual == until_a_label)
-    let until_b_passed_log_actual = [[log(label: "observed-until-predicate-action-b-metric", expected: "8")]] until_b_label
+    let until_b_passed_log_actual = until_b_label
     let until_b_passed_with_log: bool = until_b_passed && (until_b_passed_log_actual == until_b_label)
-    let runtime_passed_log_actual = [[log(label: "observed-until-runtime-aggregate-metric", expected: "15")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunUntilExpressionOperationsItem(
             ctx,
@@ -193,6 +181,5 @@ procedure RunUntilExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

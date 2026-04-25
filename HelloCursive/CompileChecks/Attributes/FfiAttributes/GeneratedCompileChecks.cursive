@@ -69,9 +69,9 @@ procedure run_issue5131_method_inline_allowed(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "issue5131_method_inline_allowed")
 }
 
-procedure run_issue5131_method_log_allowed(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue5131_method_log_allowed\\Main.cursive > build\\main\\logs\\compile_checks\\issue5131_method_log_allowed.json 2> build\\main\\logs\\compile_checks\\issue5131_method_log_allowed.stderr & if errorlevel 1 exit /b 1"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue5131_method_log_allowed")
+procedure run_issue5131_method_log_unknown_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue5131_method_log_unknown_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue5131_method_log_unknown_rejected.json 2> build\\main\\logs\\compile_checks\\issue5131_method_log_unknown_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2451\\\"\" build\\main\\logs\\compile_checks\\issue5131_method_log_unknown_rejected.json >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue5131_method_log_unknown_rejected")
 }
 
 procedure run_issue5131_method_mangle_rejected(ctx: Context) -> i32 {
@@ -169,10 +169,6 @@ procedure run_issue513_export_generic_ffisafe_unused_param_accepted(ctx: Context
     return testsupport::runCompileCheckCommand(ctx, command, "issue513_export_generic_ffisafe_unused_param_accepted")
 }
 
-procedure run_issue513_expr_log_newline_continuation(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_expr_log_newline_continuation\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_expr_log_newline_continuation.json 2> build\\main\\logs\\compile_checks\\issue513_expr_log_newline_continuation.stderr & if errorlevel 1 exit /b 1"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue513_expr_log_newline_continuation")
-}
 
 procedure run_issue513_extern_duplicate_explicit_mangle_rejected(ctx: Context) -> i32 {
     let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_extern_duplicate_explicit_mangle_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_extern_duplicate_explicit_mangle_rejected.json 2> build\\main\\logs\\compile_checks\\issue513_extern_duplicate_explicit_mangle_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-SYS-3342\\\"\" build\\main\\logs\\compile_checks\\issue513_extern_duplicate_explicit_mangle_rejected.json >nul"
@@ -264,40 +260,12 @@ procedure run_issue513_library_unknown_kind_rejected(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "issue513_library_unknown_kind_rejected")
 }
 
-procedure run_issue513_log_binding_expected_moved_rejected(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_log_binding_expected_moved_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_log_binding_expected_moved_rejected.json 2> build\\main\\logs\\compile_checks\\issue513_log_binding_expected_moved_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2457\\\"\" build\\main\\logs\\compile_checks\\issue513_log_binding_expected_moved_rejected.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue513_log_binding_expected_moved_rejected")
-}
 
-procedure run_issue513_log_expected_moved_binding_rejected(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_log_expected_moved_binding_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_log_expected_moved_binding_rejected.json 2> build\\main\\logs\\compile_checks\\issue513_log_expected_moved_binding_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2457\\\"\" build\\main\\logs\\compile_checks\\issue513_log_expected_moved_binding_rejected.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue513_log_expected_moved_binding_rejected")
-}
 
-procedure run_issue513_log_malformed_args_rejected(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_log_malformed_args_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_log_malformed_args_rejected.json 2> build\\main\\logs\\compile_checks\\issue513_log_malformed_args_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2456\\\"\" build\\main\\logs\\compile_checks\\issue513_log_malformed_args_rejected.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue513_log_malformed_args_rejected")
-}
 
-procedure run_issue513_log_multiple_args_allowed(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_log_multiple_args_allowed\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_log_multiple_args_allowed.json 2> build\\main\\logs\\compile_checks\\issue513_log_multiple_args_allowed.stderr & if errorlevel 1 exit /b 1"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue513_log_multiple_args_allowed")
-}
 
-procedure run_issue513_log_never_return_rejected(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_log_never_return_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_log_never_return_rejected.json 2> build\\main\\logs\\compile_checks\\issue513_log_never_return_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2459\\\"\" build\\main\\logs\\compile_checks\\issue513_log_never_return_rejected.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue513_log_never_return_rejected")
-}
 
-procedure run_issue513_log_positional_arg_rejected(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_log_positional_arg_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_log_positional_arg_rejected.json 2> build\\main\\logs\\compile_checks\\issue513_log_positional_arg_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2450\\\"\" build\\main\\logs\\compile_checks\\issue513_log_positional_arg_rejected.json >nul & findstr /C:\"\\\"E-MOD-2456\\\"\" build\\main\\logs\\compile_checks\\issue513_log_positional_arg_rejected.json >nul && exit /b 1 || exit /b 0"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue513_log_positional_arg_rejected")
-}
 
-procedure run_issue513_log_standalone_statement(ctx: Context) -> i32 {
-    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_log_standalone_statement\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_log_standalone_statement.json 2> build\\main\\logs\\compile_checks\\issue513_log_standalone_statement.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2458\\\"\" build\\main\\logs\\compile_checks\\issue513_log_standalone_statement.json >nul"
-    return testsupport::runCompileCheckCommand(ctx, command, "issue513_log_standalone_statement")
-}
 
 procedure run_issue513_malformed_attr_syntax_rejected(ctx: Context) -> i32 {
     let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Attributes\\\\FfiAttributes\\Generated\\issue513_malformed_attr_syntax_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\issue513_malformed_attr_syntax_rejected.json 2> build\\main\\logs\\compile_checks\\issue513_malformed_attr_syntax_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-MOD-2450\\\"\" build\\main\\logs\\compile_checks\\issue513_malformed_attr_syntax_rejected.json >nul"
@@ -595,9 +563,9 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
         return status_run_issue5131_method_inline_allowed
     }
 
-    let status_run_issue5131_method_log_allowed: i32 = run_issue5131_method_log_allowed(ctx)
-    if (status_run_issue5131_method_log_allowed != 0) {
-        return status_run_issue5131_method_log_allowed
+    let status_run_issue5131_method_log_unknown_rejected: i32 = run_issue5131_method_log_unknown_rejected(ctx)
+    if (status_run_issue5131_method_log_unknown_rejected != 0) {
+        return status_run_issue5131_method_log_unknown_rejected
     }
 
     let status_run_issue5131_method_mangle_rejected: i32 = run_issue5131_method_mangle_rejected(ctx)
@@ -695,10 +663,6 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
         return status_run_issue513_export_generic_ffisafe_unused_param_accepted
     }
 
-    let status_run_issue513_expr_log_newline_continuation: i32 = run_issue513_expr_log_newline_continuation(ctx)
-    if (status_run_issue513_expr_log_newline_continuation != 0) {
-        return status_run_issue513_expr_log_newline_continuation
-    }
 
     let status_run_issue513_extern_duplicate_explicit_mangle_rejected: i32 = run_issue513_extern_duplicate_explicit_mangle_rejected(ctx)
     if (status_run_issue513_extern_duplicate_explicit_mangle_rejected != 0) {
@@ -790,40 +754,12 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
         return status_run_issue513_library_unknown_kind_rejected
     }
 
-    let status_run_issue513_log_binding_expected_moved_rejected: i32 = run_issue513_log_binding_expected_moved_rejected(ctx)
-    if (status_run_issue513_log_binding_expected_moved_rejected != 0) {
-        return status_run_issue513_log_binding_expected_moved_rejected
-    }
 
-    let status_run_issue513_log_expected_moved_binding_rejected: i32 = run_issue513_log_expected_moved_binding_rejected(ctx)
-    if (status_run_issue513_log_expected_moved_binding_rejected != 0) {
-        return status_run_issue513_log_expected_moved_binding_rejected
-    }
 
-    let status_run_issue513_log_malformed_args_rejected: i32 = run_issue513_log_malformed_args_rejected(ctx)
-    if (status_run_issue513_log_malformed_args_rejected != 0) {
-        return status_run_issue513_log_malformed_args_rejected
-    }
 
-    let status_run_issue513_log_multiple_args_allowed: i32 = run_issue513_log_multiple_args_allowed(ctx)
-    if (status_run_issue513_log_multiple_args_allowed != 0) {
-        return status_run_issue513_log_multiple_args_allowed
-    }
 
-    let status_run_issue513_log_never_return_rejected: i32 = run_issue513_log_never_return_rejected(ctx)
-    if (status_run_issue513_log_never_return_rejected != 0) {
-        return status_run_issue513_log_never_return_rejected
-    }
 
-    let status_run_issue513_log_positional_arg_rejected: i32 = run_issue513_log_positional_arg_rejected(ctx)
-    if (status_run_issue513_log_positional_arg_rejected != 0) {
-        return status_run_issue513_log_positional_arg_rejected
-    }
 
-    let status_run_issue513_log_standalone_statement: i32 = run_issue513_log_standalone_statement(ctx)
-    if (status_run_issue513_log_standalone_statement != 0) {
-        return status_run_issue513_log_standalone_statement
-    }
 
     let status_run_issue513_malformed_attr_syntax_rejected: i32 = run_issue513_malformed_attr_syntax_rejected(ctx)
     if (status_run_issue513_malformed_attr_syntax_rejected != 0) {

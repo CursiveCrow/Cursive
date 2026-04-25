@@ -19,8 +19,7 @@ procedure LogRaceExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure RaceExpressionMetricLabel(value: i32) -> string@View {
     if (value == 6) {
@@ -50,28 +49,21 @@ procedure RunRaceExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyRaceExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogRaceExpressionObject(ctx.fs, scope, "race_fast_arm", "Async<(),(),i32,!>", "constructed", "fast-completing race arm prepared")
     LogRaceExpressionObject(ctx.fs, scope, "race_slow_arm", "Async<(),(),i32,!>", "constructed", "suspending race arm prepared")
     LogRaceExpressionObject(ctx.fs, scope, "race_handler_arm", "Async<(),(),i32,!>", "constructed", "race arm for handler transform prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let race_fast_result: i32 | ! = race {
         RaceFast() -> |value| {
             value
@@ -84,8 +76,6 @@ procedure VerifyRaceExpressionOperationsItem(ctx: Context, scope: string@View, m
         value: i32 { value }
         _: ! { 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let race_handler_result: i32 | ! = race {
         RaceSlow() -> |value| {
             value
@@ -98,7 +88,6 @@ procedure VerifyRaceExpressionOperationsItem(ctx: Context, scope: string@View, m
         value: i32 { value }
         _: ! { 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
     let race_runtime_metric: i32 = race_fast_metric + race_handler_metric
 
     let observed_fast_step: string@View = "observed-race-first-completion-metric"
@@ -114,13 +103,12 @@ procedure VerifyRaceExpressionOperationsItem(ctx: Context, scope: string@View, m
     let handler_passed: bool = race_handler_metric == 10
     let runtime_passed: bool = race_runtime_metric == 16
 
-    let fast_passed_log_actual = [[log(label: "observed-race-first-completion-metric", expected: "6")]] fast_label
+    let fast_passed_log_actual = fast_label
     let fast_passed_with_log: bool = fast_passed && (fast_passed_log_actual == fast_label)
-    let handler_passed_log_actual = [[log(label: "observed-race-handler-transform-metric", expected: "10")]] handler_label
+    let handler_passed_log_actual = handler_label
     let handler_passed_with_log: bool = handler_passed && (handler_passed_log_actual == handler_label)
-    let runtime_passed_log_actual = [[log(label: "observed-race-runtime-aggregate-metric", expected: "16")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunRaceExpressionOperationsItem(
             ctx,
@@ -207,6 +195,5 @@ procedure RunRaceExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

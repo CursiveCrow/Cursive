@@ -6,8 +6,6 @@ procedure PoisonRuntimeMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunPoisonRuntimeDiagnostics(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     var deinit_metric: i32 = 0
     {
         defer {
@@ -16,25 +14,21 @@ public procedure RunPoisonRuntimeDiagnostics(ctx: Context) -> i32 {
         deinit_metric = deinit_metric + 1
     }
     let deinit_metric_log: i32 =
-        [[log(label: "observed-memory-init-deinit-metric", expected: 3)]]
         deinit_metric
 
     let path_probe: i32 = 5
     let path_ptr: Ptr<i32>@Valid = &path_probe
     let path_metric: i32 = *path_ptr
     let path_metric_log: i32 =
-        [[log(label: "observed-memory-init-poison-path-metric", expected: 5)]]
         path_metric
     let path_ptr_shape_ok: bool = path_ptr == &path_probe
     let path_ptr_shape_ok_log: bool =
-        [[log(label: "memory-init-poisoned-path-pointer-shape", expected: true)]]
         path_ptr_shape_ok
 
     var write_probe: i32 = 4
     write_probe = write_probe + 3
     let write_metric: i32 = write_probe
     let write_metric_log: i32 =
-        [[log(label: "observed-memory-init-poison-write-metric", expected: 7)]]
         write_metric
 
     let managed_probe: string@Managed | AllocationError =
@@ -50,7 +44,6 @@ public procedure RunPoisonRuntimeDiagnostics(ctx: Context) -> i32 {
         }
     }
     let managed_metric_log: i32 =
-        [[log(label: "observed-memory-init-poison-managed-metric", expected: 2)]]
         managed_metric
 
     let deinit_panic_surface_ok: bool = deinit_metric_log == 3
@@ -58,10 +51,10 @@ public procedure RunPoisonRuntimeDiagnostics(ctx: Context) -> i32 {
     let poisoned_write_runtime_ok: bool = write_metric_log == 7
     let managed_runtime_ok: bool = managed_metric_log == 2
 
-    let deinit_panic_surface_ok_log: bool =        [[log(label: "memory-init-deinit-panic", expected: true)]]         deinit_panic_surface_ok
-    let poisoned_path_runtime_ok_log: bool =        [[log(label: "memory-init-poisoned-path", expected: true)]]         poisoned_path_runtime_ok
-    let poisoned_write_runtime_ok_log: bool =        [[log(label: "memory-init-poisoned-write", expected: true)]]         poisoned_write_runtime_ok
-    let managed_runtime_ok_log: bool =        [[log(label: "memory-init-managed-runtime", expected: true)]]         managed_runtime_ok
+    let deinit_panic_surface_ok_log: bool =        deinit_panic_surface_ok
+    let poisoned_path_runtime_ok_log: bool =        poisoned_path_runtime_ok
+    let poisoned_write_runtime_ok_log: bool =        poisoned_write_runtime_ok
+    let managed_runtime_ok_log: bool =        managed_runtime_ok
 
     let metric_ok: bool = (deinit_panic_surface_ok_log == true) &&
         (poisoned_path_runtime_ok_log == true) &&
@@ -70,12 +63,10 @@ public procedure RunPoisonRuntimeDiagnostics(ctx: Context) -> i32 {
         (path_ptr_shape_ok_log == true)
     let metric: i32 = if (metric_ok) { 36 } else { 0 }
     let metric_label: string@View = PoisonRuntimeMetricLabel(metric)
-    let metric_log_actual: string@View =        [[log(label: "observed-memory-init-runtime-diagnostics-metric", expected: "36")]]         metric_label
+    let metric_log_actual: string@View =        metric_label
     if (metric_log_actual != "36") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

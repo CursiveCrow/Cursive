@@ -1,60 +1,51 @@
 procedure BoundaryLogFeatureStatus(feature_name: string@View, status: i32) -> () {
-    [[log(label: "observed-memory-feature-status", expected: 0)]] status
-    [[log(label: "memory-log-feature_name")]] feature_name
+    status
+    feature_name
     return ()
 }
 
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "memory-log-section_start")]]
-
-    [[log(label: "memory-log-feature_dispatch")]] "memory::MemoryBoundariesAndOrdering::OrderingDefaultsAndFenceSurface"
+    "memory::MemoryBoundariesAndOrdering::OrderingDefaultsAndFenceSurface"
     let status_defaults: i32 = RunOrderingDefaultsAndFenceSurface(ctx)
     BoundaryLogFeatureStatus("memory::MemoryBoundariesAndOrdering::OrderingDefaultsAndFenceSurface", status_defaults)
     if (status_defaults != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_defaults
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::MemoryBoundariesAndOrdering::SequentialOrderingAndBoundaryScope"
+    "memory::MemoryBoundariesAndOrdering::SequentialOrderingAndBoundaryScope"
     let status_sequential: i32 = RunSequentialOrderingAndBoundaryScope(ctx)
     BoundaryLogFeatureStatus("memory::MemoryBoundariesAndOrdering::SequentialOrderingAndBoundaryScope", status_sequential)
     if (status_sequential != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_sequential
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::MemoryBoundariesAndOrdering::BoundaryDiagnosticsAndRestrictions"
+    "memory::MemoryBoundariesAndOrdering::BoundaryDiagnosticsAndRestrictions"
     let status_diag: i32 = RunBoundaryDiagnosticsAndRestrictions(ctx)
     BoundaryLogFeatureStatus("memory::MemoryBoundariesAndOrdering::BoundaryDiagnosticsAndRestrictions", status_diag)
     if (status_diag != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_diag
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::MemoryBoundariesAndOrdering::BoundaryRestrictionContracts"
+    "memory::MemoryBoundariesAndOrdering::BoundaryRestrictionContracts"
     let status_contracts: i32 = RunBoundaryRestrictionContracts(ctx)
     BoundaryLogFeatureStatus("memory::MemoryBoundariesAndOrdering::BoundaryRestrictionContracts", status_contracts)
     if (status_contracts != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_contracts
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::MemoryBoundariesAndOrdering::FfiUnwindAndVerificationModes"
+    "memory::MemoryBoundariesAndOrdering::FfiUnwindAndVerificationModes"
     let status_ffi_modes: i32 = RunFfiUnwindAndVerificationModes(ctx)
     BoundaryLogFeatureStatus("memory::MemoryBoundariesAndOrdering::FfiUnwindAndVerificationModes", status_ffi_modes)
     if (status_ffi_modes != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_ffi_modes
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::MemoryBoundariesAndOrdering::GpuBarrierAndSafeTypeSurface"
+    "memory::MemoryBoundariesAndOrdering::GpuBarrierAndSafeTypeSurface"
     let status_gpu_barrier_safe_types: i32 = RunGpuBarrierAndSafeTypeSurface(ctx)
     BoundaryLogFeatureStatus("memory::MemoryBoundariesAndOrdering::GpuBarrierAndSafeTypeSurface", status_gpu_barrier_safe_types)
     if (status_gpu_barrier_safe_types != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_gpu_barrier_safe_types
     }
 
-    [[log(label: "memory-log-section_end")]]
     return 0
 }

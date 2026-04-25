@@ -44,8 +44,7 @@ procedure LogMethodDispatchObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure MethodDispatchMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -78,22 +77,17 @@ procedure RunMethodAndStaticDispatchOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyMethodAndStaticDispatchOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let probe_const: AccessDispatchProbe = AccessDispatchProbe { base: 5 }
     let probe_static: AccessDispatchProbe = AccessDispatchProbe { base: 5 }
     let probe_unique_seed: unique AccessDispatchProbe = AccessDispatchProbe { base: 5 }
@@ -103,23 +97,13 @@ procedure VerifyMethodAndStaticDispatchOperationsItem(ctx: Context, scope: strin
     LogMethodDispatchObject(ctx.fs, scope, "probe_unique_seed", "unique AccessDispatchProbe", "constructed", "unique receiver seed for ~! method path prepared")
     LogMethodDispatchObject(ctx.fs, scope, "methods_typepath_probe", "MethodsTypePathProjectionProbe", "constructed", "record receiver for Methods(T) projection prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let method_syntax_metric: i32 = probe_const~>read()
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_dispatch_metric: i32 = AccessStaticDispatchCall(probe_static, 2)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var probe_unique: unique AccessDispatchProbe = move probe_unique_seed
-    [[log(label: "operations-log-transition_move")]]
     LogMethodDispatchObject(ctx.fs, scope, "probe_unique", "unique AccessDispatchProbe", "constructed", "unique receiver for ~! dispatch path prepared")
 
-    [[log(label: "operations-log-transition_move")]]
     let unique_dispatch_metric: i32 = probe_unique~>bump(3)
-    [[log(label: "operations-log-transition_move")]]
     let method_runtime_metric: i32 = static_dispatch_metric + unique_dispatch_metric
-    [[log(label: "operations-log-transition_move")]]
     let methods_typepath_metric: i32 = MethodsTypePathProjectionCall(methods_typepath_probe, 4)
 
     let observed_syntax_step: string@View = "observed-method-dispatch-syntax-metric"
@@ -139,15 +123,14 @@ procedure VerifyMethodAndStaticDispatchOperationsItem(ctx: Context, scope: strin
     let runtime_passed: bool = method_runtime_metric == 16
     let methods_typepath_passed: bool = methods_typepath_metric == 19
 
-    let syntax_passed_log_actual = [[log(label: "observed-method-dispatch-syntax-metric", expected: "5")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-method-dispatch-static-metric", expected: "7")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-method-dispatch-runtime-metric", expected: "16")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    let methods_typepath_passed_log_actual = [[log(label: "observed-methods-typepath-projection-metric", expected: "19")]] methods_typepath_label
+    let methods_typepath_passed_log_actual = methods_typepath_label
     let methods_typepath_passed_with_log: bool = methods_typepath_passed && (methods_typepath_passed_log_actual == methods_typepath_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunMethodAndStaticDispatchOperationsItem(
             ctx,
@@ -256,6 +239,5 @@ procedure RunMethodAndStaticDispatchOperations(ctx: Context) -> i32 {
         return status_methods_typepath
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

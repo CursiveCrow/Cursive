@@ -36,7 +36,7 @@ procedure ModalDeclarationSyntaxMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalDeclarationSyntax(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let cold_state: ModalDeclarationSyntaxProbe@Cold =
         ModalDeclarationSyntaxProbe@Cold { seed: 5 }
@@ -72,28 +72,21 @@ public procedure RunModalDeclarationSyntax(ctx: Context) -> i32 {
     let p4_field_metric: i32 = p4_ready_state.keyed + p4_ready_state.edge + p4_ready_state.tail
 
     let declaration_metric_log: i32 =
-        [[log(label: "observed-modals-modal-declaration-syntax", expected: 5)]]
         declaration_metric
     let state_type_metric_log: i32 =
-        [[log(label: "observed-modals-modal-state-type-syntax", expected: 7)]]
         state_type_metric
     let generic_declaration_metric_log: i32 =
-        [[log(label: "observed-modals-modal-generic-state-declaration-syntax", expected: 11)]]
         generic_declaration_metric
     let generic_state_type_metric_log: i32 =
-        [[log(label: "observed-modals-modal-generic-state-type-syntax", expected: 13)]]
         generic_state_type_metric
     let p4_field_metric_log: i32 =
-        [[log(label: "observed-modals-state-field-p4-generic-key-boundary", expected: 23)]]
         p4_field_metric
 
     let mod_001: string@View = "MOD-001"
     let mod_002: string@View = "MOD-002"
     let mod_001_log: string@View =
-        [[log(label: "modals-core-modal-declaration-syntax-feature-001", expected: "MOD-001")]]
         mod_001
     let mod_002_log: string@View =
-        [[log(label: "modals-core-modal-declaration-syntax-feature-002", expected: "MOD-002")]]
         mod_002
 
     let runtime_ok: bool =
@@ -105,19 +98,17 @@ public procedure RunModalDeclarationSyntax(ctx: Context) -> i32 {
         (mod_001_log == "MOD-001") &&
         (mod_002_log == "MOD-002")
     let runtime_ok_log: bool =
-        [[log(label: "modals-core-modal-declaration-syntax-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 12 } else { 0 }
     let metric_label: string@View = ModalDeclarationSyntaxMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-declaration-syntax-metric", expected: "12")]]
         metric_label
     if (metric_log_actual != "12") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

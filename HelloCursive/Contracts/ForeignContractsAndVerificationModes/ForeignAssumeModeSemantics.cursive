@@ -43,11 +43,10 @@ procedure ForeignAssumeModeSemanticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunForeignAssumeModeSemantics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let con_075: string@View = "CON-075"
     let con_075_log: string@View =
-        [[log(label: "contracts-foreign-assume-mode-feature-075", expected: "CON-075")]]
         con_075
 
     let assume_value: i32 = unsafe {
@@ -59,24 +58,19 @@ public procedure RunForeignAssumeModeSemantics(ctx: Context) -> i32 {
     let expected_assume_value: i32 = -1
 
     let assume_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-assume-mode-assume-value", expected: expected_assume_value)]]
         assume_value
     let dynamic_panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-assume-mode-dynamic-catch", expected: 0)]]
         dynamic_panic_catch_metric
 
     let assume_mode_marker: string@View = "[[static]]"
     let assume_mode_marker_log: string@View =
-        [[log(label: "contracts-foreign-assume-mode-marker", expected: "[[static]]")]]
         assume_mode_marker
 
     let assume_skips_runtime_check: bool = assume_value_log < 0
     let dynamic_enforces_runtime_check: bool = dynamic_panic_catch_metric_log == 0
     let assume_skips_runtime_check_log: bool =
-        [[log(label: "contracts-foreign-assume-mode-assume-runtime-check", expected: true)]]
         assume_skips_runtime_check
     let dynamic_enforces_runtime_check_log: bool =
-        [[log(label: "contracts-foreign-assume-mode-dynamic-runtime-check", expected: true)]]
         dynamic_enforces_runtime_check
 
     let semantics_status: string@View =
@@ -89,7 +83,6 @@ public procedure RunForeignAssumeModeSemantics(ctx: Context) -> i32 {
             "behavior-mismatch"
         }
     let semantics_status_log: string@View =
-        [[log(label: "contracts-foreign-assume-mode-status", expected: "assume-semantics-verified")]]
         semantics_status
 
     let runtime_ok: bool =
@@ -101,19 +94,17 @@ public procedure RunForeignAssumeModeSemantics(ctx: Context) -> i32 {
         (dynamic_enforces_runtime_check_log == true) &&
         (semantics_status_log == "assume-semantics-verified")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-assume-mode-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = ForeignAssumeModeSemanticsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-assume-mode-semantics-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

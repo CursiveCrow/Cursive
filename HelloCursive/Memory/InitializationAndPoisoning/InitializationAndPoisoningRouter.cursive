@@ -1,44 +1,37 @@
 procedure InitLogFeatureStatus(feature_name: string@View, status: i32) -> () {
-    [[log(label: "observed-memory-feature-status", expected: 0)]] status
-    [[log(label: "memory-log-feature_name")]] feature_name
+    status
+    feature_name
     return ()
 }
 
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "memory-log-section_start")]]
-
-    [[log(label: "memory-log-feature_dispatch")]] "memory::InitializationAndPoisoning::InitializationOrder"
+    "memory::InitializationAndPoisoning::InitializationOrder"
     let status_order: i32 = RunInitializationOrder(ctx)
     InitLogFeatureStatus("memory::InitializationAndPoisoning::InitializationOrder", status_order)
     if (status_order != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_order
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::InitializationAndPoisoning::DeinitializationAndPoisonPropagation"
+    "memory::InitializationAndPoisoning::DeinitializationAndPoisonPropagation"
     let status_poison: i32 = RunDeinitializationAndPoisonPropagation(ctx)
     InitLogFeatureStatus("memory::InitializationAndPoisoning::DeinitializationAndPoisonPropagation", status_poison)
     if (status_poison != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_poison
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::InitializationAndPoisoning::PoisonDiagnosticSurface"
+    "memory::InitializationAndPoisoning::PoisonDiagnosticSurface"
     let status_poison_surface: i32 = RunPoisonDiagnosticSurface(ctx)
     InitLogFeatureStatus("memory::InitializationAndPoisoning::PoisonDiagnosticSurface", status_poison_surface)
     if (status_poison_surface != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_poison_surface
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::InitializationAndPoisoning::PoisonRuntimeDiagnostics"
+    "memory::InitializationAndPoisoning::PoisonRuntimeDiagnostics"
     let status_diag: i32 = RunPoisonRuntimeDiagnostics(ctx)
     InitLogFeatureStatus("memory::InitializationAndPoisoning::PoisonRuntimeDiagnostics", status_diag)
     if (status_diag != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_diag
     }
 
-    [[log(label: "memory-log-section_end")]]
     return 0
 }

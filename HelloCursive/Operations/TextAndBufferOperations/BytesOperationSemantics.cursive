@@ -6,8 +6,7 @@ procedure LogBytesOperationObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure BytesOperationMetricLabel(value: i32) -> string@View {
     if (value == 3) {
@@ -36,22 +35,17 @@ procedure RunBytesOperationItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyBytesOperationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let bytes_seed_left: [u8; 3] = [65, 66, 67]
     let bytes_seed_right: [u8; 2] = [68, 69]
     let bytes_slice_left: [u8] = bytes_seed_left
@@ -62,14 +56,9 @@ procedure VerifyBytesOperationItem(ctx: Context, scope: string@View, move item_i
     LogBytesOperationObject(ctx.fs, scope, "bytes_view_left", "bytes@View", "planned", "bytes::view conversion output planned")
     LogBytesOperationObject(ctx.fs, scope, "bytes_managed", "bytes@Managed|AllocationError", "planned", "bytes::from_slice conversion output planned")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let bytes_view_left: bytes@View = bytes::view(bytes_slice_left)
     let syntax_metric: i32 = if (bytes::is_empty(bytes_view_left)) { 0 } else { bytes::length(bytes_view_left) as i32 }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let managed_result: bytes@Managed | AllocationError = bytes::from_slice(bytes_slice_left, ctx.heap)
-    [[log(label: "operations-log-transition_move")]]
     var static_metric: i32 = -1
     var runtime_metric: i32 = -1
 
@@ -101,15 +90,14 @@ procedure VerifyBytesOperationItem(ctx: Context, scope: string@View, move item_i
     let runtime_passed: bool = runtime_metric == 5
 
     let actual_label_1: string@View = BytesOperationMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-bytes-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = BytesOperationMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-bytes-static-metric", expected: "3")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = BytesOperationMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-bytes-runtime-metric", expected: "5")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunBytesOperationItem(
             ctx,
@@ -196,6 +184,5 @@ procedure RunBytesOperationSemantics(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

@@ -7,7 +7,7 @@ procedure KeyLifecycleAndStaticRuntimeBoundaryMetricLabel(value: i32) -> string@
 
 [[dynamic]]
 public procedure RunKeyLifecycleAndStaticRuntimeBoundary(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var gate: shared i32 = 5
     var statement_read_metric: i32 = 0
@@ -48,19 +48,19 @@ public procedure RunKeyLifecycleAndStaticRuntimeBoundary(ctx: Context) -> i32 {
     let warn_acquire_order: string@View = "W-CON-0001"
     let warn_release_scope: string@View = "W-CON-0002"
 
-    let statement_read_metric_log: i32 = [[log(label: "observed-permissions-KeyLifecycleAndStaticRuntimeBoundary-read", expected: 5)]] statement_read_metric
-    let post_write_metric_log: i32 = [[log(label: "observed-permissions-KeyLifecycleAndStaticRuntimeBoundary-post-write", expected: 9)]] post_write_metric
-    let parallel_wait_metric_log: i32 = [[log(label: "observed-permissions-KeyLifecycleAndStaticRuntimeBoundary-parallel-wait", expected: 6)]] parallel_wait_metric
-    let dynamic_read_metric_log: i32 = [[log(label: "observed-permissions-KeyLifecycleAndStaticRuntimeBoundary-dynamic-read", expected: 5)]] dynamic_read_metric
+    let statement_read_metric_log: i32 = statement_read_metric
+    let post_write_metric_log: i32 = post_write_metric
+    let parallel_wait_metric_log: i32 = parallel_wait_metric
+    let dynamic_read_metric_log: i32 = dynamic_read_metric
 
-    let diag_mode_log: string@View = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-diag-mode", expected: "E-CON-0005")]] diag_mode
-    let diag_release_log: string@View = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-diag-release", expected: "E-CON-0006")]] diag_release
-    let diag_dynamic_required_log: string@View = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-diag-dynamic-required", expected: "E-CON-0014")]] diag_dynamic_required
-    let diag_pointer_boundary_log: string@View = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-diag-pointer-boundary", expected: "E-CON-0034")]] diag_pointer_boundary
-    let info_dynamic_sync_log: string@View = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-info-dynamic-sync", expected: "I-CON-0011")]] info_dynamic_sync
-    let info_static_safe_log: string@View = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-info-static-safe", expected: "I-CON-0013")]] info_static_safe
-    let warn_acquire_order_log: string@View = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-warn-acquire-order", expected: "W-CON-0001")]] warn_acquire_order
-    let warn_release_scope_log: string@View = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-warn-release-scope", expected: "W-CON-0002")]] warn_release_scope
+    let diag_mode_log: string@View = diag_mode
+    let diag_release_log: string@View = diag_release
+    let diag_dynamic_required_log: string@View = diag_dynamic_required
+    let diag_pointer_boundary_log: string@View = diag_pointer_boundary
+    let info_dynamic_sync_log: string@View = info_dynamic_sync
+    let info_static_safe_log: string@View = info_static_safe
+    let warn_acquire_order_log: string@View = warn_acquire_order
+    let warn_release_scope_log: string@View = warn_release_scope
 
     let runtime_ok: bool =
         (statement_read_metric_log == 5) &&
@@ -75,17 +75,17 @@ public procedure RunKeyLifecycleAndStaticRuntimeBoundary(ctx: Context) -> i32 {
         (info_static_safe_log == "I-CON-0013") &&
         (warn_acquire_order_log == "W-CON-0001") &&
         (warn_release_scope_log == "W-CON-0002")
-    let runtime_ok_log: bool = [[log(label: "permissions-KeyLifecycleAndStaticRuntimeBoundary-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 33 } else { 0 }
     let metric_label: string@View = KeyLifecycleAndStaticRuntimeBoundaryMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-KeyLifecycleAndStaticRuntimeBoundary-metric", expected: "33")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "33") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

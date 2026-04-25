@@ -1,4 +1,4 @@
-﻿# Cursive Language Specification
+# Cursive Language Specification
 
 ## 0. Front Matter
 
@@ -6534,7 +6534,7 @@ R_vendor = ∅
 
 R_spec = {
   layout, inline, cold, deprecated,
-  dynamic, stale_ok, log,
+  dynamic, stale_ok,
   relaxed, acquire, release, acqrel, seqcst,
   static,
   mangle, library, unwind,
@@ -6548,7 +6548,6 @@ AttrTargets(cold) = {Procedure, Method}
 AttrTargets(deprecated) = {Record, Enum, Modal, Procedure, Method, Field, Binding, TypeAlias}
 AttrTargets(dynamic) = {Record, Enum, Modal, Procedure, Method, Expression}
 AttrTargets(stale_ok) = {Binding}
-AttrTargets(log) = {Procedure, Method, Binding, Expression, Statement}
 AttrTargets(relaxed) = {Expression, KeyBlock}
 AttrTargets(acquire) = {Expression, KeyBlock}
 AttrTargets(release) = {Expression, KeyBlock}
@@ -6815,20 +6814,11 @@ Optimization attributes do not change the language-level runtime semantics of th
 
 #### 9.5.1 Syntax
 
-All attributes in this section use the general attribute syntax from §9.1.1. `[[log]]` adds the following argument grammar:
-
-```ebnf
-log_attribute ::= "[[" "log" ("(" log_args ")")? "]]"
-log_args      ::= log_arg ("," log_arg)*
-log_arg       ::= "label" ":" string_literal
-                | "expected" ":" literal
-                | "expected" ":" identifier
-log_statement ::= log_attribute terminator
-```
+All attributes in this section use the general attribute syntax from §9.1.1.
 
 #### 9.5.2 Parsing
 
-These attributes are parsed by the general attribute parser in §9.1.2. For `Expression` targets, one or more newlines MAY appear between a `[[log]]` attribute list and the observed expression; such newlines are line continuations.
+These attributes are parsed by the general attribute parser in §9.1.2.
 
 #### 9.5.3 AST Representation / Form
 
@@ -6840,8 +6830,6 @@ DynamicDecl(d) ⇔ AttrByName(d, "dynamic") ≠ []
 DynamicExpr(e) ⇔ ExprAttrByName(e, "dynamic") ≠ []
 DynamicScope(s) ⇔ (∃ d. DynamicDecl(d) ∧ s ⊆ d.span) ∨ (∃ e. DynamicExpr(e) ∧ s ⊆ ExprSpan(e))
 InDynamicContext ⇔ DynamicScope(s) where s is the span of the syntactic form currently being verified or type-checked.
-
-LogJudg = {EmitLog}
 
 #### 9.5.4 Static Semantics
 
@@ -6921,44 +6909,15 @@ If a `[[dynamic]]` scope results in no runtime checks or runtime synchronization
 
 **`[[files]]`.** Grants the `ProjectFiles` capability to the annotated compile-time statement or compile-time expression. The target MUST be a `comptime` form. File snapshot and path-confinement semantics are defined by §22.2.
 
-**`[[log]]` static semantics**
-
-1. `[[log]]` is valid only on `Procedure`, `Method`, `Binding`, `Expression`, and `Statement` targets.
-2. `label` MUST appear at most once.
-3. `expected` MUST appear at most once.
-4. Any `log_arg` key other than `label` or `expected` is ill-formed.
-5. If `expected` is present and is a literal, the expected literal MUST type-check against the observed value type under the standard literal typing rules.
-6. If `expected` is present, the observed value type MUST be equality-comparable.
-7. If `[[log(expected: ...)]]` is attached to a `Procedure` with return type `!`, the program is ill-formed.
-8. For `Expression` targets, one or more newlines MAY appear between the attribute list and the observed expression.
-9. A `[[log]]` attribute list MAY appear as a standalone statement with no trailing expression. The observed value is `()` and the observed type is `()`. If `expected` is present, it MUST type-check against `()`.
-10. When `expected` is an identifier, it MUST resolve to a binding visible in the current scope. The binding's type MUST be equality-comparable with the observed value type. The binding MUST be in `Alive` state with `const` or `unique` permission.
-
 #### 9.5.5 Dynamic Semantics
 
 `[[deprecated]]`, `[[stale_ok]]`, and `[[static]]` introduce no direct runtime behavior in this chapter.
 
 For `[[dynamic]]`, runtime synchronization or runtime verification MUST be inserted exactly when required by the owning chapters for keys, contracts, refinements, and foreign contracts, and MUST NOT be inserted otherwise.
 
-`[[log]]` is observational instrumentation.
-
-1. Log instrumentation MUST NOT change expression values, control flow, ownership or provenance state, or cleanup and drop behavior.
-2. For an `Expression` target, the expression MUST be evaluated exactly once to value `v`.
-3. For an `Expression` target, one log record MUST be emitted containing the source site, optional `label`, `actual = v`, optional `expected`, and comparison result when `expected` is present.
-4. For a `Binding` target, the initializer result is logged with the same rules as expression logging.
-5. For a `Procedure` target, one entry record MUST be emitted at procedure entry, and one exit record MUST be emitted on each normal return. When the return type is non-unit, the exit record MUST include the return value as `actual`.
-6. Each emitted record MUST include a thread identifier and a global monotonically increasing emission sequence number. Within one execution thread or task, emitted records MUST preserve source execution order. Across threads and tasks, the externally observable log order MUST be ascending emission sequence number.
-7. Log-emission failure MUST NOT change program semantics.
-8. For a `Statement` target, one log record MUST be emitted containing the source site, optional `label`, and `actual = ()`.
-
-**(Log-Expr)**
-Γ ⊢ e ⇓ v    Γ ⊢ EmitLog(Rec(site, label?, expected?, actual=v, cmp?)) ⇓ _
-───────────────────────────────────────────────────────────────────────────
-Γ ⊢ [[log(args)]] e ⇓ v
-
 #### 9.5.6 Lowering
 
-`[[dynamic]]` lowers by enabling runtime synchronization or runtime checks exactly where the owning semantic sections require them and nowhere else. `[[stale_ok]]` suppresses warnings only and does not affect lowering. `[[deprecated]]` introduces no lowering. `[[log]]` lowers to observational instrumentation around the annotated target, including emission of the required thread identifier and emission sequence number. `[[reflect]]`, `[[derive(... )]]`, `[[emit]]`, and `[[files]]` lower only through Phase 2 execution as defined by Chapter 22 and MUST introduce no direct Phase 4 runtime instrumentation.
+`[[dynamic]]` lowers by enabling runtime synchronization or runtime checks exactly where the owning semantic sections require them and nowhere else. `[[stale_ok]]` suppresses warnings only and does not affect lowering. `[[deprecated]]` introduces no lowering. `[[reflect]]`, `[[derive(... )]]`, `[[emit]]`, and `[[files]]` lower only through Phase 2 execution as defined by Chapter 22 and MUST introduce no direct Phase 4 runtime instrumentation.
 
 #### 9.5.7 Diagnostics
 
@@ -6969,10 +6928,6 @@ For `[[dynamic]]`, runtime synchronization or runtime verification MUST be inser
 | `E-CON-0411` | Error    | Compile-time | `[[dynamic]]` applied to type alias declaration                          |
 | `E-CON-0412` | Error    | Compile-time | `[[dynamic]]` applied to field declaration                               |
 | `W-CON-0401` | Warning  | Compile-time | `[[dynamic]]` present but all proofs succeed statically                  |
-| `E-MOD-2456` | Error    | Compile-time | Invalid `[[log]]` argument key or duplicate key                          |
-| `E-MOD-2457` | Error    | Compile-time | `[[log(expected: ... )]]` literal not type-compatible with observed type |
-| `E-MOD-2458` | Error    | Compile-time | `[[log(expected: ... )]]` requires equality-comparable observed type     |
-| `E-MOD-2459` | Error    | Compile-time | `[[log(expected: ... )]]` not valid on `procedure` returning `!`         |
 
 ## 10. Permissions and Binding State
 
@@ -18510,13 +18465,11 @@ statement     ::= binding_stmt
                 | continue_stmt
                 | unsafe_block
                 | key_block_stmt
-                | log_statement
                 | comptime_stmt
 block_expr    ::= "{" statement_seq "}"
 ```
 
 `key_block_stmt` is defined in Chapter 19.
-`log_statement` is defined in §9.5.1.
 `comptime_stmt` is defined in §22.1.1.
 
 #### 18.1.2 Parsing
@@ -18525,14 +18478,7 @@ block_expr    ::= "{" statement_seq "}"
 StmtTerm = {Punctuator(";"), Newline}
 Terminates(t) ⇔ t ∈ StmtTerm
 
-If Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt) and attrs_opt is a non-empty list whose members all have name = "log", then Γ ⊢ ParseStmt(P) MUST parse a log statement by requiring ConsumeTerminatorReq at P_0.
-
 AttachStmtAttrs(⊥, s) = s. When attrs_opt ≠ ⊥, AttachStmtAttrs(attrs_opt, s) denotes the statement obtained by attaching attrs_opt to s according to Chapter 9.
-
-**(Parse-Statement-Log)**
-Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    attrs_opt ≠ ⊥    ∀ a ∈ attrs_opt. a.name = "log"    Γ ⊢ ConsumeTerminatorReq(P_0) ⇓ P_1
-───────────────────────────────────────────────────────
-Γ ⊢ ParseStmt(P) ⇓ (P_1, LogStmt(attrs_opt))
 
 **(Parse-Statement)**
 Γ ⊢ ParseAttrListOpt(P) ⇓ (P_0, attrs_opt)    Γ ⊢ ParseStmtCore(P_0) ⇓ (P_1, s_0)    s = AttachStmtAttrs(attrs_opt, s_0)    Γ ⊢ ConsumeTerminatorOpt(P_1, s) ⇓ P_2
@@ -18593,7 +18539,7 @@ SyncStmt = {Punctuator(";"), Newline, Punctuator("}"), EOF}
 
 #### 18.1.3 AST Representation / Form
 
-Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), UsingLocalStmt(source, alias, span), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(attrs_opt, paths, mods, mode_opt, block, span), ReturnStmt(expr_opt), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block), CtStmt(body, attrs_opt, span), LogStmt(attrs_opt)}
+Stmt = {LetStmt(binding), VarStmt(binding), ErrorStmt(span), UsingLocalStmt(source, alias, span), AssignStmt(place, expr), CompoundAssignStmt(place, op, expr), ExprStmt(expr), DeferStmt(block), RegionStmt(opts_opt, alias_opt, block), FrameStmt(target_opt, block), KeyBlockStmt(attrs_opt, paths, mods, mode_opt, block, span), ReturnStmt(expr_opt), BreakStmt(expr_opt), ContinueStmt, UnsafeBlockStmt(block), CtStmt(body, attrs_opt, span)}
 
 LastStmt([]) = ⊥
 LastStmt([s_1, …, s_n]) = s_n    (n ≥ 1)
@@ -29640,7 +29586,7 @@ Only sections that define named diagnostics are listed below.
 - `§9.2.7 Vendor Attributes`: `E-CNF-0402`
 - `§9.3.7 Layout Attributes`: `E-MOD-2453`, `E-MOD-2454`, `E-MOD-2455`, `E-TYP-2105`, `W-MOD-2451`
 - `§9.4.7 Optimization Attributes`: `W-MOD-2452`
-- `§9.5.7 Diagnostics and Metadata Attributes`: `W-CNF-0601`, `E-CON-0410`, `E-CON-0411`, `E-CON-0412`, `W-CON-0401`, `E-MOD-2456`, `E-MOD-2457`, `E-MOD-2458`, `E-MOD-2459`
+- `§9.5.7 Diagnostics and Metadata Attributes`: `W-CNF-0601`, `E-CON-0410`, `E-CON-0411`, `E-CON-0412`, `W-CON-0401`
 - `§10.4.7 Permission Admissibility`: `E-TYP-1601`, `E-TYP-1602`, `E-TYP-1603`, `E-TYP-1604`, `E-TYP-1605`
 - `§11.1.7 Import Declarations`: `E-MOD-1202`
 - `§11.2.7 Using Declarations`: `E-MOD-1204`, `E-MOD-1205`, `E-MOD-1206`, `W-MOD-1201`
@@ -29911,7 +29857,7 @@ range_pattern          ::= pattern (".." | "..=") pattern
 ### B.5 Statement Grammar
 
 ```ebnf
-statement ::= binding_stmt | using_local_stmt | assignment_stmt | compound_assign | expr_stmt | return_stmt | break_stmt | continue_stmt | defer_stmt | region_stmt | frame_stmt | unsafe_block | key_block_stmt | log_statement | comptime_stmt
+statement ::= binding_stmt | using_local_stmt | assignment_stmt | compound_assign | expr_stmt | return_stmt | break_stmt | continue_stmt | defer_stmt | region_stmt | frame_stmt | unsafe_block | key_block_stmt | comptime_stmt
 
 binding_stmt     ::= ("let" | "var") pattern (":" type)? binding_op expression terminator
 using_local_stmt ::= "using" identifier "as" identifier terminator
@@ -29925,8 +29871,6 @@ place_expr      ::= identifier | postfix_expr "." identifier | postfix_expr "[" 
 expr_stmt  ::= expression terminator
 terminator ::= ";" | newline
 newline    ::= "\n"
-
-log_statement ::= log_attribute terminator
 
 return_stmt   ::= "return" expression?
 break_stmt    ::= "break" expression?

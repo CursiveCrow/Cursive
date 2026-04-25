@@ -22,79 +22,41 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_PropagationOperatorOperations: string@View = "AccessAndInvocation::PropagationOperatorOperations"
     let feature_MoveAndPartialMoveOperations: string@View = "AccessAndInvocation::MoveAndPartialMoveOperations"
 
-    [[log(label: "operations-log-section_start")]]
-    [[log(label: "operations-log-transition")]]
     let status_FieldAccessOperations: i32 = RunFieldAccessOperations(ctx)
     if (status_FieldAccessOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_FieldAccessOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_TupleElementAccessOperations: i32 = RunTupleElementAccessOperations(ctx)
     if (status_TupleElementAccessOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_TupleElementAccessOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_IndexAccessOperations: i32 = RunIndexAccessOperations(ctx)
     if (status_IndexAccessOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_IndexAccessOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_ProcedureCallOperations: i32 = RunProcedureCallOperations(ctx)
     if (status_ProcedureCallOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_ProcedureCallOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_GenericCallTypeArgumentOperations: i32 = RunGenericCallTypeArgumentOperations(ctx)
     if (status_GenericCallTypeArgumentOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_GenericCallTypeArgumentOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_MethodAndStaticDispatchOperations: i32 = RunMethodAndStaticDispatchOperations(ctx)
     if (status_MethodAndStaticDispatchOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_MethodAndStaticDispatchOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_PipelineOperations: i32 = RunPipelineOperations(ctx)
     if (status_PipelineOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_PipelineOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_PropagationOperatorOperations: i32 = RunPropagationOperatorOperations(ctx)
     if (status_PropagationOperatorOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_PropagationOperatorOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_MoveAndPartialMoveOperations: i32 = RunMoveAndPartialMoveOperations(ctx)
     if (status_MoveAndPartialMoveOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_MoveAndPartialMoveOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-section_end")]]
     return 0
 }

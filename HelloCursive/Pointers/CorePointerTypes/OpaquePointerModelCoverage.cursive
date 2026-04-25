@@ -16,8 +16,6 @@ procedure OpaquePointerModelMetricLabel(value: i32) -> string@View {
 
 public procedure RunOpaquePointerModelCoverage(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     var cell: i32 = 20
     let safe_for_raw: Ptr<i32>@Valid = &cell
     let safe_ptr: OpaquePointerSafe = safe_for_raw
@@ -44,19 +42,15 @@ public procedure RunOpaquePointerModelCoverage(ctx: Context) -> i32 {
 
     let opaque_pointer_model_ok: bool = total_metric == 66
     let opaque_pointer_model_ok_log: bool =
-        [[log(label: "pointers-core-opaque-pointer-model-surface", expected: true)]]
         opaque_pointer_model_ok
 
     let metric: i32 = if ((opaque_pointer_model_ok_log == true) && opaque_pointer_model_ok) { 66 } else { 0 }
     let metric_label: string@View = OpaquePointerModelMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-core-opaque-pointer-model-metric", expected: "66")]]
         metric_label
     if (metric_log_actual != "66") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

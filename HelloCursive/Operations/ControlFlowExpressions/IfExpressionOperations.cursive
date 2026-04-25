@@ -6,8 +6,7 @@ procedure LogIfExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure IfExpressionMetricLabel(value: i32) -> string@View {
     if (value == 6) {
@@ -37,22 +36,17 @@ procedure RunIfExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyIfExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let syntax_guard: bool = false
     let static_guard: bool = true
     var runtime_counter: i32 = 0
@@ -60,8 +54,6 @@ procedure VerifyIfExpressionOperationsItem(ctx: Context, scope: string@View, mov
     LogIfExpressionObject(ctx.fs, scope, "static_guard", "bool", "constructed", "guard for branch-type unification prepared")
     LogIfExpressionObject(ctx.fs, scope, "runtime_counter", "i32", "constructed", "branch-side-effect counter prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let if_syntax_metric: i32 = if (syntax_guard) {
         1
     } else if (static_guard) {
@@ -69,16 +61,12 @@ procedure VerifyIfExpressionOperationsItem(ctx: Context, scope: string@View, mov
     } else {
         0
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let if_static_pair: (i32, i32) = if (static_guard) {
         (4, 5)
     } else {
         (0, 0)
     }
     let if_static_metric: i32 = if_static_pair.0 + if_static_pair.1
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let if_runtime_pair: (i32, i32) = if (true) {
         runtime_counter = runtime_counter + 2;
         (4, runtime_counter)
@@ -87,21 +75,19 @@ procedure VerifyIfExpressionOperationsItem(ctx: Context, scope: string@View, mov
         (0, runtime_counter)
     }
     let if_runtime_metric: i32 = if_runtime_pair.0 + if_runtime_pair.1
-    [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = if_syntax_metric == 7
     let static_passed: bool = if_static_metric == 9
     let runtime_passed: bool = if_runtime_metric == 6
 
     let actual_label_1: string@View = IfExpressionMetricLabel(if_syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-if-expression-syntax-metric", expected: "7")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = IfExpressionMetricLabel(if_static_metric)
-    let static_passed_log_actual = [[log(label: "observed-if-expression-static-metric", expected: "9")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = IfExpressionMetricLabel(if_runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-if-expression-runtime-metric", expected: "6")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunIfExpressionOperationsItem(
             ctx,
@@ -188,6 +174,5 @@ procedure RunIfExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

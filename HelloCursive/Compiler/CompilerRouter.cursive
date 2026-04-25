@@ -34,7 +34,6 @@ procedure runCompilerRuntimeConformance(ctx: Context) -> i32 {
     compilerWriteStage(ctx.fs, "compiler-runtime-stage:catch\n")
     let catch_boundary_ok: bool = catch_boundary_metric == 0
     let catch_boundary_ok_log: bool =
-        [[log(label: "observed-compiler-runtime-catch-boundary", expected: true)]]
         catch_boundary_ok
 
     let sandbox: $FileSystem = ctx.fs~>restrict("compiler_runtime_sandbox")
@@ -42,46 +41,39 @@ procedure runCompilerRuntimeConformance(ctx: Context) -> i32 {
     let escaped: bool = widened~>exists("System32")
     let attenuation_ok: bool = escaped == false
     let attenuation_ok_log: bool =
-        [[log(label: "observed-compiler-runtime-capability-attenuation", expected: true)]]
         attenuation_ok
     compilerWriteStage(ctx.fs, "compiler-runtime-stage:attenuation\n")
 
     let system_run_status: i32 = runCompilerSystemRunRuntimeConformance(ctx)
     compilerWriteStage(ctx.fs, "compiler-runtime-stage:system-run\n")
     if (system_run_status != 0) {
-        [[log(label: "compiler-log-item_fail")]]
         return 1
     }
 
     let system_get_env_status: i32 = runCompilerSystemGetEnvRuntimeConformance(ctx)
     compilerWriteStage(ctx.fs, "compiler-runtime-stage:get-env\n")
     if (system_get_env_status != 0) {
-        [[log(label: "compiler-log-item_fail")]]
         return 1
     }
 
     let system_exit_status: i32 = runCompilerSystemExitRuntimeConformance(ctx)
     compilerWriteStage(ctx.fs, "compiler-runtime-stage:system-exit\n")
     if (system_exit_status != 0) {
-        [[log(label: "compiler-log-item_fail")]]
         return 1
     }
 
     let network_restrict_status: i32 = runCompilerNetworkRestrictHostRuntimeConformance(ctx)
     compilerWriteStage(ctx.fs, "compiler-runtime-stage:network\n")
     if (network_restrict_status != 0) {
-        [[log(label: "compiler-log-item_fail")]]
         return 1
     }
 
     if ((catch_boundary_ok_log == false) ||
         (attenuation_ok_log == false)) {
-        [[log(label: "compiler-log-item_fail")]]
         return 1
     }
 
     compilerWriteStage(ctx.fs, "compiler-runtime-stage:done\n")
-    [[log(label: "compiler-log-item_success")]]
     return 0
 }
 

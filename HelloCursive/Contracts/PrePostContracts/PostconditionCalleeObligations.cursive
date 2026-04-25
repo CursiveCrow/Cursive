@@ -14,35 +14,31 @@ procedure PostconditionCalleeObligationsMetricLabel(value: i32) -> string@View {
 
 public procedure RunPostconditionCalleeObligations(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let probe: i32 = PostconditionCalleeProbe(6)
     let probe_log: i32 =
-        [[log(label: "observed-contracts-postcondition-callee-probe", expected: 8)]]
         probe
 
     let con_026: string@View = "CON-026"
     let con_026_log: string@View =
-        [[log(label: "contracts-postcondition-callee-obligations-feature-026", expected: "CON-026")]]
         con_026
 
     let runtime_ok: bool =
         (probe_log == 8) &&
         (con_026_log == "CON-026")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-postcondition-callee-obligations-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = PostconditionCalleeObligationsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-postcondition-callee-obligations-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

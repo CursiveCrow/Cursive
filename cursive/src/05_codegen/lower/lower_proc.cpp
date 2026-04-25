@@ -1133,13 +1133,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
     ir.params.push_back(PanicOutParam());
   }
   const bool prev_dynamic_checks = ctx.dynamic_checks;
-  const bool prev_proc_log_enabled = ctx.proc_log_enabled;
-  const auto prev_proc_log_name = ctx.proc_log_name;
-  const auto prev_proc_log_label = ctx.proc_log_label;
-  const auto prev_proc_log_expected = ctx.proc_log_expected;
-  const auto prev_proc_log_expected_token_kind =
-      ctx.proc_log_expected_token_kind;
-  const bool prev_proc_log_expected_is_ident = ctx.proc_log_expected_is_ident;
   const ast::Expr* prev_active_postcondition = ctx.active_contract_postcondition;
   const auto prev_contract_result_value = ctx.contract_result_value;
   const auto prev_contract_entry_values = ctx.contract_entry_values;
@@ -1147,24 +1140,11 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   const bool prev_lowering_contract_postcondition =
       ctx.lowering_contract_postcondition;
   ctx.dynamic_checks = HasDynamicContractAttr(decl.attrs);
-  ctx.proc_log_enabled = FindLogAttr(decl.attrs) != nullptr;
-  ctx.proc_log_name = decl.name;
-  ctx.proc_log_label = LogLabelFor(decl.attrs);
-  ctx.proc_log_expected = LogExpectedFor(decl.attrs);
   ctx.active_contract_postcondition = nullptr;
   ctx.contract_result_value.reset();
   ctx.contract_entry_values.clear();
   ctx.contract_param_entry_values.clear();
   ctx.lowering_contract_postcondition = false;
-  {
-    const auto* log_attr_ptr = FindLogAttr(decl.attrs);
-    const ast::Token* exp_tok =
-        log_attr_ptr ? FindNamedTokenArg(*log_attr_ptr, "expected") : nullptr;
-    ctx.proc_log_expected_token_kind =
-        exp_tok ? std::optional<lexer::TokenKind>(exp_tok->kind) : std::nullopt;
-    ctx.proc_log_expected_is_ident =
-        exp_tok && exp_tok->kind == lexer::TokenKind::Identifier;
-  }
 
   // Check for dynamic contract checks
   const bool has_dynamic_contract = HasDynamicContractAttr(decl.attrs) &&
@@ -1263,18 +1243,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   }
 
   // Add precondition check at procedure entry
-  if (ctx.proc_log_enabled) {
-    body_seq.push_back(
-        EmitRuntimeTraceRecord("Log-Proc-Entry",
-                               BuildProcedureLogPayloadBase(
-                                   "entry",
-                                   decl.name,
-                                   ctx.proc_log_label,
-                                   ctx.proc_log_expected,
-                                   ctx.proc_log_expected_token_kind,
-                                   !ctx.proc_log_expected_is_ident),
-                               decl.span));
-  }
   if (param_entry_snapshot_ir) {
     body_seq.push_back(param_entry_snapshot_ir);
   }
@@ -1301,31 +1269,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
       if (IRPtr postcheck_ir =
               EmitDynamicPostconditionCheckForReturn(body_res.value, ctx)) {
         body_seq.push_back(postcheck_ir);
-      }
-    }
-    if (ctx.proc_log_enabled) {
-      const std::string exit_payload_base =
-          BuildProcedureLogPayloadBase("exit",
-                                       decl.name,
-                                       ctx.proc_log_label,
-                                       ctx.proc_log_expected,
-                                       ctx.proc_log_expected_token_kind,
-                                       !ctx.proc_log_expected_is_ident);
-      if (ret_is_unit) {
-        body_seq.push_back(EmitRuntimeTraceUnitActual("Log-Proc-Exit",
-                                                      exit_payload_base +
-                                                          ";actual=",
-                                                      decl.span));
-      } else {
-        body_seq.push_back(EmitProcLogTraceWithCmp(
-            "Log-Proc-Exit",
-            exit_payload_base,
-            ctx.proc_log_expected,
-            ctx.proc_log_expected_token_kind,
-            body_res.value,
-            ir.ret,
-            ctx,
-            decl.span));
       }
     }
     IRReturn ret;
@@ -1449,12 +1392,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   }
 
   ctx.dynamic_checks = prev_dynamic_checks;
-  ctx.proc_log_enabled = prev_proc_log_enabled;
-  ctx.proc_log_name = prev_proc_log_name;
-  ctx.proc_log_label = prev_proc_log_label;
-  ctx.proc_log_expected = prev_proc_log_expected;
-  ctx.proc_log_expected_token_kind = prev_proc_log_expected_token_kind;
-  ctx.proc_log_expected_is_ident = prev_proc_log_expected_is_ident;
   ctx.active_contract_postcondition = prev_active_postcondition;
   ctx.contract_result_value = prev_contract_result_value;
   ctx.contract_entry_values = prev_contract_entry_values;
@@ -1493,12 +1430,6 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
         expr_region_tags;
     std::vector<std::string> active_region_aliases;
     bool dynamic_checks = false;
-    bool proc_log_enabled = false;
-    std::string proc_log_name;
-    std::optional<std::string> proc_log_label;
-    std::optional<std::string> proc_log_expected;
-    std::optional<lexer::TokenKind> proc_log_expected_token_kind;
-    bool proc_log_expected_is_ident = false;
     const ast::Expr* active_contract_postcondition = nullptr;
     std::optional<IRValue> contract_result_value;
     std::unordered_map<const ast::EntryExpr*, IRValue> contract_entry_values;
@@ -1524,12 +1455,6 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
           expr_region_tags(source.expr_region_tags),
           active_region_aliases(source.active_region_aliases),
           dynamic_checks(source.dynamic_checks),
-          proc_log_enabled(source.proc_log_enabled),
-          proc_log_name(source.proc_log_name),
-          proc_log_label(source.proc_log_label),
-          proc_log_expected(source.proc_log_expected),
-          proc_log_expected_token_kind(source.proc_log_expected_token_kind),
-          proc_log_expected_is_ident(source.proc_log_expected_is_ident),
           active_contract_postcondition(source.active_contract_postcondition),
           contract_result_value(source.contract_result_value),
           contract_entry_values(source.contract_entry_values),
@@ -1563,12 +1488,6 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
       target.expr_region_tags = expr_region_tags;
       target.active_region_aliases = active_region_aliases;
       target.dynamic_checks = dynamic_checks;
-      target.proc_log_enabled = proc_log_enabled;
-      target.proc_log_name = proc_log_name;
-      target.proc_log_label = proc_log_label;
-      target.proc_log_expected = proc_log_expected;
-      target.proc_log_expected_token_kind = proc_log_expected_token_kind;
-      target.proc_log_expected_is_ident = proc_log_expected_is_ident;
       target.active_contract_postcondition = active_contract_postcondition;
       target.contract_result_value = contract_result_value;
       target.contract_entry_values = contract_entry_values;

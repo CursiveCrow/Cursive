@@ -6,8 +6,7 @@ procedure LogNestedReleaseReentrancyObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure NestedReleaseReentrancyMetricLabel(value: i32) -> string@View {
     if (value == 2) {
@@ -36,22 +35,17 @@ procedure RunNestedReleaseReentrancyItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyNestedReleaseReentrancyItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     var syntax_slot: shared i32 = 2
     var static_slot: shared i32 = 3
     var runtime_slot: shared i32 = 1
@@ -65,15 +59,11 @@ procedure VerifyNestedReleaseReentrancyItem(ctx: Context, scope: string@View, mo
     LogNestedReleaseReentrancyObject(ctx.fs, scope, "diag_nested_mode_change_no_release", "diagnostic-code", "constructed", "nested mode-change diagnostic mapping prepared")
     LogNestedReleaseReentrancyObject(ctx.fs, scope, "diag_callee_access_unknown", "diagnostic-code", "constructed", "callee access unknown warning mapping prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
     var syntax_metric: i32 = 0
-    [[log(label: "operations-log-transition_move")]]
     # syntax_slot read {
         syntax_metric = syntax_slot
     }
-    [[log(label: "operations-log-transition_move")]]
     var release_snapshot: i32 = 0
-    [[log(label: "operations-log-transition_move")]]
     # static_slot write {
         let rmw_warning_15 = static_slot
         static_slot = rmw_warning_15 + 1
@@ -82,21 +72,18 @@ procedure VerifyNestedReleaseReentrancyItem(ctx: Context, scope: string@View, mo
         static_slot = rmw_warning_16 + 2
     }
     let static_metric: i32 = static_slot
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     # runtime_slot write {
         let rmw_warning_17 = runtime_slot
         runtime_slot = rmw_warning_17 + 2
         let rmw_warning_18 = runtime_slot
         runtime_slot = rmw_warning_18 + 3
     }
-    [[log(label: "operations-log-transition_move")]]
     let diag_nested_mode_change_no_release_ok: bool = diag_nested_mode_change_no_release == "E-CON-0012"
     let diag_callee_access_unknown_ok: bool = diag_callee_access_unknown == "W-CON-0005"
 
-    let diag_nested_mode_change_no_release_ok_log_actual = [[log(label: "diagnostic-nested-mode-change-no-release", expected: "E-CON-0012")]] diag_nested_mode_change_no_release
+    let diag_nested_mode_change_no_release_ok_log_actual = diag_nested_mode_change_no_release
     let diag_nested_mode_change_no_release_ok_with_log: bool = diag_nested_mode_change_no_release_ok && (diag_nested_mode_change_no_release_ok_log_actual == diag_nested_mode_change_no_release)
-    let diag_callee_access_unknown_ok_log_actual = [[log(label: "diagnostic-callee-access-unknown", expected: "W-CON-0005")]] diag_callee_access_unknown
+    let diag_callee_access_unknown_ok_log_actual = diag_callee_access_unknown
     let diag_callee_access_unknown_ok_with_log: bool = diag_callee_access_unknown_ok && (diag_callee_access_unknown_ok_log_actual == diag_callee_access_unknown)
     let diag_count: i32 = if (diag_nested_mode_change_no_release_ok && diag_callee_access_unknown_ok) { 2 } else { 0 }
     let runtime_metric: i32 = runtime_slot + diag_count
@@ -106,15 +93,14 @@ procedure VerifyNestedReleaseReentrancyItem(ctx: Context, scope: string@View, mo
     let runtime_passed: bool = runtime_metric == 8
 
     let actual_label_1: string@View = NestedReleaseReentrancyMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-nested-release-reentrancy-syntax-metric", expected: "2")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = NestedReleaseReentrancyMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-nested-release-reentrancy-static-metric", expected: "6")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = NestedReleaseReentrancyMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-nested-release-reentrancy-runtime-metric", expected: "8")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunNestedReleaseReentrancyItem(
             ctx,
@@ -201,6 +187,5 @@ procedure RunNestedReleaseAndReentrancy(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

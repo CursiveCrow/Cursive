@@ -22,8 +22,7 @@ procedure LogYieldExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure YieldExpressionMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -56,36 +55,24 @@ procedure RunYieldExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyYieldExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogYieldExpressionObject(ctx.fs, scope, "yield_async_once", "Async<(),(),i32,!>", "constructed", "single-yield async source prepared")
     LogYieldExpressionObject(ctx.fs, scope, "yield_async_release", "Async<(),(),i32,!>", "constructed", "yield-release async source prepared")
     LogYieldExpressionObject(ctx.fs, scope, "yield_async_twice", "Async<(),(),i32,!>", "constructed", "multi-yield async source prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let yield_once_metric: i32 = sync YieldUnitOnce()
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let yield_release_metric: i32 = sync YieldUnitReleaseOnce()
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let yield_twice_metric: i32 = sync YieldUnitTwice()
-    [[log(label: "operations-log-transition_move")]]
     let yield_runtime_metric: i32 = yield_once_metric + yield_release_metric + yield_twice_metric
 
     let observed_once_step: string@View = "observed-yield-once-metric"
@@ -105,15 +92,14 @@ procedure VerifyYieldExpressionOperationsItem(ctx: Context, scope: string@View, 
     let twice_passed: bool = yield_twice_metric == 9
     let runtime_passed: bool = yield_runtime_metric == 21
 
-    let once_passed_log_actual = [[log(label: "observed-yield-once-metric", expected: "5")]] once_label
+    let once_passed_log_actual = once_label
     let once_passed_with_log: bool = once_passed && (once_passed_log_actual == once_label)
-    let release_passed_log_actual = [[log(label: "observed-yield-release-metric", expected: "7")]] release_label
+    let release_passed_log_actual = release_label
     let release_passed_with_log: bool = release_passed && (release_passed_log_actual == release_label)
-    let twice_passed_log_actual = [[log(label: "observed-yield-twice-metric", expected: "9")]] twice_label
+    let twice_passed_log_actual = twice_label
     let twice_passed_with_log: bool = twice_passed && (twice_passed_log_actual == twice_label)
-    let runtime_passed_log_actual = [[log(label: "observed-yield-runtime-aggregate-metric", expected: "21")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunYieldExpressionOperationsItem(
             ctx,
@@ -200,6 +186,5 @@ procedure RunYieldExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

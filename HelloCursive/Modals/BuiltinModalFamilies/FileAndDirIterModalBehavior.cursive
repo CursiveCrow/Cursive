@@ -6,7 +6,7 @@ procedure FileAndDirIterModalBehaviorMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileAndDirIterModalBehavior(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -177,34 +177,25 @@ public procedure RunFileAndDirIterModalBehavior(ctx: Context) -> i32 {
         (dir_metric_raw == true)
 
     let write_metric_log: bool =
-        [[log(label: "observed-modals-file-write-state-flow", expected: true)]]
         write_metric
     let append_metric_log: bool =
-        [[log(label: "observed-modals-file-append-state-flow", expected: true)]]
         append_metric
     let read_metric_log: bool =
-        [[log(label: "observed-modals-file-read-state-flow", expected: true)]]
         read_metric
     let read_text_metric_log: bool =
-        [[log(label: "observed-modals-file-read-text-state-flow", expected: true)]]
         read_text_metric
     let read_bytes_metric_log: bool =
-        [[log(label: "observed-modals-file-read-bytes-state-flow", expected: true)]]
         read_bytes_metric
     let dir_setup_metric_log: bool =
-        [[log(label: "observed-modals-diriter-setup-state-flow", expected: true)]]
         dir_setup_metric
     let dir_metric_log: bool =
-        [[log(label: "observed-modals-diriter-state-flow", expected: true)]]
         dir_metric
 
     let mod_065: string@View = "MOD-065"
     let mod_066: string@View = "MOD-066"
     let mod_065_log: string@View =
-        [[log(label: "modals-builtin-file-diriter-feature-065", expected: "MOD-065")]]
         mod_065
     let mod_066_log: string@View =
-        [[log(label: "modals-builtin-file-diriter-feature-066", expected: "MOD-066")]]
         mod_066
 
     let runtime_ok: bool =
@@ -218,23 +209,21 @@ public procedure RunFileAndDirIterModalBehavior(ctx: Context) -> i32 {
         (mod_065_log == "MOD-065") &&
         (mod_066_log == "MOD-066")
     let runtime_ok_log: bool =
-        [[log(label: "modals-builtin-file-diriter-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 23 } else { 0 }
     let metric_label: string@View = FileAndDirIterModalBehaviorMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-file-diriter-metric", expected: "23")]]
         metric_label
     let cleanup_file: () | IoError = fs~>remove(file_path)
     let _ = cleanup_file
     let cleanup_dir: () | IoError = fs~>remove(dir_path)
     let _ = cleanup_dir
     if (metric_log_actual != "23") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

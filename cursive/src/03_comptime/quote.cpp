@@ -781,8 +781,7 @@ std::optional<Stmt> BuildStmt(const Stmt& stmt, CtEnv& env) {
           }
           out.body = std::make_shared<Block>(std::move(*body));
           return Stmt{std::move(out)};
-        } else if constexpr (std::is_same_v<T, ast::LogStmt> ||
-                             std::is_same_v<T, ast::ErrorStmt>) {
+        } else if constexpr (std::is_same_v<T, ast::ErrorStmt>) {
           return stmt;
         } else {
           return std::nullopt;

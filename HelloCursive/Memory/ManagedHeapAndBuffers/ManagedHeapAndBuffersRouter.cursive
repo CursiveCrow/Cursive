@@ -1,52 +1,44 @@
 procedure ManagedLogFeatureStatus(feature_name: string@View, status: i32) -> () {
-    [[log(label: "observed-memory-feature-status", expected: 0)]] status
-    [[log(label: "memory-log-feature_name")]] feature_name
+    status
+    feature_name
     return ()
 }
 
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "memory-log-section_start")]]
-
-    [[log(label: "memory-log-feature_dispatch")]] "memory::ManagedHeapAndBuffers::ManagedViewsAndLengths"
+    "memory::ManagedHeapAndBuffers::ManagedViewsAndLengths"
     let status_views: i32 = RunManagedViewsAndLengths(ctx)
     ManagedLogFeatureStatus("memory::ManagedHeapAndBuffers::ManagedViewsAndLengths", status_views)
     if (status_views != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_views
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::ManagedHeapAndBuffers::ManagedAllocationAndAppend"
+    "memory::ManagedHeapAndBuffers::ManagedAllocationAndAppend"
     let status_alloc: i32 = RunManagedAllocationAndAppend(ctx)
     ManagedLogFeatureStatus("memory::ManagedHeapAndBuffers::ManagedAllocationAndAppend", status_alloc)
     if (status_alloc != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_alloc
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::ManagedHeapAndBuffers::ManagedDiagnosticsAndFailureModes"
+    "memory::ManagedHeapAndBuffers::ManagedDiagnosticsAndFailureModes"
     let status_diag: i32 = RunManagedDiagnosticsAndFailureModes(ctx)
     ManagedLogFeatureStatus("memory::ManagedHeapAndBuffers::ManagedDiagnosticsAndFailureModes", status_diag)
     if (status_diag != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_diag
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::ManagedHeapAndBuffers::ManagedDropHookSymbolCoverage"
+    "memory::ManagedHeapAndBuffers::ManagedDropHookSymbolCoverage"
     let status_drop_hook_symbols: i32 = RunManagedDropHookSymbolCoverage(ctx)
     ManagedLogFeatureStatus("memory::ManagedHeapAndBuffers::ManagedDropHookSymbolCoverage", status_drop_hook_symbols)
     if (status_drop_hook_symbols != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_drop_hook_symbols
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::ManagedHeapAndBuffers::MemoryIntrinsicsCoverage"
+    "memory::ManagedHeapAndBuffers::MemoryIntrinsicsCoverage"
     let status_intrinsics: i32 = RunMemoryIntrinsicsCoverage(ctx)
     ManagedLogFeatureStatus("memory::ManagedHeapAndBuffers::MemoryIntrinsicsCoverage", status_intrinsics)
     if (status_intrinsics != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_intrinsics
     }
 
-    [[log(label: "memory-log-section_end")]]
     return 0
 }

@@ -7,16 +7,16 @@ procedure VendorAndDeferredAttributesMetricLabel(value: i32) -> string@View {
 
 public procedure RunVendorAndDeferredAttributes(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
-    let vendor_empty: string@View = [[log(label: "attributes-vendor-registry-empty", expected: "R_vendor=empty")]] "R_vendor=empty"
-    let reflect_unsupported: string@View = [[log(label: "attributes-deferred-reflect", expected: "reflect-unsupported")]] "reflect-unsupported"
-    let derive_unsupported: string@View = [[log(label: "attributes-deferred-derive", expected: "derive-unsupported")]] "derive-unsupported"
-    let emit_unsupported: string@View = [[log(label: "attributes-deferred-emit", expected: "emit-unsupported")]] "emit-unsupported"
-    let files_unsupported: string@View = [[log(label: "attributes-deferred-files", expected: "files-unsupported")]] "files-unsupported"
+    let vendor_empty: string@View = "R_vendor=empty"
+    let reflect_unsupported: string@View = "reflect-unsupported"
+    let derive_unsupported: string@View = "derive-unsupported"
+    let emit_unsupported: string@View = "emit-unsupported"
+    let files_unsupported: string@View = "files-unsupported"
 
-    let atr_008: string@View = [[log(label: "attributes-vendor-feature-008", expected: "ATR-008")]] "ATR-008"
-    let atr_009: string@View = [[log(label: "attributes-vendor-feature-009", expected: "ATR-009")]] "ATR-009"
+    let atr_008: string@View = "ATR-008"
+    let atr_009: string@View = "ATR-009"
 
     let runtime_ok: bool =
         (vendor_empty == "R_vendor=empty") &&
@@ -26,19 +26,18 @@ public procedure RunVendorAndDeferredAttributes(ctx: Context) -> i32 {
         (files_unsupported == "files-unsupported") &&
         (atr_008 == "ATR-008") &&
         (atr_009 == "ATR-009")
-    let runtime_ok_log: bool = [[log(label: "attributes-vendor-and-deferred-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 9 } else { 0 }
     let metric_label: string@View = VendorAndDeferredAttributesMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-attributes-vendor-deferred-metric", expected: "9")]]
         metric_label
     if (metric_log_actual != "9") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

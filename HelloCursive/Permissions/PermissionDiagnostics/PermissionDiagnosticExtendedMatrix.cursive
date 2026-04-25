@@ -7,7 +7,7 @@ procedure PermissionDiagnosticExtendedMatrixMetricLabel(value: i32) -> string@Vi
 
 public procedure RunPermissionDiagnosticExtendedMatrix(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let con_0001: string@View = "E-CON-0001"
     let con_0002: string@View = "E-CON-0002"
@@ -67,63 +67,63 @@ public procedure RunPermissionDiagnosticExtendedMatrix(ctx: Context) -> i32 {
     let wcon_0020: string@View = "W-CON-0020"
     let wcon_0021: string@View = "W-CON-0021"
 
-    let con_0001_log: string@View = [[log(label: "permissions-diagx-con-0001", expected: "E-CON-0001")]] con_0001
-    let con_0002_log: string@View = [[log(label: "permissions-diagx-con-0002", expected: "E-CON-0002")]] con_0002
-    let con_0003_log: string@View = [[log(label: "permissions-diagx-con-0003", expected: "E-CON-0003")]] con_0003
-    let con_0004_log: string@View = [[log(label: "permissions-diagx-con-0004", expected: "E-CON-0004")]] con_0004
-    let con_0005_log: string@View = [[log(label: "permissions-diagx-con-0005", expected: "E-CON-0005")]] con_0005
-    let con_0006_log: string@View = [[log(label: "permissions-diagx-con-0006", expected: "E-CON-0006")]] con_0006
-    let con_0011_log: string@View = [[log(label: "permissions-diagx-con-0011", expected: "E-CON-0011")]] con_0011
-    let con_0014_log: string@View = [[log(label: "permissions-diagx-con-0014", expected: "E-CON-0014")]] con_0014
-    let con_0017_log: string@View = [[log(label: "permissions-diagx-con-0017", expected: "E-CON-0017")]] con_0017
-    let con_0018_log: string@View = [[log(label: "permissions-diagx-con-0018", expected: "E-CON-0018")]] con_0018
-    let con_0030_log: string@View = [[log(label: "permissions-diagx-con-0030", expected: "E-CON-0030")]] con_0030
-    let con_0031_log: string@View = [[log(label: "permissions-diagx-con-0031", expected: "E-CON-0031")]] con_0031
-    let con_0032_log: string@View = [[log(label: "permissions-diagx-con-0032", expected: "E-CON-0032")]] con_0032
-    let con_0034_log: string@View = [[log(label: "permissions-diagx-con-0034", expected: "E-CON-0034")]] con_0034
-    let con_0060_log: string@View = [[log(label: "permissions-diagx-con-0060", expected: "E-CON-0060")]] con_0060
-    let con_0070_log: string@View = [[log(label: "permissions-diagx-con-0070", expected: "E-CON-0070")]] con_0070
-    let con_0091_log: string@View = [[log(label: "permissions-diagx-con-0091", expected: "E-CON-0091")]] con_0091
-    let con_0092_log: string@View = [[log(label: "permissions-diagx-con-0092", expected: "E-CON-0092")]] con_0092
-    let con_0093_log: string@View = [[log(label: "permissions-diagx-con-0093", expected: "E-CON-0093")]] con_0093
-    let con_0094_log: string@View = [[log(label: "permissions-diagx-con-0094", expected: "E-CON-0094")]] con_0094
-    let con_0096_log: string@View = [[log(label: "permissions-diagx-con-0096", expected: "E-CON-0096")]] con_0096
-    let con_0102_log: string@View = [[log(label: "permissions-diagx-con-0102", expected: "E-CON-0102")]] con_0102
-    let con_0101_log: string@View = [[log(label: "permissions-diagx-con-0101", expected: "E-CON-0101")]] con_0101
-    let con_0103_log: string@View = [[log(label: "permissions-diagx-con-0103", expected: "E-CON-0103")]] con_0103
-    let con_0122_log: string@View = [[log(label: "permissions-diagx-con-0122", expected: "E-CON-0122")]] con_0122
-    let con_0130_log: string@View = [[log(label: "permissions-diagx-con-0130", expected: "E-CON-0130")]] con_0130
-    let con_0132_log: string@View = [[log(label: "permissions-diagx-con-0132", expected: "E-CON-0132")]] con_0132
-    let con_0140_log: string@View = [[log(label: "permissions-diagx-con-0140", expected: "E-CON-0140")]] con_0140
-    let con_0142_log: string@View = [[log(label: "permissions-diagx-con-0142", expected: "E-CON-0142")]] con_0142
-    let con_0143_log: string@View = [[log(label: "permissions-diagx-con-0143", expected: "E-CON-0143")]] con_0143
-    let con_0152_log: string@View = [[log(label: "permissions-diagx-con-0152", expected: "E-CON-0152")]] con_0152
-    let con_0153_log: string@View = [[log(label: "permissions-diagx-con-0153", expected: "E-CON-0153")]] con_0153
-    let con_0154_log: string@View = [[log(label: "permissions-diagx-con-0154", expected: "E-CON-0154")]] con_0154
-    let con_0156_log: string@View = [[log(label: "permissions-diagx-con-0156", expected: "E-CON-0156")]] con_0156
-    let con_0157_log: string@View = [[log(label: "permissions-diagx-con-0157", expected: "E-CON-0157")]] con_0157
-    let con_0158_log: string@View = [[log(label: "permissions-diagx-con-0158", expected: "E-CON-0158")]] con_0158
-    let con_0280_log: string@View = [[log(label: "permissions-diagx-con-0280", expected: "E-CON-0280")]] con_0280
-    let con_0281_log: string@View = [[log(label: "permissions-diagx-con-0281", expected: "E-CON-0281")]] con_0281
+    let con_0001_log: string@View = con_0001
+    let con_0002_log: string@View = con_0002
+    let con_0003_log: string@View = con_0003
+    let con_0004_log: string@View = con_0004
+    let con_0005_log: string@View = con_0005
+    let con_0006_log: string@View = con_0006
+    let con_0011_log: string@View = con_0011
+    let con_0014_log: string@View = con_0014
+    let con_0017_log: string@View = con_0017
+    let con_0018_log: string@View = con_0018
+    let con_0030_log: string@View = con_0030
+    let con_0031_log: string@View = con_0031
+    let con_0032_log: string@View = con_0032
+    let con_0034_log: string@View = con_0034
+    let con_0060_log: string@View = con_0060
+    let con_0070_log: string@View = con_0070
+    let con_0091_log: string@View = con_0091
+    let con_0092_log: string@View = con_0092
+    let con_0093_log: string@View = con_0093
+    let con_0094_log: string@View = con_0094
+    let con_0096_log: string@View = con_0096
+    let con_0102_log: string@View = con_0102
+    let con_0101_log: string@View = con_0101
+    let con_0103_log: string@View = con_0103
+    let con_0122_log: string@View = con_0122
+    let con_0130_log: string@View = con_0130
+    let con_0132_log: string@View = con_0132
+    let con_0140_log: string@View = con_0140
+    let con_0142_log: string@View = con_0142
+    let con_0143_log: string@View = con_0143
+    let con_0152_log: string@View = con_0152
+    let con_0153_log: string@View = con_0153
+    let con_0154_log: string@View = con_0154
+    let con_0156_log: string@View = con_0156
+    let con_0157_log: string@View = con_0157
+    let con_0158_log: string@View = con_0158
+    let con_0280_log: string@View = con_0280
+    let con_0281_log: string@View = con_0281
 
-    let typ_2640_log: string@View = [[log(label: "permissions-diagx-typ-2640", expected: "E-TYP-2640")]] typ_2640
-    let typ_2642_log: string@View = [[log(label: "permissions-diagx-typ-2642", expected: "E-TYP-2642")]] typ_2642
+    let typ_2640_log: string@View = typ_2640
+    let typ_2642_log: string@View = typ_2642
 
-    let icon_0011_log: string@View = [[log(label: "permissions-diagx-icon-0011", expected: "I-CON-0011")]] icon_0011
-    let icon_0013_log: string@View = [[log(label: "permissions-diagx-icon-0013", expected: "I-CON-0013")]] icon_0013
+    let icon_0011_log: string@View = icon_0011
+    let icon_0013_log: string@View = icon_0013
 
-    let wcon_0001_log: string@View = [[log(label: "permissions-diagx-wcon-0001", expected: "W-CON-0001")]] wcon_0001
-    let wcon_0002_log: string@View = [[log(label: "permissions-diagx-wcon-0002", expected: "W-CON-0002")]] wcon_0002
-    let wcon_0003_log: string@View = [[log(label: "permissions-diagx-wcon-0003", expected: "W-CON-0003")]] wcon_0003
-    let wcon_0004_log: string@View = [[log(label: "permissions-diagx-wcon-0004", expected: "W-CON-0004")]] wcon_0004
-    let wcon_0005_log: string@View = [[log(label: "permissions-diagx-wcon-0005", expected: "W-CON-0005")]] wcon_0005
-    let wcon_0006_log: string@View = [[log(label: "permissions-diagx-wcon-0006", expected: "W-CON-0006")]] wcon_0006
-    let wcon_0009_log: string@View = [[log(label: "permissions-diagx-wcon-0009", expected: "W-CON-0009")]] wcon_0009
-    let wcon_0010_log: string@View = [[log(label: "permissions-diagx-wcon-0010", expected: "W-CON-0010")]] wcon_0010
-    let wcon_0012_log: string@View = [[log(label: "permissions-diagx-wcon-0012", expected: "W-CON-0012")]] wcon_0012
-    let wcon_0013_log: string@View = [[log(label: "permissions-diagx-wcon-0013", expected: "W-CON-0013")]] wcon_0013
-    let wcon_0020_log: string@View = [[log(label: "permissions-diagx-wcon-0020", expected: "W-CON-0020")]] wcon_0020
-    let wcon_0021_log: string@View = [[log(label: "permissions-diagx-wcon-0021", expected: "W-CON-0021")]] wcon_0021
+    let wcon_0001_log: string@View = wcon_0001
+    let wcon_0002_log: string@View = wcon_0002
+    let wcon_0003_log: string@View = wcon_0003
+    let wcon_0004_log: string@View = wcon_0004
+    let wcon_0005_log: string@View = wcon_0005
+    let wcon_0006_log: string@View = wcon_0006
+    let wcon_0009_log: string@View = wcon_0009
+    let wcon_0010_log: string@View = wcon_0010
+    let wcon_0012_log: string@View = wcon_0012
+    let wcon_0013_log: string@View = wcon_0013
+    let wcon_0020_log: string@View = wcon_0020
+    let wcon_0021_log: string@View = wcon_0021
 
     let error_group_a_ok: bool =
         (con_0001_log == "E-CON-0001") &&
@@ -192,20 +192,20 @@ public procedure RunPermissionDiagnosticExtendedMatrix(ctx: Context) -> i32 {
         error_group_d_ok &&
         type_info_group_ok &&
         warning_group_ok
-    let matrix_ok_log: bool = [[log(label: "permissions-diagx-matrix-complete", expected: true)]] matrix_ok
+    let matrix_ok_log: bool = matrix_ok
 
     let cardinality: i32 = if (matrix_ok_log) { 56 } else { 0 }
-    let cardinality_log: i32 = [[log(label: "permissions-diagx-matrix-cardinality", expected: 56)]] cardinality
+    let cardinality_log: i32 = cardinality
 
     let metric: i32 = if (cardinality_log == 56) { 56 } else { 0 }
     let metric_label: string@View = PermissionDiagnosticExtendedMatrixMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-diagnostic-extended-metric", expected: "56")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "56") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

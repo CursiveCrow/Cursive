@@ -11,8 +11,7 @@ procedure LogDiagnosticObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunDiagnosticMatrixItem(
     ctx: Context,
@@ -29,7 +28,6 @@ procedure RunDiagnosticMatrixItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -38,17 +36,12 @@ procedure RunDiagnosticMatrixItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -63,14 +56,11 @@ procedure DiagnosticMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyDiagnosticMatrixItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let expected_tag: LocalTypeTag = LocalTypeTag::IntTag
     let actual_tag: LocalTypeTag = LocalTypeTag::BoolTag
     LogDiagnosticObject(ctx.fs, scope, "expected_tag", "LocalTypeTag", "constructed", "expected diagnostic tag prepared")
     LogDiagnosticObject(ctx.fs, scope, "actual_tag", "LocalTypeTag", "constructed", "actual diagnostic tag prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let expected_is_int: bool = if expected_tag is {
         LocalTypeTag::IntTag { true }
         LocalTypeTag::BoolTag { false }
@@ -80,33 +70,24 @@ procedure VerifyDiagnosticMatrixItem(ctx: Context, scope: string@View, move item
         LocalTypeTag::BoolTag { false }
     }
     let mismatch_metric: i32 = if (expected_is_int != actual_is_int) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let ambiguity_gate_left = if (expected_is_int) { 2 } else { 0 }
     let ambiguity_gate_right = if (actual_is_int) { 2 } else { 3 }
     let ambiguity_join = ambiguity_gate_left + ambiguity_gate_right
     let ambiguity_metric: i32 = if (ambiguity_join == 5) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
     let bounds_low: i32 = 0
     let bounds_high: i32 = 2
     let idx: i32 = 4
     LogDiagnosticObject(ctx.fs, scope, "idx", "i32", "constructed", "bounds-violation diagnostic probe index prepared")
-    [[log(label: "types-log-transition_move")]]
     let bounds_metric: i32 = if ((idx < bounds_low) || (idx > bounds_high)) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
     let unique_value: unique i32 = 3
     let const_value: const i32 = unique_value
     LogDiagnosticObject(ctx.fs, scope, "unique_value", "unique i32", "constructed", "permission compatibility diagnostic probe prepared")
-    [[log(label: "types-log-transition_move")]]
     let permission_metric: i32 = if (const_value == 3) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
     LogDiagnosticObject(ctx.fs, scope, "pattern_probe", "LocalTypeTag", "constructed", "pattern exhaustiveness diagnostic probe prepared")
-    [[log(label: "types-log-transition_move")]]
     let pattern_metric: i32 = if LocalTypeTag::IntTag is {
         LocalTypeTag::IntTag { 1 }
         LocalTypeTag::BoolTag { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
     let observed_mismatch_step: string@View = "observed-type-mismatch-diagnostics-metric"
     let observed_ambiguity_step: string@View = "observed-inference-ambiguity-diagnostics-metric"
     let observed_bounds_step: string@View = "observed-bounds-violation-diagnostics-metric"
@@ -128,17 +109,16 @@ procedure VerifyDiagnosticMatrixItem(ctx: Context, scope: string@View, move item
     let permission_metric_passed: bool = permission_metric == 1
     let pattern_metric_passed: bool = pattern_metric == 1
 
-    let mismatch_metric_passed_log_actual = [[log(label: "observed-type-mismatch-diagnostics-metric", expected: "1")]] mismatch_metric_label
+    let mismatch_metric_passed_log_actual = mismatch_metric_label
     let mismatch_metric_passed_with_log: bool = mismatch_metric_passed && (mismatch_metric_passed_log_actual == expected_mismatch)
-    let ambiguity_metric_passed_log_actual = [[log(label: "observed-inference-ambiguity-diagnostics-metric", expected: "1")]] ambiguity_metric_label
+    let ambiguity_metric_passed_log_actual = ambiguity_metric_label
     let ambiguity_metric_passed_with_log: bool = ambiguity_metric_passed && (ambiguity_metric_passed_log_actual == expected_ambiguity)
-    let bounds_metric_passed_log_actual = [[log(label: "observed-bounds-violation-diagnostics-metric", expected: "1")]] bounds_metric_label
+    let bounds_metric_passed_log_actual = bounds_metric_label
     let bounds_metric_passed_with_log: bool = bounds_metric_passed && (bounds_metric_passed_log_actual == expected_bounds)
-    let permission_metric_passed_log_actual = [[log(label: "observed-permission-compatibility-diagnostics-metric", expected: "1")]] permission_metric_label
+    let permission_metric_passed_log_actual = permission_metric_label
     let permission_metric_passed_with_log: bool = permission_metric_passed && (permission_metric_passed_log_actual == expected_permission)
-    let pattern_metric_passed_log_actual = [[log(label: "observed-pattern-exhaustiveness-diagnostics-metric", expected: "1")]] pattern_metric_label
+    let pattern_metric_passed_log_actual = pattern_metric_label
     let pattern_metric_passed_with_log: bool = pattern_metric_passed && (pattern_metric_passed_log_actual == expected_pattern)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunDiagnosticMatrixItem(
             ctx,
@@ -269,6 +249,5 @@ procedure RunDiagnosticMatrix(ctx: Context) -> i32 {
         return status_PatternExhaustivenessDiagnostics
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

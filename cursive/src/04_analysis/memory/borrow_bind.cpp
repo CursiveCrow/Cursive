@@ -599,30 +599,6 @@ static std::optional<BindInfo> Lookup_B(const BindEnv& env, std::string_view nam
   return std::nullopt;
 }
 
-static std::optional<std::string_view> ValidateLogExpectedAlive(
-    const ast::AttributeList& attrs,
-    const BindStateBundle& state) {
-  for (const auto& attr : attrs) {
-    if (!IdEq(std::string_view(attr.name), "log")) {
-      continue;
-    }
-    for (const auto& arg : attr.args) {
-      if (!arg.key.has_value() || !IdEq(*arg.key, "expected")) {
-        continue;
-      }
-      const auto* token = std::get_if<ast::Token>(&arg.value);
-      if (!token || token->kind != lexer::TokenKind::Identifier) {
-        continue;
-      }
-      const auto info = Lookup_B(state.binds, token->lexeme);
-      if (!info.has_value() || info->state.kind != BindStateKind::Valid) {
-        return "E-MOD-2457";
-      }
-    }
-  }
-  return std::nullopt;
-}
-
 static bool Update_B_inplace(BindEnv& env,
                              std::string_view name,
                              const BindInfo& info) {
@@ -3050,12 +3026,6 @@ static BindResult BindExpr(const ScopeContext& ctx,
   }
 
   if (const auto* attr = std::get_if<ast::AttributedExpr>(&expr->node)) {
-    if (const auto invalid_log_ident =
-            ValidateLogExpectedAlive(attr->attrs, in)) {
-      return ErrorResult(*invalid_log_ident,
-                         expr ? std::optional<core::Span>(expr->span)
-                              : std::optional<core::Span>{});
-    }
     return BindExpr(ctx, attr->expr, in);
   }
 
@@ -3192,10 +3162,6 @@ static BindResult BindStmt(const ScopeContext& ctx,
         if constexpr (std::is_same_v<T, ast::LetStmt> ||
                       std::is_same_v<T, ast::VarStmt>) {
           const auto& binding = node.binding;
-          if (const auto invalid_log_ident =
-                  ValidateLogExpectedAlive(binding.attrs, in)) {
-            return ErrorResult(*invalid_log_ident, binding.span);
-          }
           std::optional<std::string_view> diag_id;
           const auto bind_type = BindTypeForBinding(ctx, in.env, binding, diag_id);
           if (!bind_type.has_value()) {

@@ -1,30 +1,30 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "attributes-log-section_start", expected: "section-start")]] "section-start"
+    "section-start"
 
     let status_grammar: i32 = RunAttributeGrammarAndAstAttachment(ctx)
     if (status_grammar != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_grammar
     }
 
     let status_registry: i32 = RunAttributeRegistryAndTargetMatrix(ctx)
     if (status_registry != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_registry
     }
 
     let status_placement: i32 = RunAttributePlacementAndOrdering(ctx)
     if (status_placement != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_placement
     }
 
     let status_vendor: i32 = RunVendorAndDeferredAttributes(ctx)
     if (status_vendor != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_vendor
     }
 
-    [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+    "section-end"
     return 0
 }

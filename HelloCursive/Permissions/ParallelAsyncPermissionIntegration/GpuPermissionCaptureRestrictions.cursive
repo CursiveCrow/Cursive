@@ -6,7 +6,7 @@ procedure GpuPermissionCaptureRestrictionsMetricLabel(value: i32) -> string@View
 }
 
 public procedure RunGpuPermissionCaptureRestrictions(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let const_capture: const i32 = 6
     let gpu_const_metric: i32 = parallel ctx~>gpu() {
@@ -32,12 +32,12 @@ public procedure RunGpuPermissionCaptureRestrictions(ctx: Context) -> i32 {
     let shared_capture_diag: string@View = "E-CON-0151"
     let key_block_diag: string@View = "E-CON-0155"
 
-    let gpu_const_metric_log: i32 = [[log(label: "observed-permissions-GpuPermissionCaptureRestrictions-const", expected: 7)]] gpu_const_metric
-    let gpu_unique_metric_log: i32 = [[log(label: "observed-permissions-GpuPermissionCaptureRestrictions-unique-move", expected: 10)]] gpu_unique_metric
-    let gpu_dispatch_metric_log: i32 = [[log(label: "observed-permissions-GpuPermissionCaptureRestrictions-dispatch", expected: 10)]] gpu_dispatch_metric
-    let cpu_metric_log: i32 = [[log(label: "observed-permissions-GpuPermissionCaptureRestrictions-cpu-compare", expected: 7)]] cpu_metric
-    let shared_capture_diag_log: string@View = [[log(label: "permissions-GpuPermissionCaptureRestrictions-shared-diagnostic", expected: "E-CON-0151")]] shared_capture_diag
-    let key_block_diag_log: string@View = [[log(label: "permissions-GpuPermissionCaptureRestrictions-key-diagnostic", expected: "E-CON-0155")]] key_block_diag
+    let gpu_const_metric_log: i32 = gpu_const_metric
+    let gpu_unique_metric_log: i32 = gpu_unique_metric
+    let gpu_dispatch_metric_log: i32 = gpu_dispatch_metric
+    let cpu_metric_log: i32 = cpu_metric
+    let shared_capture_diag_log: string@View = shared_capture_diag
+    let key_block_diag_log: string@View = key_block_diag
 
     let runtime_ok: bool =
         (gpu_const_metric_log == 7) &&
@@ -46,17 +46,17 @@ public procedure RunGpuPermissionCaptureRestrictions(ctx: Context) -> i32 {
         (cpu_metric_log == 7) &&
         (shared_capture_diag_log == "E-CON-0151") &&
         (key_block_diag_log == "E-CON-0155")
-    let runtime_ok_log: bool = [[log(label: "permissions-GpuPermissionCaptureRestrictions-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 34 } else { 0 }
     let metric_label: string@View = GpuPermissionCaptureRestrictionsMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-GpuPermissionCaptureRestrictions-metric", expected: "34")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "34") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

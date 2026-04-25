@@ -7,7 +7,7 @@ procedure DispatchKeyClausePartitioningMetricLabel(value: i32) -> string@View {
 
 [[dynamic]]
 public procedure RunDispatchKeyClausePartitioning(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var read_gate: i32 = 3
     let read_partition_metric: i32 = parallel ctx~>cpu() {
@@ -37,13 +37,13 @@ public procedure RunDispatchKeyClausePartitioning(ctx: Context) -> i32 {
     let diagnostic_key_partition_surface: string@View = "E-CON-0140"
     let warning_dynamic_key_runtime: string@View = "W-CON-0140"
 
-    let read_partition_metric_log: i32 = [[log(label: "observed-permissions-DispatchKeyClausePartitioning-read-partition", expected: 18)]] read_partition_metric
-    let write_partition_metric_log: i32 = [[log(label: "observed-permissions-DispatchKeyClausePartitioning-write-partition", expected: 5)]] write_partition_metric
-    let dynamic_partition_metric_log: i32 = [[log(label: "observed-permissions-DispatchKeyClausePartitioning-dynamic-partition", expected: 12)]] dynamic_partition_metric
-    let diagnostic_dynamic_key_inference_log: string@View = [[log(label: "permissions-DispatchKeyClausePartitioning-diag-dynamic-key", expected: "E-CON-0141")]] diagnostic_dynamic_key_inference
-    let diagnostic_domain_expression_log: string@View = [[log(label: "permissions-DispatchKeyClausePartitioning-diag-domain-expression", expected: "E-CON-0102")]] diagnostic_domain_expression
-    let diagnostic_key_partition_surface_log: string@View = [[log(label: "permissions-DispatchKeyClausePartitioning-diag-key-partition", expected: "E-CON-0140")]] diagnostic_key_partition_surface
-    let warning_dynamic_key_runtime_log: string@View = [[log(label: "permissions-DispatchKeyClausePartitioning-warning-dynamic-key", expected: "W-CON-0140")]] warning_dynamic_key_runtime
+    let read_partition_metric_log: i32 = read_partition_metric
+    let write_partition_metric_log: i32 = write_partition_metric
+    let dynamic_partition_metric_log: i32 = dynamic_partition_metric
+    let diagnostic_dynamic_key_inference_log: string@View = diagnostic_dynamic_key_inference
+    let diagnostic_domain_expression_log: string@View = diagnostic_domain_expression
+    let diagnostic_key_partition_surface_log: string@View = diagnostic_key_partition_surface
+    let warning_dynamic_key_runtime_log: string@View = warning_dynamic_key_runtime
 
     let runtime_ok: bool =
         (read_partition_metric_log == 18) &&
@@ -53,17 +53,17 @@ public procedure RunDispatchKeyClausePartitioning(ctx: Context) -> i32 {
         (diagnostic_domain_expression_log == "E-CON-0102") &&
         (diagnostic_key_partition_surface_log == "E-CON-0140") &&
         (warning_dynamic_key_runtime_log == "W-CON-0140")
-    let runtime_ok_log: bool = [[log(label: "permissions-DispatchKeyClausePartitioning-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 38 } else { 0 }
     let metric_label: string@View = DispatchKeyClausePartitioningMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-DispatchKeyClausePartitioning-metric", expected: "38")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "38") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

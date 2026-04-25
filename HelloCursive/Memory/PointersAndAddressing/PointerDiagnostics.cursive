@@ -18,8 +18,6 @@ procedure PointerDiagnosticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunPointerDiagnostics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     let safe_ptr_null: Ptr<i32>@Null = Ptr::null()
     let safe_ptr_null_check: Ptr<i32>@Null = Ptr::null()
     let safe_ptr_state: Ptr<i32> = safe_ptr_null
@@ -59,23 +57,23 @@ public procedure RunPointerDiagnostics(ctx: Context) -> i32 {
     let addr_of_place_contract_ok: bool =
         index_addressing_ok && tuple_addressing_ok
 
-    let safe_null_shape_ok_log: bool =        [[log(label: "memory-pointers-null-shape-safe", expected: true)]]         safe_null_shape_ok
-    let expired_shape_ok_log: bool =        [[log(label: "memory-pointers-expired-shape-safe", expected: true)]]         expired_shape_ok
-    let raw_null_shape_ok_log: bool =        [[log(label: "memory-pointers-null-shape-raw", expected: true)]]         raw_null_shape_ok
-    let valid_read_path_ok_log: bool =        [[log(label: "memory-pointers-valid-read-path", expected: true)]]         valid_read_path_ok
-    let index_addressing_ok_log: bool =        [[log(label: "memory-pointers-index-addressing-runtime", expected: true)]]         index_addressing_ok
-    let tuple_addressing_ok_log: bool =        [[log(label: "memory-pointers-tuple-addressing-runtime", expected: true)]]         tuple_addressing_ok
-    let packed_field_unsafe_ok_log: bool =        [[log(label: "memory-pointers-packed-field-unsafe-required", expected: true)]]         packed_field_unsafe_ok
+    let safe_null_shape_ok_log: bool =        safe_null_shape_ok
+    let expired_shape_ok_log: bool =        expired_shape_ok
+    let raw_null_shape_ok_log: bool =        raw_null_shape_ok
+    let valid_read_path_ok_log: bool =        valid_read_path_ok
+    let index_addressing_ok_log: bool =        index_addressing_ok
+    let tuple_addressing_ok_log: bool =        tuple_addressing_ok
+    let packed_field_unsafe_ok_log: bool =        packed_field_unsafe_ok
 
-    let deref_null_contract_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-deref-null", expected: true)]] deref_null_contract_ok
-    let deref_expired_contract_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-deref-expired", expected: true)]] deref_expired_contract_ok
-    let raw_unsafe_contract_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-deref-raw-unsafe", expected: true)]] raw_unsafe_contract_ok
-    let addr_of_place_contract_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-addr-of-place", expected: true)]] addr_of_place_contract_ok
+    let deref_null_contract_ok_log: bool = deref_null_contract_ok
+    let deref_expired_contract_ok_log: bool = deref_expired_contract_ok
+    let raw_unsafe_contract_ok_log: bool = raw_unsafe_contract_ok
+    let addr_of_place_contract_ok_log: bool = addr_of_place_contract_ok
 
     let packed_field_diag: string@View = "E-TYP-2105"
-    let packed_field_diag_log: string@View = [[log(label: "memory-pointers-diagnostic-code-packed-field", expected: "E-TYP-2105")]] packed_field_diag
+    let packed_field_diag_log: string@View = packed_field_diag
     let packed_field_diag_ok: bool = packed_field_diag_log == "E-TYP-2105"
-    let packed_field_diag_ok_log: bool = [[log(label: "memory-pointers-diagnostic-contract-packed-field", expected: true)]] packed_field_diag_ok
+    let packed_field_diag_ok_log: bool = packed_field_diag_ok
 
     let metric_ok: bool = (safe_null_shape_ok_log == true) &&
         (expired_shape_ok_log == true) &&
@@ -91,12 +89,10 @@ public procedure RunPointerDiagnostics(ctx: Context) -> i32 {
         (packed_field_diag_ok_log == true)
     let metric: i32 = if (metric_ok) { 47 } else { 0 }
     let metric_label: string@View = PointerDiagnosticsMetricLabel(metric)
-    let metric_log_actual =        [[log(label: "observed-memory-pointer-diagnostics-metric", expected: "47")]]         metric_label
+    let metric_log_actual =        metric_label
     if (metric_log_actual != "47") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

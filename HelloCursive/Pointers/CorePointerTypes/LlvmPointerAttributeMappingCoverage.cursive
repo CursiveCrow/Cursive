@@ -7,47 +7,32 @@ procedure LlvmPointerAttributeMappingCoverageMetricLabel(value: i32) -> string@V
 
 public procedure RunLlvmPointerAttributeMappingCoverage(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let ptr_state_perm: string@View =
-        [[log(label: "pointers-core-llvm-attr-ptr-state-perm", expected: "PtrStateOf-Perm")]]
         "PtrStateOf-Perm"
     let ptr_attrs_valid: string@View =
-        [[log(label: "pointers-core-llvm-attr-valid", expected: "LLVM-PtrAttrs-Valid")]]
         "LLVM-PtrAttrs-Valid"
     let ptr_attrs_other: string@View =
-        [[log(label: "pointers-core-llvm-attr-other", expected: "LLVM-PtrAttrs-Other")]]
         "LLVM-PtrAttrs-Other"
     let ptr_attrs_raw: string@View =
-        [[log(label: "pointers-core-llvm-attr-raw", expected: "LLVM-PtrAttrs-RawPtr")]]
         "LLVM-PtrAttrs-RawPtr"
     let arg_attrs_ptr: string@View =
-        [[log(label: "pointers-core-llvm-arg-attrs-ptr", expected: "LLVM-ArgAttrs-Ptr")]]
         "LLVM-ArgAttrs-Ptr"
     let arg_attrs_raw: string@View =
-        [[log(label: "pointers-core-llvm-arg-attrs-raw", expected: "LLVM-ArgAttrs-RawPtr")]]
         "LLVM-ArgAttrs-RawPtr"
     let arg_attrs_nonptr: string@View =
-        [[log(label: "pointers-core-llvm-arg-attrs-nonptr", expected: "LLVM-ArgAttrs-NonPtr")]]
         "LLVM-ArgAttrs-NonPtr"
 
     let attr_nonnull: string@View =
-        [[log(label: "pointers-core-llvm-attr-nonnull", expected: "nonnull")]]
         "nonnull"
     let attr_dereferenceable: string@View =
-        [[log(label: "pointers-core-llvm-attr-dereferenceable", expected: "dereferenceable")]]
         "dereferenceable"
     let attr_align: string@View =
-        [[log(label: "pointers-core-llvm-attr-align", expected: "align")]]
         "align"
     let attr_noundef: string@View =
-        [[log(label: "pointers-core-llvm-attr-noundef", expected: "noundef")]]
         "noundef"
     let attr_noalias: string@View =
-        [[log(label: "pointers-core-llvm-attr-noalias", expected: "noalias")]]
         "noalias"
     let attr_readonly: string@View =
-        [[log(label: "pointers-core-llvm-attr-readonly", expected: "readonly")]]
         "readonly"
 
     let runtime_ok: bool =
@@ -65,19 +50,15 @@ public procedure RunLlvmPointerAttributeMappingCoverage(ctx: Context) -> i32 {
         (attr_noalias == "noalias") &&
         (attr_readonly == "readonly")
     let runtime_ok_log: bool =
-        [[log(label: "pointers-core-llvm-pointer-attribute-mapping-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 123 } else { 0 }
     let metric_label: string@View = LlvmPointerAttributeMappingCoverageMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-core-llvm-pointer-attribute-mapping-metric", expected: "123")]]
         metric_label
     if (metric_log_actual != "123") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-pointers_item_success")]]
     return 0
 }

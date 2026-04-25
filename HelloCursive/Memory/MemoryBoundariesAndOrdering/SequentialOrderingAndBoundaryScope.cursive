@@ -36,33 +36,30 @@ public procedure RunSequentialOrderingAndBoundaryScope(ctx: Context) -> i32 {
     let boundary_metric: i32 = unsafe { *boundary_raw }
 
     let second_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-sequential-second-metric", expected: 9)]]
         second_metric
     let read_back_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-sequential-readback-metric", expected: 5)]]
         read_back_metric
     let boundary_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-sequential-pointer-metric", expected: 9)]]
         boundary_metric
 
     let sequential_ok: bool = second_metric_log == 9
     let key_consistency_ok: bool = read_back_metric_log == 5
     let boundary_scope_ok: bool = boundary_metric_log == 9
 
-    let sequential_log: bool = [[log(label: "memory-boundary-sequential-ordering", expected: true)]] sequential_ok
-    let key_consistency_log: bool = [[log(label: "memory-boundary-key-consistency", expected: true)]] key_consistency_ok
-    let boundary_scope_log: bool = [[log(label: "memory-boundary-region-raw-pointer", expected: true)]] boundary_scope_ok
+    let sequential_log: bool = sequential_ok
+    let key_consistency_log: bool = key_consistency_ok
+    let boundary_scope_log: bool = boundary_scope_ok
 
     let metric: i32 = if (sequential_ok && key_consistency_ok && boundary_scope_ok && (sequential_log == true) && (key_consistency_log == true) && (boundary_scope_log == true)) { 24 } else { 0 }
     let metric_label: string@View = SequentialOrderingMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-boundary-sequential-metric", expected: "24")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "24") {
         let fail_marker: string@View = "memory-boundary-sequential-fail"
-        [[log(label: "memory-log-item_fail")]] fail_marker
+        fail_marker
         return 1
     }
 
     let success_marker: string@View = "memory-boundary-sequential-success"
-    [[log(label: "memory-log-memory_item_success")]] success_marker
+    success_marker
     return 0
 }

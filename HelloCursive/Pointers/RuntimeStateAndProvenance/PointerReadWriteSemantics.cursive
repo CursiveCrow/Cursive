@@ -7,8 +7,6 @@ procedure PointerReadWriteSemanticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunPointerReadWriteSemantics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     var cell: i32 = 6
     let safe_read_ptr: Ptr<i32>@Valid = &cell
     let safe_read_metric: i32 = *safe_read_ptr
@@ -31,16 +29,12 @@ public procedure RunPointerReadWriteSemantics(ctx: Context) -> i32 {
     let expired_shape_ok: bool = ptr_state == ptr_state
 
     let safe_read_ok_log: bool =
-        [[log(label: "pointers-runtime-readwrite-safe-read", expected: true)]]
         safe_read_ok
     let post_write_ok_log: bool =
-        [[log(label: "pointers-runtime-readwrite-post-write", expected: true)]]
         post_write_ok
     let null_shape_ok_log: bool =
-        [[log(label: "pointers-runtime-readwrite-null-shape", expected: true)]]
         null_shape_ok
     let expired_shape_ok_log: bool =
-        [[log(label: "pointers-runtime-readwrite-expired-shape", expected: true)]]
         expired_shape_ok
 
     let metric_ok: bool =
@@ -51,13 +45,10 @@ public procedure RunPointerReadWriteSemantics(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 29 } else { 0 }
     let metric_label: string@View = PointerReadWriteSemanticsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-runtime-readwrite-semantics-metric", expected: "29")]]
         metric_label
     if (metric_log_actual != "29") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

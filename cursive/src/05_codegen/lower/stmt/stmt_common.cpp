@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // Statement Lowering Common Utilities Implementation
 // =============================================================================
 //
@@ -272,7 +272,8 @@ IRPtr LowerStmtList(const std::vector<ast::Stmt>& stmts, LowerCtx& ctx) {
     ++stmt_index;
     const core::Span stmt_span = ast::span_of(stmt);
     if (debug_stmt) {
-      std::cerr << "[lower-stmt-debug] proc=" << ctx.proc_log_name
+      std::cerr << "[lower-stmt-debug] proc="
+                << ctx.current_proc_symbol.value_or("<unknown>")
                 << " stmt_index=" << stmt_index
                 << " line=" << stmt_span.start_line
                 << " col=" << stmt_span.start_col
@@ -280,7 +281,8 @@ IRPtr LowerStmtList(const std::vector<ast::Stmt>& stmts, LowerCtx& ctx) {
     }
     ir_parts.push_back(LowerStmt(stmt, ctx));
     if (debug_stmt) {
-      std::cerr << "[lower-stmt-debug] proc=" << ctx.proc_log_name
+      std::cerr << "[lower-stmt-debug] proc="
+                << ctx.current_proc_symbol.value_or("<unknown>")
                 << " stmt_index=" << stmt_index
                 << " line=" << stmt_span.start_line
                 << " col=" << stmt_span.start_col
@@ -343,13 +345,6 @@ IRPtr LowerStmt(const ast::Stmt& stmt, LowerCtx& ctx) {
           return LowerUnsafeBlockStmt(node, ctx);
         } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
           return LowerKeyBlockStmt(node, ctx);
-        } else if constexpr (std::is_same_v<T, ast::LogStmt>) {
-          // Standalone [[log(...)]] checkpoint — emit a trace record
-          // with the observed value () and type ().
-          std::string payload =
-              BuildLogPayloadPrefix(node.attrs, node.span, "statement");
-          return EmitRuntimeTraceUnitActual("Log-Stmt", std::move(payload),
-                                            node.span);
         } else {
           // Unknown statement form
           return EmptyIR();

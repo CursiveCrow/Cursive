@@ -23,87 +23,45 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_ReturnAndResultStatementOperations: string@View = "MutationAndStatements::ReturnAndResultStatementOperations"
     let feature_BreakAndContinueStatementOperations: string@View = "MutationAndStatements::BreakAndContinueStatementOperations"
 
-    [[log(label: "operations-log-section_start")]]
-    [[log(label: "operations-log-transition")]]
     let status_SimpleAssignmentOperations: i32 = RunSimpleAssignmentOperations(ctx)
     if (status_SimpleAssignmentOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_SimpleAssignmentOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_CompoundAssignmentOperations: i32 = RunCompoundAssignmentOperations(ctx)
     if (status_CompoundAssignmentOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_CompoundAssignmentOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_TupleAssignmentOperations: i32 = RunTupleAssignmentOperations(ctx)
     if (status_TupleAssignmentOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_TupleAssignmentOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_PlaceExpressionAssignmentRules: i32 = RunPlaceExpressionAssignmentRules(ctx)
     if (status_PlaceExpressionAssignmentRules != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_PlaceExpressionAssignmentRules
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_BindingOperatorMovabilityPreservation: i32 = RunBindingOperatorMovabilityPreservation(ctx)
     if (status_BindingOperatorMovabilityPreservation != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_BindingOperatorMovabilityPreservation
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_ExpressionStatementOperations: i32 = RunExpressionStatementOperations(ctx)
     if (status_ExpressionStatementOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_ExpressionStatementOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_UsingAliasStatementOperations: i32 = RunUsingAliasStatementOperations(ctx)
     if (status_UsingAliasStatementOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_UsingAliasStatementOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_UnsafeStatementBlockOperations: i32 = RunUnsafeStatementBlockOperations(ctx)
     if (status_UnsafeStatementBlockOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_UnsafeStatementBlockOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_ReturnAndResultStatementOperations: i32 = RunReturnAndResultStatementOperations(ctx)
     if (status_ReturnAndResultStatementOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_ReturnAndResultStatementOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_BreakAndContinueStatementOperations: i32 = RunBreakAndContinueStatementOperations(ctx)
     if (status_BreakAndContinueStatementOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_BreakAndContinueStatementOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-section_end")]]
     return 0
 }

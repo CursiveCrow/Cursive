@@ -60,28 +60,21 @@ public procedure runCompileCheckCommand(
     let dirs_ready_label: string@View = compileCheckBoolLabel(dirs_ready)
     let compiler_ready_label: string@View = compileCheckBoolLabel(compiler_ready)
     let dirs_log: string@View =
-        [[log(label: "observed-compile-check-dirs-ready", expected: "true")]]
         dirs_ready_label
     let compiler_log: string@View =
-        [[log(label: "observed-compile-check-compiler-ready", expected: "true")]]
         compiler_ready_label
 
     if ((dirs_log != "true") || (compiler_log != "true")) {
-        [[log(label: "compile-check-item-fail")]]
         return 1
     }
 
-    [[log(label: "compile-check-item-begin")]]
     let status: i32 = ctx.sys~>run(command_line)
     let status_label: string@View = compileCheckStatusLabel(status)
     let status_log: string@View =
-        [[log(label: "observed-compile-check-command-status", expected: "0")]]
         status_label
     if (status_log != "0") {
-        [[log(label: "compile-check-item-fail")]]
         return 1
     }
 
-    [[log(label: "compile-check-item-success")]]
     return 0
 }

@@ -12,7 +12,7 @@ procedure KeyPathGrammarMetricLabel(value: i32) -> string@View {
 
 public procedure RunKeyPathGrammarAndWellFormedness(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var node: shared KeyPathGrammarNode = KeyPathGrammarNode {
         leaf: 5,
@@ -40,12 +40,12 @@ public procedure RunKeyPathGrammarAndWellFormedness(ctx: Context) -> i32 {
     let diagnostic_non_shared_marker: string@View = "E-CON-0002"
     let diagnostic_multiple_markers: string@View = "E-CON-0003"
 
-    let read_leaf_log: i32 = [[log(label: "observed-permissions-KeyPathGrammarAndWellFormedness-read-leaf", expected: 5)]] read_leaf_metric
-    let read_index_log: i32 = [[log(label: "observed-permissions-KeyPathGrammarAndWellFormedness-read-index", expected: 6)]] read_index_metric
-    let write_leaf_log: i32 = [[log(label: "observed-permissions-KeyPathGrammarAndWellFormedness-write-leaf", expected: 7)]] write_leaf_metric
-    let diagnostic_dynamic_conflict_log: string@View = [[log(label: "permissions-KeyPathGrammarAndWellFormedness-diag-dynamic-conflict", expected: "E-CON-0010")]] diagnostic_dynamic_conflict
-    let diagnostic_non_shared_marker_log: string@View = [[log(label: "permissions-KeyPathGrammarAndWellFormedness-diag-non-shared-marker", expected: "E-CON-0002")]] diagnostic_non_shared_marker
-    let diagnostic_multiple_markers_log: string@View = [[log(label: "permissions-KeyPathGrammarAndWellFormedness-diag-multiple-markers", expected: "E-CON-0003")]] diagnostic_multiple_markers
+    let read_leaf_log: i32 = read_leaf_metric
+    let read_index_log: i32 = read_index_metric
+    let write_leaf_log: i32 = write_leaf_metric
+    let diagnostic_dynamic_conflict_log: string@View = diagnostic_dynamic_conflict
+    let diagnostic_non_shared_marker_log: string@View = diagnostic_non_shared_marker
+    let diagnostic_multiple_markers_log: string@View = diagnostic_multiple_markers
 
     let runtime_ok: bool =
         (read_leaf_log == 5) &&
@@ -54,17 +54,17 @@ public procedure RunKeyPathGrammarAndWellFormedness(ctx: Context) -> i32 {
         (diagnostic_dynamic_conflict_log == "E-CON-0010") &&
         (diagnostic_non_shared_marker_log == "E-CON-0002") &&
         (diagnostic_multiple_markers_log == "E-CON-0003")
-    let runtime_ok_log: bool = [[log(label: "permissions-KeyPathGrammarAndWellFormedness-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 20 } else { 0 }
     let metric_label: string@View = KeyPathGrammarMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-KeyPathGrammarAndWellFormedness-metric", expected: "20")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "20") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -39,16 +39,12 @@ procedure PanicAbortDoublePathProbe() -> i32 {
 
 public procedure RunPanicAbortContractSurface(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     let cleanup_metric: i32 = PanicAbortCleanupProbe()
     let cleanup_metric_log: i32 =
-        [[log(label: "observed-memory-drop-panic-cleanup-metric", expected: 321)]]
         cleanup_metric
 
     let double_cleanup_metric: i32 = PanicAbortDoublePathProbe()
     let double_cleanup_metric_log: i32 =
-        [[log(label: "observed-memory-drop-double-cleanup-metric", expected: 23)]]
         double_cleanup_metric
 
     var frame_metric: i32 = 0
@@ -62,7 +58,6 @@ public procedure RunPanicAbortContractSurface(ctx: Context) -> i32 {
         frame_metric = frame_metric + 1
     }
     let frame_metric_log: i32 =
-        [[log(label: "observed-memory-drop-unwinding-frame-metric", expected: 7)]]
         frame_metric
 
     let panic_cleanup_surface_ok: bool = cleanup_metric_log == 321
@@ -70,14 +65,14 @@ public procedure RunPanicAbortContractSurface(ctx: Context) -> i32 {
     let unwinding_frame_surface_ok: bool = frame_metric_log == 7
 
     let diag_drop_call_contract: string@View = "E-MEM-3005"
-    let diag_drop_call_contract_log: string@View = [[log(label: "memory-drop-diagnostic-code-drop-call-surface", expected: "E-MEM-3005")]] diag_drop_call_contract
+    let diag_drop_call_contract_log: string@View = diag_drop_call_contract
     let diag_drop_call_contract_ok: bool =
         diag_drop_call_contract_log == "E-MEM-3005"
 
-    let panic_cleanup_surface_ok_log: bool = [[log(label: "memory-drop-panic-propagation-surface", expected: true)]] panic_cleanup_surface_ok
-    let double_panic_abort_surface_ok_log: bool = [[log(label: "memory-drop-double-panic-abort-surface", expected: true)]] double_panic_abort_surface_ok
-    let unwinding_frame_surface_ok_log: bool = [[log(label: "memory-drop-unwinding-frame-surface", expected: true)]] unwinding_frame_surface_ok
-    let diag_drop_call_contract_ok_log: bool = [[log(label: "memory-drop-drop-call-diagnostic-surface", expected: true)]] diag_drop_call_contract_ok
+    let panic_cleanup_surface_ok_log: bool = panic_cleanup_surface_ok
+    let double_panic_abort_surface_ok_log: bool = double_panic_abort_surface_ok
+    let unwinding_frame_surface_ok_log: bool = unwinding_frame_surface_ok
+    let diag_drop_call_contract_ok_log: bool = diag_drop_call_contract_ok
 
     let metric_ok: bool =
         (panic_cleanup_surface_ok_log == true) &&
@@ -87,12 +82,10 @@ public procedure RunPanicAbortContractSurface(ctx: Context) -> i32 {
 
     let metric: i32 = if (metric_ok) { 34 } else { 0 }
     let metric_label: string@View = PanicAbortMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-drop-panic-abort-surface-metric", expected: "34")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "34") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

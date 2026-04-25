@@ -15,8 +15,7 @@ procedure LogAsyncConcurrencyDiagnosticObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure AsyncConcurrencyDiagnosticMetricLabel(value: i32) -> string@View {
     if (value == 2) {
@@ -45,22 +44,17 @@ procedure RunAsyncConcurrencyDiagnosticItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyAsyncConcurrencyDiagnosticItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let diag_yield_with_key: string@View = "E-CON-0213"
     let diag_yield_from_with_key: string@View = "E-CON-0224"
     let diag_gpu_shared_capture: string@View = "E-CON-0151"
@@ -71,8 +65,6 @@ procedure VerifyAsyncConcurrencyDiagnosticItem(ctx: Context, scope: string@View,
     LogAsyncConcurrencyDiagnosticObject(ctx.fs, scope, "diag_yield_from_with_key", "diagnostic-code", "constructed", "yield-from-with-key diagnostic entry prepared")
     LogAsyncConcurrencyDiagnosticObject(ctx.fs, scope, "diag_gpu_shared_capture", "diagnostic-code", "constructed", "GPU shared-capture diagnostic entry prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let all_metric: (i32, i32) | ! = all {
         AsyncConcurrencyDiagImmediateOne(),
         AsyncConcurrencyDiagYieldTwo()
@@ -81,19 +73,16 @@ procedure VerifyAsyncConcurrencyDiagnosticItem(ctx: Context, scope: string@View,
         pair: (i32, i32) { pair.0 + pair.1 }
         _: ! { 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_metric: i32 = sync AsyncConcurrencyDiagYieldTwo()
-    [[log(label: "operations-log-transition_move")]]
     let diag_yield_with_key_ok: bool = diag_yield_with_key == "E-CON-0213"
     let diag_yield_from_with_key_ok: bool = diag_yield_from_with_key == "E-CON-0224"
     let diag_gpu_shared_capture_ok: bool = diag_gpu_shared_capture == "E-CON-0151"
 
-    let diag_yield_with_key_ok_log_actual = [[log(label: "diagnostic-yield-with-key", expected: "E-CON-0213")]] diag_yield_with_key
+    let diag_yield_with_key_ok_log_actual = diag_yield_with_key
     let diag_yield_with_key_ok_with_log: bool = diag_yield_with_key_ok && (diag_yield_with_key_ok_log_actual == diag_yield_with_key)
-    let diag_yield_from_with_key_ok_log_actual = [[log(label: "diagnostic-yield-from-with-key", expected: "E-CON-0224")]] diag_yield_from_with_key
+    let diag_yield_from_with_key_ok_log_actual = diag_yield_from_with_key
     let diag_yield_from_with_key_ok_with_log: bool = diag_yield_from_with_key_ok && (diag_yield_from_with_key_ok_log_actual == diag_yield_from_with_key)
-    let diag_gpu_shared_capture_ok_log_actual = [[log(label: "diagnostic-gpu-shared-capture", expected: "E-CON-0151")]] diag_gpu_shared_capture
+    let diag_gpu_shared_capture_ok_log_actual = diag_gpu_shared_capture
     let diag_gpu_shared_capture_ok_with_log: bool = diag_gpu_shared_capture_ok && (diag_gpu_shared_capture_ok_log_actual == diag_gpu_shared_capture)
     let diag_count: i32 = if (diag_yield_with_key_ok && diag_yield_from_with_key_ok && diag_gpu_shared_capture_ok) { 3 } else { 0 }
     let runtime_metric: i32 = syntax_metric + static_metric + diag_count
@@ -103,15 +92,14 @@ procedure VerifyAsyncConcurrencyDiagnosticItem(ctx: Context, scope: string@View,
     let runtime_passed: bool = runtime_metric == 8
 
     let actual_label_1: string@View = AsyncConcurrencyDiagnosticMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-async-diagnostic-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = AsyncConcurrencyDiagnosticMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-async-diagnostic-static-metric", expected: "2")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = AsyncConcurrencyDiagnosticMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-async-diagnostic-runtime-metric", expected: "8")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunAsyncConcurrencyDiagnosticItem(
             ctx,
@@ -198,6 +186,5 @@ procedure RunAsyncConcurrencyDiagnosticMatrix(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

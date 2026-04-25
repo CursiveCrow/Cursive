@@ -20,8 +20,7 @@ procedure LogAllExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure AllExpressionMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -51,27 +50,20 @@ procedure RunAllExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyAllExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogAllExpressionObject(ctx.fs, scope, "all_pair_operands", "Async<(),(),i32,!> x2", "constructed", "pair async operands prepared for all expression")
     LogAllExpressionObject(ctx.fs, scope, "all_triple_operands", "Async<(),(),i32,!> x3", "constructed", "triple async operands prepared for all expression")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let all_pair_result: (i32, i32) | ! = all {
         AllImmediateTwo(),
         AllYieldThree()
@@ -80,8 +72,6 @@ procedure VerifyAllExpressionOperationsItem(ctx: Context, scope: string@View, mo
         pair: (i32, i32) { pair.0 + pair.1 }
         _: ! { 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let all_triple_result: (i32, i32, i32) | ! = all {
         AllImmediateTwo(),
         AllYieldThree(),
@@ -91,7 +81,6 @@ procedure VerifyAllExpressionOperationsItem(ctx: Context, scope: string@View, mo
         triple: (i32, i32, i32) { triple.0 + triple.1 + triple.2 }
         _: ! { 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
     let all_runtime_metric: i32 = all_pair_metric + all_triple_metric
 
     let observed_pair_step: string@View = "observed-all-pair-metric"
@@ -107,13 +96,12 @@ procedure VerifyAllExpressionOperationsItem(ctx: Context, scope: string@View, mo
     let triple_passed: bool = all_triple_metric == 9
     let runtime_passed: bool = all_runtime_metric == 14
 
-    let pair_passed_log_actual = [[log(label: "observed-all-pair-metric", expected: "5")]] pair_label
+    let pair_passed_log_actual = pair_label
     let pair_passed_with_log: bool = pair_passed && (pair_passed_log_actual == pair_label)
-    let triple_passed_log_actual = [[log(label: "observed-all-triple-metric", expected: "9")]] triple_label
+    let triple_passed_log_actual = triple_label
     let triple_passed_with_log: bool = triple_passed && (triple_passed_log_actual == triple_label)
-    let runtime_passed_log_actual = [[log(label: "observed-all-runtime-aggregate-metric", expected: "14")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunAllExpressionOperationsItem(
             ctx,
@@ -200,6 +188,5 @@ procedure RunAllExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

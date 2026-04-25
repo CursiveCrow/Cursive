@@ -18,24 +18,20 @@ procedure ContractPredicatePurityRulesMetricLabel(value: i32) -> string@View {
 
 public procedure RunContractPredicatePurityRules(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let probe: i32 = ContractPredicatePurityProbe(3)
     let probe_log: i32 =
-        [[log(label: "observed-contracts-predicate-purity-probe", expected: 4)]]
         probe
 
     let con_018: string@View = "CON-018"
     let con_020: string@View = "CON-020"
     let con_022: string@View = "CON-022"
     let con_018_log: string@View =
-        [[log(label: "contracts-contract-predicate-purity-rules-feature-018", expected: "CON-018")]]
         con_018
     let con_020_log: string@View =
-        [[log(label: "contracts-contract-predicate-purity-rules-feature-020", expected: "CON-020")]]
         con_020
     let con_022_log: string@View =
-        [[log(label: "contracts-contract-predicate-purity-rules-feature-022", expected: "CON-022")]]
         con_022
 
     let runtime_ok: bool =
@@ -44,19 +40,17 @@ public procedure RunContractPredicatePurityRules(ctx: Context) -> i32 {
         (con_020_log == "CON-020") &&
         (con_022_log == "CON-022")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-contract-predicate-purity-rules-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 35 } else { 0 }
     let metric_label: string@View = ContractPredicatePurityRulesMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-contract-predicate-purity-rules-metric", expected: "35")]]
         metric_label
     if (metric_log_actual != "35") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

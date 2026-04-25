@@ -6,8 +6,6 @@ procedure BoundaryDiagnosticsMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunBoundaryDiagnosticsAndRestrictions(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     var order_slot: shared i32 = 1
     # order_slot write {
         let rmw_warning_1 = order_slot
@@ -27,19 +25,14 @@ public procedure RunBoundaryDiagnosticsAndRestrictions(ctx: Context) -> i32 {
     let inline_domain_metric: i32 = parallel ctx~>inline() { 5 }
 
     let order_slot_log: i32 =
-        [[log(label: "observed-memory-boundary-order-slot", expected: 3)]]
         order_slot
     let order_read_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-order-read", expected: 3)]]
         order_read_metric
     let pointer_boundary_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-pointer-metric", expected: 9)]]
         pointer_boundary_metric
     let cpu_domain_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-cpu-domain-metric", expected: 4)]]
         cpu_domain_metric
     let inline_domain_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-inline-domain-metric", expected: 5)]]
         inline_domain_metric
 
     let ordering_runtime_ok: bool =
@@ -48,21 +41,19 @@ public procedure RunBoundaryDiagnosticsAndRestrictions(ctx: Context) -> i32 {
     let domain_runtime_ok: bool =
         (cpu_domain_metric_log == 4) && (inline_domain_metric_log == 5)
 
-    let ordering_runtime_ok_log: bool =        [[log(label: "memory-boundary-diagnostic-ordering-modes", expected: true)]]         ordering_runtime_ok
-    let pointer_boundary_runtime_ok_log: bool =        [[log(label: "memory-boundary-diagnostic-ffi-region-pointer", expected: true)]]         pointer_boundary_runtime_ok
-    let domain_runtime_ok_log: bool =        [[log(label: "memory-boundary-diagnostic-domain-runtime", expected: true)]]         domain_runtime_ok
+    let ordering_runtime_ok_log: bool =        ordering_runtime_ok
+    let pointer_boundary_runtime_ok_log: bool =        pointer_boundary_runtime_ok
+    let domain_runtime_ok_log: bool =        domain_runtime_ok
 
     let metric_ok: bool = (ordering_runtime_ok_log == true) &&
         (pointer_boundary_runtime_ok_log == true) &&
         (domain_runtime_ok_log == true)
     let metric: i32 = if (metric_ok) { 37 } else { 0 }
     let metric_label: string@View = BoundaryDiagnosticsMetricLabel(metric)
-    let metric_log_actual: string@View =        [[log(label: "observed-memory-boundary-diagnostics-metric", expected: "37")]]         metric_label
+    let metric_log_actual: string@View =        metric_label
     if (metric_log_actual != "37") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

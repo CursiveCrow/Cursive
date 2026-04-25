@@ -14,35 +14,31 @@ procedure PreconditionCallerObligationsMetricLabel(value: i32) -> string@View {
 
 public procedure RunPreconditionCallerObligations(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let probe: i32 = PreconditionCallerProbe(5)
     let probe_log: i32 =
-        [[log(label: "observed-contracts-precondition-caller-probe", expected: 10)]]
         probe
 
     let con_025: string@View = "CON-025"
     let con_025_log: string@View =
-        [[log(label: "contracts-precondition-caller-obligations-feature-025", expected: "CON-025")]]
         con_025
 
     let runtime_ok: bool =
         (probe_log == 10) &&
         (con_025_log == "CON-025")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-precondition-caller-obligations-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = PreconditionCallerObligationsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-precondition-caller-obligations-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

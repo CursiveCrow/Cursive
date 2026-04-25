@@ -11,8 +11,7 @@ procedure LogPatternsObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunPatternsAndCaseAnalysisTypingItem(
     ctx: Context,
@@ -29,7 +28,6 @@ procedure RunPatternsAndCaseAnalysisTypingItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -38,17 +36,12 @@ procedure RunPatternsAndCaseAnalysisTypingItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -69,56 +62,42 @@ procedure PatternsMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyPatternsAndCaseAnalysisTypingItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let typed_source: i32 | bool = 3
     LogPatternsObject(ctx.fs, scope, "typed_source", "i32|bool", "constructed", "typed-pattern scrutinee prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let typed_metric: i32 = if typed_source is {
         typed_value: i32 { if (typed_value == 3) { 1 } else { 0 } }
         typed_bool: bool { if (typed_bool) { 0 } else { 0 } }
     }
-    [[log(label: "types-log-transition_move")]]
     let destructure_source: (i32, i32) = (2, 5)
     LogPatternsObject(ctx.fs, scope, "destructure_source", "(i32,i32)", "constructed", "destructuring-pattern scrutinee prepared")
-    [[log(label: "types-log-transition_move")]]
     let destructure_metric: i32 = if destructure_source is {
         (a, b) { a + b }
     }
-    [[log(label: "types-log-transition_move")]]
     let range_source: i32 = 4
     LogPatternsObject(ctx.fs, scope, "range_source", "i32", "constructed", "range-pattern scrutinee prepared")
-    [[log(label: "types-log-transition_move")]]
     let range_metric: i32 = if range_source is {
         2..=5 { 1 }
         _ { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
     let arm_unify_source: PatternEnumCase = PatternEnumCase::Right(7, 0)
     LogPatternsObject(ctx.fs, scope, "arm_unify_source", "PatternEnumCase", "constructed", "arm-unification enum scrutinee prepared")
-    [[log(label: "types-log-transition_move")]]
     let arm_unify_metric: i32 = if arm_unify_source is {
         PatternEnumCase::Left(_, _) { 7 }
         PatternEnumCase::Right(_, _) { 7 }
     }
-    [[log(label: "types-log-transition_move")]]
     let exhaustive_source: PatternEnumCase = PatternEnumCase::Left(2, 0)
     LogPatternsObject(ctx.fs, scope, "exhaustive_source", "PatternEnumCase", "constructed", "exhaustiveness-check enum scrutinee prepared")
-    [[log(label: "types-log-transition_move")]]
     let exhaustive_metric: i32 = if exhaustive_source is {
         PatternEnumCase::Left(v, _) { v }
         PatternEnumCase::Right(v, _) { v }
     }
-    [[log(label: "types-log-transition_move")]]
     let unreachable_source: i32 = 1
     LogPatternsObject(ctx.fs, scope, "unreachable_source", "i32", "constructed", "unreachable-arm diagnostic baseline scrutinee prepared")
-    [[log(label: "types-log-transition_move")]]
     let unreachable_metric: i32 = if unreachable_source is {
         1 { 1 }
         _ { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
     let observed_typed_step: string@View = "observed-typed-pattern-metric"
     let observed_destructure_step: string@View = "observed-destructure-pattern-metric"
     let observed_range_step: string@View = "observed-range-pattern-metric"
@@ -144,19 +123,18 @@ procedure VerifyPatternsAndCaseAnalysisTypingItem(ctx: Context, scope: string@Vi
     let exhaustive_metric_passed: bool = exhaustive_metric == 2
     let unreachable_metric_passed: bool = unreachable_metric == 1
 
-    let typed_metric_passed_log_actual = [[log(label: "observed-typed-pattern-metric", expected: "1")]] typed_metric_label
+    let typed_metric_passed_log_actual = typed_metric_label
     let typed_metric_passed_with_log: bool = typed_metric_passed && (typed_metric_passed_log_actual == expected_typed)
-    let destructure_metric_passed_log_actual = [[log(label: "observed-destructure-pattern-metric", expected: "7")]] destructure_metric_label
+    let destructure_metric_passed_log_actual = destructure_metric_label
     let destructure_metric_passed_with_log: bool = destructure_metric_passed && (destructure_metric_passed_log_actual == expected_destructure)
-    let range_metric_passed_log_actual = [[log(label: "observed-range-pattern-metric", expected: "1")]] range_metric_label
+    let range_metric_passed_log_actual = range_metric_label
     let range_metric_passed_with_log: bool = range_metric_passed && (range_metric_passed_log_actual == expected_range)
-    let unify_metric_passed_log_actual = [[log(label: "observed-arm-unification-metric", expected: "7")]] unify_metric_label
+    let unify_metric_passed_log_actual = unify_metric_label
     let unify_metric_passed_with_log: bool = unify_metric_passed && (unify_metric_passed_log_actual == expected_unify)
-    let exhaustive_metric_passed_log_actual = [[log(label: "observed-exhaustive-coverage-metric", expected: "2")]] exhaustive_metric_label
+    let exhaustive_metric_passed_log_actual = exhaustive_metric_label
     let exhaustive_metric_passed_with_log: bool = exhaustive_metric_passed && (exhaustive_metric_passed_log_actual == expected_exhaustive)
-    let unreachable_metric_passed_log_actual = [[log(label: "observed-unreachable-arm-metric", expected: "1")]] unreachable_metric_label
+    let unreachable_metric_passed_log_actual = unreachable_metric_label
     let unreachable_metric_passed_with_log: bool = unreachable_metric_passed && (unreachable_metric_passed_log_actual == expected_unreachable)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunPatternsAndCaseAnalysisTypingItem(
             ctx,
@@ -309,6 +287,5 @@ procedure RunPatternsAndCaseAnalysisTyping(ctx: Context) -> i32 {
         return status_UnreachableArmDiagnostics
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

@@ -38,7 +38,7 @@ procedure ModalStateMethodDispatchMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalStateMethodDispatch(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var idle_state: unique ModalStateMethodDispatchProbe@Idle =
         ModalStateMethodDispatchProbe@Idle { value: 5 }
@@ -57,38 +57,29 @@ public procedure RunModalStateMethodDispatch(ctx: Context) -> i32 {
     let shared_observe_metric: i32 = shared_state~>observe_shared()
 
     let idle_observe_metric_log: i32 =
-        [[log(label: "observed-modals-modal-method-dispatch-idle", expected: 5)]]
         idle_observe_metric
     let active_observe_metric_log: i32 =
-        [[log(label: "observed-modals-modal-method-dispatch-active", expected: 107)]]
         active_observe_metric
     let unique_mutate_metric_log: i32 =
-        [[log(label: "observed-modals-modal-method-dispatch-unique", expected: 12)]]
         unique_mutate_metric
     let shared_observe_metric_log: i32 =
-        [[log(label: "observed-modals-modal-method-dispatch-shared", expected: 209)]]
         shared_observe_metric
 
     let diag_method_missing: string@View = "E-TYP-2053"
     let diag_method_visibility: string@View = "E-TYP-2064"
     let diag_method_missing_log: string@View =
-        [[log(label: "modals-state-members-method-missing-diagnostic", expected: "E-TYP-2053")]]
         diag_method_missing
     let diag_method_visibility_log: string@View =
-        [[log(label: "modals-state-members-method-visibility-diagnostic", expected: "E-TYP-2064")]]
         diag_method_visibility
 
     let mod_025: string@View = "MOD-025"
     let mod_026: string@View = "MOD-026"
     let mod_027: string@View = "MOD-027"
     let mod_025_log: string@View =
-        [[log(label: "modals-state-members-method-dispatch-feature-025", expected: "MOD-025")]]
         mod_025
     let mod_026_log: string@View =
-        [[log(label: "modals-state-members-method-dispatch-feature-026", expected: "MOD-026")]]
         mod_026
     let mod_027_log: string@View =
-        [[log(label: "modals-state-members-method-dispatch-feature-027", expected: "MOD-027")]]
         mod_027
 
     let runtime_ok: bool =
@@ -102,19 +93,17 @@ public procedure RunModalStateMethodDispatch(ctx: Context) -> i32 {
         (mod_026_log == "MOD-026") &&
         (mod_027_log == "MOD-027")
     let runtime_ok_log: bool =
-        [[log(label: "modals-state-members-method-dispatch-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 112 } else { 0 }
     let metric_label: string@View = ModalStateMethodDispatchMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-method-dispatch-metric", expected: "112")]]
         metric_label
     if (metric_log_actual != "112") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

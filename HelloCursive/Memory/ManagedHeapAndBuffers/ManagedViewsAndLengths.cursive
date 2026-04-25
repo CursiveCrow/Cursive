@@ -17,20 +17,20 @@ public procedure RunManagedViewsAndLengths(ctx: Context) -> i32 {
     let bytes_len_ok: bool = bytes::length(bytes_view) == 3usize
     let non_empty_ok: bool = string::is_empty(text_seed) == false
 
-    let string_len_log: bool = [[log(label: "memory-managed-string-view-length", expected: true)]] string_len_ok
-    let bytes_len_log: bool = [[log(label: "memory-managed-bytes-view-length", expected: true)]] bytes_len_ok
-    let non_empty_log: bool = [[log(label: "memory-managed-string-non-empty", expected: true)]] non_empty_ok
+    let string_len_log: bool = string_len_ok
+    let bytes_len_log: bool = bytes_len_ok
+    let non_empty_log: bool = non_empty_ok
 
     let metric: i32 = if (string_len_ok && bytes_len_ok && non_empty_ok && (string_len_log == true) && (bytes_len_log == true) && (non_empty_log == true)) { 13 } else { 0 }
     let metric_label: string@View = ManagedViewsMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-managed-views-metric", expected: "13")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "13") {
         let fail_marker: string@View = "memory-managed-views-fail"
-        [[log(label: "memory-log-item_fail")]] fail_marker
+        fail_marker
         return 1
     }
 
     let success_marker: string@View = "memory-managed-views-success"
-    [[log(label: "memory-log-memory_item_success")]] success_marker
+    success_marker
     return 0
 }

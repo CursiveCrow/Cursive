@@ -6,8 +6,7 @@ procedure LogUsingAliasObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure UsingAliasMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -36,29 +35,22 @@ procedure RunUsingAliasItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyUsingAliasItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogUsingAliasObject(ctx.fs, scope, "syntax_source", "i32", "constructed", "seed binding for using alias syntax probe prepared")
     LogUsingAliasObject(ctx.fs, scope, "static_source", "var i32", "constructed", "seed binding for using alias on mutable source prepared")
     LogUsingAliasObject(ctx.fs, scope, "chained_source", "var i32", "constructed", "seed binding for chained using aliases prepared")
 
     // Item 0: `using` as a read-only alias for an immutable binding in an inner scope.
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let syntax_source: i32 = 5
     var syntax_metric: i32 = 0
     {
@@ -68,8 +60,6 @@ procedure VerifyUsingAliasItem(ctx: Context, scope: string@View, move item_index
 
     // Item 1: `using` aliasing a mutable source - writes through source are
     // visible through alias since both resolve to the same binding.
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var static_source: i32 = 1
     var static_metric: i32 = 0
     {
@@ -80,8 +70,6 @@ procedure VerifyUsingAliasItem(ctx: Context, scope: string@View, move item_index
 
     // Item 2: chained `using` aliases - aliasing an alias still resolves to
     // the original binding, with the full accumulated value visible.
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var chained_source: i32 = 4
     var chained_metric: i32 = 0
     {
@@ -92,21 +80,19 @@ procedure VerifyUsingAliasItem(ctx: Context, scope: string@View, move item_index
             chained_metric = chained_second
         }
     }
-    [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = syntax_metric == 5
     let static_passed: bool = static_metric == 6
     let chained_passed: bool = chained_metric == 10
 
     let actual_label_1: string@View = UsingAliasMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-using-alias-syntax-metric", expected: "5")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = UsingAliasMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-using-alias-static-metric", expected: "6")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = UsingAliasMetricLabel(chained_metric)
-    let chained_passed_log_actual = [[log(label: "observed-using-alias-chained-metric", expected: "10")]] actual_label_3
+    let chained_passed_log_actual = actual_label_3
     let chained_passed_with_log: bool = chained_passed && (chained_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunUsingAliasItem(
             ctx,
@@ -193,6 +179,5 @@ procedure RunUsingAliasStatementOperations(ctx: Context) -> i32 {
         return status_chained
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

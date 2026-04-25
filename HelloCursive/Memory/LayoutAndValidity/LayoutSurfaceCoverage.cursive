@@ -70,9 +70,9 @@ public procedure RunLayoutSurfaceCoverage(ctx: Context) -> i32 {
         (tuple_metric == 9) && (slice_metric == 10)
     let union_modal_ok: bool = (union_metric == 1) && (modal_metric == 7)
 
-    let managed_views_ok_log: bool = [[log(label: "memory-layout-managed-view-shapes", expected: true)]] managed_views_ok
-    let tuple_array_slice_ok_log: bool = [[log(label: "memory-layout-tuple-array-slice-shapes", expected: true)]] tuple_array_slice_ok
-    let union_modal_ok_log: bool = [[log(label: "memory-layout-union-modal-shapes", expected: true)]] union_modal_ok
+    let managed_views_ok_log: bool = managed_views_ok
+    let tuple_array_slice_ok_log: bool = tuple_array_slice_ok
+    let union_modal_ok_log: bool = union_modal_ok
 
     let metric_ok: bool =
         (managed_views_ok_log == true) &&
@@ -81,12 +81,10 @@ public procedure RunLayoutSurfaceCoverage(ctx: Context) -> i32 {
 
     let metric: i32 = if (metric_ok) { 26 } else { 0 }
     let metric_label: string@View = LayoutSurfaceMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-layout-surface-coverage-metric", expected: "26")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "26") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

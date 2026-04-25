@@ -19,7 +19,7 @@ procedure LayoutCRecordEnumBehaviorMetricLabel(value: i32) -> string@View {
 
 public procedure RunLayoutCRecordEnumBehavior(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let r: AttributeLayoutRecord = AttributeLayoutRecord { first: 11, second: 14 }
     let u: AttributeLayoutUnion = AttributeLayoutUnion::Pair(4, 7)
@@ -31,15 +31,13 @@ public procedure RunLayoutCRecordEnumBehavior(ctx: Context) -> i32 {
     }
 
     let record_metric_log: i32 =
-        [[log(label: "observed-attributes-layout-c-record-metric", expected: 25)]]
         record_metric
     let enum_metric_log: i32 =
-        [[log(label: "observed-attributes-layout-c-enum-metric", expected: 11)]]
         enum_metric
 
-    let atr_011: string@View = [[log(label: "attributes-layout-feature-011", expected: "ATR-011")]] "ATR-011"
-    let atr_012: string@View = [[log(label: "attributes-layout-feature-012", expected: "ATR-012")]] "ATR-012"
-    let atr_013: string@View = [[log(label: "attributes-layout-feature-013", expected: "ATR-013")]] "ATR-013"
+    let atr_011: string@View = "ATR-011"
+    let atr_012: string@View = "ATR-012"
+    let atr_013: string@View = "ATR-013"
 
     let runtime_ok: bool =
         (record_metric_log == 25) &&
@@ -47,19 +45,18 @@ public procedure RunLayoutCRecordEnumBehavior(ctx: Context) -> i32 {
         (atr_011 == "ATR-011") &&
         (atr_012 == "ATR-012") &&
         (atr_013 == "ATR-013")
-    let runtime_ok_log: bool = [[log(label: "attributes-layout-c-record-enum-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 25 } else { 0 }
     let metric_label: string@View = LayoutCRecordEnumBehaviorMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-attributes-layout-c-record-enum-behavior-metric", expected: "25")]]
         metric_label
     if (metric_log_actual != "25") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

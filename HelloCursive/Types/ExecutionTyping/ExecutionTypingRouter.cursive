@@ -16,7 +16,7 @@ procedure LogFeatureStatus(
     let expected_zero: string@View = "0"
     let actual_status: string@View = FeatureStatusLabel(status)
     let passed: bool = status == 0
-    let passed_log_actual = [[log(label: "observed-feature-status", expected: "0")]] actual_status
+    let passed_log_actual = actual_status
     let passed_with_log: bool = passed && (passed_log_actual == expected_zero)
 }
 
@@ -39,57 +39,35 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_expr_stmt: string@View = "ExecutionTyping::ExpressionStatementDeclarationTyping"
     let feature_bidirectional: string@View = "ExecutionTyping::BidirectionalTypeCheckingCoverage"
 
-    [[log(label: "types-log-section_start")]]
-    [[log(label: "types-log-transition")]]
     let status_functions: i32 = RunFunctionTypesAndCalls(ctx)
     let observed_functions_step: string@View = "observed-functions-feature-status"
     LogFeatureStatus(ctx.fs, section_name, feature_functions, observed_functions_step, status_functions)
     if (status_functions != 0) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-section_end")]]
         return status_functions
     }
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-transition")]]
     let status_closures: i32 = RunClosuresAndPipeline(ctx)
     let observed_closures_step: string@View = "observed-closures-feature-status"
     LogFeatureStatus(ctx.fs, section_name, feature_closures, observed_closures_step, status_closures)
     if (status_closures != 0) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-section_end")]]
         return status_closures
     }
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-transition")]]
     let status_patterns: i32 = RunPatternsAndCaseAnalysisTyping(ctx)
     let observed_patterns_step: string@View = "observed-patterns-feature-status"
     LogFeatureStatus(ctx.fs, section_name, feature_patterns, observed_patterns_step, status_patterns)
     if (status_patterns != 0) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-section_end")]]
         return status_patterns
     }
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-transition")]]
     let status_expr_stmt: i32 = RunExpressionStatementDeclarationTyping(ctx)
     let observed_expr_stmt_step: string@View = "observed-expression-statement-feature-status"
     LogFeatureStatus(ctx.fs, section_name, feature_expr_stmt, observed_expr_stmt_step, status_expr_stmt)
     if (status_expr_stmt != 0) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-section_end")]]
         return status_expr_stmt
     }
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-transition")]]
     let status_bidirectional: i32 = RunBidirectionalTypeCheckingCoverage(ctx)
     let observed_bidirectional_step: string@View = "observed-bidirectional-feature-status"
     LogFeatureStatus(ctx.fs, section_name, feature_bidirectional, observed_bidirectional_step, status_bidirectional)
     if (status_bidirectional != 0) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-section_end")]]
         return status_bidirectional
     }
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-section_end")]]
     return 0
 }

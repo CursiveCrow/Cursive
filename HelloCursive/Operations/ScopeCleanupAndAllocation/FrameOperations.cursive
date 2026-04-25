@@ -30,8 +30,7 @@ procedure LogFrameOperationObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure FrameOperationMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -60,32 +59,22 @@ procedure RunFrameOperationItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyFrameOperationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogFrameOperationObject(ctx.fs, scope, "frame_implicit_probe", "procedure()->i32", "constructed", "implicit frame probe prepared")
     LogFrameOperationObject(ctx.fs, scope, "frame_explicit_probe", "procedure()->i32", "constructed", "explicit region-targeted frame probe prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let syntax_metric: i32 = FrameImplicitProbe()
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_metric: i32 = FrameExplicitProbe()
-    [[log(label: "operations-log-transition_move")]]
     let runtime_metric: i32 = syntax_metric + static_metric
 
     let syntax_passed: bool = syntax_metric == 5
@@ -93,15 +82,14 @@ procedure VerifyFrameOperationItem(ctx: Context, scope: string@View, move item_i
     let runtime_passed: bool = runtime_metric == 13
 
     let actual_label_1: string@View = FrameOperationMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-frame-syntax-metric", expected: "5")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = FrameOperationMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-frame-static-metric", expected: "8")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = FrameOperationMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-frame-runtime-metric", expected: "13")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunFrameOperationItem(
             ctx,
@@ -188,6 +176,5 @@ procedure RunFrameOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

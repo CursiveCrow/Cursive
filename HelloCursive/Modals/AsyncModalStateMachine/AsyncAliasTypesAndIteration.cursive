@@ -83,7 +83,7 @@ procedure AsyncAliasTypesAndIterationMetricLabel(value: i32) -> string@View {
 
 public procedure RunAsyncAliasTypesAndIteration(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let sequence_state: Async<i32, (), (), !> = AsyncAliasSequenceSource()
     let sequence_metric: i32 = if move sequence_state is {
@@ -153,43 +153,31 @@ public procedure RunAsyncAliasTypesAndIteration(ctx: Context) -> i32 {
     }
 
     let sequence_metric_log: i32 =
-        [[log(label: "observed-modals-async-alias-sequence", expected: 2)]]
         sequence_metric
     let future_metric_log: i32 =
-        [[log(label: "observed-modals-async-alias-future", expected: 5)]]
         future_metric
     let user_future_metric_log: i32 =
-        [[log(label: "observed-modals-async-alias-user-future-subtyping", expected: 11)]]
         user_future_metric
     let pipe_metric_log: i32 =
-        [[log(label: "observed-modals-async-alias-pipe", expected: 3)]]
         pipe_metric
     let exchange_metric_log: i32 =
-        [[log(label: "observed-modals-async-alias-exchange", expected: 1)]]
         exchange_metric
     let stream_metric_log: i32 =
-        [[log(label: "observed-modals-async-alias-stream", expected: 8)]]
         stream_metric
     let sequence_mapped_metric_log: i32 =
-        [[log(label: "observed-modals-async-alias-sequence-map", expected: 4)]]
         sequence_mapped_metric
     let sequence_folded_metric_log: i32 =
-        [[log(label: "observed-modals-async-alias-sequence-fold", expected: 6)]]
         sequence_folded_metric
     let loop_metric_log: i32 =
-        [[log(label: "observed-modals-async-loop-iteration", expected: 6)]]
         loop_metric
     let loop_failure_metric_log: bool =
-        [[log(label: "observed-modals-async-loop-failed-propagation", expected: true)]]
         loop_failure_metric
 
     let mod_067: string@View = "MOD-067"
     let mod_068: string@View = "MOD-068"
     let mod_067_log: string@View =
-        [[log(label: "modals-async-alias-iteration-feature-067", expected: "MOD-067")]]
         mod_067
     let mod_068_log: string@View =
-        [[log(label: "modals-async-alias-iteration-feature-068", expected: "MOD-068")]]
         mod_068
 
     let runtime_ok: bool =
@@ -206,19 +194,17 @@ public procedure RunAsyncAliasTypesAndIteration(ctx: Context) -> i32 {
         (mod_067_log == "MOD-067") &&
         (mod_068_log == "MOD-068")
     let runtime_ok_log: bool =
-        [[log(label: "modals-async-alias-iteration-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 42 } else { 0 }
     let metric_label: string@View = AsyncAliasTypesAndIterationMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-async-alias-iteration-metric", expected: "42")]]
         metric_label
     if (metric_log_actual != "42") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

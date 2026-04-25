@@ -7,8 +7,6 @@ procedure NullPointerFormsMetricLabel(value: i32) -> string@View {
 
 public procedure RunNullPointerForms(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let safe_null: Ptr<i32>@Null = Ptr::null()
     let raw_null_imm: *imm i32 = null
     let raw_null_mut: *mut i32 = null
@@ -19,19 +17,15 @@ public procedure RunNullPointerForms(ctx: Context) -> i32 {
 
     let null_literal_infer_diag: string@View = "E-TYP-1530"
     let null_literal_infer_diag_logged: string@View =
-        [[log(label: "pointers-core-null-literal-infer-diagnostic", expected: "E-TYP-1530")]]
         null_literal_infer_diag
     let null_literal_infer_diag_ok: bool =
         null_literal_infer_diag_logged == "E-TYP-1530"
 
     let safe_null_shape_ok_log: bool =
-        [[log(label: "pointers-core-safe-null-shape", expected: true)]]
         safe_null_shape_ok
     let raw_null_imm_ok_log: bool =
-        [[log(label: "pointers-core-raw-null-imm", expected: true)]]
         raw_null_imm_ok
     let raw_null_mut_ok_log: bool =
-        [[log(label: "pointers-core-raw-null-mut", expected: true)]]
         raw_null_mut_ok
 
     let metric_ok: bool =
@@ -42,13 +36,10 @@ public procedure RunNullPointerForms(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 19 } else { 0 }
     let metric_label: string@View = NullPointerFormsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-core-null-pointer-forms-metric", expected: "19")]]
         metric_label
     if (metric_log_actual != "19") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

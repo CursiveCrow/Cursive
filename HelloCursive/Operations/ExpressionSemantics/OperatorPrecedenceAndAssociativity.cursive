@@ -6,8 +6,7 @@ procedure LogOperatorPrecedenceObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure OperatorPrecedenceMetricLabel(value: i32) -> string@View {
     if (value == 1) {
@@ -70,22 +69,17 @@ procedure RunOperatorPrecedenceAndAssociativityItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyOperatorPrecedenceAndAssociativityItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogOperatorPrecedenceObject(ctx.fs, scope, "precedence_expr", "i32", "constructed", "multiplicative-over-additive precedence expression prepared")
     LogOperatorPrecedenceObject(ctx.fs, scope, "bitwise_expr", "i32", "constructed", "bit-and over bit-or precedence expression prepared")
     LogOperatorPrecedenceObject(ctx.fs, scope, "associativity_expr", "i32", "constructed", "left-associative subtraction and right-associative power expressions prepared")
@@ -93,26 +87,16 @@ procedure VerifyOperatorPrecedenceAndAssociativityItem(ctx: Context, scope: stri
     LogOperatorPrecedenceObject(ctx.fs, scope, "comparison_expr", "i32", "constructed", "full comparison-operator set expression prepared")
     LogOperatorPrecedenceObject(ctx.fs, scope, "unary_expr", "i32", "constructed", "unary logical/arithmetic/bitwise expression set prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let precedence_metric: i32 = 1 + (2 * 3)
     let grouped_metric: i32 = (1 + 2) * 3
     let mod_metric: i32 = 17 % 5
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let bitwise_metric: i32 = 5 | (2 & 1)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let associativity_metric: i32 = (8 - 3) - 2
     let power_metric: i32 = 2 ** 3 ** 2
     let div_metric: i32 = 17 / 5
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let shift_left_metric: i32 = (1 + 2) << (2 as u32)
     let shift_right_metric: i32 = 32 >> (2 as u32)
     let xor_metric: i32 = 5 ^ 3
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let cmp_lt: i32 = if (2 < 3) { 1 } else { 0 }
     let cmp_le: i32 = if (3 <= 3) { 1 } else { 0 }
     let cmp_gt: i32 = if (4 > 3) { 1 } else { 0 }
@@ -120,12 +104,9 @@ procedure VerifyOperatorPrecedenceAndAssociativityItem(ctx: Context, scope: stri
     let cmp_eq: i32 = if (5 == 5) { 1 } else { 0 }
     let cmp_ne: i32 = if (5 != 4) { 1 } else { 0 }
     let comparison_metric: i32 = cmp_lt + cmp_le + cmp_gt + cmp_ge + cmp_eq + cmp_ne
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let unary_neg_metric: i32 = -5 + 9
     let unary_not_metric: i32 = if (!false) { 1 } else { 0 }
     let unary_int_not_metric: i32 = if ((!0) == -1) { 1 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
     let logical_metric: i32 = if (((1 + (2 * 3)) == 7) && ((9 > 3) || false)) { 1 } else { 0 }
 
     let syntax_metric: i32 = precedence_metric + grouped_metric + bitwise_metric + mod_metric
@@ -171,43 +152,42 @@ procedure VerifyOperatorPrecedenceAndAssociativityItem(ctx: Context, scope: stri
     let static_passed: bool = associativity_passed && div_passed && shift_left_passed && shift_right_passed && xor_passed && power_passed && unary_neg_passed && unary_int_not_passed && static_metric == 549
     let runtime_passed: bool = logical_passed && comparison_passed && unary_not_passed && runtime_metric == 580
 
-    let precedence_passed_log_actual = [[log(label: "observed-precedence-metric", expected: "7")]] precedence_label
+    let precedence_passed_log_actual = precedence_label
     let precedence_passed_with_log: bool = precedence_passed && (precedence_passed_log_actual == precedence_label)
-    let grouping_passed_log_actual = [[log(label: "observed-grouped-precedence-metric", expected: "9")]] grouping_label
+    let grouping_passed_log_actual = grouping_label
     let grouping_passed_with_log: bool = grouping_passed && (grouping_passed_log_actual == grouping_label)
-    let mod_passed_log_actual = [[log(label: "observed-modulo-metric", expected: "2")]] mod_label
+    let mod_passed_log_actual = mod_label
     let mod_passed_with_log: bool = mod_passed && (mod_passed_log_actual == mod_label)
-    let bitwise_passed_log_actual = [[log(label: "observed-bitwise-precedence-metric", expected: "5")]] bitwise_label
+    let bitwise_passed_log_actual = bitwise_label
     let bitwise_passed_with_log: bool = bitwise_passed && (bitwise_passed_log_actual == bitwise_label)
-    let associativity_passed_log_actual = [[log(label: "observed-associativity-metric", expected: "3")]] associativity_label
+    let associativity_passed_log_actual = associativity_label
     let associativity_passed_with_log: bool = associativity_passed && (associativity_passed_log_actual == associativity_label)
-    let div_passed_log_actual = [[log(label: "observed-division-metric", expected: "3")]] div_label
+    let div_passed_log_actual = div_label
     let div_passed_with_log: bool = div_passed && (div_passed_log_actual == div_label)
-    let shift_left_passed_log_actual = [[log(label: "observed-shift-left-metric", expected: "12")]] shift_left_label
+    let shift_left_passed_log_actual = shift_left_label
     let shift_left_passed_with_log: bool = shift_left_passed && (shift_left_passed_log_actual == shift_left_label)
-    let shift_right_passed_log_actual = [[log(label: "observed-shift-right-metric", expected: "8")]] shift_right_label
+    let shift_right_passed_log_actual = shift_right_label
     let shift_right_passed_with_log: bool = shift_right_passed && (shift_right_passed_log_actual == shift_right_label)
-    let xor_passed_log_actual = [[log(label: "observed-xor-metric", expected: "6")]] xor_label
+    let xor_passed_log_actual = xor_label
     let xor_passed_with_log: bool = xor_passed && (xor_passed_log_actual == xor_label)
-    let power_passed_log_actual = [[log(label: "observed-power-right-associative-metric", expected: "512")]] power_label
+    let power_passed_log_actual = power_label
     let power_passed_with_log: bool = power_passed && (power_passed_log_actual == power_label)
-    let logical_passed_log_actual = [[log(label: "observed-logical-precedence-metric", expected: "1")]] logical_label
+    let logical_passed_log_actual = logical_label
     let logical_passed_with_log: bool = logical_passed && (logical_passed_log_actual == logical_label)
-    let comparison_passed_log_actual = [[log(label: "observed-comparison-family-metric", expected: "6")]] comparison_label
+    let comparison_passed_log_actual = comparison_label
     let comparison_passed_with_log: bool = comparison_passed && (comparison_passed_log_actual == comparison_label)
-    let unary_neg_passed_log_actual = [[log(label: "observed-unary-negation-metric", expected: "4")]] unary_neg_label
+    let unary_neg_passed_log_actual = unary_neg_label
     let unary_neg_passed_with_log: bool = unary_neg_passed && (unary_neg_passed_log_actual == unary_neg_label)
-    let unary_not_passed_log_actual = [[log(label: "observed-unary-not-metric", expected: "1")]] unary_not_label
+    let unary_not_passed_log_actual = unary_not_label
     let unary_not_passed_with_log: bool = unary_not_passed && (unary_not_passed_log_actual == unary_not_label)
-    let unary_int_not_passed_log_actual = [[log(label: "observed-unary-int-not-metric", expected: "1")]] unary_int_not_label
+    let unary_int_not_passed_log_actual = unary_int_not_label
     let unary_int_not_passed_with_log: bool = unary_int_not_passed && (unary_int_not_passed_log_actual == unary_int_not_label)
-    let syntax_passed_log_actual = [[log(label: "observed-operator-syntax-aggregate-metric", expected: "23")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-operator-static-aggregate-metric", expected: "549")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-operator-runtime-aggregate-metric", expected: "580")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunOperatorPrecedenceAndAssociativityItem(
             ctx,
@@ -294,6 +274,5 @@ procedure RunOperatorPrecedenceAndAssociativity(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

@@ -83,8 +83,7 @@ procedure LogPrimitivesObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunPrimitivesLiteralsItem(
     ctx: Context,
@@ -101,7 +100,6 @@ procedure RunPrimitivesLiteralsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -110,17 +108,12 @@ procedure RunPrimitivesLiteralsItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -193,7 +186,6 @@ procedure PrimitiveUsizeLabel(value: usize) -> string@View {
 }
 
 procedure VerifyPrimitivesLiteralsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let signed_sum: i32 = -12 + 20
     let unsigned_left: u32 = 9
     let unsigned_right: u32 = 6
@@ -257,59 +249,24 @@ procedure VerifyPrimitivesLiteralsItem(ctx: Context, scope: string@View, move it
     LogPrimitivesObject(ctx.fs, scope, "never_join", "i32", "constructed", "never-branch join probe prepared")
     LogPrimitivesObject(ctx.fs, scope, "numeric_distinct", "bool", "constructed", "typed numeric width conformance predicate prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let null_read_metric: i32 = AcceptImmNull(null_read)
     let null_write_metric: i32 = AcceptMutNull(null_write)
     null_metric = null_read_metric + null_write_metric
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let safe_ptr_state: Ptr<i32> = safe_ptr_null
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let safe_ptr_valid_metric: i32 = AcceptSafePtrValid(safe_ptr_valid)
     let safe_ptr_null_metric: i32 = AcceptSafePtrNull(safe_ptr_null)
     safe_ptr_expired_metric = AcceptSafePtrState(safe_ptr_state)
     safe_pointer_metric = safe_ptr_valid_metric + safe_ptr_null_metric + safe_ptr_expired_metric
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let safe_ptr_expired_diagnostic_label: string@View = "E-TYP-2102"
     let safe_ptr_expired_diagnostic_ok: bool = safe_ptr_expired_metric == 1
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let string_left_metric: i32 = AcceptStringView(string_left)
     let string_right_metric: i32 = AcceptStringView(string_right)
     string_metric = string_left_metric + string_right_metric
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let string_managed_result: string@Managed | AllocationError = string::to_managed(string_left, ctx.heap)
     let string_managed_metric: i32 = StringManagedMetric(string_managed_result)
     let string_view_length: usize = string::length(string_left)
     let string_view_direct_length: usize = string::length("types")
     let string_view_expected_length: usize = 5
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     if string_managed_result is {
         managed_text: string@Managed {
             let string_clone_result: string@Managed | AllocationError = string::clone_with(managed_text, ctx.heap)
@@ -345,36 +302,24 @@ procedure VerifyPrimitivesLiteralsItem(ctx: Context, scope: string@View, move it
         }
     }
     if (string_clone_metric == 1) {
-        [[log(label: "types-log-transition_move")]]
-    } else {
-        [[log(label: "types-log-transition_move")]]
-    }
+        } else {
+        }
     if (string_append_metric == 1) {
-        [[log(label: "types-log-transition_move")]]
-    } else {
-        [[log(label: "types-log-transition_move")]]
-    }
+        } else {
+        }
 
-    [[log(label: "types-log-transition_move")]]
     let bytes_view_from_string: bytes@View = bytes::view_string(string_left)
     let bytes_view_accept_metric: i32 = AcceptBytesView(bytes_view_from_string)
     let bytes_view_length: usize = bytes::length(bytes_view_from_string)
     let bytes_view_expected_length: usize = 5
     let bytes_view_length_metric: i32 = if (bytes_view_length == bytes_view_expected_length) { 1 } else { 0 }
     let bytes_view_metric: i32 = bytes_view_accept_metric + bytes_view_length_metric
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let bytes_managed_result: bytes@Managed | AllocationError = bytes::to_managed(bytes_view_from_string, ctx.heap)
     let bytes_managed_metric: i32 = BytesManagedMetric(bytes_managed_result)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let bytes_seed_view: bytes@View = bytes::view(bytes_seed_slice)
     bytes_seed_length = bytes::length(bytes_seed_view)
     let bytes_seed_expected_length: usize = 3
     bytes_seed_length_metric = if (bytes_seed_length == bytes_seed_expected_length) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let bytes_from_slice_result: bytes@Managed | AllocationError = bytes::from_slice(bytes_seed_slice, ctx.heap)
     if bytes_from_slice_result is {
         managed_bytes: unique bytes@Managed {
@@ -406,22 +351,13 @@ procedure VerifyPrimitivesLiteralsItem(ctx: Context, scope: string@View, move it
         }
     }
     if (bytes_from_slice_metric == 1) {
-        [[log(label: "types-log-transition_move")]]
-    } else {
-        [[log(label: "types-log-transition_move")]]
-    }
+        } else {
+        }
     if (bytes_append_metric == 1) {
-        [[log(label: "types-log-transition_move")]]
-    } else {
-        [[log(label: "types-log-transition_move")]]
-    }
+        } else {
+        }
 
-    [[log(label: "types-log-transition_move")]]
     let never_join: i32 = if (false) { DivergeLoop() } else { 1 }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-runtime_phase_move")]]
     let signed_ok: bool = signed_sum == 8
     let unsigned_expected: u32 = 15
     let unsigned_ok: bool = unsigned_total == unsigned_expected
@@ -452,71 +388,71 @@ procedure VerifyPrimitivesLiteralsItem(ctx: Context, scope: string@View, move it
     let expected_string_append_length_value: usize = 6
     let expected_bytes_from_slice_length_value: usize = 3
     let expected_bytes_append_length_value: usize = 8
-    let signed_log_value: i32 = [[log(label: "observed-signed-integer-arithmetic", expected: 8)]] signed_sum
+    let signed_log_value: i32 = signed_sum
     let signed_log_matches_expected: bool = signed_log_value == 8
     let signed_ok_with_log: bool = signed_ok && signed_log_matches_expected
-    let unsigned_log_value: u32 = [[log(label: "observed-unsigned-integer-arithmetic", expected: 15)]] unsigned_total
+    let unsigned_log_value: u32 = unsigned_total
     let unsigned_log_matches_expected: bool = unsigned_log_value == unsigned_expected
     let unsigned_ok_with_log: bool = unsigned_ok && unsigned_log_matches_expected
-    let float_log_value: f32 = [[log(label: "observed-floating-point-arithmetic", expected: 4.0f)]] float_total
+    let float_log_value: f32 = float_total
     let float_log_matches_expected: bool = float_log_value == 4.0f
     let float_ok_with_log: bool = float_ok && float_log_matches_expected
-    let bool_char_log_value: bool = [[log(label: "observed-bool-char-literals", expected: true)]] bool_char_ok
+    let bool_char_log_value: bool = bool_char_ok
     let bool_char_log_matches_expected: bool = bool_char_log_value == true
     let bool_char_ok_with_log: bool = bool_char_ok && bool_char_log_matches_expected
-    let unit_log_value: i32 = [[log(label: "observed-unit-control-flow", expected: 1)]] unit_flow
+    let unit_log_value: i32 = unit_flow
     let unit_log_matches_expected: bool = unit_log_value == 1
     let unit_ok_with_log: bool = unit_ok && unit_log_matches_expected
-    let null_log_value: i32 = [[log(label: "observed-null-pointer-typing", expected: 2)]] null_metric
+    let null_log_value: i32 = null_metric
     let null_log_matches_expected: bool = null_log_value == 2
     let null_ok_with_log: bool = null_ok && null_log_matches_expected
-    let safe_pointer_log_value: i32 = [[log(label: "observed-safe-pointer-state-typing", expected: 3)]] safe_pointer_metric
+    let safe_pointer_log_value: i32 = safe_pointer_metric
     let safe_pointer_log_matches_expected: bool = safe_pointer_log_value == 3
-    let safe_ptr_expired_diag_log: bool = [[log(label: "observed-safe-pointer-expired-deref-diagnostic-contract", expected: true)]] safe_ptr_expired_diagnostic_ok
+    let safe_ptr_expired_diag_log: bool = safe_ptr_expired_diagnostic_ok
     let safe_ptr_expired_diag_log_matches_expected: bool = safe_ptr_expired_diag_log == true
     let safe_pointer_ok_with_log: bool = safe_pointer_ok && safe_pointer_log_matches_expected && safe_ptr_expired_diag_log_matches_expected
-    let string_log_value: i32 = [[log(label: "observed-string-literal-typing", expected: 2)]] string_metric
+    let string_log_value: i32 = string_metric
     let string_log_matches_expected: bool = string_log_value == 2
     let string_ok_with_log: bool = string_ok && string_log_matches_expected
-    let string_managed_log_value: i32 = [[log(label: "observed-string-managed-state-typing", expected: 1)]] string_managed_metric
+    let string_managed_log_value: i32 = string_managed_metric
     let string_managed_log_matches_expected: bool = string_managed_log_value == 1
-    let string_clone_log_value: i32 = [[log(label: "observed-string-clone-with-metric", expected: 1)]] string_clone_metric
+    let string_clone_log_value: i32 = string_clone_metric
     let string_clone_log_matches_expected: bool = string_clone_log_value == 1
-    let string_append_log_value: i32 = [[log(label: "observed-string-append-metric", expected: 1)]] string_append_metric
+    let string_append_log_value: i32 = string_append_metric
     let string_append_log_matches_expected: bool = string_append_log_value == 1
-    let string_append_length_log_value: usize = [[log(label: "observed-string-append-length", expected: 6)]] string_append_length
+    let string_append_length_log_value: usize = string_append_length
     let string_append_length_log_matches_expected: bool = string_append_length_log_value == expected_string_append_length_value
-    let string_view_length_log_value: usize = [[log(label: "observed-string-view-length", expected: 5)]] string_view_length
+    let string_view_length_log_value: usize = string_view_length
     let string_view_length_log_matches_expected: bool = string_view_length_log_value == string_view_expected_length
-    let string_view_direct_length_log_value: usize = [[log(label: "observed-string-direct-view-length", expected: 5)]] string_view_direct_length
+    let string_view_direct_length_log_value: usize = string_view_direct_length
     let string_view_direct_length_log_matches_expected: bool = string_view_direct_length_log_value == string_view_expected_length
     let string_managed_surface_ok_with_log: bool = string_managed_surface_ok && string_managed_log_matches_expected && string_clone_log_matches_expected && string_append_log_matches_expected && string_append_length_log_matches_expected && string_view_length_log_matches_expected && string_view_direct_length_log_matches_expected
-    let bytes_view_log_value: i32 = [[log(label: "observed-bytes-view-state-typing", expected: 2)]] bytes_view_metric
+    let bytes_view_log_value: i32 = bytes_view_metric
     let bytes_view_log_matches_expected: bool = bytes_view_log_value == 2
-    let bytes_view_length_log_value: usize = [[log(label: "observed-bytes-view-length", expected: 5)]] bytes_view_length
+    let bytes_view_length_log_value: usize = bytes_view_length
     let bytes_view_length_log_matches_expected: bool = bytes_view_length_log_value == bytes_view_expected_length
     let bytes_view_ok_with_log: bool = bytes_view_ok && bytes_view_log_matches_expected && bytes_view_length_log_matches_expected
-    let bytes_managed_log_value: i32 = [[log(label: "observed-bytes-managed-state-typing", expected: 1)]] bytes_managed_metric
+    let bytes_managed_log_value: i32 = bytes_managed_metric
     let bytes_managed_log_matches_expected: bool = bytes_managed_log_value == 1
-    let bytes_seed_length_log_value: usize = [[log(label: "observed-bytes-seed-length", expected: 3)]] bytes_seed_length
+    let bytes_seed_length_log_value: usize = bytes_seed_length
     let bytes_seed_length_log_matches_expected: bool = bytes_seed_length_log_value == bytes_seed_expected_length
-    let bytes_seed_length_metric_log_value: i32 = [[log(label: "observed-bytes-seed-length-metric", expected: 1)]] bytes_seed_length_metric
+    let bytes_seed_length_metric_log_value: i32 = bytes_seed_length_metric
     let bytes_seed_length_metric_log_matches_expected: bool = bytes_seed_length_metric_log_value == 1
-    let bytes_from_slice_log_value: i32 = [[log(label: "observed-bytes-from-slice-metric", expected: 1)]] bytes_from_slice_metric
+    let bytes_from_slice_log_value: i32 = bytes_from_slice_metric
     let bytes_from_slice_log_matches_expected: bool = bytes_from_slice_log_value == 1
-    let bytes_from_slice_length_log_value: usize = [[log(label: "observed-bytes-from-slice-length", expected: 3)]] bytes_from_slice_length
+    let bytes_from_slice_length_log_value: usize = bytes_from_slice_length
     let bytes_from_slice_length_log_matches_expected: bool = bytes_from_slice_length_log_value == expected_bytes_from_slice_length_value
-    let bytes_from_slice_length_metric_log_value: i32 = [[log(label: "observed-bytes-from-slice-length-metric", expected: 1)]] bytes_from_slice_length_metric
+    let bytes_from_slice_length_metric_log_value: i32 = bytes_from_slice_length_metric
     let bytes_from_slice_length_metric_log_matches_expected: bool = bytes_from_slice_length_metric_log_value == 1
-    let bytes_append_log_value: i32 = [[log(label: "observed-bytes-append-metric", expected: 1)]] bytes_append_metric
+    let bytes_append_log_value: i32 = bytes_append_metric
     let bytes_append_log_matches_expected: bool = bytes_append_log_value == 1
-    let bytes_append_length_log_value: usize = [[log(label: "observed-bytes-append-length", expected: 8)]] bytes_append_length
+    let bytes_append_length_log_value: usize = bytes_append_length
     let bytes_append_length_log_matches_expected: bool = bytes_append_length_log_value == expected_bytes_append_length_value
     let bytes_managed_surface_ok_with_log: bool = bytes_managed_surface_ok && bytes_managed_log_matches_expected && bytes_seed_length_log_matches_expected && bytes_seed_length_metric_log_matches_expected && bytes_from_slice_log_matches_expected && bytes_from_slice_length_log_matches_expected && bytes_from_slice_length_metric_log_matches_expected && bytes_append_log_matches_expected && bytes_append_length_log_matches_expected
-    let never_log_value: i32 = [[log(label: "observed-never-control-flow-join", expected: 1)]] never_join
+    let never_log_value: i32 = never_join
     let never_log_matches_expected: bool = never_log_value == 1
     let never_ok_with_log: bool = never_ok && never_log_matches_expected
-    let numeric_log_value: bool = [[log(label: "observed-distinct-numeric-widths", expected: true)]] numeric_distinct
+    let numeric_log_value: bool = numeric_distinct
     let numeric_log_matches_expected: bool = numeric_log_value == true
     let numeric_distinct_ok_with_log: bool = numeric_distinct && numeric_log_matches_expected
 
@@ -826,6 +762,5 @@ procedure RunPrimitivesLiterals(ctx: Context) -> i32 {
         return status_BytesManagedStates
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

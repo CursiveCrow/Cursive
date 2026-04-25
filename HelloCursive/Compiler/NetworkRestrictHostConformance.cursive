@@ -20,16 +20,12 @@ public procedure runCompilerNetworkRestrictHostRuntimeConformance(ctx: Context) 
     let runtime_completed: bool = true
 
     let parent_reusable_log: bool =
-        [[log(label: "observed-compiler-runtime-network-parent-reusable", expected: true)]]
         parent_reusable
     let sibling_restriction_ok_log: bool =
-        [[log(label: "observed-compiler-runtime-network-sibling-restriction", expected: true)]]
         sibling_restriction_ok
     let chained_restriction_ok_log: bool =
-        [[log(label: "observed-compiler-runtime-network-chained-restriction", expected: true)]]
         chained_restriction_ok
     let runtime_completed_log: bool =
-        [[log(label: "observed-compiler-runtime-network-runtime-completed", expected: true)]]
         runtime_completed
 
     let metric: i32 = if (
@@ -40,7 +36,6 @@ public procedure runCompilerNetworkRestrictHostRuntimeConformance(ctx: Context) 
     ) { 4 } else { 0 }
     let metric_label: string@View = compilerNetworkRestrictHostConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-compiler-runtime-network-restrict-host-metric", expected: "4")]]
         metric_label
 
     if (metric_log_actual != "4") {

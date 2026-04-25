@@ -20,7 +20,7 @@ procedure ModalStateConstructionMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalStateConstruction(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let open_state: ModalStateConstructionProbe@Open = BuildOpenState(9)
     let closed_state: ModalStateConstructionProbe@Closed =
@@ -34,15 +34,12 @@ public procedure RunModalStateConstruction(ctx: Context) -> i32 {
     let closed_metric: i32 = closed_state.reason
 
     let open_metric_log: i32 =
-        [[log(label: "observed-modals-modal-state-construction-open", expected: 9)]]
         open_metric
     let closed_metric_log: i32 =
-        [[log(label: "observed-modals-modal-state-construction-closed", expected: 5)]]
         closed_metric
 
     let mod_008: string@View = "MOD-008"
     let mod_008_log: string@View =
-        [[log(label: "modals-core-modal-state-construction-feature-008", expected: "MOD-008")]]
         mod_008
 
     let runtime_ok: bool =
@@ -50,19 +47,17 @@ public procedure RunModalStateConstruction(ctx: Context) -> i32 {
         (closed_metric_log == 5) &&
         (mod_008_log == "MOD-008")
     let runtime_ok_log: bool =
-        [[log(label: "modals-core-modal-state-construction-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 14 } else { 0 }
     let metric_label: string@View = ModalStateConstructionMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-state-construction-metric", expected: "14")]]
         metric_label
     if (metric_log_actual != "14") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

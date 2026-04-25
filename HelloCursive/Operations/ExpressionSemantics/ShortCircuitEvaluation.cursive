@@ -6,8 +6,7 @@ procedure LogShortCircuitObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure ShortCircuitMetricLabel(value: i32) -> string@View {
     if (value == 0) {
@@ -40,41 +39,31 @@ procedure RunShortCircuitEvaluationItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyShortCircuitEvaluationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogShortCircuitObject(ctx.fs, scope, "short_circuit_and_rhs", "i32", "constructed", "rhs side-effect sentinel for && prepared")
     LogShortCircuitObject(ctx.fs, scope, "short_circuit_or_rhs", "i32", "constructed", "rhs side-effect sentinel for || prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
     var and_rhs_effect: i32 = 0
     var or_rhs_effect: i32 = 0
 
-    [[log(label: "operations-log-transition_move")]]
     let and_result: bool = false && {
         and_rhs_effect = 1
         true
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let or_result: bool = true || {
         or_rhs_effect = 1
         false
     }
-    [[log(label: "operations-log-transition_move")]]
     let and_guard_metric: i32 = if (and_result == false) { 1 } else { 0 }
     let or_guard_metric: i32 = if (or_result == true) { 1 } else { 0 }
     let effect_metric: i32 = and_rhs_effect + or_rhs_effect
@@ -94,13 +83,12 @@ procedure VerifyShortCircuitEvaluationItem(ctx: Context, scope: string@View, mov
     let guard_passed: bool = guard_metric == 2
     let runtime_passed: bool = runtime_metric == 2
 
-    let effect_passed_log_actual = [[log(label: "observed-short-circuit-rhs-effect-metric", expected: "0")]] effect_label
+    let effect_passed_log_actual = effect_label
     let effect_passed_with_log: bool = effect_passed && (effect_passed_log_actual == effect_label)
-    let guard_passed_log_actual = [[log(label: "observed-short-circuit-guard-metric", expected: "2")]] guard_label
+    let guard_passed_log_actual = guard_label
     let guard_passed_with_log: bool = guard_passed && (guard_passed_log_actual == guard_label)
-    let runtime_passed_log_actual = [[log(label: "observed-short-circuit-runtime-aggregate-metric", expected: "2")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunShortCircuitEvaluationItem(
             ctx,
@@ -187,6 +175,5 @@ procedure RunShortCircuitEvaluation(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

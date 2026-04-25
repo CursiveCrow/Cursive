@@ -6,8 +6,7 @@ procedure LogRegionBlockObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure RegionBlockMetricLabel(value: i32) -> string@View {
     if (value == 3) {
@@ -36,38 +35,29 @@ procedure RunRegionBlockItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyRegionBlockItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let diag_alloc_outside_region: string@View = "E-MEM-3021"
 
     LogRegionBlockObject(ctx.fs, scope, "region_syntax_probe", "region-block", "constructed", "region syntax probe prepared")
     LogRegionBlockObject(ctx.fs, scope, "region_nested_probe", "nested-region-block", "constructed", "nested region probe prepared")
     LogRegionBlockObject(ctx.fs, scope, "diag_alloc_outside_region", "diagnostic-code", "constructed", "alloc-outside-region diagnostic mapping prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
     var syntax_metric: i32 = 0
-    [[log(label: "operations-log-transition_move")]]
     region as r {
         let scoped_value: i32 = 3
         syntax_metric = scoped_value
     }
-    [[log(label: "operations-log-transition_move")]]
     var static_metric: i32 = 0
-    [[log(label: "operations-log-transition_move")]]
     region as outer {
         let outer_value: i32 = 4
         region as inner {
@@ -75,9 +65,8 @@ procedure VerifyRegionBlockItem(ctx: Context, scope: string@View, move item_inde
             static_metric = inner_value
         }
     }
-    [[log(label: "operations-log-transition_move")]]
     let diag_alloc_outside_region_ok: bool = diag_alloc_outside_region == "E-MEM-3021"
-    let diag_alloc_outside_region_ok_log_actual = [[log(label: "diagnostic-alloc-outside-region", expected: "E-MEM-3021")]] diag_alloc_outside_region
+    let diag_alloc_outside_region_ok_log_actual = diag_alloc_outside_region
     let diag_alloc_outside_region_ok_with_log: bool = diag_alloc_outside_region_ok && (diag_alloc_outside_region_ok_log_actual == diag_alloc_outside_region)
     let diag_count: i32 = if (diag_alloc_outside_region_ok) { 1 } else { 0 }
     let runtime_metric: i32 = syntax_metric + static_metric + diag_count
@@ -87,15 +76,14 @@ procedure VerifyRegionBlockItem(ctx: Context, scope: string@View, move item_inde
     let runtime_passed: bool = runtime_metric == 10
 
     let actual_label_1: string@View = RegionBlockMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-region-block-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = RegionBlockMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-region-block-static-metric", expected: "6")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = RegionBlockMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-region-block-runtime-metric", expected: "10")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunRegionBlockItem(
             ctx,
@@ -182,6 +170,5 @@ procedure RunRegionBlockOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

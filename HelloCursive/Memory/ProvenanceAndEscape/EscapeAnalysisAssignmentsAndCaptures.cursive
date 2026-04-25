@@ -41,19 +41,14 @@ public procedure RunEscapeAnalysisAssignmentsAndCaptures(ctx: Context) -> i32 {
     }
 
     let assignment_metric_log: i32 =
-        [[log(label: "observed-memory-provenance-assignment-metric", expected: 9)]]
         assignment_metric
     let closure_metric_log: i32 =
-        [[log(label: "observed-memory-provenance-closure-capture-metric", expected: 9)]]
         closure_metric
     let nested_closure_metric_log: i32 =
-        [[log(label: "observed-memory-provenance-nested-closure-capture-metric", expected: 10)]]
         nested_closure_metric
     let async_capture_metric_log: i32 =
-        [[log(label: "observed-memory-provenance-async-capture-metric", expected: 10)]]
         async_capture_metric
     let async_capture_chain_metric_log: i32 =
-        [[log(label: "observed-memory-provenance-async-capture-chain-metric", expected: 15)]]
         async_capture_chain_metric
 
     let assignment_ok: bool = assignment_metric_log == 9
@@ -63,12 +58,12 @@ public procedure RunEscapeAnalysisAssignmentsAndCaptures(ctx: Context) -> i32 {
     let async_capture_ok: bool = async_capture_metric_log == 10
     let async_capture_chain_ok: bool = async_capture_chain_metric_log == 15
 
-    let assignment_ok_log: bool = [[log(label: "memory-provenance-assignment-escape", expected: true)]] assignment_ok
-    let compound_ok_log: bool = [[log(label: "memory-provenance-compound-assignment-escape", expected: true)]] compound_ok
-    let closure_ok_log: bool = [[log(label: "memory-provenance-closure-capture-escape", expected: true)]] closure_ok
-    let nested_closure_ok_log: bool = [[log(label: "memory-provenance-nested-closure-capture-escape", expected: true)]] nested_closure_ok
-    let async_capture_ok_log: bool = [[log(label: "memory-provenance-async-capture-escape", expected: true)]] async_capture_ok
-    let async_capture_chain_ok_log: bool = [[log(label: "memory-provenance-async-capture-chain-escape", expected: true)]] async_capture_chain_ok
+    let assignment_ok_log: bool = assignment_ok
+    let compound_ok_log: bool = compound_ok
+    let closure_ok_log: bool = closure_ok
+    let nested_closure_ok_log: bool = nested_closure_ok
+    let async_capture_ok_log: bool = async_capture_ok
+    let async_capture_chain_ok_log: bool = async_capture_chain_ok
 
     let metric: i32 = if (
         assignment_ok &&
@@ -86,15 +81,14 @@ public procedure RunEscapeAnalysisAssignmentsAndCaptures(ctx: Context) -> i32 {
     ) { 49 } else { 0 }
     let metric_label: string@View = EscapeAnalysisMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-memory-provenance-escape-metric", expected: "49")]]
         metric_label
     if (metric_log_actual != "49") {
         let fail_marker: string@View = "memory-provenance-escape-fail"
-        [[log(label: "memory-log-item_fail")]] fail_marker
+        fail_marker
         return 1
     }
 
     let success_marker: string@View = "memory-provenance-escape-success"
-    [[log(label: "memory-log-memory_item_success")]] success_marker
+    success_marker
     return 0
 }

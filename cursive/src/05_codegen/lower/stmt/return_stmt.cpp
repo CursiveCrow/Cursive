@@ -114,7 +114,8 @@ IRPtr EmitDynamicPostconditionCheckForReturn(const IRValue& return_value,
   ctx.contract_result_value = prev_result;
 
   if (core::IsDebugEnabled("return")) {
-    std::cerr << "[return-post-debug] proc=" << ctx.proc_log_name
+    std::cerr << "[return-post-debug] proc="
+              << ctx.current_proc_symbol.value_or("<unknown>")
               << " cond_kind=" << static_cast<int>(post_result.value.kind)
               << " cond_name=" << post_result.value.name << "\n";
   }
@@ -219,32 +220,6 @@ IRPtr LowerReturnStmt(const ast::ReturnStmt& stmt,
   // Section 6.8 Emit cleanup for all variables from current scope to function root
   CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
   ir_parts.push_back(EmitCleanup(cleanup_plan, ctx));
-
-  if (ctx.proc_log_enabled) {
-    const std::string exit_payload_base = BuildProcedureLogPayloadBase(
-        "exit",
-        ctx.proc_log_name,
-        ctx.proc_log_label,
-        ctx.proc_log_expected,
-        ctx.proc_log_expected_token_kind,
-        !ctx.proc_log_expected_is_ident);
-    if (IsUnitType(value_type)) {
-      ir_parts.push_back(EmitRuntimeTraceUnitActual("Log-Proc-Exit",
-                                                    exit_payload_base +
-                                                        ";actual=",
-                                                    stmt.span));
-    } else {
-      ir_parts.push_back(EmitProcLogTraceWithCmp(
-          "Log-Proc-Exit",
-          exit_payload_base,
-          ctx.proc_log_expected,
-          ctx.proc_log_expected_token_kind,
-          return_value,
-          value_type,
-          ctx,
-          stmt.span));
-    }
-  }
 
   // Emit the return
   IRReturn ret;

@@ -45,8 +45,6 @@ procedure DynDispatchMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunDynamicDispatchAlphaBetaExercise(ctx: Context) -> i32 {
-    [[log(label: "types-log-item_begin")]]
-
     let alpha: DescribableAlpha = DescribableAlpha { base: 5 }
     let beta: DescribableBeta = DescribableBeta { base: 5 }
 
@@ -54,25 +52,23 @@ public procedure RunDynamicDispatchAlphaBetaExercise(ctx: Context) -> i32 {
     let beta_dyn: $Describable = beta
 
     let alpha_result: i32 = InvokeDescribable(alpha_dyn)
-    let alpha_result_log: i32 = [[log(label: "observed-dyn-dispatch-alpha", expected: 10)]] alpha_result
+    let alpha_result_log: i32 = alpha_result
     let alpha_ok: bool = alpha_result_log == 10
 
     let beta_result: i32 = InvokeDescribable(beta_dyn)
-    let beta_result_log: i32 = [[log(label: "observed-dyn-dispatch-beta", expected: 15)]] beta_result
+    let beta_result_log: i32 = beta_result
     let beta_ok: bool = beta_result_log == 15
 
     let combined: i32 = alpha_result + beta_result
-    let combined_log: i32 = [[log(label: "observed-dyn-dispatch-combined", expected: 25)]] combined
+    let combined_log: i32 = combined
     let combined_ok: bool = combined_log == 25
 
     let all_ok: bool = alpha_ok && beta_ok && combined_ok
-    let all_ok_log: bool = [[log(label: "dyn-dispatch-runtime", expected: true)]] all_ok
+    let all_ok_log: bool = all_ok
 
     if (all_ok_log != true) {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 

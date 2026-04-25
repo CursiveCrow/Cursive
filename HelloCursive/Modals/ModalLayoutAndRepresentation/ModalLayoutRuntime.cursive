@@ -16,7 +16,7 @@ procedure ModalLayoutRuntimeMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalLayoutRuntime(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let zero_general: ModalLayoutRuntimeProbe =
         widen(ModalLayoutRuntimeProbe@Zero { })
@@ -44,28 +44,20 @@ public procedure RunModalLayoutRuntime(ctx: Context) -> i32 {
     let payload_align: usize = alignof(ModalLayoutRuntimeProbe@Payload)
 
     let zero_metric_log: i32 =
-        [[log(label: "observed-modals-layout-runtime-zero", expected: 2)]]
         zero_metric
     let payload_metric_log: i32 =
-        [[log(label: "observed-modals-layout-runtime-payload", expected: 10)]]
         payload_metric
     let general_size_log: usize =
-        [[log(label: "observed-modals-layout-runtime-size-general")]]
         general_size
     let zero_size_log: usize =
-        [[log(label: "observed-modals-layout-runtime-size-zero")]]
         zero_size
     let payload_size_log: usize =
-        [[log(label: "observed-modals-layout-runtime-size-payload")]]
         payload_size
     let general_align_log: usize =
-        [[log(label: "observed-modals-layout-runtime-align-general")]]
         general_align
     let zero_align_log: usize =
-        [[log(label: "observed-modals-layout-runtime-align-zero")]]
         zero_align
     let payload_align_log: usize =
-        [[log(label: "observed-modals-layout-runtime-align-payload")]]
         payload_align
     let layout_size_align_ok: bool =
         (general_size_log == 12usize) &&
@@ -75,12 +67,10 @@ public procedure RunModalLayoutRuntime(ctx: Context) -> i32 {
         (zero_align_log == 1usize) &&
         (payload_align_log == 4usize)
     let layout_size_align_ok_log: bool =
-        [[log(label: "modals-layout-runtime-size-align", expected: true)]]
         layout_size_align_ok
 
     let mod_056: string@View = "MOD-056"
     let mod_056_log: string@View =
-        [[log(label: "modals-layout-runtime-feature-056", expected: "MOD-056")]]
         mod_056
 
     let runtime_ok: bool =
@@ -89,19 +79,17 @@ public procedure RunModalLayoutRuntime(ctx: Context) -> i32 {
         (layout_size_align_ok_log == true) &&
         (mod_056_log == "MOD-056")
     let runtime_ok_log: bool =
-        [[log(label: "modals-layout-runtime-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 12 } else { 0 }
     let metric_label: string@View = ModalLayoutRuntimeMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-layout-runtime-metric", expected: "12")]]
         metric_label
     if (metric_log_actual != "12") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -16,7 +16,7 @@ procedure ModalTypeRelationsMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalTypeRelations(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let alpha_one: ModalTypeRelationProbe@Alpha =
         ModalTypeRelationProbe@Alpha { value: 3 }
@@ -39,27 +39,21 @@ public procedure RunModalTypeRelations(ctx: Context) -> i32 {
     }
 
     let alpha_equivalence_metric_log: bool =
-        [[log(label: "observed-modals-modal-type-equivalence", expected: true)]]
         alpha_equivalence_metric
     let alpha_general_metric_log: i32 =
-        [[log(label: "observed-modals-modal-type-alpha-general", expected: 3)]]
         alpha_general_metric
     let beta_general_metric_log: i32 =
-        [[log(label: "observed-modals-modal-type-beta-general", expected: 8)]]
         beta_general_metric
 
     let incomparability_rule: string@View = "M@A-not-subtype-of-M@B"
     let incomparability_rule_log: string@View =
-        [[log(label: "modals-core-modal-incomparability-rule", expected: "M@A-not-subtype-of-M@B")]]
         incomparability_rule
 
     let mod_010: string@View = "MOD-010"
     let mod_011: string@View = "MOD-011"
     let mod_010_log: string@View =
-        [[log(label: "modals-core-modal-type-relations-feature-010", expected: "MOD-010")]]
         mod_010
     let mod_011_log: string@View =
-        [[log(label: "modals-core-modal-type-relations-feature-011", expected: "MOD-011")]]
         mod_011
 
     let runtime_ok: bool =
@@ -70,19 +64,17 @@ public procedure RunModalTypeRelations(ctx: Context) -> i32 {
         (mod_010_log == "MOD-010") &&
         (mod_011_log == "MOD-011")
     let runtime_ok_log: bool =
-        [[log(label: "modals-core-modal-type-relations-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 19 } else { 0 }
     let metric_label: string@View = ModalTypeRelationsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-type-relations-metric", expected: "19")]]
         metric_label
     if (metric_log_actual != "19") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

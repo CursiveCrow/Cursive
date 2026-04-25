@@ -19,8 +19,6 @@ procedure AddressOfIndexBoundsMetricLabel(value: i32) -> string@View {
 
 public procedure RunAddressOfIndexBounds(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let values: [i32; 3] = [4, 7, 11]
     let in_bounds_ptr: Ptr<i32>@Valid = &values[1usize]
     let in_bounds_metric: i32 = *in_bounds_ptr
@@ -34,16 +32,12 @@ public procedure RunAddressOfIndexBounds(ctx: Context) -> i32 {
         hc_pointers_addr_index_catch(9usize)
     }
     let in_bounds_metric_log: i32 =
-        [[log(label: "observed-pointers-runtime-index-bounds-array-read", expected: 7)]]
         in_bounds_metric
     let in_bounds_slice_metric_log: i32 =
-        [[log(label: "observed-pointers-runtime-index-bounds-slice-read", expected: 11)]]
         in_bounds_slice_metric
     let in_bounds_catch_metric_log: i32 =
-        [[log(label: "observed-pointers-runtime-index-bounds-catch-in-bounds", expected: 11)]]
         in_bounds_catch_metric
     let oob_catch_metric_log: i32 =
-        [[log(label: "observed-pointers-runtime-index-bounds-catch-oob", expected: 0)]]
         oob_catch_metric
 
     let in_bounds_ok: bool = in_bounds_metric_log == 7
@@ -51,16 +45,12 @@ public procedure RunAddressOfIndexBounds(ctx: Context) -> i32 {
     let in_bounds_catch_ok: bool = in_bounds_catch_metric_log == 11
     let oob_catch_ok: bool = oob_catch_metric_log == 0
     let in_bounds_ok_log: bool =
-        [[log(label: "pointers-runtime-index-bounds-in-bounds", expected: true)]]
         in_bounds_ok
     let in_bounds_slice_ok_log: bool =
-        [[log(label: "pointers-runtime-index-bounds-in-bounds-slice", expected: true)]]
         in_bounds_slice_ok
     let in_bounds_catch_ok_log: bool =
-        [[log(label: "pointers-runtime-index-bounds-in-bounds-catch", expected: true)]]
         in_bounds_catch_ok
     let oob_catch_ok_log: bool =
-        [[log(label: "pointers-runtime-index-bounds-oob-catch", expected: true)]]
         oob_catch_ok
 
     let metric_ok: bool =
@@ -71,13 +61,10 @@ public procedure RunAddressOfIndexBounds(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 18 } else { 0 }
     let metric_label: string@View = AddressOfIndexBoundsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-runtime-address-index-bounds-metric", expected: "18")]]
         metric_label
     if (metric_log_actual != "18") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

@@ -6,7 +6,7 @@ procedure FileSystemCreateDirConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemCreateDirConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -81,16 +81,12 @@ public procedure RunFileSystemCreateDirConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-create-dir-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let create_dir_ok_log: bool =
-        [[log(label: "observed-modals-fs-create-dir-success", expected: true)]]
         create_dir_ok
     let exists_after_create_log: bool =
-        [[log(label: "observed-modals-fs-create-dir-exists-after", expected: true)]]
         exists_after_create
     let open_dir_empty_ok_log: bool =
-        [[log(label: "observed-modals-fs-create-dir-open-empty", expected: true)]]
         open_dir_empty_ok
 
     let metric: i32 = if (
@@ -101,17 +97,16 @@ public procedure RunFileSystemCreateDirConformance(ctx: Context) -> i32 {
     ) { 4 } else { 0 }
     let metric_label: string@View = FileSystemCreateDirConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-create-dir-metric", expected: "4")]]
         metric_label
 
     let cleanup_probe_dir: () | IoError = fs~>remove(probe_dir_path)
     let _ = cleanup_probe_dir
 
     if (metric_log_actual != "4") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

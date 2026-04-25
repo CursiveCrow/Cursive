@@ -100,8 +100,7 @@ procedure LogCompoundObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunTuplesArraysSlicesRangesItem(
     ctx: Context,
@@ -118,7 +117,6 @@ procedure RunTuplesArraysSlicesRangesItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -127,17 +125,12 @@ procedure RunTuplesArraysSlicesRangesItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -170,26 +163,17 @@ procedure CompoundMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let tuple_pair: (i32, bool) = (7, true)
     let tuple_single: (i32;) = (7;)
     LogCompoundObject(ctx.fs, scope, "tuple_pair", "(i32,bool)", "constructed", "tuple form source prepared")
     LogCompoundObject(ctx.fs, scope, "tuple_single", "(i32;)", "constructed", "singleton tuple source prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let tuple_total: i32 = tuple_pair.0 + tuple_single.0
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let arr: [i32; 4] = [1, 2, 3, 4]
     LogCompoundObject(ctx.fs, scope, "arr", "[i32;4]", "constructed", "fixed-size array source prepared")
-    [[log(label: "types-log-transition_move")]]
     let array_total: i32 = arr[0] + arr[1] + arr[2]
-    [[log(label: "types-log-transition_move")]]
     let slice_view: [i32] = arr
     LogCompoundObject(ctx.fs, scope, "slice_view", "[i32]", "constructed", "slice view derived from array prepared")
-    [[log(label: "types-log-transition_move")]]
     let slice_presence: i32 = AcceptSliceView(slice_view)
     let slice_total: i32 = if (slice_presence == 1) { slice_view[1usize] + slice_view[2usize] } else { 0 }
     let slice_catch_in_bounds_metric: i32 = unsafe {
@@ -198,10 +182,8 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
     let slice_catch_oob_metric: i32 = unsafe {
         hc_types_slice_index_catch(9usize)
     }
-    [[log(label: "types-log-transition_move")]]
     let range_source: i32 = 3
     LogCompoundObject(ctx.fs, scope, "range_source", "i32", "constructed", "range pattern source scalar prepared")
-    [[log(label: "types-log-transition_move")]]
     let range_pattern_metric: i32 = if range_source is {
         1..=3 { 2 }
         _ { 0 }
@@ -221,12 +203,9 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
         hc_types_range_index_catch(3usize, 9usize)
     }
     let range_metric: i32 = range_pattern_metric + range_slice_metric
-    [[log(label: "types-log-transition_move")]]
     let nested: ((i32, i32), [i32; 2]) = ((2, 3), [4, 5])
     LogCompoundObject(ctx.fs, scope, "nested", "((i32,i32),[i32;2])", "constructed", "nested compound composition source prepared")
-    [[log(label: "types-log-transition_move")]]
     let nested_total: i32 = nested.0.0 + nested.0.1 + nested.1[0] + nested.1[1]
-    [[log(label: "types-log-transition_move")]]
     var tuple_eval_order: i32 = 0
     let tuple_eval_ptr: Ptr<i32>@Valid = &tuple_eval_order
     var tuple_eval_raw: *mut i32 =
@@ -237,16 +216,13 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
         AdvanceTupleEvalOrder(tuple_eval_raw, 3)
     )
     LogCompoundObject(ctx.fs, scope, "tuple_eval_value", "(i32,i32,i32)", "constructed", "tuple evaluation-order probe prepared")
-    [[log(label: "types-log-transition_move")]]
     let tuple_eval_metric: i32 =
         tuple_eval_value.0 + tuple_eval_value.1 + tuple_eval_value.2 + tuple_eval_order
-    [[log(label: "types-log-transition_move")]]
     var tuple_ctrl_order: i32 = 0
     let tuple_ctrl_ptr: Ptr<i32>@Valid = &tuple_ctrl_order
     var tuple_ctrl_raw: *mut i32 =
         unsafe { transmute<Ptr<i32>@Valid, *mut i32>(tuple_ctrl_ptr) }
     let tuple_ctrl_result: i32 = EvaluateTupleControlProbe(tuple_ctrl_raw)
-    [[log(label: "types-log-transition_move")]]
     var array_eval_order: i32 = 0
     let array_eval_ptr: Ptr<i32>@Valid = &array_eval_order
     var array_eval_raw: *mut i32 =
@@ -257,16 +233,13 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
         AdvanceArrayEvalOrder(array_eval_raw, 3)
     ]
     LogCompoundObject(ctx.fs, scope, "array_eval_value", "[i32;3]", "constructed", "array evaluation-order probe prepared")
-    [[log(label: "types-log-transition_move")]]
     let array_eval_metric: i32 =
         array_eval_value[0] + array_eval_value[1] + array_eval_value[2] + array_eval_order
-    [[log(label: "types-log-transition_move")]]
     var array_ctrl_order: i32 = 0
     let array_ctrl_ptr: Ptr<i32>@Valid = &array_ctrl_order
     var array_ctrl_raw: *mut i32 =
         unsafe { transmute<Ptr<i32>@Valid, *mut i32>(array_ctrl_ptr) }
     let array_ctrl_result: i32 = EvaluateArrayControlProbe(array_ctrl_raw)
-    [[log(label: "types-log-transition_move")]]
     let observed_tuple_step: string@View = "observed-tuple-forms-metric"
     let observed_array_step: string@View = "observed-array-forms-metric"
     let observed_slice_step: string@View = "observed-slice-forms-metric"
@@ -303,29 +276,23 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
     let tuple_metric_passed: bool = tuple_total == 14
     let array_metric_passed: bool = array_total == 6
     let slice_catch_in_bounds_metric_log: i32 =
-        [[log(label: "observed-slice-index-catch-in-bounds-metric", expected: 4)]]
         slice_catch_in_bounds_metric
     let slice_catch_oob_metric_log: i32 =
-        [[log(label: "observed-slice-index-catch-oob-metric", expected: 0)]]
         slice_catch_oob_metric
     let slice_catch_passed: bool =
         (slice_catch_in_bounds_metric_log == 4) &&
         (slice_catch_oob_metric_log == 0)
     let slice_catch_passed_with_log: bool =
-        [[log(label: "observed-slice-index-catch-bounds", expected: true)]]
         slice_catch_passed
     let slice_metric_passed: bool = (slice_total == 5) && slice_catch_passed_with_log
     let range_catch_in_bounds_metric_log: i32 =
-        [[log(label: "observed-range-index-catch-in-bounds-metric", expected: 3)]]
         range_catch_in_bounds_metric
     let range_catch_oob_metric_log: i32 =
-        [[log(label: "observed-range-index-catch-oob-metric", expected: 0)]]
         range_catch_oob_metric
     let range_catch_passed: bool =
         (range_catch_in_bounds_metric_log == 3) &&
         (range_catch_oob_metric_log == 0)
     let range_catch_passed_with_log: bool =
-        [[log(label: "observed-range-index-catch-bounds", expected: true)]]
         range_catch_passed
     let range_metric_passed: bool = (range_metric == 10) && range_catch_passed_with_log
     let nested_metric_passed: bool = nested_total == 14
@@ -350,37 +317,36 @@ procedure VerifyTuplesArraysSlicesRangesItem(ctx: Context, scope: string@View, m
     let tuple_paren_non_paren_metric_passed: bool =
         tuple_paren_non_paren_metric == 17
 
-    let tuple_metric_passed_log_actual = [[log(label: "observed-tuple-forms-metric", expected: "14")]] tuple_metric_label
+    let tuple_metric_passed_log_actual = tuple_metric_label
     let tuple_metric_passed_with_log: bool = tuple_metric_passed && (tuple_metric_passed_log_actual == expected_tuple)
-    let array_metric_passed_log_actual = [[log(label: "observed-array-forms-metric", expected: "6")]] array_metric_label
+    let array_metric_passed_log_actual = array_metric_label
     let array_metric_passed_with_log: bool = array_metric_passed && (array_metric_passed_log_actual == expected_array)
-    let slice_metric_passed_log_actual = [[log(label: "observed-slice-forms-metric", expected: "5")]] slice_metric_label
+    let slice_metric_passed_log_actual = slice_metric_label
     let slice_metric_passed_with_log: bool = slice_metric_passed && (slice_metric_passed_log_actual == expected_slice)
-    let range_metric_passed_log_actual = [[log(label: "observed-range-forms-metric", expected: "10")]] range_metric_label
+    let range_metric_passed_log_actual = range_metric_label
     let range_metric_passed_with_log: bool = range_metric_passed && (range_metric_passed_log_actual == expected_range)
-    let nested_metric_passed_log_actual = [[log(label: "observed-nested-compound-metric", expected: "14")]] nested_metric_label
+    let nested_metric_passed_log_actual = nested_metric_label
     let nested_metric_passed_with_log: bool = nested_metric_passed && (nested_metric_passed_log_actual == expected_nested)
-    let tuple_eval_metric_passed_log_actual = [[log(label: "observed-tuple-eval-order-metric", expected: "259")]] tuple_eval_metric_label
+    let tuple_eval_metric_passed_log_actual = tuple_eval_metric_label
     let tuple_eval_metric_passed_with_log: bool =
         tuple_eval_metric_passed && (tuple_eval_metric_passed_log_actual == expected_tuple_eval)
     let tuple_ctrl_metric_passed_log_actual =
-        [[log(label: "observed-tuple-control-propagation-metric", expected: "17")]] tuple_ctrl_metric_label
+        tuple_ctrl_metric_label
     let tuple_ctrl_metric_passed_with_log: bool =
         tuple_ctrl_metric_passed && (tuple_ctrl_metric_passed_log_actual == expected_tuple_ctrl)
     let array_eval_metric_passed_log_actual =
-        [[log(label: "observed-array-eval-order-metric", expected: "259")]] array_eval_metric_label
+        array_eval_metric_label
     let array_eval_metric_passed_with_log: bool =
         array_eval_metric_passed && (array_eval_metric_passed_log_actual == expected_array_eval)
     let array_ctrl_metric_passed_log_actual =
-        [[log(label: "observed-array-control-propagation-metric", expected: "17")]] array_ctrl_metric_label
+        array_ctrl_metric_label
     let array_ctrl_metric_passed_with_log: bool =
         array_ctrl_metric_passed && (array_ctrl_metric_passed_log_actual == expected_array_ctrl)
     let tuple_paren_non_paren_metric_passed_log_actual =
-        [[log(label: "observed-tuple-paren-non-paren-delimiter-metric", expected: "17")]] tuple_paren_non_paren_metric_label
+        tuple_paren_non_paren_metric_label
     let tuple_paren_non_paren_metric_passed_with_log: bool =
         tuple_paren_non_paren_metric_passed &&
         (tuple_paren_non_paren_metric_passed_log_actual == expected_tuple_paren_non_paren)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunTuplesArraysSlicesRangesItem(
             ctx,
@@ -621,6 +587,5 @@ procedure RunTuplesArraysSlicesRanges(ctx: Context) -> i32 {
         return status_TupleParenNonParenDelimiters
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

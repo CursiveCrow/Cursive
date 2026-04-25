@@ -106,15 +106,12 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
     let selfvar_metric: i32 = selfvar_left~>combine(selfvar_right) + selfvar_bumped.value
     let selfvar_runtime_ok: bool = selfvar_metric == 25
     let selfvar_runtime_log: bool =
-        [[log(label: "types-core-selfvar-typepath-runtime", expected: true)]]
         selfvar_runtime_ok
     let generic_args_opt_none_runtime_ok: bool = path_metric == 9
     let generic_args_opt_none_runtime_log: bool =
-        [[log(label: "types-core-parse-generic-args-opt-none-runtime", expected: true)]]
         generic_args_opt_none_runtime_ok
     let generic_args_opt_yes_runtime_ok: bool = ptr_metric == 6
     let generic_args_opt_yes_runtime_log: bool =
-        [[log(label: "types-core-parse-generic-args-opt-yes-runtime", expected: true)]]
         generic_args_opt_yes_runtime_ok
     let generic_type_apply_metric: i32 =
         generic_left_metric +
@@ -122,7 +119,6 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
         generic_nested_metric
     let generic_type_apply_ok: bool = generic_type_apply_metric == 39
     let generic_type_apply_log: bool =
-        [[log(label: "types-core-parse-generic-args-opt-yes-type-apply-runtime", expected: true)]]
         generic_type_apply_ok
     let refine_metric: i32 = refine_value
     let permission_metric: i32 = const_value + shared_value
@@ -130,7 +126,6 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
     let slice_param_metric: i32 = TypeParsingSurfaceSliceWindow(array_for_slice)
     let slice_coercion_ok: bool = slice_param_metric == 10
     let slice_coercion_ok_log: bool =
-        [[log(label: "types-core-type-parsing-array-expr-as-slice", expected: true)]]
         slice_coercion_ok
 
     let total_metric: i32 =
@@ -161,19 +156,15 @@ procedure RunTypeParsingSurfaceCoverage(ctx: Context) -> i32 {
         (generic_type_apply_log == true) &&
         (slice_coercion_ok_log == true)
     let parse_surface_ok_log: bool =
-        [[log(label: "types-core-type-parsing-surface", expected: true)]]
         parse_surface_ok
 
     let metric: i32 = if ((parse_surface_ok_log == true) && parse_surface_ok) { 118 } else { 0 }
     let metric_label: string@View = TypeParsingSurfaceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-types-core-type-parsing-surface-metric", expected: "118")]]
         metric_label
     if (metric_log_actual != "118") {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }

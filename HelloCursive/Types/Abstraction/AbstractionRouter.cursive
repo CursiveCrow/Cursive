@@ -16,7 +16,7 @@ procedure LogFeatureStatus(
     let expected_zero: string@View = "0"
     let actual_status: string@View = FeatureStatusLabel(status)
     let passed: bool = status == 0
-    let passed_log_actual = [[log(label: "observed-feature-status", expected: "0")]] actual_status
+    let passed_log_actual = actual_status
     let passed_with_log: bool = passed && (passed_log_actual == expected_zero)
 }
 

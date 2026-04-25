@@ -24,8 +24,7 @@ procedure LogConstraintsObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunConstraintsAndWhereClausesItem(
     ctx: Context,
@@ -42,7 +41,6 @@ procedure RunConstraintsAndWhereClausesItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -51,17 +49,12 @@ procedure RunConstraintsAndWhereClausesItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -76,7 +69,6 @@ procedure ConstraintMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyConstraintsAndWhereClausesItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let positive_three: i32 = 3
     let positive_two: i32 = 2
     let positive_four: i32 = 4
@@ -85,15 +77,11 @@ procedure VerifyConstraintsAndWhereClausesItem(ctx: Context, scope: string@View,
     LogConstraintsObject(ctx.fs, scope, "predicate_inputs", "i32 set", "constructed", "positive/negative candidate values prepared")
     LogConstraintsObject(ctx.fs, scope, "upper_limit", "i32", "constructed", "upper bound for where-clause predicates prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let inline_candidate: i32 | bool = PositiveGate(positive_three)
     let inline_bound_metric: i32 = if inline_candidate is {
         accepted: i32 { if (accepted == 3) { 1 } else { 0 } }
         _: bool { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let where_left: i32 | bool = PositiveUnder(positive_two, positive_four)
     let where_right: i32 | bool = PositiveUnder(positive_three, upper_limit)
     let where_left_score: i32 = if where_left is {
@@ -105,8 +93,6 @@ procedure VerifyConstraintsAndWhereClausesItem(ctx: Context, scope: string@View,
         _: bool { 0 }
     }
     let where_predicate_metric: i32 = if ((where_left_score + where_right_score) == 5) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let bounds_primary: i32 | bool = PositiveUnder(positive_three, upper_limit)
     let bounds_secondary: i32 | bool = PositiveGate(positive_three)
     let bounds_primary_ok: bool = if bounds_primary is {
@@ -118,8 +104,6 @@ procedure VerifyConstraintsAndWhereClausesItem(ctx: Context, scope: string@View,
         _: bool { false }
     }
     let multiple_bounds_metric: i32 = if (bounds_primary_ok && bounds_secondary_ok) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let satisfied_value: i32 | bool = PositiveUnder(positive_four, upper_limit)
     let rejected_value: i32 | bool = PositiveUnder(negative_one, upper_limit)
     let satisfied_ok: bool = if satisfied_value is {
@@ -131,7 +115,6 @@ procedure VerifyConstraintsAndWhereClausesItem(ctx: Context, scope: string@View,
         _: i32 { false }
     }
     let satisfaction_metric: i32 = if (satisfied_ok && rejected_ok) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
     let observed_inline_step: string@View = "observed-inline-bounds-metric"
     let observed_where_step: string@View = "observed-where-clause-predicates-metric"
     let observed_multiple_step: string@View = "observed-multiple-bounds-conjunction-metric"
@@ -149,15 +132,14 @@ procedure VerifyConstraintsAndWhereClausesItem(ctx: Context, scope: string@View,
     let multiple_metric_passed: bool = multiple_bounds_metric == 1
     let satisfaction_metric_passed: bool = satisfaction_metric == 1
 
-    let inline_metric_passed_log_actual = [[log(label: "observed-inline-bounds-metric", expected: "1")]] inline_metric_label
+    let inline_metric_passed_log_actual = inline_metric_label
     let inline_metric_passed_with_log: bool = inline_metric_passed && (inline_metric_passed_log_actual == expected_inline)
-    let where_metric_passed_log_actual = [[log(label: "observed-where-clause-predicates-metric", expected: "1")]] where_metric_label
+    let where_metric_passed_log_actual = where_metric_label
     let where_metric_passed_with_log: bool = where_metric_passed && (where_metric_passed_log_actual == expected_where)
-    let multiple_metric_passed_log_actual = [[log(label: "observed-multiple-bounds-conjunction-metric", expected: "1")]] multiple_metric_label
+    let multiple_metric_passed_log_actual = multiple_metric_label
     let multiple_metric_passed_with_log: bool = multiple_metric_passed && (multiple_metric_passed_log_actual == expected_multiple)
-    let satisfaction_metric_passed_log_actual = [[log(label: "observed-constraint-satisfaction-metric", expected: "1")]] satisfaction_metric_label
+    let satisfaction_metric_passed_log_actual = satisfaction_metric_label
     let satisfaction_metric_passed_with_log: bool = satisfaction_metric_passed && (satisfaction_metric_passed_log_actual == expected_satisfaction)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunConstraintsAndWhereClausesItem(
             ctx,
@@ -266,6 +248,5 @@ procedure RunConstraintsAndWhereClauses(ctx: Context) -> i32 {
         return status_ConstraintSatisfaction
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

@@ -10,8 +10,7 @@ procedure LogExprStmtObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunExpressionStatementDeclarationTypingItem(
     ctx: Context,
@@ -28,7 +27,6 @@ procedure RunExpressionStatementDeclarationTypingItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -37,17 +35,12 @@ procedure RunExpressionStatementDeclarationTypingItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -68,30 +61,21 @@ procedure ExprStmtMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyExpressionStatementDeclarationTypingItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let expr_input: i32 = 2
     LogExprStmtObject(ctx.fs, scope, "expr_input", "i32", "constructed", "expression typing matrix input prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let expr_metric: i32 = EvaluateExpressionMatrix(expr_input)
-    [[log(label: "types-log-transition_move")]]
     let shadow_seed: i32 = 3
     LogExprStmtObject(ctx.fs, scope, "shadow_seed", "i32", "constructed", "alias source binding prepared")
-    [[log(label: "types-log-transition_move")]]
     let shadow_metric: i32 = {
         let shadow_seed_inner: i32 = shadow_seed + 4
         shadow_seed_inner
     }
     let binding_next: i32 = shadow_metric
-    [[log(label: "types-log-transition_move")]]
     var assign_value: i32 = 5
     LogExprStmtObject(ctx.fs, scope, "assign_value", "var i32", "constructed", "mutable assignment target prepared")
-    [[log(label: "types-log-transition_move")]]
     assign_value = assign_value + 2
     let assign_metric: i32 = assign_value
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let block_metric: i32 = if (binding_next == 7) {
         let block_left: i32 = 2
         let block_right: i32 = 5
@@ -99,11 +83,8 @@ procedure VerifyExpressionStatementDeclarationTypingItem(ctx: Context, scope: st
     } else {
         0
     }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let join_value: i32 = if (binding_next == 7) { 7 } else { 0 }
     let join_metric: i32 = if (join_value == 7) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
     let observed_expr_step: string@View = "observed-expression-matrix-metric"
     let observed_binding_step: string@View = "observed-let-var-shadow-metric"
     let observed_assignment_step: string@View = "observed-assignment-typing-metric"
@@ -125,17 +106,16 @@ procedure VerifyExpressionStatementDeclarationTypingItem(ctx: Context, scope: st
     let block_metric_passed: bool = block_metric == 7
     let join_metric_passed: bool = join_metric == 1
 
-    let expr_metric_passed_log_actual = [[log(label: "observed-expression-matrix-metric", expected: "10")]] expr_metric_label
+    let expr_metric_passed_log_actual = expr_metric_label
     let expr_metric_passed_with_log: bool = expr_metric_passed && (expr_metric_passed_log_actual == expected_expr)
-    let binding_metric_passed_log_actual = [[log(label: "observed-let-var-shadow-metric", expected: "7")]] binding_metric_label
+    let binding_metric_passed_log_actual = binding_metric_label
     let binding_metric_passed_with_log: bool = binding_metric_passed && (binding_metric_passed_log_actual == expected_binding)
-    let assignment_metric_passed_log_actual = [[log(label: "observed-assignment-typing-metric", expected: "7")]] assignment_metric_label
+    let assignment_metric_passed_log_actual = assignment_metric_label
     let assignment_metric_passed_with_log: bool = assignment_metric_passed && (assignment_metric_passed_log_actual == expected_assignment)
-    let block_metric_passed_log_actual = [[log(label: "observed-block-result-metric", expected: "7")]] block_metric_label
+    let block_metric_passed_log_actual = block_metric_label
     let block_metric_passed_with_log: bool = block_metric_passed && (block_metric_passed_log_actual == expected_block)
-    let join_metric_passed_log_actual = [[log(label: "observed-control-flow-join-metric", expected: "1")]] join_metric_label
+    let join_metric_passed_log_actual = join_metric_label
     let join_metric_passed_with_log: bool = join_metric_passed && (join_metric_passed_log_actual == expected_join)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunExpressionStatementDeclarationTypingItem(
             ctx,
@@ -266,6 +246,5 @@ procedure RunExpressionStatementDeclarationTyping(ctx: Context) -> i32 {
         return status_ControlFlowJoinTyping
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

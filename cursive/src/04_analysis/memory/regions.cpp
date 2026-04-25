@@ -1468,8 +1468,7 @@ class ClosureCaptureCollector {
             if (node.body) {
               VisitBlock(*node.body);
             }
-          } else if constexpr (std::is_same_v<T, ast::LogStmt> ||
-                               std::is_same_v<T, ast::ErrorStmt>) {
+          } else if constexpr (std::is_same_v<T, ast::ErrorStmt>) {
           }
         },
         stmt);

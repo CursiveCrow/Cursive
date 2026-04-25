@@ -10,8 +10,7 @@ procedure LogUnsafeCastObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure UnsafeCastMetricLabel(value: i32) -> string@View {
     if (value == 7) {
@@ -40,22 +39,17 @@ procedure RunUnsafeCastItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyUnsafeCastItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let pointer_cell: i32 = 7
     let safe_ptr: Ptr<i32>@Valid = &pointer_cell
     let one_u8: u8 = 1
@@ -68,21 +62,16 @@ procedure VerifyUnsafeCastItem(ctx: Context, scope: string@View, move item_index
     LogUnsafeCastObject(ctx.fs, scope, "diag_transmute_unsafe", "diagnostic-code", "constructed", "transmute unsafe-boundary diagnostic mapping prepared")
     LogUnsafeCastObject(ctx.fs, scope, "diag_transmute_size_mismatch", "diagnostic-code", "constructed", "transmute size-mismatch diagnostic mapping prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let raw_ptr: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_ptr) }
     let syntax_metric: i32 = UnsafeCastReadRaw(raw_ptr)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_bool: bool = one_u8 == 1u8
     let static_metric: i32 = if (static_bool) { 1 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
     let diag_transmute_unsafe_ok: bool = diag_transmute_unsafe == "E-MEM-3030"
     let diag_transmute_size_mismatch_ok: bool = diag_transmute_size_mismatch == "E-MEM-3031"
 
-    let diag_transmute_unsafe_ok_log_actual = [[log(label: "diagnostic-transmute-unsafe", expected: "E-MEM-3030")]] diag_transmute_unsafe
+    let diag_transmute_unsafe_ok_log_actual = diag_transmute_unsafe
     let diag_transmute_unsafe_ok_with_log: bool = diag_transmute_unsafe_ok && (diag_transmute_unsafe_ok_log_actual == diag_transmute_unsafe)
-    let diag_transmute_size_mismatch_ok_log_actual = [[log(label: "diagnostic-transmute-size-mismatch", expected: "E-MEM-3031")]] diag_transmute_size_mismatch
+    let diag_transmute_size_mismatch_ok_log_actual = diag_transmute_size_mismatch
     let diag_transmute_size_mismatch_ok_with_log: bool = diag_transmute_size_mismatch_ok && (diag_transmute_size_mismatch_ok_log_actual == diag_transmute_size_mismatch)
     let diag_count: i32 = if (diag_transmute_unsafe_ok && diag_transmute_size_mismatch_ok) { 2 } else { 0 }
     let runtime_metric: i32 = syntax_metric + static_metric + diag_count
@@ -92,15 +81,14 @@ procedure VerifyUnsafeCastItem(ctx: Context, scope: string@View, move item_index
     let runtime_passed: bool = runtime_metric == 10
 
     let actual_label_1: string@View = UnsafeCastMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-unsafe-cast-syntax-metric", expected: "7")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = UnsafeCastMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-unsafe-cast-static-metric", expected: "1")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = UnsafeCastMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-unsafe-cast-runtime-metric", expected: "10")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunUnsafeCastItem(
             ctx,
@@ -187,6 +175,5 @@ procedure RunUnsafeCastOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

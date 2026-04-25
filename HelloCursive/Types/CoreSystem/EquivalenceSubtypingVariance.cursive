@@ -12,8 +12,7 @@ procedure LogEquivalenceObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunEquivalenceSubtypingVarianceItem(
     ctx: Context,
@@ -30,7 +29,6 @@ procedure RunEquivalenceSubtypingVarianceItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -39,17 +37,12 @@ procedure RunEquivalenceSubtypingVarianceItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -80,7 +73,6 @@ procedure EquivalenceBoolLabel(value: bool) -> string@View {
 }
 
 procedure VerifyEquivalenceSubtypingVarianceItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let alias_value: EqAliasScalar = 9
     let tuple_left: (i32, bool) = (7, true)
     let tuple_right: (i32, bool) = tuple_left
@@ -111,19 +103,6 @@ procedure VerifyEquivalenceSubtypingVarianceItem(ctx: Context, scope: string@Vie
     LogEquivalenceObject(ctx.fs, scope, "shared_value", "shared i32", "constructed", "permission lattice intermediate shared value prepared")
     LogEquivalenceObject(ctx.fs, scope, "callable", "(i32,i32)->i32", "constructed", "variance/coercion callable prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let union_order_preserved: bool = (union_order_metric_i32 == 5) && (union_order_metric_bool == 1)
     let observed_nominal_step: string@View = "observed-nominal-equivalence-metric"
     let observed_structural_step: string@View = "observed-structural-equivalence-metric"
@@ -150,19 +129,18 @@ procedure VerifyEquivalenceSubtypingVarianceItem(ctx: Context, scope: string@Vie
     let variance_metric_passed: bool = callable_sum == 7
     let coercion_metric_passed: bool = coercion_join == 1
 
-    let nominal_metric_passed_log_actual = [[log(label: "observed-nominal-equivalence-metric", expected: "9")]] nominal_metric_label
+    let nominal_metric_passed_log_actual = nominal_metric_label
     let nominal_metric_passed_with_log: bool = nominal_metric_passed && (nominal_metric_passed_log_actual == expected_nominal)
-    let structural_metric_passed_log_actual = [[log(label: "observed-structural-equivalence-metric", expected: "7")]] structural_metric_label
+    let structural_metric_passed_log_actual = structural_metric_label
     let structural_metric_passed_with_log: bool = structural_metric_passed && (structural_metric_passed_log_actual == expected_structural)
-    let union_metric_passed_log_actual = [[log(label: "observed-union-order-independence-metric", expected: "true")]] union_metric_label
+    let union_metric_passed_log_actual = union_metric_label
     let union_metric_passed_with_log: bool = union_metric_passed && (union_metric_passed_log_actual == expected_union)
-    let permission_metric_passed_log_actual = [[log(label: "observed-permission-subtyping-metric", expected: "11")]] permission_metric_label
+    let permission_metric_passed_log_actual = permission_metric_label
     let permission_metric_passed_with_log: bool = permission_metric_passed && (permission_metric_passed_log_actual == expected_permission)
-    let variance_metric_passed_log_actual = [[log(label: "observed-variance-position-metric", expected: "7")]] variance_metric_label
+    let variance_metric_passed_log_actual = variance_metric_label
     let variance_metric_passed_with_log: bool = variance_metric_passed && (variance_metric_passed_log_actual == expected_variance)
-    let coercion_metric_passed_log_actual = [[log(label: "observed-coercion-site-metric", expected: "1")]] coercion_metric_label
+    let coercion_metric_passed_log_actual = coercion_metric_label
     let coercion_metric_passed_with_log: bool = coercion_metric_passed && (coercion_metric_passed_log_actual == expected_coercion)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunEquivalenceSubtypingVarianceItem(
             ctx,
@@ -315,6 +293,5 @@ procedure RunEquivalenceSubtypingVariance(ctx: Context) -> i32 {
         return status_CoercionSites
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

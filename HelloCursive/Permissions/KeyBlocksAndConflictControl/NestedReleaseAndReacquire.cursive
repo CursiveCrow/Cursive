@@ -7,7 +7,7 @@ procedure NestedReleaseAndReacquireMetricLabel(value: i32) -> string@View {
 
 public procedure RunNestedReleaseAndReacquire(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var gate: shared i32 = 10
     var outer_before: i32 = 0
@@ -36,13 +36,13 @@ public procedure RunNestedReleaseAndReacquire(ctx: Context) -> i32 {
 
     let diagnostic_code: string@View = "W-CON-0011"
 
-    let outer_before_log: i32 = [[log(label: "observed-permissions-NestedReleaseAndReacquire-outer-before", expected: 10)]] outer_before
-    let inner_write_log: i32 = [[log(label: "observed-permissions-NestedReleaseAndReacquire-inner-write", expected: 12)]] inner_write_value
-    let outer_after_log: i32 = [[log(label: "observed-permissions-NestedReleaseAndReacquire-outer-after", expected: 12)]] outer_after
-    let write_outer_before_log: i32 = [[log(label: "observed-permissions-NestedReleaseAndReacquire-write-outer-before", expected: 12)]] write_outer_before
-    let inner_read_log: i32 = [[log(label: "observed-permissions-NestedReleaseAndReacquire-inner-read", expected: 12)]] inner_read_value
-    let write_outer_after_log: i32 = [[log(label: "observed-permissions-NestedReleaseAndReacquire-write-outer-after", expected: 16)]] write_outer_after
-    let diagnostic_log: string@View = [[log(label: "permissions-NestedReleaseAndReacquire-diagnostic", expected: "W-CON-0011")]] diagnostic_code
+    let outer_before_log: i32 = outer_before
+    let inner_write_log: i32 = inner_write_value
+    let outer_after_log: i32 = outer_after
+    let write_outer_before_log: i32 = write_outer_before
+    let inner_read_log: i32 = inner_read_value
+    let write_outer_after_log: i32 = write_outer_after
+    let diagnostic_log: string@View = diagnostic_code
 
     let runtime_ok: bool =
         (outer_before_log == 10) &&
@@ -52,17 +52,17 @@ public procedure RunNestedReleaseAndReacquire(ctx: Context) -> i32 {
         (inner_read_log == 12) &&
         (write_outer_after_log == 16) &&
         (diagnostic_log == "W-CON-0011")
-    let runtime_ok_log: bool = [[log(label: "permissions-NestedReleaseAndReacquire-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 54 } else { 0 }
     let metric_label: string@View = NestedReleaseAndReacquireMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-NestedReleaseAndReacquire-metric", expected: "54")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "54") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

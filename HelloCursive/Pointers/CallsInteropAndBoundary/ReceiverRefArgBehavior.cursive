@@ -32,8 +32,6 @@ procedure ReceiverRefArgBehaviorMetricLabel(value: i32) -> string@View {
 
 public procedure RunReceiverRefArgBehavior(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let carrier_seed: unique ReceiverPointerCarrier =
         ReceiverPointerCarrier { value: 12 }
     var carrier: unique ReceiverPointerCarrier = move carrier_seed
@@ -43,16 +41,12 @@ public procedure RunReceiverRefArgBehavior(ctx: Context) -> i32 {
     let read_after_metric: i32 = carrier~>read()
     let sync_after_metric: i32 = carrier~>read_sync()
     let read_before_metric_log: i32 =
-        [[log(label: "observed-pointers-calls-receiver-read-before", expected: 12)]]
         read_before_metric
     let write_metric_log: i32 =
-        [[log(label: "observed-pointers-calls-receiver-write-through-raw", expected: 33)]]
         write_metric
     let read_after_metric_log: i32 =
-        [[log(label: "observed-pointers-calls-receiver-read-after", expected: 33)]]
         read_after_metric
     let sync_after_metric_log: i32 =
-        [[log(label: "observed-pointers-calls-receiver-sync-after", expected: 33)]]
         sync_after_metric
 
     let shared_seed: unique ReceiverPointerCarrier =
@@ -61,10 +55,8 @@ public procedure RunReceiverRefArgBehavior(ctx: Context) -> i32 {
     let shared_const_metric: i32 = shared_carrier~>read()
     let shared_sync_metric: i32 = shared_carrier~>read_sync()
     let shared_const_metric_log: i32 =
-        [[log(label: "observed-pointers-calls-receiver-shared-read", expected: 20)]]
         shared_const_metric
     let shared_sync_metric_log: i32 =
-        [[log(label: "observed-pointers-calls-receiver-shared-sync-read", expected: 20)]]
         shared_sync_metric
     let shared_path_metric: i32 = shared_const_metric + shared_sync_metric
 
@@ -78,10 +70,8 @@ public procedure RunReceiverRefArgBehavior(ctx: Context) -> i32 {
         (shared_sync_metric_log == 20) &&
         (shared_path_metric == 40)
     let receiver_path_ok_log: bool =
-        [[log(label: "pointers-calls-receiver-refarg-runtime", expected: true)]]
         receiver_path_ok
     let shared_path_ok_log: bool =
-        [[log(label: "pointers-calls-receiver-shared-runtime", expected: true)]]
         shared_path_ok
 
     let metric_ok: bool =
@@ -90,13 +80,10 @@ public procedure RunReceiverRefArgBehavior(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 30 } else { 0 }
     let metric_label: string@View = ReceiverRefArgBehaviorMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-calls-receiver-refarg-behavior-metric", expected: "30")]]
         metric_label
     if (metric_log_actual != "30") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

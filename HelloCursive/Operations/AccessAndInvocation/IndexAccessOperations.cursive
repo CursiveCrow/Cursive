@@ -6,8 +6,7 @@ procedure LogIndexAccessObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 [[dynamic, mangle("hc_operations_index_access_catch"), export("C-unwind"), unwind("catch")]]
 public procedure IndexAccessCatch(index: usize) -> i32
@@ -62,22 +61,17 @@ procedure RunIndexAccessOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyIndexAccessOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let array_probe: [i32; 4] = [2, 4, 6, 8]
     let matrix_left: [i32; 2] = [1, 2]
     let matrix_right: [i32; 2] = [3, 4]
@@ -85,18 +79,9 @@ procedure VerifyIndexAccessOperationsItem(ctx: Context, scope: string@View, move
     LogIndexAccessObject(ctx.fs, scope, "matrix_left", "[i32;2]", "constructed", "left array for chained index probes prepared")
     LogIndexAccessObject(ctx.fs, scope, "matrix_right", "[i32;2]", "constructed", "right array for chained index probes prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let index_syntax_metric: i32 = array_probe[0] + array_probe[1]
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let index_static_metric: i32 = array_probe[2] + array_probe[3]
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let index_runtime_metric: i32 = matrix_left[1] + matrix_right[0] + array_probe[1]
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let observed_syntax_step: string@View = "observed-index-access-syntax-metric"
     let observed_static_step: string@View = "observed-index-access-static-metric"
     let observed_runtime_step: string@View = "observed-index-access-runtime-metric"
@@ -119,27 +104,23 @@ procedure VerifyIndexAccessOperationsItem(ctx: Context, scope: string@View, move
     let runtime_passed: bool = index_runtime_metric == 9
     let dynamic_passed: bool = dynamic_index_metric == 16
 
-    let syntax_passed_log_actual = [[log(label: "observed-index-access-syntax-metric", expected: "6")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-index-access-static-metric", expected: "14")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-index-access-runtime-metric", expected: "9")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    let dynamic_passed_log_actual = [[log(label: "observed-index-access-dynamic-metric", expected: "16")]] dynamic_label
+    let dynamic_passed_log_actual = dynamic_label
     let dynamic_passed_with_log: bool = dynamic_passed && (dynamic_passed_log_actual == dynamic_label)
     let catch_in_bounds_metric_log: i32 =
-        [[log(label: "observed-index-access-catch-in-bounds-metric", expected: 11)]]
         catch_in_bounds_metric
     let catch_oob_metric_log: i32 =
-        [[log(label: "observed-index-access-catch-oob-metric", expected: 0)]]
         catch_oob_metric
     let catch_in_bounds_passed: bool = catch_in_bounds_metric_log == 11
     let catch_oob_passed: bool = catch_oob_metric_log == 0
     let catch_passed: bool = catch_in_bounds_passed && catch_oob_passed
     let catch_passed_with_log: bool =
-        [[log(label: "observed-index-access-catch-bounds", expected: true)]]
         catch_passed
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunIndexAccessOperationsItem(
             ctx,
@@ -270,6 +251,5 @@ procedure RunIndexAccessOperations(ctx: Context) -> i32 {
         return status_runtime_panic
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

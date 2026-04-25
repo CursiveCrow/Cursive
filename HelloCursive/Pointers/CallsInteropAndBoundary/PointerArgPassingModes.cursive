@@ -15,8 +15,6 @@ procedure PointerArgPassingModesMetricLabel(value: i32) -> string@View {
 
 public procedure RunPointerArgPassingModes(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let cell: i32 = 12
     let ptr_nonconsuming: Ptr<i32>@Valid = &cell
     let nonconsuming_metric: i32 = PointerArgObserve(ptr_nonconsuming)
@@ -30,10 +28,8 @@ public procedure RunPointerArgPassingModes(ctx: Context) -> i32 {
     let consuming_ok: bool = consuming_metric == 12
 
     let nonconsuming_ok_log: bool =
-        [[log(label: "pointers-calls-arg-nonconsuming", expected: true)]]
         nonconsuming_ok
     let consuming_ok_log: bool =
-        [[log(label: "pointers-calls-arg-consuming", expected: true)]]
         consuming_ok
 
     let metric_ok: bool =
@@ -42,13 +38,10 @@ public procedure RunPointerArgPassingModes(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 24 } else { 0 }
     let metric_label: string@View = PointerArgPassingModesMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-calls-arg-passing-modes-metric", expected: "24")]]
         metric_label
     if (metric_log_actual != "24") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

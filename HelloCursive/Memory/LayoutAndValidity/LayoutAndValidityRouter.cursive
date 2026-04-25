@@ -1,52 +1,44 @@
 procedure LayoutLogFeatureStatus(feature_name: string@View, status: i32) -> () {
-    [[log(label: "observed-memory-feature-status", expected: 0)]] status
-    [[log(label: "memory-log-feature_name")]] feature_name
+    status
+    feature_name
     return ()
 }
 
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "memory-log-section_start")]]
-
-    [[log(label: "memory-log-feature_dispatch")]] "memory::LayoutAndValidity::StructuralLayoutAndValidity"
+    "memory::LayoutAndValidity::StructuralLayoutAndValidity"
     let status_structural: i32 = RunStructuralLayoutAndValidity(ctx)
     LayoutLogFeatureStatus("memory::LayoutAndValidity::StructuralLayoutAndValidity", status_structural)
     if (status_structural != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_structural
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::LayoutAndValidity::LayoutSurfaceCoverage"
+    "memory::LayoutAndValidity::LayoutSurfaceCoverage"
     let status_surface: i32 = RunLayoutSurfaceCoverage(ctx)
     LayoutLogFeatureStatus("memory::LayoutAndValidity::LayoutSurfaceCoverage", status_surface)
     if (status_surface != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_surface
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::LayoutAndValidity::LlvmTypeMappingCoverage"
+    "memory::LayoutAndValidity::LlvmTypeMappingCoverage"
     let status_llvm_type_mapping: i32 = RunLlvmTypeMappingCoverage(ctx)
     LayoutLogFeatureStatus("memory::LayoutAndValidity::LlvmTypeMappingCoverage", status_llvm_type_mapping)
     if (status_llvm_type_mapping != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_llvm_type_mapping
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::LayoutAndValidity::EnumAndTextLayout"
+    "memory::LayoutAndValidity::EnumAndTextLayout"
     let status_enum_text: i32 = RunEnumAndTextLayout(ctx)
     LayoutLogFeatureStatus("memory::LayoutAndValidity::EnumAndTextLayout", status_enum_text)
     if (status_enum_text != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_enum_text
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::LayoutAndValidity::LayoutDiagnosticsAndBitValidity"
+    "memory::LayoutAndValidity::LayoutDiagnosticsAndBitValidity"
     let status_diag: i32 = RunLayoutDiagnosticsAndBitValidity(ctx)
     LayoutLogFeatureStatus("memory::LayoutAndValidity::LayoutDiagnosticsAndBitValidity", status_diag)
     if (status_diag != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_diag
     }
 
-    [[log(label: "memory-log-section_end")]]
     return 0
 }

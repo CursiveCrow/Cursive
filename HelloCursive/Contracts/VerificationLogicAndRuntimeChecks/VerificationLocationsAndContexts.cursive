@@ -47,7 +47,7 @@ procedure VerificationLocationsAndContextsMetricLabel(value: i32) -> string@View
 
 public procedure RunVerificationLocationsAndContexts(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let value_a: i32 = VerificationLocationPreProbe(5)
     let value_b: i32 = VerificationLocationPostProbe(6)
@@ -61,19 +61,14 @@ public procedure RunVerificationLocationsAndContexts(ctx: Context) -> i32 {
     }
 
     let value_a_log: i32 =
-        [[log(label: "observed-contracts-verification-location-pre-success", expected: 7)]]
         value_a
     let value_b_log: i32 =
-        [[log(label: "observed-contracts-verification-location-post-success", expected: 6)]]
         value_b
     let loop_value_log: i32 =
-        [[log(label: "observed-contracts-verification-location-loop-enforcement", expected: 3)]]
         loop_value
     let pre_check_panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-verification-location-pre-catch", expected: 0)]]
         pre_check_panic_catch_metric
     let post_check_panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-verification-location-post-catch", expected: 0)]]
         post_check_panic_catch_metric
 
     let call_site_check_enforced: bool = pre_check_panic_catch_metric_log == 0
@@ -81,18 +76,14 @@ public procedure RunVerificationLocationsAndContexts(ctx: Context) -> i32 {
     let enforcement_point_check_enforced: bool = loop_value_log == 3
 
     let call_site_check_enforced_log: bool =
-        [[log(label: "contracts-verification-location-call-site", expected: true)]]
         call_site_check_enforced
     let definition_site_check_enforced_log: bool =
-        [[log(label: "contracts-verification-location-definition-site", expected: true)]]
         definition_site_check_enforced
     let enforcement_point_check_enforced_log: bool =
-        [[log(label: "contracts-verification-location-enforcement-point", expected: true)]]
         enforcement_point_check_enforced
 
     let con_052: string@View = "CON-052"
     let con_052_log: string@View =
-        [[log(label: "contracts-verification-locations-and-contexts-feature-052", expected: "CON-052")]]
         con_052
 
     let runtime_ok: bool =
@@ -106,19 +97,17 @@ public procedure RunVerificationLocationsAndContexts(ctx: Context) -> i32 {
         (enforcement_point_check_enforced_log == true) &&
         (con_052_log == "CON-052")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-verification-locations-and-contexts-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = VerificationLocationsAndContextsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-verification-locations-and-contexts-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -303,11 +303,6 @@ StmtTypeResult TypeVarStmt(const ScopeContext& ctx,
     const auto closure_info =
         AnalyzeClosureCaptureInfo(binding.init, env, ann.type);
 
-    if (const auto log_diag =
-            ValidateLogAttributesForObservedType(ctx, binding.attrs, ann.type, env)) {
-      return {false, log_diag, {}, {}};
-    }
-
     // Introduce bindings with 'var' mutability
     const auto intro = IntroAll(env, pat.bindings, ast::Mutability::Var, false);
     if (!intro.ok) {
@@ -386,12 +381,6 @@ StmtTypeResult TypeVarStmt(const ScopeContext& ctx,
 
   const auto closure_info =
       AnalyzeClosureCaptureInfo(binding.init, env, inferred_type);
-
-  if (const auto log_diag =
-          ValidateLogAttributesForObservedType(ctx, binding.attrs, inferred_type,
-                                               env)) {
-    return {false, log_diag, {}, {}};
-  }
 
   // Introduce bindings with 'var' mutability
   const auto intro = IntroAll(env, pat.bindings, ast::Mutability::Var, false);

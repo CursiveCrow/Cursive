@@ -10,8 +10,7 @@ procedure LogSpawnExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure SpawnExpressionMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -47,35 +46,24 @@ procedure RunSpawnExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifySpawnExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogSpawnExpressionObject(ctx.fs, scope, "parallel_domain", "$ExecutionDomain", "constructed", "parallel execution domain handle prepared from context")
     LogSpawnExpressionObject(ctx.fs, scope, "named_spawn_literal", "i32", "constructed", "spawn body literal for named spawn prepared")
     LogSpawnExpressionObject(ctx.fs, scope, "pair_spawn_literals", "i32,i32", "constructed", "spawn body literals for pair wait exercise prepared")
     LogSpawnExpressionObject(ctx.fs, scope, "optioned_spawn_literal", "i32", "constructed", "spawn body literal for affinity/priority option exercise prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let spawn_named_metric: i32 = parallel ctx~>cpu() { let named_handle = spawn [name: "spawn-named"] { SpawnAdd(2, 3) }; let named_value: i32 = wait named_handle; named_value }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let spawn_pair_metric: i32 = parallel ctx~>cpu() { let left_handle = spawn { 4 }; let right_handle = spawn { 7 }; let left_value: i32 = wait left_handle; let right_value: i32 = wait right_handle; left_value + right_value }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let spawn_affinity_priority_metric: i32 = parallel ctx~>cpu() {
         let affinity_mask: CpuSet = 3u64
         let task_priority: Priority = Priority::High
@@ -83,7 +71,6 @@ procedure VerifySpawnExpressionOperationsItem(ctx: Context, scope: string@View, 
         let optioned_value: i32 = wait optioned_handle
         optioned_value
     }
-    [[log(label: "operations-log-transition_move")]]
     let spawn_runtime_metric: i32 = spawn_named_metric + spawn_pair_metric + spawn_affinity_priority_metric
 
     let observed_named_step: string@View = "observed-spawn-named-handle-metric"
@@ -103,15 +90,14 @@ procedure VerifySpawnExpressionOperationsItem(ctx: Context, scope: string@View, 
     let options_passed: bool = spawn_affinity_priority_metric == 9
     let runtime_passed: bool = spawn_runtime_metric == 25
 
-    let named_passed_log_actual = [[log(label: "observed-spawn-named-handle-metric", expected: "5")]] named_label
+    let named_passed_log_actual = named_label
     let named_passed_with_log: bool = named_passed && (named_passed_log_actual == named_label)
-    let pair_passed_log_actual = [[log(label: "observed-spawn-pair-wait-metric", expected: "11")]] pair_label
+    let pair_passed_log_actual = pair_label
     let pair_passed_with_log: bool = pair_passed && (pair_passed_log_actual == pair_label)
-    let options_passed_log_actual = [[log(label: "observed-spawn-affinity-priority-metric", expected: "9")]] options_label
+    let options_passed_log_actual = options_label
     let options_passed_with_log: bool = options_passed && (options_passed_log_actual == options_label)
-    let runtime_passed_log_actual = [[log(label: "observed-spawn-runtime-aggregate-metric", expected: "25")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunSpawnExpressionOperationsItem(
             ctx,
@@ -198,6 +184,5 @@ procedure RunSpawnExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

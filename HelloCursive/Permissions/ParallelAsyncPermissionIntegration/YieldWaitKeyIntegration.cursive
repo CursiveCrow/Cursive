@@ -17,7 +17,7 @@ procedure YieldWaitKeyIntegrationMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunYieldWaitKeyIntegration(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let async_metric: i32 = sync YieldWaitKeyIntegrationHost()
 
@@ -48,13 +48,13 @@ public procedure RunYieldWaitKeyIntegration(ctx: Context) -> i32 {
     let yield_diag: string@View = "E-CON-0213"
     let yield_from_diag: string@View = "E-CON-0224"
 
-    let async_metric_log: i32 = [[log(label: "observed-permissions-YieldWaitKeyIntegration-async", expected: 6)]] async_metric
-    let wait_metric_log: i32 = [[log(label: "observed-permissions-YieldWaitKeyIntegration-wait", expected: 4)]] wait_metric
-    let release_metric_log: i32 = [[log(label: "observed-permissions-YieldWaitKeyIntegration-release", expected: 5)]] release_metric
-    let wait_after_key_metric_log: i32 = [[log(label: "observed-permissions-YieldWaitKeyIntegration-wait-after-key", expected: 4)]] wait_after_key_metric
-    let wait_diag_log: string@View = [[log(label: "permissions-YieldWaitKeyIntegration-wait-diagnostic", expected: "E-CON-0133")]] wait_diag
-    let yield_diag_log: string@View = [[log(label: "permissions-YieldWaitKeyIntegration-yield-diagnostic", expected: "E-CON-0213")]] yield_diag
-    let yield_from_diag_log: string@View = [[log(label: "permissions-YieldWaitKeyIntegration-yield-from-diagnostic", expected: "E-CON-0224")]] yield_from_diag
+    let async_metric_log: i32 = async_metric
+    let wait_metric_log: i32 = wait_metric
+    let release_metric_log: i32 = release_metric
+    let wait_after_key_metric_log: i32 = wait_after_key_metric
+    let wait_diag_log: string@View = wait_diag
+    let yield_diag_log: string@View = yield_diag
+    let yield_from_diag_log: string@View = yield_from_diag
 
     let runtime_ok: bool =
         (async_metric_log == 6) &&
@@ -64,17 +64,17 @@ public procedure RunYieldWaitKeyIntegration(ctx: Context) -> i32 {
         (wait_diag_log == "E-CON-0133") &&
         (yield_diag_log == "E-CON-0213") &&
         (yield_from_diag_log == "E-CON-0224")
-    let runtime_ok_log: bool = [[log(label: "permissions-YieldWaitKeyIntegration-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 19 } else { 0 }
     let metric_label: string@View = YieldWaitKeyIntegrationMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-YieldWaitKeyIntegration-metric", expected: "19")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "19") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

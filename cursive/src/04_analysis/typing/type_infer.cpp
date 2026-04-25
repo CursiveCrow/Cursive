@@ -159,63 +159,6 @@ static bool HasMemoryOrderAttribute(const ast::AttributeList& attrs_list) {
          HasAttribute(attrs_list, attrs::kSeqCst);
 }
 
-static const ast::Token* FindNamedTokenArg(const ast::AttributeItem& attr,
-                                           std::string_view key) {
-  for (const auto& arg : attr.args) {
-    if (!arg.key.has_value() || *arg.key != key) {
-      continue;
-    }
-    return std::get_if<ast::Token>(&arg.value);
-  }
-  return nullptr;
-}
-
-static std::optional<std::string_view> ValidateAttributedExprLogExpected(
-    const ScopeContext& ctx,
-    const ast::AttributeList& attr_list,
-    const TypeRef& observed_type,
-    const IdentTypeFn& type_ident) {
-  for (const auto& attr : attr_list) {
-    if (attr.name != attrs::kLog) {
-      continue;
-    }
-
-    const ast::Token* expected_token = FindNamedTokenArg(attr, "expected");
-    if (!expected_token) {
-      continue;
-    }
-
-    if (!EqType(observed_type)) {
-      return "E-MOD-2458";
-    }
-
-    if (expected_token->kind == lexer::TokenKind::Identifier) {
-      const auto expected_ident = type_ident(expected_token->lexeme);
-      if (!expected_ident.ok || !expected_ident.type) {
-        return "E-MOD-2457";
-      }
-      const auto perm = PermOfType(expected_ident.type);
-      if (perm != Permission::Const && perm != Permission::Unique) {
-        return "E-MOD-2457";
-      }
-      const auto fwd = Subtyping(ctx, expected_ident.type, observed_type);
-      const auto rev = Subtyping(ctx, observed_type, expected_ident.type);
-      if (!(fwd.ok && fwd.subtype) && !(rev.ok && rev.subtype)) {
-        return "E-MOD-2457";
-      }
-      continue;
-    }
-
-    ast::LiteralExpr expected_lit;
-    expected_lit.literal = *expected_token;
-    const auto lit_check = CheckLiteralExpr(ctx, expected_lit, observed_type);
-    if (!lit_check.ok) {
-      return "E-MOD-2457";
-    }
-  }
-  return std::nullopt;
-}
-
 static bool PtrNullExpected(const TypeRef& type) {
   if (!type) {
     return false;
@@ -1375,12 +1318,6 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
         return result;
       }
       if (sub.subtype) {
-        if (const auto log_diag = ValidateAttributedExprLogExpected(
-                ctx, attributed->attrs, observed.type, type_ident)) {
-          result.diag_id = *log_diag;
-          return result;
-        }
-
         result.ok = true;
         return result;
       }
@@ -1391,12 +1328,6 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
                       type_ident, if_case_check);
     if (!checked_inner.ok) {
       result.diag_id = checked_inner.diag_id;
-      return result;
-    }
-
-    if (const auto log_diag = ValidateAttributedExprLogExpected(
-            ctx, attributed->attrs, expected, type_ident)) {
-      result.diag_id = *log_diag;
       return result;
     }
 

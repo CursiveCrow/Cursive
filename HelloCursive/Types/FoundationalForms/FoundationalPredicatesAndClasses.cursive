@@ -17,8 +17,7 @@ procedure LogFoundationalValue(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunFoundationalPredicatesAndClassesItem(
     ctx: Context,
@@ -35,7 +34,6 @@ procedure RunFoundationalPredicatesAndClassesItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -44,17 +42,12 @@ procedure RunFoundationalPredicatesAndClassesItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -87,49 +80,33 @@ procedure FoundationalMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyFoundationalPredicatesAndClassesItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let drop_input: i32 = 9
     LogFoundationalValue(ctx.fs, scope, "drop_input", "constructed", "drop probe source prepared")
-    [[log(label: "types-log-transition_move")]]
     let drop_metric: i32 = ConsumeDropProbe(move drop_input)
-    [[log(label: "types-log-transition_move")]]
     let bitcopy_source: i32 = 11
     LogFoundationalValue(ctx.fs, scope, "bitcopy_source", "constructed", "bitcopy probe source prepared")
-    [[log(label: "types-log-transition_move")]]
     let bitcopy_copy: i32 = bitcopy_source
     let bitcopy_metric: i32 = bitcopy_copy
-    [[log(label: "types-log-transition_move")]]
     let clone_input: i32 = 13
     LogFoundationalValue(ctx.fs, scope, "clone_input", "constructed", "clone probe source prepared")
-    [[log(label: "types-log-transition_move")]]
     let clone_metric: i32 = CloneValue(clone_input)
-    [[log(label: "types-log-transition_move")]]
     let eq_probe: i32 = 5
     LogFoundationalValue(ctx.fs, scope, "eq_probe", "constructed", "equality probe source prepared")
-    [[log(label: "types-log-transition_move")]]
     let eq_cloned: i32 = CloneValue(eq_probe)
     let eq_metric: i32 = if (eq_cloned == eq_probe) { 1 } else { 0 }
-    [[log(label: "types-log-transition_move")]]
     let hash_input: i32 = 2
     LogFoundationalValue(ctx.fs, scope, "hash_input", "constructed", "hash probe source prepared")
-    [[log(label: "types-log-transition_move")]]
     let hash_metric: i32 = HashValue(hash_input)
-    [[log(label: "types-log-transition_move")]]
     let iterator_arr: [i32; 3] = [1, 2, 3]
     LogFoundationalValue(ctx.fs, scope, "iterator_arr", "constructed", "iterator probe array prepared")
-    [[log(label: "types-log-transition_move")]]
     let iterator_metric: i32 = iterator_arr[0] + iterator_arr[1] + iterator_arr[2]
-    [[log(label: "types-log-transition_move")]]
     var step_value: i32 = 0
     LogFoundationalValue(ctx.fs, scope, "step_value", "constructed", "step progression probe initialized")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     step_value += 1
     step_value += 1
     step_value += 1
     let step_metric: i32 = step_value
-    [[log(label: "types-log-transition_move")]]
     let observed_drop_step: string@View = "observed-drop-class-metric"
     let observed_bitcopy_step: string@View = "observed-bitcopy-class-metric"
     let observed_clone_step: string@View = "observed-clone-class-metric"
@@ -159,21 +136,20 @@ procedure VerifyFoundationalPredicatesAndClassesItem(ctx: Context, scope: string
     let iterator_metric_passed: bool = iterator_metric == 6
     let step_metric_passed: bool = step_metric == 3
 
-    let drop_metric_passed_log_actual = [[log(label: "observed-drop-class-metric", expected: "9")]] drop_metric_label
+    let drop_metric_passed_log_actual = drop_metric_label
     let drop_metric_passed_with_log: bool = drop_metric_passed && (drop_metric_passed_log_actual == expected_drop)
-    let bitcopy_metric_passed_log_actual = [[log(label: "observed-bitcopy-class-metric", expected: "11")]] bitcopy_metric_label
+    let bitcopy_metric_passed_log_actual = bitcopy_metric_label
     let bitcopy_metric_passed_with_log: bool = bitcopy_metric_passed && (bitcopy_metric_passed_log_actual == expected_bitcopy)
-    let clone_metric_passed_log_actual = [[log(label: "observed-clone-class-metric", expected: "13")]] clone_metric_label
+    let clone_metric_passed_log_actual = clone_metric_label
     let clone_metric_passed_with_log: bool = clone_metric_passed && (clone_metric_passed_log_actual == expected_clone)
-    let eq_metric_passed_log_actual = [[log(label: "observed-eq-class-metric", expected: "1")]] eq_metric_label
+    let eq_metric_passed_log_actual = eq_metric_label
     let eq_metric_passed_with_log: bool = eq_metric_passed && (eq_metric_passed_log_actual == expected_eq)
-    let hash_metric_passed_log_actual = [[log(label: "observed-hash-hasher-metric", expected: "69")]] hash_metric_label
+    let hash_metric_passed_log_actual = hash_metric_label
     let hash_metric_passed_with_log: bool = hash_metric_passed && (hash_metric_passed_log_actual == expected_hash)
-    let iterator_metric_passed_log_actual = [[log(label: "observed-iterator-class-metric", expected: "6")]] iterator_metric_label
+    let iterator_metric_passed_log_actual = iterator_metric_label
     let iterator_metric_passed_with_log: bool = iterator_metric_passed && (iterator_metric_passed_log_actual == expected_iterator)
-    let step_metric_passed_log_actual = [[log(label: "observed-step-class-metric", expected: "3")]] step_metric_label
+    let step_metric_passed_log_actual = step_metric_label
     let step_metric_passed_with_log: bool = step_metric_passed && (step_metric_passed_log_actual == expected_step)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunFoundationalPredicatesAndClassesItem(
             ctx,
@@ -348,6 +324,5 @@ procedure RunFoundationalPredicatesAndClasses(ctx: Context) -> i32 {
         return status_StepClass
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

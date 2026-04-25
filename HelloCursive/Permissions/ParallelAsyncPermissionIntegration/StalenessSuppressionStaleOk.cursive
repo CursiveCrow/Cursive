@@ -23,7 +23,7 @@ procedure StalenessSuppressionStaleOkMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunStalenessSuppressionStaleOk(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let stale_metric: i32 = sync StalenessSuppressionStaleOkAsync()
 
@@ -41,27 +41,27 @@ public procedure RunStalenessSuppressionStaleOk(ctx: Context) -> i32 {
 
     let warning_code: string@View = "W-CON-0011"
 
-    let stale_metric_log: i32 = [[log(label: "observed-permissions-StalenessSuppressionStaleOk-stale-metric", expected: 9)]] stale_metric
-    let release_metric_log: i32 = [[log(label: "observed-permissions-StalenessSuppressionStaleOk-release-metric", expected: 7)]] release_metric
-    let wait_metric_log: i32 = [[log(label: "observed-permissions-StalenessSuppressionStaleOk-wait-metric", expected: 2)]] wait_metric
-    let warning_log: string@View = [[log(label: "permissions-StalenessSuppressionStaleOk-warning", expected: "W-CON-0011")]] warning_code
+    let stale_metric_log: i32 = stale_metric
+    let release_metric_log: i32 = release_metric
+    let wait_metric_log: i32 = wait_metric
+    let warning_log: string@View = warning_code
 
     let runtime_ok: bool =
         (stale_metric_log == 9) &&
         (release_metric_log == 7) &&
         (wait_metric_log == 2) &&
         (warning_log == "W-CON-0011")
-    let runtime_ok_log: bool = [[log(label: "permissions-StalenessSuppressionStaleOk-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 18 } else { 0 }
     let metric_label: string@View = StalenessSuppressionStaleOkMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-StalenessSuppressionStaleOk-metric", expected: "18")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "18") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -42,7 +42,7 @@ procedure ContractViolationPayloadSemanticsMetricLabel(value: i32) -> string@Vie
 
 public procedure RunContractViolationPayloadSemantics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let local_post_panic_catch_metric: i32 = unsafe {
         hc_contracts_violation_local_post_catch()
@@ -52,10 +52,8 @@ public procedure RunContractViolationPayloadSemantics(ctx: Context) -> i32 {
     }
 
     let local_post_panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-contract-violation-payload-local-post-catch", expected: 0)]]
         local_post_panic_catch_metric
     let foreign_post_panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-contract-violation-payload-foreign-post-catch", expected: 0)]]
         foreign_post_panic_catch_metric
 
     let payload_kind_local: string@View = "Post"
@@ -64,25 +62,19 @@ public procedure RunContractViolationPayloadSemantics(ctx: Context) -> i32 {
     let payload_site: string@View = "HelloCursive/Contracts/VerificationLogicAndRuntimeChecks/ContractViolationPayloadSemantics.cursive"
 
     let payload_kind_local_log: string@View =
-        [[log(label: "contracts-contract-violation-payload-kind-local", expected: "Post")]]
         payload_kind_local
     let payload_kind_foreign_log: string@View =
-        [[log(label: "contracts-contract-violation-payload-kind-foreign", expected: "ForeignPost")]]
         payload_kind_foreign
     let payload_pred_log: string@View =
-        [[log(label: "contracts-contract-violation-payload-predicate", expected: "@result >= 0")]]
         payload_pred
     let payload_site_log: string@View =
-        [[log(label: "contracts-contract-violation-payload-site", expected: "HelloCursive/Contracts/VerificationLogicAndRuntimeChecks/ContractViolationPayloadSemantics.cursive")]]
         payload_site
 
     let con_053: string@View = "CON-053"
     let con_062: string@View = "CON-062"
     let con_053_log: string@View =
-        [[log(label: "contracts-contract-violation-payload-semantics-feature-053", expected: "CON-053")]]
         con_053
     let con_062_log: string@View =
-        [[log(label: "contracts-contract-violation-payload-semantics-feature-062", expected: "CON-062")]]
         con_062
 
     let runtime_ok: bool =
@@ -95,19 +87,17 @@ public procedure RunContractViolationPayloadSemantics(ctx: Context) -> i32 {
         (con_053_log == "CON-053") &&
         (con_062_log == "CON-062")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-contract-violation-payload-semantics-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 28 } else { 0 }
     let metric_label: string@View = ContractViolationPayloadSemanticsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-contract-violation-payload-semantics-metric", expected: "28")]]
         metric_label
     if (metric_log_actual != "28") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -1,42 +1,42 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-section_start", expected: "section-start")]] "section-start"
+    "section-start"
 
     let status_exclusive: i32 = RunUniqueExclusivityInvariant(ctx)
     if (status_exclusive != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_exclusive
     }
 
     let status_transitions: i32 = RunUniqueActiveInactiveTransitions(ctx)
     if (status_transitions != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_transitions
     }
 
     let status_paths: i32 = RunUniquePathAccessLegality(ctx)
     if (status_paths != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_paths
     }
 
     let status_downgrade: i32 = RunUniqueDowngradeAndReactivation(ctx)
     if (status_downgrade != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_downgrade
     }
 
     let status_move: i32 = RunUniqueBindingMoveRequirements(ctx)
     if (status_move != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_move
     }
 
     let status_const_reject: i32 = RunConstMutationRejection(ctx)
     if (status_const_reject != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_const_reject
     }
 
-    [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+    "section-end"
     return 0
 }

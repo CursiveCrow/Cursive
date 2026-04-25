@@ -6,8 +6,7 @@ procedure LogRegionAllocationObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure RegionAllocationMetricLabel(value: i32) -> string@View {
     if (value == 3) {
@@ -36,29 +35,22 @@ procedure RunRegionAllocationItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyRegionAllocationItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogRegionAllocationObject(ctx.fs, scope, "implicit_alloc_probe", "^expr", "constructed", "implicit region allocation probe prepared")
     LogRegionAllocationObject(ctx.fs, scope, "explicit_alloc_probe", "region^expr", "constructed", "explicit region allocation probe prepared")
     LogRegionAllocationObject(ctx.fs, scope, "combined_alloc_probe", "^expr + region^expr", "constructed", "combined region allocation runtime probe prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
     var syntax_metric: i32 = 0
-    [[log(label: "operations-log-transition_move")]]
     region as r {
         let implicit_alloc: i32 = ^3
         if (implicit_alloc == 3) {
@@ -67,9 +59,7 @@ procedure VerifyRegionAllocationItem(ctx: Context, scope: string@View, move item
             syntax_metric = 0
         }
     }
-    [[log(label: "operations-log-transition_move")]]
     var static_metric: i32 = 0
-    [[log(label: "operations-log-transition_move")]]
     region as r {
         let explicit_alloc: i32 = r ^ 5
         if (explicit_alloc == 5) {
@@ -78,9 +68,7 @@ procedure VerifyRegionAllocationItem(ctx: Context, scope: string@View, move item
             static_metric = 0
         }
     }
-    [[log(label: "operations-log-transition_move")]]
     var runtime_metric: i32 = 0
-    [[log(label: "operations-log-transition_move")]]
     region as r {
         let left_alloc: i32 = ^2
         let right_alloc: i32 = r ^ 6
@@ -90,21 +78,19 @@ procedure VerifyRegionAllocationItem(ctx: Context, scope: string@View, move item
             runtime_metric = 0
         }
     }
-    [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = syntax_metric == 3
     let static_passed: bool = static_metric == 5
     let runtime_passed: bool = runtime_metric == 8
 
     let actual_label_1: string@View = RegionAllocationMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-region-allocation-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = RegionAllocationMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-region-allocation-static-metric", expected: "5")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = RegionAllocationMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-region-allocation-runtime-metric", expected: "8")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunRegionAllocationItem(
             ctx,
@@ -191,6 +177,5 @@ procedure RunRegionAllocationOperatorOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

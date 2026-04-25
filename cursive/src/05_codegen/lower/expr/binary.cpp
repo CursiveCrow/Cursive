@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // MIGRATION MAPPING: expr/binary.cpp
 // =============================================================================
 //
@@ -225,16 +225,6 @@ LowerResult LowerBinOp(const std::string& op,
   binop.rhs = rhs_result.value;
   binop.result = result_value;
   parts.push_back(MakeIR(std::move(binop)));
-
-  if (core::IsDebugEnabled("return") &&
-      ctx.proc_log_name == "ContractPredicateIntegrationShift") {
-    std::cerr << "[lower-binop-debug] proc=" << ctx.proc_log_name
-              << " op=" << op
-              << " op_size=" << op.size()
-              << " is_bool=" << (IsBoolBinOp(op) ? "1" : "0")
-              << " result=" << result_value.name
-              << "\n";
-  }
 
   if (IsBoolBinOp(op)) {
     ctx.RegisterValueType(result_value, analysis::MakeTypePrim("bool"));

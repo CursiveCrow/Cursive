@@ -193,14 +193,6 @@ std::optional<std::string_view> ComptimeTypeAvailabilityDiag(
     const TypeRef& type,
     std::string_view unavailable_diag_id);
 
-// Validate [[log(expected: ...)]] against an observed type.
-// Returns the diagnostic id on failure.
-std::optional<std::string_view> ValidateLogAttributesForObservedType(
-    const ScopeContext& ctx,
-    const ast::AttributeList& attr_list,
-    const TypeRef& observed_type,
-    const TypeEnv& env);
-
 // Internal helpers exposed for split expression files
 bool IsCapabilityType(const TypeRef& type);
 bool IsImpureType(const TypeRef& type);

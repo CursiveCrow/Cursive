@@ -27,19 +27,19 @@ procedure StaticDispatchOnlyDynamicInteropMetricLabel(value: i32) -> string@View
 
 public procedure RunStaticDispatchOnlyDynamicInterop(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let impl: AttributeStaticDispatchImpl = AttributeStaticDispatchImpl()
     let value: i32 = impl~>static_only(8)
     let dynamic_value: i32 = impl~>dynamic_ok(8)
-    let value_log: i32 = [[log(label: "observed-attributes-static-dispatch-only-runtime", expected: 11)]] value
-    let dynamic_value_log: i32 = [[log(label: "observed-attributes-static-dispatch-dynamic-ok-runtime", expected: 9)]] dynamic_value
+    let value_log: i32 = value
+    let dynamic_value_log: i32 = dynamic_value
 
-    let e2540: string@View = [[log(label: "attributes-static-dispatch-diagnostic-2540", expected: "E-TYP-2540")]] "E-TYP-2540"
-    let e2542: string@View = [[log(label: "attributes-static-dispatch-diagnostic-2542", expected: "E-TYP-2542")]] "E-TYP-2542"
+    let e2540: string@View = "E-TYP-2540"
+    let e2542: string@View = "E-TYP-2542"
 
-    let atr_035: string@View = [[log(label: "attributes-static-dispatch-feature-035", expected: "ATR-035")]] "ATR-035"
-    let atr_036: string@View = [[log(label: "attributes-static-dispatch-feature-036", expected: "ATR-036")]] "ATR-036"
+    let atr_035: string@View = "ATR-035"
+    let atr_036: string@View = "ATR-036"
 
     let runtime_ok: bool =
         (value_log == 11) &&
@@ -48,16 +48,16 @@ public procedure RunStaticDispatchOnlyDynamicInterop(ctx: Context) -> i32 {
         (e2542 == "E-TYP-2542") &&
         (atr_035 == "ATR-035") &&
         (atr_036 == "ATR-036")
-    let runtime_ok_log: bool = [[log(label: "attributes-static-dispatch-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 11 } else { 0 }
     let metric_label: string@View = StaticDispatchOnlyDynamicInteropMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-static-dispatch-dynamic-interop-metric", expected: "11")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "11") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

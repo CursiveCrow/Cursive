@@ -20,7 +20,7 @@ procedure ModalLayoutCodegenMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalLayoutCodegen(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let small_state: ModalLayoutCodegenProbe@Small =
         ModalLayoutCodegenProbe@Small { value: 5 }
@@ -55,28 +55,20 @@ public procedure RunModalLayoutCodegen(ctx: Context) -> i32 {
     let wide_align: usize = alignof(ModalLayoutCodegenProbe@Wide)
 
     let small_metric_log: i32 =
-        [[log(label: "observed-modals-layout-codegen-small", expected: 5)]]
         small_metric
     let wide_metric_log: i32 =
-        [[log(label: "observed-modals-layout-codegen-wide", expected: 24)]]
         wide_metric
     let general_size_log: usize =
-        [[log(label: "observed-modals-layout-codegen-size-general")]]
         general_size
     let small_size_log: usize =
-        [[log(label: "observed-modals-layout-codegen-size-small")]]
         small_size
     let wide_size_log: usize =
-        [[log(label: "observed-modals-layout-codegen-size-wide")]]
         wide_size
     let general_align_log: usize =
-        [[log(label: "observed-modals-layout-codegen-align-general")]]
         general_align
     let small_align_log: usize =
-        [[log(label: "observed-modals-layout-codegen-align-small")]]
         small_align
     let wide_align_log: usize =
-        [[log(label: "observed-modals-layout-codegen-align-wide")]]
         wide_align
     let layout_size_align_ok: bool =
         (general_size_log == 44usize) &&
@@ -86,12 +78,10 @@ public procedure RunModalLayoutCodegen(ctx: Context) -> i32 {
         (small_align_log == 4usize) &&
         (wide_align_log == 4usize)
     let layout_size_align_ok_log: bool =
-        [[log(label: "modals-layout-codegen-size-align", expected: true)]]
         layout_size_align_ok
 
     let mod_054: string@View = "MOD-054"
     let mod_054_log: string@View =
-        [[log(label: "modals-layout-codegen-feature-054", expected: "MOD-054")]]
         mod_054
 
     let runtime_ok: bool =
@@ -100,19 +90,17 @@ public procedure RunModalLayoutCodegen(ctx: Context) -> i32 {
         (layout_size_align_ok_log == true) &&
         (mod_054_log == "MOD-054")
     let runtime_ok_log: bool =
-        [[log(label: "modals-layout-codegen-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 25 } else { 0 }
     let metric_label: string@View = ModalLayoutCodegenMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-layout-codegen-metric", expected: "25")]]
         metric_label
     if (metric_log_actual != "25") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

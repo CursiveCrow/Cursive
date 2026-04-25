@@ -7,8 +7,6 @@ procedure DerefPlaceMutationMetricLabel(value: i32) -> string@View {
 
 public procedure RunDerefPlaceMutation(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     var cell: i32 = 30
 
     let safe_for_mut: Ptr<i32>@Valid = &cell
@@ -29,16 +27,13 @@ public procedure RunDerefPlaceMutation(ctx: Context) -> i32 {
 
     let diag_const_mutation: string@View = "E-TYP-1601"
     let diag_const_mutation_logged: string@View =
-        [[log(label: "pointers-deref-place-diag-const-mutation", expected: "E-TYP-1601")]]
         diag_const_mutation
     let diag_const_mutation_ok: bool =
         diag_const_mutation_logged == "E-TYP-1601"
 
     let mut_write_ok_log: bool =
-        [[log(label: "pointers-deref-place-runtime-mut-write", expected: true)]]
         mut_write_ok
     let imm_read_ok_log: bool =
-        [[log(label: "pointers-deref-place-runtime-imm-read", expected: true)]]
         imm_read_ok
 
     let metric_ok: bool =
@@ -48,13 +43,10 @@ public procedure RunDerefPlaceMutation(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 25 } else { 0 }
     let metric_label: string@View = DerefPlaceMutationMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-deref-place-mutation-metric", expected: "25")]]
         metric_label
     if (metric_log_actual != "25") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

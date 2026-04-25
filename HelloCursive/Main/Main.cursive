@@ -125,7 +125,6 @@ public procedure main(move ctx: Context) -> i32 {
     }
 
     let hostedshared_ordinary_followup: i32 =
-        [[log(label: "observed-hostedshared-ordinary-followup-metric", expected: 303)]]
         hostedshared::ordinary_followup_value()
     if (hostedshared_ordinary_followup != 303) {
         return 115
@@ -133,7 +132,6 @@ public procedure main(move ctx: Context) -> i32 {
 
     let hosted_abi_version: u32 = unsafe { __cursive_host_abi_version() }
     let hosted_abi_version_log: u32 =
-        [[log(label: "observed-hostedshared-host-abi-version", expected: 1)]]
         hosted_abi_version
     if (hosted_abi_version_log != 1u32) {
         return 116
@@ -146,7 +144,6 @@ public procedure main(move ctx: Context) -> i32 {
 
     let hosted_session_next: i32 = unsafe { hc_hosted_session_next(hosted_session_a) }
     let hosted_session_next_log: i32 =
-        [[log(label: "observed-hostedshared-host-session-next-metric", expected: 101)]]
         hosted_session_next
     if (hosted_session_next_log != 101) {
         return 118
@@ -154,7 +151,6 @@ public procedure main(move ctx: Context) -> i32 {
 
     let hosted_fail_zero: i32 = unsafe { hc_hosted_fail_zero(hosted_session_a) }
     let hosted_fail_zero_log: i32 =
-        [[log(label: "observed-hostedshared-host-fail-zero-metric", expected: 0)]]
         hosted_fail_zero
     if (hosted_fail_zero_log != 0) {
         return 119
@@ -170,7 +166,6 @@ public procedure main(move ctx: Context) -> i32 {
         (hosted_aggregate_result.second == 22) &&
         (hosted_aggregate_result.third == 33)
     let hosted_aggregate_result_ok_log: bool =
-        [[log(label: "observed-hostedshared-host-aggregate-result", expected: true)]]
         hosted_aggregate_result_ok
     if (hosted_aggregate_result_ok_log != true) {
         return 120
@@ -181,7 +176,6 @@ public procedure main(move ctx: Context) -> i32 {
         (hosted_aggregate_fail_zero.second == 0) &&
         (hosted_aggregate_fail_zero.third == 0)
     let hosted_aggregate_fail_zero_ok_log: bool =
-        [[log(label: "observed-hostedshared-host-aggregate-fail-zero-result", expected: true)]]
         hosted_aggregate_fail_zero_ok
     if (hosted_aggregate_fail_zero_ok_log != true) {
         return 121
@@ -197,7 +191,6 @@ public procedure main(move ctx: Context) -> i32 {
     let hosted_read_status: u32 =
         unsafe { hc_hosted_read_body_state(hosted_session_a, move hosted_read_cmd, move hosted_read_state_raw) }
     let hosted_read_status_log: u32 =
-        [[log(label: "observed-hostedshared-host-read-body-status", expected: 0)]]
         hosted_read_status
     if (hosted_read_status_log != 0u32) {
         return 128
@@ -207,7 +200,6 @@ public procedure main(move ctx: Context) -> i32 {
         (hosted_read_state.handle == 1u64) &&
         (hosted_read_state.motion == 2u32)
     let hosted_read_state_ok_log: bool =
-        [[log(label: "observed-hostedshared-host-read-body-state", expected: true)]]
         hosted_read_state_ok
     if (hosted_read_state_ok_log != true) {
         return 129
@@ -215,7 +207,6 @@ public procedure main(move ctx: Context) -> i32 {
 
     let hosted_destroy_a: u32 = unsafe { __cursive_host_session_destroy(hosted_session_a) }
     let hosted_destroy_a_log: u32 =
-        [[log(label: "observed-hostedshared-host-destroy-a", expected: 1)]]
         hosted_destroy_a
     if (hosted_destroy_a_log != 1u32) {
         return 122
@@ -223,7 +214,6 @@ public procedure main(move ctx: Context) -> i32 {
 
     let hosted_destroy_a_second: u32 = unsafe { __cursive_host_session_destroy(hosted_session_a) }
     let hosted_destroy_a_second_log: u32 =
-        [[log(label: "observed-hostedshared-host-destroy-a-second", expected: 0)]]
         hosted_destroy_a_second
     if (hosted_destroy_a_second_log != 0u32) {
         return 123
@@ -236,7 +226,6 @@ public procedure main(move ctx: Context) -> i32 {
 
     let hosted_session_b_next: i32 = unsafe { hc_hosted_session_next(hosted_session_b) }
     let hosted_session_b_next_log: i32 =
-        [[log(label: "observed-hostedshared-host-session-b-next-metric", expected: 101)]]
         hosted_session_b_next
     if (hosted_session_b_next_log != 101) {
         return 125
@@ -244,14 +233,12 @@ public procedure main(move ctx: Context) -> i32 {
 
     let hosted_destroy_b: u32 = unsafe { __cursive_host_session_destroy(hosted_session_b) }
     let hosted_destroy_b_log: u32 =
-        [[log(label: "observed-hostedshared-host-destroy-b", expected: 1)]]
         hosted_destroy_b
     if (hosted_destroy_b_log != 1u32) {
         return 126
     }
 
     let hostedshared_ordinary_post_host: i32 =
-        [[log(label: "observed-hostedshared-ordinary-post-host-metric", expected: 404)]]
         hostedshared::ordinary_followup_value()
     if (hostedshared_ordinary_post_host != 404) {
         return 127

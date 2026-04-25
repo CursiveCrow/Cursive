@@ -18,8 +18,7 @@ procedure LogProcedureCallObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure ProcedureCallMetricLabel(value: i32) -> string@View {
     if (value == 7) {
@@ -49,49 +48,33 @@ procedure RunProcedureCallOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyProcedureCallOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let direct_lhs: i32 = 3
     let direct_rhs: i32 = 4
     let typed_callable: (i32, i32) -> i32 = ProcedureCallAdd
     LogProcedureCallObject(ctx.fs, scope, "direct_args", "i32,i32", "constructed", "direct procedure call arguments prepared")
     LogProcedureCallObject(ctx.fs, scope, "typed_callable", "(i32,i32)->i32", "constructed", "typed callable value prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let procedure_syntax_metric: i32 = ProcedureCallAdd(direct_lhs, direct_rhs)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let procedure_static_metric: i32 = typed_callable(4, 6)
-    [[log(label: "operations-log-transition_move")]]
     LogProcedureCallObject(ctx.fs, scope, "consume_literal", "i32 literal", "constructed", "consuming call literal argument prepared")
     LogProcedureCallObject(ctx.fs, scope, "consume_place", "i32 place", "constructed", "consuming call place argument prepared")
     LogProcedureCallObject(ctx.fs, scope, "read_pair", "const i32,const i32", "constructed", "non-consuming pair arguments prepared")
 
-    [[log(label: "operations-log-transition_move")]]
     let consume_literal_metric: i32 = ProcedureCallConsume(5)
-    [[log(label: "operations-log-transition_move")]]
     let consume_place_source: i32 = 8
-    [[log(label: "operations-log-transition_move")]]
     let consume_place_metric: i32 = ProcedureCallConsume(move consume_place_source)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let read_pair_metric: i32 = ProcedureCallReadPair(1, 2)
-    [[log(label: "operations-log-transition_move")]]
     let procedure_runtime_metric: i32 = consume_literal_metric + consume_place_metric + read_pair_metric
 
     let observed_syntax_step: string@View = "observed-procedure-call-syntax-metric"
@@ -107,13 +90,12 @@ procedure VerifyProcedureCallOperationsItem(ctx: Context, scope: string@View, mo
     let static_passed: bool = procedure_static_metric == 10
     let runtime_passed: bool = procedure_runtime_metric == 18
 
-    let syntax_passed_log_actual = [[log(label: "observed-procedure-call-syntax-metric", expected: "7")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-procedure-call-static-metric", expected: "10")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-procedure-call-runtime-metric", expected: "18")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunProcedureCallOperationsItem(
             ctx,
@@ -200,6 +182,5 @@ procedure RunProcedureCallOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

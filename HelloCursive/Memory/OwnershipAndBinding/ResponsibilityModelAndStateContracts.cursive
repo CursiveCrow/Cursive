@@ -16,8 +16,6 @@ procedure OwnershipStateMetricLabel(value: i32) -> string@View {
 
 public procedure RunResponsibilityModelAndStateContracts(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     var responsible_slot: i32 = 30
     let alias_read_metric: i32 = {
         let alias_view: const i32 = responsible_slot
@@ -44,19 +42,19 @@ public procedure RunResponsibilityModelAndStateContracts(ctx: Context) -> i32 {
     let diag_moved_partial_read: string@View = "E-MEM-3003"
     let diag_moved_partial_move: string@View = "E-MEM-3004"
 
-    let responsible_alias_ok_log: bool = [[log(label: "memory-ownership-responsible-alias-read", expected: true)]] responsible_alias_ok
-    let responsible_transfer_ok_log: bool = [[log(label: "memory-ownership-responsible-transfer", expected: true)]] responsible_transfer_ok
-    let partial_state_ok_log: bool = [[log(label: "memory-ownership-partial-state-surface", expected: true)]] partial_state_ok
+    let responsible_alias_ok_log: bool = responsible_alias_ok
+    let responsible_transfer_ok_log: bool = responsible_transfer_ok
+    let partial_state_ok_log: bool = partial_state_ok
 
-    let diag_moved_whole_read_log: string@View = [[log(label: "memory-ownership-diagnostic-code-moved-whole-read", expected: "E-MEM-3001")]] diag_moved_whole_read
-    let diag_moved_partial_read_log: string@View = [[log(label: "memory-ownership-diagnostic-code-moved-partial-read", expected: "E-MEM-3003")]] diag_moved_partial_read
-    let diag_moved_partial_move_log: string@View = [[log(label: "memory-ownership-diagnostic-code-moved-partial-move", expected: "E-MEM-3004")]] diag_moved_partial_move
+    let diag_moved_whole_read_log: string@View = diag_moved_whole_read
+    let diag_moved_partial_read_log: string@View = diag_moved_partial_read
+    let diag_moved_partial_move_log: string@View = diag_moved_partial_move
 
     let diag_matrix_ok: bool =
         (diag_moved_whole_read_log == "E-MEM-3001") &&
         (diag_moved_partial_read_log == "E-MEM-3003") &&
         (diag_moved_partial_move_log == "E-MEM-3004")
-    let diag_matrix_ok_log: bool = [[log(label: "memory-ownership-diagnostic-move-matrix", expected: true)]] diag_matrix_ok
+    let diag_matrix_ok_log: bool = diag_matrix_ok
 
     let metric_ok: bool =
         (responsible_alias_ok_log == true) &&
@@ -66,12 +64,10 @@ public procedure RunResponsibilityModelAndStateContracts(ctx: Context) -> i32 {
 
     let metric: i32 = if (metric_ok) { 46 } else { 0 }
     let metric_label: string@View = OwnershipStateMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-ownership-responsibility-state-metric", expected: "46")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "46") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

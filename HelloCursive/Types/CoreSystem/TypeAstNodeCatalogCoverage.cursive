@@ -80,40 +80,28 @@ public procedure RunTypeAstNodeCatalogCoverage(ctx: Context) -> i32 {
         refine_metric
 
     let tuple_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-tuple-metric", expected: 7)]]
         tuple_metric
     let array_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-array-metric", expected: 6)]]
         array_metric
     let slice_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-slice-metric", expected: 3)]]
         slice_metric
     let union_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-union-metric", expected: 1)]]
         union_metric
     let fn_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-fn-metric", expected: 5)]]
         fn_metric
     let ptr_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-ptr-metric", expected: 9)]]
         ptr_metric
     let raw_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-raw-metric", expected: 9)]]
         raw_metric
     let text_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-string-metric", expected: 3)]]
         text_metric
     let bytes_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-bytes-metric", expected: 3)]]
         bytes_metric
     let permission_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-permission-metric", expected: 18)]]
         permission_metric
     let refine_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-refine-metric", expected: 1)]]
         refine_metric
     let total_metric_log: i32 =
-        [[log(label: "types-core-ast-catalog-total-metric", expected: 65)]]
         total_metric
 
     let components_ok: bool =
@@ -137,10 +125,8 @@ public procedure RunTypeAstNodeCatalogCoverage(ctx: Context) -> i32 {
         (bytes::length(bytes_value) == 3usize)
 
     let total_ok_log: bool =
-        [[log(label: "types-core-ast-catalog-total", expected: true)]]
         total_ok
     let shape_ok_log: bool =
-        [[log(label: "types-core-ast-catalog-shape", expected: true)]]
         shape_ok
 
     let metric: i32 =
@@ -151,13 +137,10 @@ public procedure RunTypeAstNodeCatalogCoverage(ctx: Context) -> i32 {
         }
     let metric_label: string@View = TypeAstNodeCatalogMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-types-core-type-ast-node-catalog-metric", expected: "65")]]
         metric_label
     if (metric_log_actual != "65") {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }

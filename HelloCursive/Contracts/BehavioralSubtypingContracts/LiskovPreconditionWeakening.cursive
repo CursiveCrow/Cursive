@@ -20,26 +20,22 @@ procedure LiskovPreconditionWeakeningMetricLabel(value: i32) -> string@View {
 
 public procedure RunLiskovPreconditionWeakening(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let model: LiskovPreconditionModel = LiskovPreconditionModel()
     let observed_value_strict: i32 = model~>Evaluate(9)
     let observed_value_weak: i32 = model~>Evaluate(0)
     let observed_value_strict_log: i32 =
-        [[log(label: "observed-contracts-liskov-precondition-value", expected: 10)]]
         observed_value_strict
     let observed_value_weak_log: i32 =
-        [[log(label: "observed-contracts-liskov-precondition-weaker-call", expected: 1)]]
         observed_value_weak
 
     let con_064: string@View = "CON-064"
     let con_064_log: string@View =
-        [[log(label: "contracts-liskov-precondition-weakening-feature-064", expected: "CON-064")]]
         con_064
 
     let diag_2803: string@View = "E-SEM-2803"
     let diag_2803_log: string@View =
-        [[log(label: "contracts-liskov-precondition-weakening-diag-2803", expected: "E-SEM-2803")]]
         diag_2803
 
     let runtime_ok: bool =
@@ -48,19 +44,17 @@ public procedure RunLiskovPreconditionWeakening(ctx: Context) -> i32 {
         (con_064_log == "CON-064") &&
         (diag_2803_log == "E-SEM-2803")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-liskov-precondition-weakening-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = LiskovPreconditionWeakeningMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-liskov-precondition-weakening-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

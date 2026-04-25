@@ -10,8 +10,7 @@ procedure LogEvaluationOrderObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure EvaluationOrderMetricLabel(value: i32) -> string@View {
     if (value == 123) {
@@ -41,29 +40,22 @@ procedure RunEvaluationOrderAndSequencePointsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 [[dynamic]]
 procedure VerifyEvaluationOrderAndSequencePointsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogEvaluationOrderObject(ctx.fs, scope, "eval_order_counter", "i32", "constructed", "side-effect carrier for argument evaluation order prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
     var order_counter: i32 = 0
     var eval_slots: [i32; 3] = [1, 12, 123]
-    [[log(label: "operations-log-transition_move")]]
     let eval_call_metric: i32 = EvalOrderCompose(
         eval_slots[{
             order_counter = (order_counter * 10) + 1;
@@ -78,7 +70,6 @@ procedure VerifyEvaluationOrderAndSequencePointsItem(ctx: Context, scope: string
             2usize
         }]
     )
-    [[log(label: "operations-log-transition_move")]]
     let order_metric: i32 = order_counter
     let runtime_metric: i32 = order_metric + eval_call_metric
 
@@ -95,13 +86,12 @@ procedure VerifyEvaluationOrderAndSequencePointsItem(ctx: Context, scope: string
     let call_passed: bool = eval_call_metric == 136
     let runtime_passed: bool = runtime_metric == 259
 
-    let order_passed_log_actual = [[log(label: "observed-argument-order-counter-metric", expected: "123")]] order_label
+    let order_passed_log_actual = order_label
     let order_passed_with_log: bool = order_passed && (order_passed_log_actual == order_label)
-    let call_passed_log_actual = [[log(label: "observed-eval-call-result-metric", expected: "136")]] call_label
+    let call_passed_log_actual = call_label
     let call_passed_with_log: bool = call_passed && (call_passed_log_actual == call_label)
-    let runtime_passed_log_actual = [[log(label: "observed-evaluation-order-runtime-aggregate-metric", expected: "259")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunEvaluationOrderAndSequencePointsItem(
             ctx,
@@ -188,6 +178,5 @@ procedure RunEvaluationOrderAndSequencePoints(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

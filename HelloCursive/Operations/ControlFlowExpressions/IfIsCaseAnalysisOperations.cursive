@@ -11,8 +11,7 @@ procedure LogIfCaseAnalysisObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure IfCaseAnalysisMetricLabel(value: i32) -> string@View {
     if (value == 4) {
@@ -42,22 +41,17 @@ procedure RunIfIsCaseAnalysisOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyIfIsCaseAnalysisOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let literal_scrutinee: i32 = 2
     let union_scrutinee: i32 | bool = 3
     let enum_scrutinee: IfCaseOperationCase = IfCaseOperationCase::Right(5, 0)
@@ -65,26 +59,19 @@ procedure VerifyIfIsCaseAnalysisOperationsItem(ctx: Context, scope: string@View,
     LogIfCaseAnalysisObject(ctx.fs, scope, "union_scrutinee", "i32|bool", "constructed", "typed-union case-analysis scrutinee prepared")
     LogIfCaseAnalysisObject(ctx.fs, scope, "enum_scrutinee", "IfCaseOperationCase", "constructed", "enum case-analysis scrutinee prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let if_case_syntax_metric: i32 = if literal_scrutinee is {
         1{ 1 }
         2{ 4 }
         _{ 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let if_case_static_metric: i32 = if union_scrutinee is {
         v: i32{ v + 4 }
         _: bool{ 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let if_case_runtime_metric: i32 = if enum_scrutinee is {
         IfCaseOperationCase::Left(v, _){ v }
         IfCaseOperationCase::Right(v, _){ v + 4 }
     }
-    [[log(label: "operations-log-transition_move")]]
     let observed_syntax_step: string@View = "observed-if-is-case-analysis-syntax-metric"
     let observed_static_step: string@View = "observed-if-is-case-analysis-static-metric"
     let observed_runtime_step: string@View = "observed-if-is-case-analysis-runtime-metric"
@@ -98,13 +85,12 @@ procedure VerifyIfIsCaseAnalysisOperationsItem(ctx: Context, scope: string@View,
     let static_passed: bool = if_case_static_metric == 7
     let runtime_passed: bool = if_case_runtime_metric == 9
 
-    let syntax_passed_log_actual = [[log(label: "observed-if-is-case-analysis-syntax-metric", expected: "4")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-if-is-case-analysis-static-metric", expected: "7")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-if-is-case-analysis-runtime-metric", expected: "9")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunIfIsCaseAnalysisOperationsItem(
             ctx,
@@ -191,6 +177,5 @@ procedure RunIfIsCaseAnalysisOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

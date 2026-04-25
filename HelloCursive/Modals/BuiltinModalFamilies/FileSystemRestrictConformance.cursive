@@ -6,7 +6,7 @@ procedure FileSystemRestrictConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemRestrictConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let runtime_logs_dir_path: string@View = "build/main/logs/runtime"
@@ -87,19 +87,14 @@ public procedure RunFileSystemRestrictConformance(ctx: Context) -> i32 {
     let ambient_still_usable: bool = fs~>exists(probe_root_path)
 
     let parent_can_see_nested_log: bool =
-        [[log(label: "observed-modals-fs-restrict-parent-can-see-nested", expected: true)]]
         parent_can_see_nested
     let child_can_see_probe_log: bool =
-        [[log(label: "observed-modals-fs-restrict-child-can-see-probe", expected: true)]]
         child_can_see_probe
     let child_escape_blocked_log: bool =
-        [[log(label: "observed-modals-fs-restrict-child-escape-blocked", expected: true)]]
         child_escape_blocked
     let parent_still_usable_log: bool =
-        [[log(label: "observed-modals-fs-restrict-parent-still-usable", expected: true)]]
         parent_still_usable
     let ambient_still_usable_log: bool =
-        [[log(label: "observed-modals-fs-restrict-ambient-still-usable", expected: true)]]
         ambient_still_usable
 
     let metric: i32 = if (
@@ -111,7 +106,6 @@ public procedure RunFileSystemRestrictConformance(ctx: Context) -> i32 {
     ) { 5 } else { 0 }
     let metric_label: string@View = FileSystemRestrictConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-restrict-metric", expected: "5")]]
         metric_label
 
     let cleanup_probe_nested_file: () | IoError = fs~>remove(probe_nested_file_path)
@@ -124,10 +118,10 @@ public procedure RunFileSystemRestrictConformance(ctx: Context) -> i32 {
     let _ = cleanup_probe_root
 
     if (metric_log_actual != "5") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

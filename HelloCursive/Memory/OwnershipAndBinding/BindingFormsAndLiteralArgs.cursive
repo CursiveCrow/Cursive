@@ -18,8 +18,6 @@ procedure OwnershipMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunBindingFormsAndLiteralArgs(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     let movable_let: i32 = 4
     let immovable_let: i32 := 6
     var movable_var: i32 = 5
@@ -40,25 +38,18 @@ public procedure RunBindingFormsAndLiteralArgs(ctx: Context) -> i32 {
     let mutable_observe_metric: i32 = OwnershipObserve(mutable_counter)
 
     let observe_literal_metric_log: i32 =
-        [[log(label: "observed-memory-ownership-literal-nonconsuming-metric", expected: 9)]]
         observe_literal_metric
     let observe_literal_pair_metric_log: i32 =
-        [[log(label: "observed-memory-ownership-literal-pair-metric", expected: 7)]]
         observe_literal_pair_metric
     let consume_literal_metric_log: i32 =
-        [[log(label: "observed-memory-ownership-literal-consuming-metric", expected: 4)]]
         consume_literal_metric
     let move_slot_first_metric_log: i32 =
-        [[log(label: "observed-memory-ownership-move-slot-first-metric", expected: 13)]]
         move_slot_first_metric
     let move_slot_second_metric_log: i32 =
-        [[log(label: "observed-memory-ownership-move-slot-second-metric", expected: 16)]]
         move_slot_second_metric
     let immovable_observe_metric_log: i32 =
-        [[log(label: "observed-memory-ownership-immovable-observe-metric", expected: 10)]]
         immovable_observe_metric
     let mutable_observe_metric_log: i32 =
-        [[log(label: "observed-memory-ownership-mutable-observe-metric", expected: 11)]]
         mutable_observe_metric
 
     let forms_ok: bool =
@@ -78,19 +69,14 @@ public procedure RunBindingFormsAndLiteralArgs(ctx: Context) -> i32 {
         (mutable_observe_metric_log == 11)
 
     let forms_ok_log =
-        [[log(label: "memory-ownership-binding-forms", expected: true)]]
         forms_ok
     let literal_nonconsuming_ok_log =
-        [[log(label: "memory-ownership-literal-nonconsuming-arg", expected: true)]]
         literal_nonconsuming_ok
     let literal_consuming_ok_log =
-        [[log(label: "memory-ownership-literal-consuming-arg", expected: true)]]
         literal_consuming_ok
     let move_slot_reset_ok_log =
-        [[log(label: "memory-ownership-move-slot-reset", expected: true)]]
         move_slot_reset_ok
     let observe_paths_ok_log =
-        [[log(label: "memory-ownership-observe-paths", expected: true)]]
         observe_paths_ok
 
     let metric: i32 = if (
@@ -107,13 +93,10 @@ public procedure RunBindingFormsAndLiteralArgs(ctx: Context) -> i32 {
     ) { 34 } else { 0 }
     let metric_label: string@View = OwnershipMetricLabel(metric)
     let metric_log_actual =
-        [[log(label: "observed-memory-ownership-binding-forms-metric", expected: "34")]]
         metric_label
     if (metric_log_actual != "34") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

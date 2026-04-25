@@ -16,8 +16,7 @@ procedure LogAliasesObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunAliasesPathsQualifiedApplyItem(
     ctx: Context,
@@ -34,7 +33,6 @@ procedure RunAliasesPathsQualifiedApplyItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -43,17 +41,12 @@ procedure RunAliasesPathsQualifiedApplyItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -77,29 +70,19 @@ procedure AliasMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyAliasesPathsQualifiedApplyItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let alias_scalar: AliasScalar = 12
     let alias_tuple: (i32, i32) = (3, 4)
     LogAliasesObject(ctx.fs, scope, "alias_scalar", "AliasScalar", "constructed", "alias scalar value prepared")
     LogAliasesObject(ctx.fs, scope, "alias_tuple", "AliasTuple", "constructed", "tuple alias value prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let alias_expanded: i32 = alias_scalar + alias_tuple.0
-    [[log(label: "types-log-transition_move")]]
     let alias_chain: AliasChain2 = 21
     LogAliasesObject(ctx.fs, scope, "alias_chain", "AliasChain2", "constructed", "alias chain value prepared")
-    [[log(label: "types-log-transition_move")]]
     let alias_chain_metric: i32 = alias_chain - 1
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let path_sum: i32 = AliasAdd(alias_tuple.0, alias_tuple.1)
-    [[log(label: "types-log-transition_move")]]
     let qualified_apply_fn: (i32, i32) -> i32 = AliasAdd
     LogAliasesObject(ctx.fs, scope, "qualified_apply_fn", "(i32,i32)->i32", "constructed", "qualified apply callable prepared")
-    [[log(label: "types-log-transition_move")]]
     let qualified_sum: i32 = qualified_apply_fn(alias_tuple.0, alias_tuple.1)
-    [[log(label: "types-log-transition_move")]]
     let observed_alias_step: string@View = "observed-type-alias-expansion-metric"
     let observed_cycle_step: string@View = "observed-alias-cycle-baseline-metric"
     let observed_path_step: string@View = "observed-path-resolution-metric"
@@ -121,17 +104,16 @@ procedure VerifyAliasesPathsQualifiedApplyItem(ctx: Context, scope: string@View,
     let qualified_type_metric_passed: bool = alias_tuple.1 == 4
     let qualified_apply_metric_passed: bool = qualified_sum == 7
 
-    let alias_metric_passed_log_actual = [[log(label: "observed-type-alias-expansion-metric", expected: "15")]] alias_metric_label
+    let alias_metric_passed_log_actual = alias_metric_label
     let alias_metric_passed_with_log: bool = alias_metric_passed && (alias_metric_passed_log_actual == expected_alias)
-    let cycle_metric_passed_log_actual = [[log(label: "observed-alias-cycle-baseline-metric", expected: "20")]] cycle_metric_label
+    let cycle_metric_passed_log_actual = cycle_metric_label
     let cycle_metric_passed_with_log: bool = cycle_metric_passed && (cycle_metric_passed_log_actual == expected_cycle)
-    let path_metric_passed_log_actual = [[log(label: "observed-path-resolution-metric", expected: "7")]] path_metric_label
+    let path_metric_passed_log_actual = path_metric_label
     let path_metric_passed_with_log: bool = path_metric_passed && (path_metric_passed_log_actual == expected_path)
-    let qualified_type_metric_passed_log_actual = [[log(label: "observed-qualified-type-path-metric", expected: "4")]] qualified_type_metric_label
+    let qualified_type_metric_passed_log_actual = qualified_type_metric_label
     let qualified_type_metric_passed_with_log: bool = qualified_type_metric_passed && (qualified_type_metric_passed_log_actual == expected_qualified_type)
-    let qualified_apply_metric_passed_log_actual = [[log(label: "observed-qualified-apply-metric", expected: "7")]] qualified_apply_metric_label
+    let qualified_apply_metric_passed_log_actual = qualified_apply_metric_label
     let qualified_apply_metric_passed_with_log: bool = qualified_apply_metric_passed && (qualified_apply_metric_passed_log_actual == expected_qualified_apply)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunAliasesPathsQualifiedApplyItem(
             ctx,
@@ -262,6 +244,5 @@ procedure RunAliasesPathsQualifiedApply(ctx: Context) -> i32 {
         return status_QualifiedApplyForms
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

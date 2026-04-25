@@ -85,19 +85,15 @@ procedure RunTypeHelperParsingRulesCoverage(ctx: Context) -> i32 {
 
     let helper_rules_ok: bool = total_metric == 41
     let helper_rules_ok_log: bool =
-        [[log(label: "types-core-type-helper-parsing-rules", expected: true)]]
         helper_rules_ok
 
     let metric: i32 = if ((helper_rules_ok_log == true) && helper_rules_ok) { 41 } else { 0 }
     let metric_label: string@View = TypeHelperParsingRulesMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-types-core-type-helper-parsing-rules-metric", expected: "41")]]
         metric_label
     if (metric_log_actual != "41") {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }

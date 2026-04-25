@@ -285,13 +285,6 @@ struct LowerCtx {
   bool dynamic_checks = false;
   std::optional<AccessOrdering> current_access_order;
 
-  // [[log]] procedure-level instrumentation metadata.
-  bool proc_log_enabled = false;
-  std::string proc_log_name;
-  std::optional<std::string> proc_log_label;
-  std::optional<std::string> proc_log_expected;
-  std::optional<lexer::TokenKind> proc_log_expected_token_kind;
-  bool proc_log_expected_is_ident = false;
   bool log_enabled = false;
   bool log_to_console = false;
   bool log_to_file = false;

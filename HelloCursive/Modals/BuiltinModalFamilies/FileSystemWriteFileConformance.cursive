@@ -6,7 +6,7 @@ procedure FileSystemWriteFileConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemWriteFileConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -113,25 +113,18 @@ public procedure RunFileSystemWriteFileConformance(ctx: Context) -> i32 {
     let escaped_target_missing: bool = fs~>exists(escaped_target_path) == false
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-write-file-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let write_initial_ok_log: bool =
-        [[log(label: "observed-modals-fs-write-file-initial-write", expected: true)]]
         write_initial_ok
     let overwrite_ok_log: bool =
-        [[log(label: "observed-modals-fs-write-file-overwrite", expected: true)]]
         overwrite_ok
     let read_back_length_log: i32 =
-        [[log(label: "observed-modals-fs-write-file-read-length", expected: 2)]]
         read_back_length
     let read_back_exact_payload_log: bool =
-        [[log(label: "observed-modals-fs-write-file-read-exact-payload", expected: true)]]
         read_back_exact_payload
     let restricted_escape_error_log: bool =
-        [[log(label: "observed-modals-fs-write-file-restricted-escape-error", expected: true)]]
         restricted_escape_error
     let escaped_target_missing_log: bool =
-        [[log(label: "observed-modals-fs-write-file-restricted-escape-no-file", expected: true)]]
         escaped_target_missing
 
     let metric: i32 = if (
@@ -145,7 +138,6 @@ public procedure RunFileSystemWriteFileConformance(ctx: Context) -> i32 {
     ) { 6 } else { 0 }
     let metric_label: string@View = FileSystemWriteFileConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-write-file-metric", expected: "6")]]
         metric_label
 
     let cleanup_probe: () | IoError = fs~>remove(probe_path)
@@ -154,10 +146,10 @@ public procedure RunFileSystemWriteFileConformance(ctx: Context) -> i32 {
     let _ = cleanup_escaped_target
 
     if (metric_log_actual != "6") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

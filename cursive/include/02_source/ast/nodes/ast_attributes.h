@@ -50,7 +50,7 @@ namespace cursive::ast {
 //      [[foo(bar: "baz")]] -> args[0] = {key: "bar", value: Token("baz")}
 //
 //   3. Named token identifiers:
-//      [[log(expected: ready)]] -> args[0] = {key: "expected", value: Token("ready")}
+//      [[foo(mode: ready)]] -> args[0] = {key: "mode", value: Token("ready")}
 //
 //   4. Nested named-call arguments:
 //      [[layout(align(16))]] -> args[0] = {key: "align", value: [Token("16")]}

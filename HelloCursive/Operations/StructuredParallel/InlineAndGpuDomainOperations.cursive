@@ -53,57 +53,37 @@ procedure RunInlineAndGpuDomainOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyInlineAndGpuDomainOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
-
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let inline_single_metric: i32 = parallel ctx~>inline() {
         spawn { 5 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let inline_multi_metric: (i32, i32) = parallel ctx~>inline() {
         spawn { 3 };
         spawn { 4 }
     }
     let inline_multi_sum: i32 = inline_multi_metric.0 + inline_multi_metric.1
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let inline_named_metric: i32 = parallel ctx~>inline() [name: "inline-named"] {
         spawn { 8 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let inline_dispatch_metric: i32 = parallel ctx~>inline() {
         dispatch i in 0usize..4usize [reduce: +] { (i as i32) + 1 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let gpu_single_metric: i32 = parallel ctx~>gpu() {
         spawn { 12 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let gpu_dispatch_metric: i32 = parallel ctx~>gpu() {
         dispatch j in 0usize..5usize [reduce: +] { (j as i32) + 1 }
     }
-    [[log(label: "operations-log-transition_move")]]
-
     let inline_runtime_metric: i32 = inline_single_metric + inline_multi_sum + inline_named_metric + inline_dispatch_metric
     let gpu_runtime_metric: i32 = gpu_single_metric + gpu_dispatch_metric
 
@@ -135,20 +115,19 @@ procedure VerifyInlineAndGpuDomainOperationsItem(ctx: Context, scope: string@Vie
     let gpu_single_passed: bool = gpu_single_metric == 12
     let gpu_dispatch_passed: bool = gpu_dispatch_metric == 15
 
-    let inline_single_log = [[log(label: "observed-inline-single-spawn-metric", expected: "5")]] inline_single_label
+    let inline_single_log = inline_single_label
     let inline_single_with_log: bool = inline_single_passed && (inline_single_log == inline_single_label)
-    let inline_multi_log = [[log(label: "observed-inline-multi-spawn-metric", expected: "7")]] inline_multi_label
+    let inline_multi_log = inline_multi_label
     let inline_multi_with_log: bool = inline_multi_passed && (inline_multi_log == inline_multi_label)
-    let inline_named_log = [[log(label: "observed-inline-named-metric", expected: "8")]] inline_named_label
+    let inline_named_log = inline_named_label
     let inline_named_with_log: bool = inline_named_passed && (inline_named_log == inline_named_label)
-    let inline_dispatch_log = [[log(label: "observed-inline-dispatch-metric", expected: "10")]] inline_dispatch_label
+    let inline_dispatch_log = inline_dispatch_label
     let inline_dispatch_with_log: bool = inline_dispatch_passed && (inline_dispatch_log == inline_dispatch_label)
-    let gpu_single_log = [[log(label: "observed-gpu-single-spawn-metric", expected: "12")]] gpu_single_label
+    let gpu_single_log = gpu_single_label
     let gpu_single_with_log: bool = gpu_single_passed && (gpu_single_log == gpu_single_label)
-    let gpu_dispatch_log = [[log(label: "observed-gpu-dispatch-metric", expected: "15")]] gpu_dispatch_label
+    let gpu_dispatch_log = gpu_dispatch_label
     let gpu_dispatch_with_log: bool = gpu_dispatch_passed && (gpu_dispatch_log == gpu_dispatch_label)
 
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunInlineAndGpuDomainOperationsItem(
             ctx,
@@ -237,6 +216,5 @@ procedure RunInlineAndGpuDomainOperations(ctx: Context) -> i32 {
         return status_gpu
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

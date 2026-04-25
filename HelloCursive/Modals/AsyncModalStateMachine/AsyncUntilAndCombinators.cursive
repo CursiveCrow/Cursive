@@ -59,8 +59,7 @@ procedure AsyncUntilAndCombinatorsMetricLabel(value: i32) -> string@View {
 
 public procedure RunAsyncUntilAndCombinators(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-1-until-start")]]
+    "running"
     "stage-1-until-start"
 
     let until_seed: unique i32 = 3
@@ -68,10 +67,8 @@ public procedure RunAsyncUntilAndCombinators(ctx: Context) -> i32 {
     let until_future: Async<(), (), i32, !> =
         until_shared~>until(AsyncUntilPredicateAtLeastThree, AsyncUntilActionAddFour)
     let until_metric: i32 = sync until_future
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-2-until-done")]]
     "stage-2-until-done"
 
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-3-map-start")]]
     "stage-3-map-start"
     let mapped_state: Async<i32, (), (), !> = AsyncMapSource()~>map(AsyncMapPlusOne)
     let map_metric: i32 = if move mapped_state is {
@@ -79,10 +76,8 @@ public procedure RunAsyncUntilAndCombinators(ctx: Context) -> i32 {
         @Completed { value: _ } { 0 }
         @Failed { error: _ } { 0 }
     }
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-4-map-done")]]
     "stage-4-map-done"
 
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-5-filter-start")]]
     "stage-5-filter-start"
     let filtered_state: Async<i32, (), (), !> = AsyncFilterSource()~>filter(AsyncFilterAtLeastFour)
     let filter_metric: i32 = if move filtered_state is {
@@ -90,10 +85,8 @@ public procedure RunAsyncUntilAndCombinators(ctx: Context) -> i32 {
         @Completed { value: _ } { 0 }
         @Failed { error: _ } { 0 }
     }
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-6-filter-done")]]
     "stage-6-filter-done"
 
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-7-take-start")]]
     "stage-7-take-start"
     let take_state_first: Async<i32, (), (), !> = AsyncTakeSource()~>take(1usize)
     let take_metric: i32 = if move take_state_first is {
@@ -101,41 +94,29 @@ public procedure RunAsyncUntilAndCombinators(ctx: Context) -> i32 {
         @Completed { value: _ } { 0 }
         @Failed { error: _ } { 0 }
     }
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-8-take-done")]]
     "stage-8-take-done"
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-9-fold-start")]]
     "stage-9-fold-start"
     let folded_future: Future<i32> = AsyncFoldSource()~>fold(0, AsyncFoldSum)
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-9a-fold-created")]]
     "stage-9a-fold-created"
     let fold_metric: i32 = sync folded_future
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-10-fold-done")]]
     "stage-10-fold-done"
 
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-11-chain-start")]]
     "stage-11-chain-start"
     let chained_future: Future<i32> = AsyncChainFutureSource()~>chain(AsyncChainAddSix)
     let chain_metric: i32 = sync chained_future
-    [[log(label: "observed-modals-async-until-combinators-stage", expected: "stage-12-chain-done")]]
     "stage-12-chain-done"
 
     let until_metric_log: i32 =
-        [[log(label: "observed-modals-async-until", expected: 7)]]
         until_metric
     let map_metric_log: i32 =
-        [[log(label: "observed-modals-async-map", expected: 3)]]
         map_metric
     let filter_metric_log: i32 =
-        [[log(label: "observed-modals-async-filter", expected: 4)]]
         filter_metric
     let take_metric_log: i32 =
-        [[log(label: "observed-modals-async-take", expected: 9)]]
         take_metric
     let fold_metric_log: i32 =
-        [[log(label: "observed-modals-async-fold", expected: 11)]]
         fold_metric
     let chain_metric_log: i32 =
-        [[log(label: "observed-modals-async-chain", expected: 10)]]
         chain_metric
 
     let mod_069: string@View = "MOD-069"
@@ -145,22 +126,16 @@ public procedure RunAsyncUntilAndCombinators(ctx: Context) -> i32 {
     let mod_073: string@View = "MOD-073"
     let mod_074: string@View = "MOD-074"
     let mod_069_log: string@View =
-        [[log(label: "modals-async-until-combinators-feature-069", expected: "MOD-069")]]
         mod_069
     let mod_070_log: string@View =
-        [[log(label: "modals-async-until-combinators-feature-070", expected: "MOD-070")]]
         mod_070
     let mod_071_log: string@View =
-        [[log(label: "modals-async-until-combinators-feature-071", expected: "MOD-071")]]
         mod_071
     let mod_072_log: string@View =
-        [[log(label: "modals-async-until-combinators-feature-072", expected: "MOD-072")]]
         mod_072
     let mod_073_log: string@View =
-        [[log(label: "modals-async-until-combinators-feature-073", expected: "MOD-073")]]
         mod_073
     let mod_074_log: string@View =
-        [[log(label: "modals-async-until-combinators-feature-074", expected: "MOD-074")]]
         mod_074
 
     let runtime_ok: bool =
@@ -177,19 +152,17 @@ public procedure RunAsyncUntilAndCombinators(ctx: Context) -> i32 {
         (mod_073_log == "MOD-073") &&
         (mod_074_log == "MOD-074")
     let runtime_ok_log: bool =
-        [[log(label: "modals-async-until-combinators-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 27 } else { 0 }
     let metric_label: string@View = AsyncUntilAndCombinatorsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-async-until-combinators-metric", expected: "27")]]
         metric_label
     if (metric_log_actual != "27") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

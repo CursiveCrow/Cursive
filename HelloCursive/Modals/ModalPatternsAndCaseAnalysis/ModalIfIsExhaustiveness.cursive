@@ -18,7 +18,7 @@ procedure ModalIfIsExhaustivenessMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalIfIsExhaustiveness(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let scrutinee: ModalIfIsExhaustivenessProbe =
         widen(ModalIfIsExhaustivenessProbe@B { value: 4 })
@@ -34,28 +34,22 @@ public procedure RunModalIfIsExhaustiveness(ctx: Context) -> i32 {
     }
 
     let exhaustive_metric_log: i32 =
-        [[log(label: "observed-modals-modal-if-is-exhaustive", expected: 4)]]
         exhaustive_metric
     let check_mode_metric_log: i32 =
-        [[log(label: "observed-modals-modal-if-is-check-mode", expected: 11)]]
         check_mode_metric
 
     let non_exhaustive_diag: string@View = "E-TYP-2060"
     let non_exhaustive_diag_log: string@View =
-        [[log(label: "modals-modal-if-is-non-exhaustive-diagnostic", expected: "E-TYP-2060")]]
         non_exhaustive_diag
 
     let mod_031: string@View = "MOD-031"
     let mod_032: string@View = "MOD-032"
     let mod_033: string@View = "MOD-033"
     let mod_031_log: string@View =
-        [[log(label: "modals-modal-if-is-feature-031", expected: "MOD-031")]]
         mod_031
     let mod_032_log: string@View =
-        [[log(label: "modals-modal-if-is-feature-032", expected: "MOD-032")]]
         mod_032
     let mod_033_log: string@View =
-        [[log(label: "modals-modal-if-is-feature-033", expected: "MOD-033")]]
         mod_033
 
     let runtime_ok: bool =
@@ -66,19 +60,17 @@ public procedure RunModalIfIsExhaustiveness(ctx: Context) -> i32 {
         (mod_032_log == "MOD-032") &&
         (mod_033_log == "MOD-033")
     let runtime_ok_log: bool =
-        [[log(label: "modals-modal-if-is-exhaustiveness-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 15 } else { 0 }
     let metric_label: string@View = ModalIfIsExhaustivenessMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-if-is-exhaustiveness-metric", expected: "15")]]
         metric_label
     if (metric_log_actual != "15") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

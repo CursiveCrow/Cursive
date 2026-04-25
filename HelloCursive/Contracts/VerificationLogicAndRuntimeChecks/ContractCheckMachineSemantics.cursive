@@ -45,7 +45,7 @@ procedure ContractCheckMachineSemanticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunContractCheckMachineSemantics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let observed_value: i32 = ContractCheckMachineOkProbe(6)
     let observed_entry_capture_value: i32 = ContractCheckMachineOkProbe(9)
@@ -57,16 +57,12 @@ public procedure RunContractCheckMachineSemantics(ctx: Context) -> i32 {
     }
 
     let observed_value_log: i32 =
-        [[log(label: "observed-contracts-contract-check-machine-value", expected: 7)]]
         observed_value
     let observed_entry_capture_value_log: i32 =
-        [[log(label: "observed-contracts-contract-check-machine-entry-capture", expected: 10)]]
         observed_entry_capture_value
     let pre_fail_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-contract-check-machine-pre-fail-catch", expected: 0)]]
         pre_fail_catch_metric
     let post_fail_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-contract-check-machine-post-fail-catch", expected: 0)]]
         post_fail_catch_metric
 
     let machine_check_done: bool =
@@ -76,10 +72,8 @@ public procedure RunContractCheckMachineSemantics(ctx: Context) -> i32 {
         (pre_fail_catch_metric_log == 0) &&
         (post_fail_catch_metric_log == 0)
     let machine_check_done_log: bool =
-        [[log(label: "contracts-contract-check-machine-checkdone", expected: true)]]
         machine_check_done
     let machine_check_panic_log: bool =
-        [[log(label: "contracts-contract-check-machine-checkpanic", expected: true)]]
         machine_check_panic
 
     let con_058: string@View = "CON-058"
@@ -87,16 +81,12 @@ public procedure RunContractCheckMachineSemantics(ctx: Context) -> i32 {
     let con_060: string@View = "CON-060"
     let con_061: string@View = "CON-061"
     let con_058_log: string@View =
-        [[log(label: "contracts-contract-check-machine-semantics-feature-058", expected: "CON-058")]]
         con_058
     let con_059_log: string@View =
-        [[log(label: "contracts-contract-check-machine-semantics-feature-059", expected: "CON-059")]]
         con_059
     let con_060_log: string@View =
-        [[log(label: "contracts-contract-check-machine-semantics-feature-060", expected: "CON-060")]]
         con_060
     let con_061_log: string@View =
-        [[log(label: "contracts-contract-check-machine-semantics-feature-061", expected: "CON-061")]]
         con_061
 
     let runtime_ok: bool =
@@ -111,19 +101,17 @@ public procedure RunContractCheckMachineSemantics(ctx: Context) -> i32 {
         (con_060_log == "CON-060") &&
         (con_061_log == "CON-061")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-contract-check-machine-semantics-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 42 } else { 0 }
     let metric_label: string@View = ContractCheckMachineSemanticsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-contract-check-machine-semantics-metric", expected: "42")]]
         metric_label
     if (metric_log_actual != "42") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

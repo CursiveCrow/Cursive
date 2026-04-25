@@ -11,7 +11,7 @@ procedure AsyncGpuAndCaptureDiagnosticsMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunAsyncGpuAndCaptureDiagnostics(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let const_metric: i32 = parallel ctx~>cpu() {
         let worker = spawn { 3 + 2 }
@@ -45,27 +45,27 @@ public procedure RunAsyncGpuAndCaptureDiagnostics(ctx: Context) -> i32 {
     let diag_async_capture_lifetime: string@View = "E-CON-0281"
     let warn_shared_capture: string@View = "W-CON-0009"
 
-    let const_metric_log: i32 = [[log(label: "observed-permissions-AsyncGpuAndCaptureDiagnostics-const", expected: 5)]] const_metric
-    let unique_metric_log: i32 = [[log(label: "observed-permissions-AsyncGpuAndCaptureDiagnostics-unique", expected: 10)]] unique_metric
-    let async_metric_log: i32 = [[log(label: "observed-permissions-AsyncGpuAndCaptureDiagnostics-async", expected: 7)]] async_metric
-    let dispatch_metric_log: i32 = [[log(label: "observed-permissions-AsyncGpuAndCaptureDiagnostics-dispatch", expected: 3)]] dispatch_metric
+    let const_metric_log: i32 = const_metric
+    let unique_metric_log: i32 = unique_metric
+    let async_metric_log: i32 = async_metric
+    let dispatch_metric_log: i32 = dispatch_metric
 
-    let diag_unique_multi_capture_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0122", expected: "E-CON-0122")]] diag_unique_multi_capture
-    let diag_spawn_capture_surface_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0130", expected: "E-CON-0130")]] diag_spawn_capture_surface
-    let diag_gpu_non_safe_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0153", expected: "E-CON-0153")]] diag_gpu_non_safe
-    let diag_gpu_barrier_divergence_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0158", expected: "E-CON-0158")]] diag_gpu_barrier_divergence
-    let diag_gpu_type_layout_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-2640", expected: "E-TYP-2640")]] diag_gpu_type_layout
-    let diag_gpu_type_effect_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-2642", expected: "E-TYP-2642")]] diag_gpu_type_effect
-    let diag_wait_operand_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0132", expected: "E-CON-0132")]] diag_wait_operand
-    let diag_cross_iteration_dependency_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0142", expected: "E-CON-0142")]] diag_cross_iteration_dependency
-    let diag_non_associative_reduction_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0143", expected: "E-CON-0143")]] diag_non_associative_reduction
-    let diag_gpu_nested_parallel_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0152", expected: "E-CON-0152")]] diag_gpu_nested_parallel
-    let diag_gpu_intrinsic_outside_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0154", expected: "E-CON-0154")]] diag_gpu_intrinsic_outside
-    let diag_gpu_barrier_outside_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0156", expected: "E-CON-0156")]] diag_gpu_barrier_outside
-    let diag_gpu_workgroup_limit_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0157", expected: "E-CON-0157")]] diag_gpu_workgroup_limit
-    let diag_async_capture_escape_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0280", expected: "E-CON-0280")]] diag_async_capture_escape
-    let diag_async_capture_lifetime_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-diag-0281", expected: "E-CON-0281")]] diag_async_capture_lifetime
-    let warn_shared_capture_log: string@View = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-warn-0009", expected: "W-CON-0009")]] warn_shared_capture
+    let diag_unique_multi_capture_log: string@View = diag_unique_multi_capture
+    let diag_spawn_capture_surface_log: string@View = diag_spawn_capture_surface
+    let diag_gpu_non_safe_log: string@View = diag_gpu_non_safe
+    let diag_gpu_barrier_divergence_log: string@View = diag_gpu_barrier_divergence
+    let diag_gpu_type_layout_log: string@View = diag_gpu_type_layout
+    let diag_gpu_type_effect_log: string@View = diag_gpu_type_effect
+    let diag_wait_operand_log: string@View = diag_wait_operand
+    let diag_cross_iteration_dependency_log: string@View = diag_cross_iteration_dependency
+    let diag_non_associative_reduction_log: string@View = diag_non_associative_reduction
+    let diag_gpu_nested_parallel_log: string@View = diag_gpu_nested_parallel
+    let diag_gpu_intrinsic_outside_log: string@View = diag_gpu_intrinsic_outside
+    let diag_gpu_barrier_outside_log: string@View = diag_gpu_barrier_outside
+    let diag_gpu_workgroup_limit_log: string@View = diag_gpu_workgroup_limit
+    let diag_async_capture_escape_log: string@View = diag_async_capture_escape
+    let diag_async_capture_lifetime_log: string@View = diag_async_capture_lifetime
+    let warn_shared_capture_log: string@View = warn_shared_capture
 
     let runtime_ok: bool =
         (const_metric_log == 5) &&
@@ -88,17 +88,17 @@ public procedure RunAsyncGpuAndCaptureDiagnostics(ctx: Context) -> i32 {
         (diag_async_capture_escape_log == "E-CON-0280") &&
         (diag_async_capture_lifetime_log == "E-CON-0281") &&
         (warn_shared_capture_log == "W-CON-0009")
-    let runtime_ok_log: bool = [[log(label: "permissions-AsyncGpuAndCaptureDiagnostics-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 32 } else { 0 }
     let metric_label: string@View = AsyncGpuAndCaptureDiagnosticsMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-AsyncGpuAndCaptureDiagnostics-metric", expected: "32")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "32") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

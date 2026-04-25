@@ -23,23 +23,17 @@ public procedure RunBehaviorTypesDiagnostics(ctx: Context) -> i32 {
     let unlimited_limit_ok: bool = unlimited_limit == -1
 
     let suggested_limit_log =
-        [[log(label: "observed-behavior-types-suggested-limit-ok", expected: true)]]
         suggested_limit_ok
     let strict_limit_log =
-        [[log(label: "observed-behavior-types-strict-limit-ok", expected: true)]]
         strict_limit_ok
     let unlimited_limit_log =
-        [[log(label: "observed-behavior-types-unlimited-limit-ok", expected: true)]]
         unlimited_limit_ok
 
     let suggested_label_log =
-        [[log(label: "observed-behavior-types-suggested-limit-value", expected: "100")]]
         BehaviorTypesDiagLabel(suggested_limit)
     let strict_label_log =
-        [[log(label: "observed-behavior-types-strict-limit-value", expected: "5")]]
         BehaviorTypesDiagLabel(strict_limit)
     let unlimited_label_log =
-        [[log(label: "observed-behavior-types-unlimited-limit-value", expected: "inf")]]
         BehaviorTypesDiagLabel(unlimited_limit)
 
     let overall_ok: bool =
@@ -54,13 +48,10 @@ public procedure RunBehaviorTypesDiagnostics(ctx: Context) -> i32 {
         (unlimited_label_log == "inf")
 
     let overall_ok_log =
-        [[log(label: "observed-behavior-types-diagnostics-overall-ok", expected: true)]]
         overall_ok
     if ((overall_ok == false) || (overall_ok_log == false)) {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }

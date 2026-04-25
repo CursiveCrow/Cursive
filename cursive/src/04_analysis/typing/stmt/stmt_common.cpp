@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // stmt_common.cpp - Common statement typing utilities
 // =============================================================================
 //
@@ -1569,7 +1569,7 @@ class SpawnExprPresenceFinder {
               VisitBlock(*node.body);
             }
           } else {
-            // ContinueStmt / LogStmt / ErrorStmt carry no nested expressions.
+            // ContinueStmt / ErrorStmt carry no nested expressions.
           }
         },
         stmt);
@@ -3013,20 +3013,6 @@ StmtTypeResult TypeStmt(const ScopeContext& ctx,
         else if constexpr (std::is_same_v<T, ast::ErrorStmt>) {
           SPEC_RULE("T-ErrorStmt");
           return TypeErrorStmt(ctx, node, env);
-        }
-        else if constexpr (std::is_same_v<T, ast::LogStmt>) {
-          SPEC_RULE_AT("T-LogStmt", node.span);
-          const auto attr_validation =
-              ValidateAttributes(node.attrs, AttributeTarget::Statement);
-          if (!attr_validation.ok) {
-            return {false, attr_validation.diag_id, env, {},
-                    attr_validation.message};
-          }
-          if (const auto log_diag = ValidateLogAttributesForObservedType(
-                  ctx, node.attrs, MakeTypePrim("()"), env)) {
-            return {false, log_diag, env, {}};
-          }
-          return {true, std::nullopt, env, {}};
         }
         else {
           // Unknown statement type

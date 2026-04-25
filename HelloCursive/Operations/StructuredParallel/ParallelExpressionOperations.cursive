@@ -10,8 +10,7 @@ procedure LogParallelExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure ParallelExpressionMetricLabel(value: i32) -> string@View {
     if (value == -1) {
@@ -98,40 +97,27 @@ procedure RunParallelExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyParallelExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogParallelExpressionObject(ctx.fs, scope, "parallel_domain", "$ExecutionDomain", "constructed", "parallel expression domain prepared from context")
     LogParallelExpressionObject(ctx.fs, scope, "parallel_single_spawn", "i32", "constructed", "single-spawn parallel completion value prepared")
     LogParallelExpressionObject(ctx.fs, scope, "parallel_multi_spawn", "(i32,i32)", "constructed", "multi-spawn parallel tuple result carrier prepared")
     LogParallelExpressionObject(ctx.fs, scope, "parallel_named_block", "i32", "constructed", "named parallel block result carrier prepared")
     LogParallelExpressionObject(ctx.fs, scope, "parallel_cancel_block", "i32", "constructed", "cancel-enabled parallel block result carrier prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let parallel_single_metric: i32 = parallel ctx~>cpu() { spawn { 4 } }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let parallel_tuple_metric: (i32, i32) = parallel ctx~>cpu() { spawn { 2 }; spawn { 5 } }
     let parallel_tuple_sum: i32 = ParallelSumTuple(parallel_tuple_metric)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let parallel_named_metric: i32 = parallel ctx~>cpu() [name: "parallel-named"] { spawn { 6 } }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let cancel_token_owner: unique (CancelToken@Active;) = (CancelToken::new();)
     let cancel_token: shared CancelToken@Active = move cancel_token_owner.0
     let cancel_option_token: CancelToken = widen(cancel_token)
@@ -145,7 +131,6 @@ procedure VerifyParallelExpressionOperationsItem(ctx: Context, scope: string@Vie
             0
         }
     }
-    [[log(label: "operations-log-transition_move")]]
     let parallel_runtime_metric: i32 = parallel_single_metric + parallel_tuple_sum + parallel_named_metric + parallel_cancel_metric
 
     let observed_single_step: string@View = "observed-parallel-single-spawn-metric"
@@ -169,17 +154,16 @@ procedure VerifyParallelExpressionOperationsItem(ctx: Context, scope: string@Vie
     let cancel_passed: bool = parallel_cancel_metric == 1
     let runtime_passed: bool = parallel_runtime_metric == 18
 
-    let single_passed_log_actual = [[log(label: "observed-parallel-single-spawn-metric", expected: "4")]] single_label
+    let single_passed_log_actual = single_label
     let single_passed_with_log: bool = single_passed && (single_passed_log_actual == single_label)
-    let multi_passed_log_actual = [[log(label: "observed-parallel-multi-spawn-metric", expected: "7")]] multi_label
+    let multi_passed_log_actual = multi_label
     let multi_passed_with_log: bool = multi_passed && (multi_passed_log_actual == multi_label)
-    let named_passed_log_actual = [[log(label: "observed-parallel-named-option-metric", expected: "6")]] named_label
+    let named_passed_log_actual = named_label
     let named_passed_with_log: bool = named_passed && (named_passed_log_actual == named_label)
-    let cancel_passed_log_actual = [[log(label: "observed-parallel-cancel-option-metric", expected: "1")]] cancel_label
+    let cancel_passed_log_actual = cancel_label
     let cancel_passed_with_log: bool = cancel_passed && (cancel_passed_log_actual == cancel_label)
-    let runtime_passed_log_actual = [[log(label: "observed-parallel-runtime-aggregate-metric", expected: "18")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunParallelExpressionOperationsItem(
             ctx,
@@ -266,6 +250,5 @@ procedure RunParallelExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

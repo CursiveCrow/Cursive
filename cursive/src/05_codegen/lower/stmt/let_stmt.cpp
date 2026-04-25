@@ -246,14 +246,12 @@ IRPtr LowerLetStmt(const ast::LetStmt& stmt, LowerCtx& ctx) {
     }
   }
 
-  IRPtr log_ir = EmitLogAttributeTrace(binding.attrs, stmt.span, init_result.value,
-                                       var_type, "binding", ctx);
   IRPtr refine_ir = EmptyIR();
   if (binding.init) {
     refine_ir =
         EmitDynamicRefinementChecksForExpr(*binding.init, checked_value, var_type, ctx);
   }
-  return SeqIR({init_result.ir, log_ir, bind_ir, refine_ir});
+  return SeqIR({init_result.ir, bind_ir, refine_ir});
 }
 
 }  // namespace cursive::codegen

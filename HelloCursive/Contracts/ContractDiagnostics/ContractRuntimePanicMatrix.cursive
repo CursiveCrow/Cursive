@@ -78,11 +78,10 @@ procedure ContractRuntimePanicMatrixMetricLabel(value: i32) -> string@View {
 
 public procedure RunContractRuntimePanicMatrix(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let con_079: string@View = "CON-079"
     let con_079_log: string@View =
-        [[log(label: "contracts-contract-runtime-panic-matrix-feature-079", expected: "CON-079")]]
         con_079
 
     let local_pre_fail_catch_metric: i32 = unsafe {
@@ -99,16 +98,12 @@ public procedure RunContractRuntimePanicMatrix(ctx: Context) -> i32 {
     }
 
     let local_pre_fail_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-runtime-panic-matrix-local-pre-fail-catch", expected: 0)]]
         local_pre_fail_catch_metric
     let local_post_fail_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-runtime-panic-matrix-local-post-fail-catch", expected: 0)]]
         local_post_fail_catch_metric
     let foreign_pre_fail_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-runtime-panic-matrix-foreign-pre-fail-catch", expected: 0)]]
         foreign_pre_fail_catch_metric
     let foreign_post_fail_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-runtime-panic-matrix-foreign-post-fail-catch", expected: 0)]]
         foreign_post_fail_catch_metric
 
     let panic_2850: string@View =
@@ -133,13 +128,10 @@ public procedure RunContractRuntimePanicMatrix(ctx: Context) -> i32 {
             "missing"
         }
     let panic_2850_log: string@View =
-        [[log(label: "contracts-runtime-panic-matrix-code-2850", expected: "P-SEM-2850")]]
         panic_2850
     let panic_2860_log: string@View =
-        [[log(label: "contracts-runtime-panic-matrix-code-2860", expected: "P-SEM-2860")]]
         panic_2860
     let panic_2861_log: string@View =
-        [[log(label: "contracts-runtime-panic-matrix-code-2861", expected: "P-SEM-2861")]]
         panic_2861
 
     let runtime_ok: bool =
@@ -152,19 +144,17 @@ public procedure RunContractRuntimePanicMatrix(ctx: Context) -> i32 {
         (panic_2860_log == "P-SEM-2860") &&
         (panic_2861_log == "P-SEM-2861")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-contract-runtime-panic-matrix-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = ContractRuntimePanicMatrixMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-contract-runtime-panic-matrix-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

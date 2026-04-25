@@ -27,8 +27,6 @@ procedure RegionInvalidationExpiredStateMetricLabel(value: i32) -> string@View {
 
 public procedure RunRegionInvalidationExpiredState(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let invalidation_metric: i32 = RegionInvalidationExpiredProbe()
     let invalidation_metric_ok: bool = invalidation_metric == 17
 
@@ -36,18 +34,15 @@ public procedure RunRegionInvalidationExpiredState(ctx: Context) -> i32 {
     let diag_unchecked_requires_unsafe: string@View = "E-MEM-3030"
 
     let diag_expired_deref_logged: string@View =
-        [[log(label: "pointers-runtime-region-diag-expired-deref", expected: "E-TYP-2102")]]
         diag_expired_deref
     let diag_expired_deref_ok: bool =
         diag_expired_deref_logged == "E-TYP-2102"
     let diag_unchecked_requires_unsafe_logged: string@View =
-        [[log(label: "pointers-runtime-region-diag-unsafe-required", expected: "E-MEM-3030")]]
         diag_unchecked_requires_unsafe
     let diag_unchecked_requires_unsafe_ok: bool =
         diag_unchecked_requires_unsafe_logged == "E-MEM-3030"
 
     let invalidation_metric_ok_log: bool =
-        [[log(label: "pointers-runtime-region-invalidation-metric", expected: true)]]
         invalidation_metric_ok
 
     let metric_ok: bool =
@@ -57,13 +52,10 @@ public procedure RunRegionInvalidationExpiredState(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 24 } else { 0 }
     let metric_label: string@View = RegionInvalidationExpiredStateMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-runtime-region-invalidation-expired-metric", expected: "24")]]
         metric_label
     if (metric_log_actual != "24") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

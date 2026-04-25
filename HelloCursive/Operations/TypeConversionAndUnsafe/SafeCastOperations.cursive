@@ -6,8 +6,7 @@ procedure LogSafeCastObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure SafeCastMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -36,22 +35,17 @@ procedure RunSafeCastItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifySafeCastItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let base_u32: u32 = 5
     let base_char: char = 'A'
 
@@ -59,33 +53,25 @@ procedure VerifySafeCastItem(ctx: Context, scope: string@View, move item_index: 
     LogSafeCastObject(ctx.fs, scope, "base_char", "char", "constructed", "character source for safe cast prepared")
     LogSafeCastObject(ctx.fs, scope, "bool_cast_probe", "i32->bool", "planned", "boolean cast probe planned")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let syntax_metric: i32 = base_u32 as i32
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_u32: u32 = base_char as u32
     let static_metric: i32 = static_u32 as i32
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let bool_true: bool = 1 as bool
     let bool_false: bool = 0 as bool
     let runtime_metric: i32 = syntax_metric + if (bool_true && !bool_false) { 2 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = syntax_metric == 5
     let static_passed: bool = static_metric == 65
     let runtime_passed: bool = runtime_metric == 7
 
     let actual_label_1: string@View = SafeCastMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-safe-cast-syntax-metric", expected: "5")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = SafeCastMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-safe-cast-static-metric", expected: "65")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = SafeCastMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-safe-cast-runtime-metric", expected: "7")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunSafeCastItem(
             ctx,
@@ -172,6 +158,5 @@ procedure RunSafeCastOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

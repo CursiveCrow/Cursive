@@ -15,8 +15,6 @@ procedure OwnershipTransitionMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunMoveStateTransitions(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     let place_source: i32 = 10
     let whole_move_metric: i32 = OwnershipConsumeTransition(move place_source)
 
@@ -32,18 +30,16 @@ public procedure RunMoveStateTransitions(ctx: Context) -> i32 {
     let whole_ok: bool = whole_move_metric == 11
     let partial_ok: bool = (partial_left_metric == 3) && (partial_right_metric == 6)
     let reset_ok: bool = (first_take == 8) && (second_take == 10)
-    let whole_ok_log = [[log(label: "memory-ownership-whole-move-transition", expected: true)]] whole_ok
-    let partial_ok_log = [[log(label: "memory-ownership-field-partial-move-transition", expected: true)]] partial_ok
-    let reset_ok_log = [[log(label: "memory-ownership-reassignment-reset", expected: true)]] reset_ok
+    let whole_ok_log = whole_ok
+    let partial_ok_log = partial_ok
+    let reset_ok_log = reset_ok
 
     let metric: i32 = if (whole_ok && partial_ok && reset_ok && (whole_ok_log == true) && (partial_ok_log == true) && (reset_ok_log == true)) { 38 } else { 0 }
     let metric_label: string@View = OwnershipTransitionMetricLabel(metric)
-    let metric_log_actual = [[log(label: "observed-memory-ownership-transitions-metric", expected: "38")]] metric_label
+    let metric_log_actual = metric_label
     if (metric_log_actual != "38") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

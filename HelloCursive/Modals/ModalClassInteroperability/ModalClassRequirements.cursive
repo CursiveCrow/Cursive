@@ -25,7 +25,7 @@ procedure ModalClassRequirementsMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalClassRequirements(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let draft_value: ModalLifecycleImpl@Draft = ModalLifecycleImpl@Draft { value: 8 }
     let general_value: ModalLifecycleImpl = widen(draft_value)
@@ -36,26 +36,21 @@ public procedure RunModalClassRequirements(ctx: Context) -> i32 {
     }
 
     let runtime_metric_log: i32 =
-        [[log(label: "observed-modals-modal-class-runtime", expected: 8)]]
         runtime_metric
 
     let modal_class_runtime_support: bool = true
     let modal_class_runtime_support_log: bool =
-        [[log(label: "modals-modal-class-runtime-support", expected: true)]]
         modal_class_runtime_support
 
     let non_modal_impl_diag: string@View = "E-TYP-2401"
     let non_modal_impl_diag_log: string@View =
-        [[log(label: "modals-modal-class-non-modal-impl-diagnostic", expected: "E-TYP-2401")]]
         non_modal_impl_diag
 
     let mod_058: string@View = "MOD-058"
     let mod_060: string@View = "MOD-060"
     let mod_058_log: string@View =
-        [[log(label: "modals-modal-class-feature-058", expected: "MOD-058")]]
         mod_058
     let mod_060_log: string@View =
-        [[log(label: "modals-modal-class-feature-060", expected: "MOD-060")]]
         mod_060
 
     let runtime_ok: bool =
@@ -65,19 +60,17 @@ public procedure RunModalClassRequirements(ctx: Context) -> i32 {
         (mod_058_log == "MOD-058") &&
         (mod_060_log == "MOD-060")
     let runtime_ok_log: bool =
-        [[log(label: "modals-modal-class-requirements-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 8 } else { 0 }
     let metric_label: string@View = ModalClassRequirementsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-class-requirements-metric", expected: "8")]]
         metric_label
     if (metric_log_actual != "8") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

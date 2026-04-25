@@ -18,8 +18,7 @@ procedure LogPipelineObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure PipelineMetricLabel(value: i32) -> string@View {
     if (value == 7) {
@@ -52,22 +51,17 @@ procedure RunPipelineOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyPipelineOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let pipeline_seed_syntax: i32 = 3
     let pipeline_seed_static: i32 = 5
     let pipeline_seed_runtime: i32 = 5
@@ -75,17 +69,10 @@ procedure VerifyPipelineOperationsItem(ctx: Context, scope: string@View, move it
     LogPipelineObject(ctx.fs, scope, "pipeline_seed_static", "i32", "constructed", "pipeline static typing seed prepared")
     LogPipelineObject(ctx.fs, scope, "pipeline_seed_runtime", "i32", "constructed", "pipeline runtime chaining seed prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let pipeline_syntax_metric: i32 = pipeline_seed_syntax => PipelineAddOne => PipelineTimesTwo
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let pipeline_static_metric: i32 = pipeline_seed_static => PipelineTimesTwo => PipelineMinusThree
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let pipeline_runtime_stage: i32 = pipeline_seed_runtime => PipelineAddOne => PipelineTimesTwo => PipelineMinusThree
     let pipeline_runtime_metric: i32 = pipeline_runtime_stage + pipeline_syntax_metric
-    [[log(label: "operations-log-transition_move")]]
     let observed_syntax_step: string@View = "observed-pipeline-syntax-metric"
     let observed_static_step: string@View = "observed-pipeline-static-metric"
     let observed_runtime_step: string@View = "observed-pipeline-runtime-metric"
@@ -99,13 +86,12 @@ procedure VerifyPipelineOperationsItem(ctx: Context, scope: string@View, move it
     let static_passed: bool = pipeline_static_metric == 7
     let runtime_passed: bool = pipeline_runtime_metric == 17
 
-    let syntax_passed_log_actual = [[log(label: "observed-pipeline-syntax-metric", expected: "8")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-pipeline-static-metric", expected: "7")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-pipeline-runtime-metric", expected: "17")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunPipelineOperationsItem(
             ctx,
@@ -192,6 +178,5 @@ procedure RunPipelineOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

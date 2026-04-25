@@ -6,8 +6,6 @@ procedure PoisonSurfaceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunPoisonDiagnosticSurface(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     var cleanup_metric: i32 = 0
     {
         defer {
@@ -40,17 +38,17 @@ public procedure RunPoisonDiagnosticSurface(ctx: Context) -> i32 {
     let diag_alloc_outside_region: string@View = "E-MEM-3021"
     let diag_transmute_size_mismatch: string@View = "E-MEM-3031"
 
-    let cleanup_surface_ok_log: bool = [[log(label: "memory-init-poison-surface-cleanup", expected: true)]] cleanup_surface_ok
-    let poisoned_path_surface_ok_log: bool = [[log(label: "memory-init-poison-surface-path", expected: true)]] poisoned_path_surface_ok
-    let poisoned_init_surface_ok_log: bool = [[log(label: "memory-init-poison-surface-init", expected: true)]] poisoned_init_surface_ok
+    let cleanup_surface_ok_log: bool = cleanup_surface_ok
+    let poisoned_path_surface_ok_log: bool = poisoned_path_surface_ok
+    let poisoned_init_surface_ok_log: bool = poisoned_init_surface_ok
 
-    let diag_alloc_outside_region_log: string@View = [[log(label: "memory-init-diagnostic-code-alloc-outside-region", expected: "E-MEM-3021")]] diag_alloc_outside_region
-    let diag_transmute_size_mismatch_log: string@View = [[log(label: "memory-init-diagnostic-code-transmute-size", expected: "E-MEM-3031")]] diag_transmute_size_mismatch
+    let diag_alloc_outside_region_log: string@View = diag_alloc_outside_region
+    let diag_transmute_size_mismatch_log: string@View = diag_transmute_size_mismatch
 
     let diag_matrix_ok: bool =
         (diag_alloc_outside_region_log == "E-MEM-3021") &&
         (diag_transmute_size_mismatch_log == "E-MEM-3031")
-    let diag_matrix_ok_log: bool = [[log(label: "memory-init-poison-diagnostic-matrix", expected: true)]] diag_matrix_ok
+    let diag_matrix_ok_log: bool = diag_matrix_ok
 
     let metric_ok: bool =
         (cleanup_surface_ok_log == true) &&
@@ -60,12 +58,10 @@ public procedure RunPoisonDiagnosticSurface(ctx: Context) -> i32 {
 
     let metric: i32 = if (metric_ok) { 28 } else { 0 }
     let metric_label: string@View = PoisonSurfaceMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-init-poison-surface-metric", expected: "28")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "28") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

@@ -6,7 +6,7 @@ procedure FileSystemCreateWriteConformanceMetricLabel(value: i32) -> string@View
 }
 
 public procedure RunFileSystemCreateWriteConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -145,19 +145,14 @@ public procedure RunFileSystemCreateWriteConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-create-write-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let create_write_ready_log: bool =
-        [[log(label: "observed-modals-fs-create-write-ready", expected: true)]]
         create_write_ready
     let create_write_duplicate_error_log: bool =
-        [[log(label: "observed-modals-fs-create-write-duplicate-error", expected: true)]]
         create_write_duplicate_error
     let create_write_length_log: i32 =
-        [[log(label: "observed-modals-fs-create-write-text-length", expected: 12)]]
         create_write_length
     let create_write_exact_text_log: bool =
-        [[log(label: "observed-modals-fs-create-write-exact-text", expected: true)]]
         create_write_exact_text
 
     let metric: i32 = if (
@@ -169,17 +164,16 @@ public procedure RunFileSystemCreateWriteConformance(ctx: Context) -> i32 {
     ) { 14 } else { 0 }
     let metric_label: string@View = FileSystemCreateWriteConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-create-write-metric", expected: "14")]]
         metric_label
 
     let cleanup_probe: () | IoError = fs~>remove(probe_path)
     let _ = cleanup_probe
 
     if (metric_log_actual != "14") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

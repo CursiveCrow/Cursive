@@ -47,7 +47,7 @@ procedure ForeignEnsuresPredicateFormsMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunForeignEnsuresPredicateForms(ctx: Context) -> i32 {
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let seed_value: i32 = 73
     let seed_ptr_safe: Ptr<i32>@Valid = &seed_value
@@ -62,31 +62,24 @@ public procedure RunForeignEnsuresPredicateForms(ctx: Context) -> i32 {
     }
 
     let observed_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-ensures-call", expected: 7)]]
         observed_value
     let null_form_non_null_log: bool =
-        [[log(label: "observed-contracts-foreign-ensures-form-non-null", expected: true)]]
         null_form_non_null != null
     let null_form_no_panic_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-ensures-form-null-no-panic", expected: 13)]]
         null_form_no_panic_metric
 
     let con_069: string@View = "CON-069"
     let con_069_log: string@View =
-        [[log(label: "contracts-foreign-ensures-feature-069", expected: "CON-069")]]
         con_069
 
     let diag_2853: string@View = "E-SEM-2853"
     let diag_2854: string@View = "E-SEM-2854"
     let diag_2855: string@View = "E-SEM-2855"
     let diag_2853_log: string@View =
-        [[log(label: "contracts-foreign-ensures-diag-2853", expected: "E-SEM-2853")]]
         diag_2853
     let diag_2854_log: string@View =
-        [[log(label: "contracts-foreign-ensures-diag-2854", expected: "E-SEM-2854")]]
         diag_2854
     let diag_2855_log: string@View =
-        [[log(label: "contracts-foreign-ensures-diag-2855", expected: "E-SEM-2855")]]
         diag_2855
 
     let runtime_ok: bool =
@@ -98,19 +91,17 @@ public procedure RunForeignEnsuresPredicateForms(ctx: Context) -> i32 {
         (diag_2854_log == "E-SEM-2854") &&
         (diag_2855_log == "E-SEM-2855")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-ensures-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 40 } else { 0 }
     let metric_label: string@View = ForeignEnsuresPredicateFormsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-ensures-predicate-forms-metric", expected: "40")]]
         metric_label
     if (metric_log_actual != "40") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

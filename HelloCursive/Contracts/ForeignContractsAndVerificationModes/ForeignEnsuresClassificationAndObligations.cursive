@@ -88,7 +88,7 @@ procedure ForeignEnsuresClassificationAndObligationsMetricLabel(value: i32) -> s
 }
 
 public procedure RunForeignEnsuresClassificationAndObligations(ctx: Context) -> i32 {
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let seed_value: i32 = 5
     let seed_ptr_safe: Ptr<i32>@Valid = &seed_value
@@ -114,22 +114,16 @@ public procedure RunForeignEnsuresClassificationAndObligations(ctx: Context) -> 
     }
 
     let success_path_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-ensures-classification-success-path", expected: 11)]]
         success_path_value
     let error_path_is_negative_log: bool =
-        [[log(label: "observed-contracts-foreign-ensures-classification-error-path-negative", expected: true)]]
         error_path_value < 0
     let bad_classification_panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-ensures-classification-bad-catch", expected: 0)]]
         bad_classification_panic_catch_metric
     let null_classification_success_ptr_log: bool =
-        [[log(label: "observed-contracts-foreign-ensures-classification-null-success-non-null", expected: true)]]
         null_classification_success_ptr != null
     let null_classification_error_ptr_log: bool =
-        [[log(label: "observed-contracts-foreign-ensures-classification-null-error-is-null", expected: true)]]
         null_classification_error_ptr == null
     let bad_null_classification_panic_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-ensures-classification-null-bad-catch", expected: 0)]]
         bad_null_classification_panic_catch_metric
 
     let err_cond_holds: bool = error_path_value < 0
@@ -144,39 +138,28 @@ public procedure RunForeignEnsuresClassificationAndObligations(ctx: Context) -> 
     let null_result_obligation_holds: bool = null_cond_holds && (null_classification_error_ptr == null)
 
     let err_cond_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-err-cond", expected: true)]]
         err_cond_holds
     let success_cond_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-success-cond", expected: true)]]
         success_cond_holds
     let error_obligation_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-error-obligation", expected: true)]]
         error_obligation_holds
     let success_obligation_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-success-obligation", expected: true)]]
         success_obligation_holds
     let null_err_cond_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-null-err-cond", expected: true)]]
         null_err_cond_holds
     let null_success_cond_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-null-success-cond", expected: true)]]
         null_success_cond_holds
     let null_cond_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-null-cond", expected: true)]]
         null_cond_holds
     let null_error_obligation_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-null-error-obligation", expected: true)]]
         null_error_obligation_holds
     let null_success_obligation_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-null-success-obligation", expected: true)]]
         null_success_obligation_holds
     let null_result_obligation_holds_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-null-result-obligation", expected: true)]]
         null_result_obligation_holds
 
     let con_070: string@View = "CON-070"
     let con_070_log: string@View =
-        [[log(label: "contracts-foreign-ensures-classification-and-obligations-feature-070", expected: "CON-070")]]
         con_070
 
     let runtime_ok: bool =
@@ -198,19 +181,17 @@ public procedure RunForeignEnsuresClassificationAndObligations(ctx: Context) -> 
         (null_result_obligation_holds_log == true) &&
         (con_070_log == "CON-070")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-ensures-classification-and-obligations-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = ForeignEnsuresClassificationAndObligationsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-ensures-classification-and-obligations-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -30,7 +30,7 @@ procedure PipeExchangeMetricLabel(value: i32) -> string@View {
 
 public procedure RunPipeResumeCycleExercise(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let pipe_read_state: Async<i32, i32, (), !> = PipeResumeProbe()
     let pipe_initial_output: i32 = if move pipe_read_state is {
@@ -38,7 +38,7 @@ public procedure RunPipeResumeCycleExercise(ctx: Context) -> i32 {
         @Completed { value: _ } { -1 }
         @Failed { error: _ } { -1 }
     }
-    let pipe_initial_log: i32 = [[log(label: "observed-pipe-resume-initial-output", expected: 10)]] pipe_initial_output
+    let pipe_initial_log: i32 = pipe_initial_output
     let pipe_initial_ok: bool = pipe_initial_log == 10
 
     let pipe_resume_state: Async<i32, i32, (), !> = PipeResumeProbe()
@@ -60,23 +60,23 @@ public procedure RunPipeResumeCycleExercise(ctx: Context) -> i32 {
         @Completed { value: _ } { -1 }
         _: Async<i32, i32, (), !>@Failed { -1 }
     }
-    let pipe_resumed_log: i32 = [[log(label: "observed-pipe-resume-second-output", expected: 12)]] pipe_resumed_output
+    let pipe_resumed_log: i32 = pipe_resumed_output
     let pipe_resumed_ok: bool = pipe_resumed_log == 12
 
     let all_ok: bool = pipe_initial_ok && pipe_resumed_ok
-    let all_ok_log: bool = [[log(label: "pipe-resume-cycle-runtime", expected: true)]] all_ok
+    let all_ok_log: bool = all_ok
 
     if (all_ok_log != true) {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 
 public procedure RunExchangeResumeCycleExercise(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let exchange_read_state: Async<i32, i32, i32, !> = ExchangeResumeProbe()
     let exchange_initial_output: i32 = if move exchange_read_state is {
@@ -84,7 +84,7 @@ public procedure RunExchangeResumeCycleExercise(ctx: Context) -> i32 {
         @Completed { value: value } { value }
         @Failed { error: _ } { -1 }
     }
-    let exchange_initial_log: i32 = [[log(label: "observed-exchange-resume-initial-output", expected: 100)]] exchange_initial_output
+    let exchange_initial_log: i32 = exchange_initial_output
     let exchange_initial_ok: bool = exchange_initial_log == 100
 
     let exchange_resume_state: Async<i32, i32, i32, !> = ExchangeResumeProbe()
@@ -106,17 +106,17 @@ public procedure RunExchangeResumeCycleExercise(ctx: Context) -> i32 {
         @Completed { value: value } { value }
         _: Async<i32, i32, i32, !>@Failed { -1 }
     }
-    let exchange_completed_log: i32 = [[log(label: "observed-exchange-resume-completed-value", expected: 70)]] exchange_completed_value
+    let exchange_completed_log: i32 = exchange_completed_value
     let exchange_completed_ok: bool = exchange_completed_log == 70
 
     let all_ok: bool = exchange_initial_ok && exchange_completed_ok
-    let all_ok_log: bool = [[log(label: "exchange-resume-cycle-runtime", expected: true)]] all_ok
+    let all_ok_log: bool = all_ok
 
     if (all_ok_log != true) {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

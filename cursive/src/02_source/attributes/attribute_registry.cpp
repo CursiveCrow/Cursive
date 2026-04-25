@@ -31,13 +31,6 @@ static inline void SpecDefsAttributes() {
   SPEC_DEF("AttrRegistry", "C0X.6.A");
 }
 
-static bool IsLiteralTokenKind(lexer::TokenKind kind) {
-  using lexer::TokenKind;
-  return kind == TokenKind::IntLiteral || kind == TokenKind::FloatLiteral ||
-         kind == TokenKind::StringLiteral || kind == TokenKind::CharLiteral ||
-         kind == TokenKind::BoolLiteral || kind == TokenKind::NullLiteral;
-}
-
 static bool IsStringLiteralToken(const ast::Token& tok) {
   return tok.kind == lexer::TokenKind::StringLiteral;
 }
@@ -160,8 +153,7 @@ static bool IsIntLayoutKind(std::string_view value) {
 // the portion that is semantically meaningful on methods.
 static bool IsMethodProcedureEquivalentAttr(std::string_view name) {
   return name == attrs::kInline || name == attrs::kCold ||
-         name == attrs::kDeprecated || name == attrs::kDynamic ||
-         name == attrs::kLog;
+         name == attrs::kDeprecated || name == attrs::kDynamic;
 }
 
 static AttributeTarget NormalizeAttrTargetForLookup(std::string_view name,
@@ -275,15 +267,6 @@ AttributeRegistry InitializeRegistry() {
     AttributeSpec spec;
     spec.name = attrs::kStaleOk;
     spec.valid_targets = {AttributeTarget::Binding};
-    registry.Register(spec);
-  }
-
-  // [[log(...)]] - Runtime instrumentation hooks
-  {
-    AttributeSpec spec;
-    spec.name = attrs::kLog;
-    spec.valid_targets = {AttributeTarget::Procedure, AttributeTarget::Binding,
-                          AttributeTarget::Expression, AttributeTarget::Statement};
     registry.Register(spec);
   }
 
@@ -454,71 +437,6 @@ AttributeValidationResult ValidateAttributes(
 
     if (!ValidateDeriveAttributeArgs(attr, result)) {
       return result;
-    }
-
-    // Validate arguments
-    if (attr.name == ::cursive::analysis::attrs::kLog) {
-      bool seen_label = false;
-      bool seen_expected = false;
-      for (const auto& arg : attr.args) {
-        if (!arg.key.has_value()) {
-          result.ok = false;
-          result.diag_id = "E-MOD-2456";
-          result.span = attr.span;
-          result.message = "Invalid [[log]] argument";
-          return result;
-        }
-
-        const std::string_view key = *arg.key;
-        if (key == "label") {
-          if (seen_label) {
-            result.ok = false;
-            result.diag_id = "E-MOD-2456";
-            result.span = attr.span;
-            result.message = "Duplicate [[log]] argument key: label";
-            return result;
-          }
-          seen_label = true;
-
-          const auto* token = std::get_if<ast::Token>(&arg.value);
-          if (!token || token->kind != lexer::TokenKind::StringLiteral) {
-            result.ok = false;
-            result.diag_id = "E-MOD-2456";
-            result.span = attr.span;
-            result.message = "[[log(label: ...)]] requires string literal";
-            return result;
-          }
-          continue;
-        }
-
-        if (key == "expected") {
-          if (seen_expected) {
-            result.ok = false;
-            result.diag_id = "E-MOD-2456";
-            result.span = attr.span;
-            result.message = "Duplicate [[log]] argument key: expected";
-            return result;
-          }
-          seen_expected = true;
-
-          const auto* token = std::get_if<ast::Token>(&arg.value);
-          if (!token || (!IsLiteralTokenKind(token->kind) &&
-                         token->kind != lexer::TokenKind::Identifier)) {
-            result.ok = false;
-            result.diag_id = "E-MOD-2456";
-            result.span = attr.span;
-            result.message = "[[log(expected: ...)]] requires literal or identifier";
-            return result;
-          }
-          continue;
-        }
-
-        result.ok = false;
-        result.diag_id = "E-MOD-2456";
-        result.span = attr.span;
-        result.message = "Invalid [[log]] argument key";
-        return result;
-      }
     }
 
     if (attr.name == ::cursive::analysis::attrs::kCold ||

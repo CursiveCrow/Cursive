@@ -6,7 +6,7 @@ procedure FileSystemExistsConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemExistsConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -79,22 +79,16 @@ public procedure RunFileSystemExistsConformance(ctx: Context) -> i32 {
     let escaped_target_missing: bool = fs~>exists(escaped_target_path) == false
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-exists-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let exists_before_create_log: bool =
-        [[log(label: "observed-modals-fs-exists-before-create", expected: false)]]
         exists_before_create
     let exists_after_create_log: bool =
-        [[log(label: "observed-modals-fs-exists-after-create", expected: true)]]
         exists_after_create
     let missing_is_false_log: bool =
-        [[log(label: "observed-modals-fs-exists-missing-false", expected: true)]]
         missing_is_false
     let restricted_escape_is_false_log: bool =
-        [[log(label: "observed-modals-fs-exists-restricted-escape-false", expected: true)]]
         restricted_escape_is_false
     let escaped_target_missing_log: bool =
-        [[log(label: "observed-modals-fs-exists-restricted-escape-no-file", expected: true)]]
         escaped_target_missing
 
     let metric: i32 = if (
@@ -107,7 +101,6 @@ public procedure RunFileSystemExistsConformance(ctx: Context) -> i32 {
     ) { 5 } else { 0 }
     let metric_label: string@View = FileSystemExistsConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-exists-metric", expected: "5")]]
         metric_label
 
     let cleanup_probe: () | IoError = fs~>remove(probe_path)
@@ -116,10 +109,10 @@ public procedure RunFileSystemExistsConformance(ctx: Context) -> i32 {
     let _ = cleanup_escaped_target
 
     if (metric_log_actual != "5") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

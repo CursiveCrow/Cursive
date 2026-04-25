@@ -6,8 +6,7 @@ procedure LogLoopExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure LoopExpressionMetricLabel(value: i32) -> string@View {
     if (value == 4) {
@@ -37,35 +36,26 @@ procedure RunLoopExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     var conditional_counter: i32 = 0
     var iter_sum: i32 = 0
     LogLoopExpressionObject(ctx.fs, scope, "conditional_counter", "i32", "constructed", "counter for loop-condition form prepared")
     LogLoopExpressionObject(ctx.fs, scope, "iter_sum", "i32", "constructed", "accumulator for loop-iterator form prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let loop_syntax_pair: (i32, i32) = loop {
         break (3, 4)
     }
     let loop_syntax_metric: i32 = loop_syntax_pair.0 + loop_syntax_pair.1
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let conditional_pair_or_unit: (i32, i32) | () = loop conditional_counter < 3 {
         break (conditional_counter, 4)
     }
@@ -73,8 +63,6 @@ procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, m
         pair: (i32, i32) { pair.0 + pair.1 }
         _: () { 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let iter_values: [i32; 3] = [1, 2, 3]
     let iter_pair_or_unit: (i32, i32) | () = loop value in iter_values {
         iter_sum = iter_sum + value
@@ -86,21 +74,19 @@ procedure VerifyLoopExpressionOperationsItem(ctx: Context, scope: string@View, m
         pair: (i32, i32) { pair.0 + pair.1 }
         _: () { 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = loop_syntax_metric == 7
     let static_passed: bool = loop_static_metric == 4
     let runtime_passed: bool = loop_runtime_metric == 10
 
     let actual_label_1: string@View = LoopExpressionMetricLabel(loop_syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-loop-expression-syntax-metric", expected: "7")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = LoopExpressionMetricLabel(loop_static_metric)
-    let static_passed_log_actual = [[log(label: "observed-loop-expression-static-metric", expected: "4")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = LoopExpressionMetricLabel(loop_runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-loop-expression-runtime-metric", expected: "10")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunLoopExpressionOperationsItem(
             ctx,
@@ -187,6 +173,5 @@ procedure RunLoopExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

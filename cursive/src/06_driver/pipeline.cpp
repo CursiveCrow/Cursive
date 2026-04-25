@@ -326,12 +326,6 @@ void ResetLowerContextForModule(codegen::LowerCtx& ctx,
   ctx.expr_region_tags.reset();
   ctx.dynamic_checks = false;
   ctx.current_access_order.reset();
-  ctx.proc_log_enabled = false;
-  ctx.proc_log_name.clear();
-  ctx.proc_log_label.reset();
-  ctx.proc_log_expected.reset();
-  ctx.proc_log_expected_token_kind.reset();
-  ctx.proc_log_expected_is_ident = false;
   ctx.log_enabled = false;
   ctx.log_to_console = false;
   ctx.log_to_file = false;

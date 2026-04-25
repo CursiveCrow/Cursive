@@ -15,8 +15,7 @@ procedure LogMoveOperationsObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure MoveOperationsMetricLabel(value: i32) -> string@View {
     if (value == 6) {
@@ -49,41 +48,27 @@ procedure RunMoveAndPartialMoveOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyMoveAndPartialMoveOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogMoveOperationsObject(ctx.fs, scope, "move_literal", "i32 literal", "constructed", "literal source for consuming call prepared")
     LogMoveOperationsObject(ctx.fs, scope, "move_place", "i32 place", "constructed", "place source for explicit move call prepared")
     LogMoveOperationsObject(ctx.fs, scope, "partial_carrier", "PartialMoveCarrier", "constructed", "carrier with unique fields for partial moves prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let move_syntax_metric: i32 = MoveConsumeValue(5)
-    [[log(label: "operations-log-transition_move")]]
     let move_place_source: i32 = 8
-    [[log(label: "operations-log-transition_move")]]
     let move_static_metric: i32 = MoveConsumeValue(move move_place_source)
-    [[log(label: "operations-log-transition_move")]]
     let partial_carrier: PartialMoveCarrier = PartialMoveCarrier { left: 7, right: 9 }
-    [[log(label: "operations-log-transition_move")]]
     let partial_left_metric: i32 = MoveConsumeValue(move partial_carrier.left)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let partial_right_metric: i32 = MoveConsumeValue(move partial_carrier.right)
-    [[log(label: "operations-log-transition_move")]]
     let partial_metric: i32 = partial_left_metric + partial_right_metric
     let move_runtime_metric: i32 = move_static_metric + partial_metric
 
@@ -104,17 +89,15 @@ procedure VerifyMoveAndPartialMoveOperationsItem(ctx: Context, scope: string@Vie
     let partial_passed: bool = partial_metric == 18
     let runtime_passed: bool = move_runtime_metric == 27
 
-    let syntax_passed_log_actual = [[log(label: "observed-move-syntax-metric", expected: "6")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-move-static-metric", expected: "9")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let partial_passed_log_actual = [[log(label: "observed-partial-move-metric", expected: "18")]] partial_label
+    let partial_passed_log_actual = partial_label
     let partial_passed_with_log: bool = partial_passed && (partial_passed_log_actual == partial_label)
-    let runtime_passed_log_actual = [[log(label: "observed-move-runtime-metric", expected: "27")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
     let runtime_combined_passed: bool = partial_passed_with_log && runtime_passed_with_log
-    [[log(label: "operations-log-runtime_phase_move")]]
-
     let _ = observed_syntax_step
     let _ = observed_static_step
     let _ = observed_partial_step
@@ -213,6 +196,5 @@ procedure RunMoveAndPartialMoveOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

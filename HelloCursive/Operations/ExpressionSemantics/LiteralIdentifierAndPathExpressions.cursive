@@ -10,8 +10,7 @@ procedure LogLiteralPathObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure LiteralPathMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -41,40 +40,28 @@ procedure RunLiteralIdentifierAndPathExpressionsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyLiteralIdentifierAndPathExpressionsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogLiteralPathObject(ctx.fs, scope, "literal_inputs", "i32,bool", "constructed", "literal expression inputs prepared")
     LogLiteralPathObject(ctx.fs, scope, "identifier_binding", "i32", "constructed", "identifier-bound value prepared")
     LogLiteralPathObject(ctx.fs, scope, "path_values", "Ptr<i32>@Null,LiteralPathProbe", "constructed", "path-expression values prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let literal_gate: bool = true
     let literal_metric: i32 = if (literal_gate) { 5 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let identifier_seed: i32 = 4
     let identifier_metric: i32 = identifier_seed + 1
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let null_ptr: Ptr<i32>@Null = Ptr::null()
     let path_probe: LiteralPathProbe = LiteralPathProbe { value: 6 }
     let path_metric: i32 = path_probe.value
-    [[log(label: "operations-log-transition_move")]]
     let runtime_metric: i32 = literal_metric + identifier_metric + path_metric
 
     let observed_literal_step: string@View = "observed-literal-expression-metric"
@@ -94,15 +81,14 @@ procedure VerifyLiteralIdentifierAndPathExpressionsItem(ctx: Context, scope: str
     let path_passed: bool = path_metric == 6
     let runtime_passed: bool = runtime_metric == 16
 
-    let literal_passed_log_actual = [[log(label: "observed-literal-expression-metric", expected: "5")]] literal_label
+    let literal_passed_log_actual = literal_label
     let literal_passed_with_log: bool = literal_passed && (literal_passed_log_actual == literal_label)
-    let identifier_passed_log_actual = [[log(label: "observed-identifier-expression-metric", expected: "5")]] identifier_label
+    let identifier_passed_log_actual = identifier_label
     let identifier_passed_with_log: bool = identifier_passed && (identifier_passed_log_actual == identifier_label)
-    let path_passed_log_actual = [[log(label: "observed-path-expression-metric", expected: "6")]] path_label
+    let path_passed_log_actual = path_label
     let path_passed_with_log: bool = path_passed && (path_passed_log_actual == path_label)
-    let runtime_passed_log_actual = [[log(label: "observed-literal-identifier-path-runtime-aggregate-metric", expected: "16")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunLiteralIdentifierAndPathExpressionsItem(
             ctx,
@@ -189,6 +175,5 @@ procedure RunLiteralIdentifierAndPathExpressions(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

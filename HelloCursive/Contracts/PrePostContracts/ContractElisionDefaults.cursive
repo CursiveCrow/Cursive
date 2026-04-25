@@ -25,25 +25,21 @@ procedure ContractElisionDefaultsMetricLabel(value: i32) -> string@View {
 
 public procedure RunContractElisionDefaults(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let pre_only: i32 = ContractElisionPreOnly(7)
     let post_only: i32 = ContractElisionPostOnly(7)
     let no_clause: i32 = ContractElisionNoClause(7)
 
     let pre_only_log: i32 =
-        [[log(label: "observed-contracts-elision-pre-only", expected: 7)]]
         pre_only
     let post_only_log: i32 =
-        [[log(label: "observed-contracts-elision-post-only", expected: 8)]]
         post_only
     let no_clause_log: i32 =
-        [[log(label: "observed-contracts-elision-no-clause", expected: 9)]]
         no_clause
 
     let con_027: string@View = "CON-027"
     let con_027_log: string@View =
-        [[log(label: "contracts-contract-elision-defaults-feature-027", expected: "CON-027")]]
         con_027
 
     let runtime_ok: bool =
@@ -52,19 +48,17 @@ public procedure RunContractElisionDefaults(ctx: Context) -> i32 {
         (no_clause_log == 9) &&
         (con_027_log == "CON-027")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-contract-elision-defaults-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 28 } else { 0 }
     let metric_label: string@View = ContractElisionDefaultsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-contract-elision-defaults-metric", expected: "28")]]
         metric_label
     if (metric_log_actual != "28") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -14,7 +14,7 @@ procedure DynamicAndModalReceiverPermissionsMetricLabel(value: i32) -> string@Vi
 }
 
 public procedure RunDynamicAndModalReceiverPermissions(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs_handle: $FileSystem = ctx.fs
     let _ = fs_handle
@@ -33,16 +33,12 @@ public procedure RunDynamicAndModalReceiverPermissions(ctx: Context) -> i32 {
     let modal_diag: string@View = "E-CON-0131"
 
     let dynamic_metric_log: i32 =
-        [[log(label: "observed-permissions-dynamic-receiver-runtime", expected: 5)]]
         dynamic_metric
     let modal_metric_log: i32 =
-        [[log(label: "observed-permissions-modal-receiver-runtime", expected: 8)]]
         modal_metric
     let dynamic_diag_log: string@View =
-        [[log(label: "permissions-dynamic-receiver-diagnostic", expected: "E-CON-0086")]]
         dynamic_diag
     let modal_diag_log: string@View =
-        [[log(label: "permissions-modal-receiver-diagnostic", expected: "E-CON-0131")]]
         modal_diag
 
     let runtime_ok: bool =
@@ -51,20 +47,18 @@ public procedure RunDynamicAndModalReceiverPermissions(ctx: Context) -> i32 {
         (dynamic_diag_log == "E-CON-0086") &&
         (modal_diag_log == "E-CON-0131")
     let runtime_ok_log: bool =
-        [[log(label: "permissions-receiver-dynamic-and-modal-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 13 } else { 0 }
     let metric_label: string@View =
         DynamicAndModalReceiverPermissionsMetricLabel(metric)
     let metric_label_log: string@View =
-        [[log(label: "observed-permissions-receiver-dynamic-and-modal-metric", expected: "13")]]
         metric_label
     if (metric_label_log != "13") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

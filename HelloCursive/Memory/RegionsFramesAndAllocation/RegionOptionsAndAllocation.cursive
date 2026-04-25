@@ -7,14 +7,12 @@ procedure RegionOptionsAllocationMetricLabel(value: i32) -> string@View {
 
 public procedure RunRegionOptionsAndAllocation(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     var implicit_explicit_alloc_ok: bool = false
     region (RegionOptions()) as r {
         let implicit_alloc: i32 = ^2
         let explicit_alloc: i32 = r ^ 5
         let alloc_ok: bool = (implicit_alloc + explicit_alloc) == 7
-        let alloc_ok_log = [[log(label: "memory-regions-implicit-explicit-allocation", expected: true)]] alloc_ok
+        let alloc_ok_log = alloc_ok
         implicit_explicit_alloc_ok = alloc_ok_log == true
     }
 
@@ -22,7 +20,7 @@ public procedure RunRegionOptionsAndAllocation(ctx: Context) -> i32 {
     region (RegionOptions { stack_size: 0usize, name: "memory-region" }) as r {
         let options_alloc: i32 = r ^ 6
         let options_ok: bool = options_alloc == 6
-        let options_ok_log = [[log(label: "memory-regions-region-options-explicit", expected: true)]] options_ok
+        let options_ok_log = options_ok
         options_alloc_probe_ok = options_ok_log == true
     }
 
@@ -30,7 +28,7 @@ public procedure RunRegionOptionsAndAllocation(ctx: Context) -> i32 {
     region (RegionOptions { stack_size: 0usize, name: "memory-region-method-alloc" }) as r {
         let method_alloc: i32 = r~>alloc(8)
         let method_alloc_ok: bool = method_alloc == 8
-        let method_alloc_ok_log = [[log(label: "memory-regions-method-alloc", expected: true)]] method_alloc_ok
+        let method_alloc_ok_log = method_alloc_ok
         method_alloc_probe_ok = method_alloc_ok_log == true
     }
 
@@ -39,7 +37,7 @@ public procedure RunRegionOptionsAndAllocation(ctx: Context) -> i32 {
     var scoped_region: unique Region@Active = Region::new_scoped(new_scoped_opts)
     let scoped_alloc: i32 = scoped_region~>alloc(9)
     let scoped_alloc_ok: bool = scoped_alloc == 9
-    let scoped_alloc_ok_log = [[log(label: "memory-regions-new-scoped-alloc", expected: true)]] scoped_alloc_ok
+    let scoped_alloc_ok_log = scoped_alloc_ok
     unsafe {
         scoped_region~>free_unchecked()
     }
@@ -50,12 +48,10 @@ public procedure RunRegionOptionsAndAllocation(ctx: Context) -> i32 {
         method_alloc_probe_ok &&
         new_scoped_probe_ok) { 37 } else { 0 }
     let metric_label: string@View = RegionOptionsAllocationMetricLabel(metric)
-    let metric_log_actual = [[log(label: "observed-memory-region-options-allocation-metric", expected: "37")]] metric_label
+    let metric_log_actual = metric_label
     if (metric_log_actual != "37") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

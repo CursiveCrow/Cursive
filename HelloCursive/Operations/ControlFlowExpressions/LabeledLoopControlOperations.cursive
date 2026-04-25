@@ -6,8 +6,7 @@ procedure LogLoopControlObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure LoopControlMetricLabel(value: i32) -> string@View {
     if (value == 3) {
@@ -37,22 +36,17 @@ procedure RunLabeledLoopControlOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyLabeledLoopControlOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     var continue_counter: i32 = 0
     var nested_outer: i32 = 0
     var control_sum: i32 = 0
@@ -60,8 +54,6 @@ procedure VerifyLabeledLoopControlOperationsItem(ctx: Context, scope: string@Vie
     LogLoopControlObject(ctx.fs, scope, "nested_outer", "i32", "constructed", "outer counter for nested loop control prepared")
     LogLoopControlObject(ctx.fs, scope, "control_sum", "i32", "constructed", "accumulator for iterator control statements prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let control_syntax_metric: i32 = loop {
         continue_counter = continue_counter + 1
         if (continue_counter < 3) {
@@ -69,8 +61,6 @@ procedure VerifyLabeledLoopControlOperationsItem(ctx: Context, scope: string@Vie
         }
         break continue_counter
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let control_static_metric: i32 = loop {
         nested_outer = nested_outer + 1
         let inner_value: i32 = loop {
@@ -83,8 +73,6 @@ procedure VerifyLabeledLoopControlOperationsItem(ctx: Context, scope: string@Vie
             break inner_value + nested_outer
         }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let control_values: [i32; 5] = [0, 1, 2, 3, 4]
     loop item in control_values {
         if (item == 1) {
@@ -96,21 +84,19 @@ procedure VerifyLabeledLoopControlOperationsItem(ctx: Context, scope: string@Vie
         control_sum = control_sum + item
     }
     let control_runtime_metric: i32 = control_static_metric + control_sum
-    [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = control_syntax_metric == 3
     let static_passed: bool = control_static_metric == 7
     let runtime_passed: bool = control_runtime_metric == 12
 
     let actual_label_1: string@View = LoopControlMetricLabel(control_syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-loop-control-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = LoopControlMetricLabel(control_static_metric)
-    let static_passed_log_actual = [[log(label: "observed-loop-control-static-metric", expected: "7")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = LoopControlMetricLabel(control_runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-loop-control-runtime-metric", expected: "12")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunLabeledLoopControlOperationsItem(
             ctx,
@@ -197,6 +183,5 @@ procedure RunLabeledLoopControlOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

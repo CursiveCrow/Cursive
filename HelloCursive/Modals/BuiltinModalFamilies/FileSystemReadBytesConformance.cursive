@@ -6,7 +6,7 @@ procedure FileSystemReadBytesConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemReadBytesConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -118,19 +118,14 @@ public procedure RunFileSystemReadBytesConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-read-bytes-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let seed_ready_log: bool =
-        [[log(label: "observed-modals-fs-read-bytes-seed-ready", expected: true)]]
         seed_ready
     let read_bytes_length_log: i32 =
-        [[log(label: "observed-modals-fs-read-bytes-length", expected: 4)]]
         read_bytes_length
     let read_bytes_exact_payload_log: bool =
-        [[log(label: "observed-modals-fs-read-bytes-exact-payload", expected: true)]]
         read_bytes_exact_payload
     let read_bytes_missing_error_log: bool =
-        [[log(label: "observed-modals-fs-read-bytes-missing-error", expected: true)]]
         read_bytes_missing_error
 
     let metric: i32 = if (
@@ -142,17 +137,16 @@ public procedure RunFileSystemReadBytesConformance(ctx: Context) -> i32 {
     ) { 4 } else { 0 }
     let metric_label: string@View = FileSystemReadBytesConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-read-bytes-metric", expected: "4")]]
         metric_label
 
     let cleanup_probe: () | IoError = fs~>remove(probe_path)
     let _ = cleanup_probe
 
     if (metric_log_actual != "4") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

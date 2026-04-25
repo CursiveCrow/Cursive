@@ -19,8 +19,6 @@ procedure PermissionsAliasMetricLabel(value: i32) -> string@View {
 
 public procedure RunUniqueAliasingAndRestoration(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     let unique_seed: unique i32 = 8
     let unique_metric: i32 = PermissionsAliasReadUnique(unique_seed)
     let shared_metric: i32 = {
@@ -63,10 +61,10 @@ public procedure RunUniqueAliasingAndRestoration(ctx: Context) -> i32 {
         (alias_sum == 12) && (alias_unique_metric == 6)
     let transfer_ok: bool = transfer_metric == 14
 
-    let downgrade_ok_log: bool = [[log(label: "memory-permissions-unique-downgrade", expected: true)]] downgrade_ok
-    let restore_ok_log: bool = [[log(label: "memory-permissions-restore-across-scope", expected: true)]] restore_ok
-    let alias_ok_log: bool = [[log(label: "memory-permissions-aliasing-coexistence", expected: true)]] alias_ok
-    let transfer_ok_log: bool = [[log(label: "memory-permissions-unique-transfer", expected: true)]] transfer_ok
+    let downgrade_ok_log: bool = downgrade_ok
+    let restore_ok_log: bool = restore_ok
+    let alias_ok_log: bool = alias_ok
+    let transfer_ok_log: bool = transfer_ok
 
     let metric_ok: bool =
         (downgrade_ok_log == true) &&
@@ -75,12 +73,10 @@ public procedure RunUniqueAliasingAndRestoration(ctx: Context) -> i32 {
         (transfer_ok_log == true)
     let metric: i32 = if (metric_ok) { 27 } else { 0 }
     let metric_label: string@View = PermissionsAliasMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-permissions-aliasing-metric", expected: "27")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "27") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

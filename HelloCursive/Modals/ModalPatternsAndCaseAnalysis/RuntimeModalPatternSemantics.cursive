@@ -23,7 +23,7 @@ procedure RuntimeModalPatternSemanticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunRuntimeModalPatternSemantics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let warm_path: RuntimeModalPatternProbe = RuntimeModalPatternSelect(true)
     let cold_path: RuntimeModalPatternProbe = RuntimeModalPatternSelect(false)
@@ -38,15 +38,12 @@ public procedure RunRuntimeModalPatternSemantics(ctx: Context) -> i32 {
     }
 
     let warm_metric_log: i32 =
-        [[log(label: "observed-modals-runtime-modal-pattern-warm", expected: 7)]]
         warm_metric
     let cold_metric_log: i32 =
-        [[log(label: "observed-modals-runtime-modal-pattern-cold", expected: 7)]]
         cold_metric
 
     let mod_034: string@View = "MOD-034"
     let mod_034_log: string@View =
-        [[log(label: "modals-runtime-modal-pattern-feature-034", expected: "MOD-034")]]
         mod_034
 
     let runtime_ok: bool =
@@ -54,19 +51,17 @@ public procedure RunRuntimeModalPatternSemantics(ctx: Context) -> i32 {
         (cold_metric_log == 7) &&
         (mod_034_log == "MOD-034")
     let runtime_ok_log: bool =
-        [[log(label: "modals-runtime-modal-pattern-semantics-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 14 } else { 0 }
     let metric_label: string@View = RuntimeModalPatternSemanticsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-runtime-modal-pattern-semantics-metric", expected: "14")]]
         metric_label
     if (metric_log_actual != "14") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

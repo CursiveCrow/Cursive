@@ -15,7 +15,7 @@ procedure PermissionLatticeMetricLabel(value: i32) -> string@View {
 
 public procedure RunPermissionLatticeAndSubtyping(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let chain_seed: unique i32 = 12
     let as_shared: shared i32 = chain_seed
@@ -33,12 +33,12 @@ public procedure RunPermissionLatticeAndSubtyping(ctx: Context) -> i32 {
 
     let diagnostic_code: string@View = "E-TYP-1604"
 
-    let direct_const_log: i32 = [[log(label: "observed-permissions-PermissionLatticeAndSubtyping-direct-const", expected: 12)]] direct_const_from_unique
-    let shared_log: i32 = [[log(label: "observed-permissions-PermissionLatticeAndSubtyping-shared", expected: 12)]] shared_from_unique
-    let const_from_shared_log: i32 = [[log(label: "observed-permissions-PermissionLatticeAndSubtyping-const-from-shared", expected: 12)]] const_from_shared
-    let const_from_const_log: i32 = [[log(label: "observed-permissions-PermissionLatticeAndSubtyping-const-from-const", expected: 12)]] const_from_const
-    let second_shared_log: i32 = [[log(label: "observed-permissions-PermissionLatticeAndSubtyping-second-shared", expected: 6)]] second_shared_metric
-    let diagnostic_log: string@View = [[log(label: "permissions-PermissionLatticeAndSubtyping-diagnostic", expected: "E-TYP-1604")]] diagnostic_code
+    let direct_const_log: i32 = direct_const_from_unique
+    let shared_log: i32 = shared_from_unique
+    let const_from_shared_log: i32 = const_from_shared
+    let const_from_const_log: i32 = const_from_const
+    let second_shared_log: i32 = second_shared_metric
+    let diagnostic_log: string@View = diagnostic_code
 
     let runtime_ok: bool =
         (direct_const_log == 12) &&
@@ -47,17 +47,17 @@ public procedure RunPermissionLatticeAndSubtyping(ctx: Context) -> i32 {
         (const_from_const_log == 12) &&
         (second_shared_log == 6) &&
         (diagnostic_log == "E-TYP-1604")
-    let runtime_ok_log: bool = [[log(label: "permissions-PermissionLatticeAndSubtyping-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 48 } else { 0 }
     let metric_label: string@View = PermissionLatticeMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-PermissionLatticeAndSubtyping-metric", expected: "48")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "48") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

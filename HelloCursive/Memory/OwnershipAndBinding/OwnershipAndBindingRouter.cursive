@@ -1,30 +1,23 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "memory-log-section_start")]]
-
     let status_forms: i32 = RunBindingFormsAndLiteralArgs(ctx)
     if (status_forms != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_forms
     }
 
     let status_responsibility: i32 = RunResponsibilityModelAndStateContracts(ctx)
     if (status_responsibility != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_responsibility
     }
 
     let status_moves: i32 = RunMoveStateTransitions(ctx)
     if (status_moves != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_moves
     }
 
     let status_diag: i32 = RunOwnershipDiagnostics(ctx)
     if (status_diag != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_diag
     }
 
-    [[log(label: "memory-log-section_end")]]
     return 0
 }

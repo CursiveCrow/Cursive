@@ -96,7 +96,6 @@ namespace attrs {
   constexpr std::string_view kUnwind = "unwind";
   constexpr std::string_view kWeak = "weak";
   constexpr std::string_view kFfiPassByValue = "ffi_pass_by_value";
-  constexpr std::string_view kLog = "log";
 
   // Verification-mode attributes
   constexpr std::string_view kStatic = "static";

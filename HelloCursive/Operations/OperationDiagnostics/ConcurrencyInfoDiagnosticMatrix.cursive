@@ -7,19 +7,13 @@ procedure ConcurrencyInfoDiagnosticMatrixMetricLabel(value: i32) -> string@View 
 
 public procedure RunConcurrencyInfoDiagnosticMatrix(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "operations-log-item_begin")]]
-
     let icon_0011: string@View =
-        [[log(label: "operations-concurrency-info-0011", expected: "I-CON-0011")]]
         "I-CON-0011"
     let icon_0013: string@View =
-        [[log(label: "operations-concurrency-info-0013", expected: "I-CON-0013")]]
         "I-CON-0013"
     let info_surface_dynamic_sync: string@View =
-        [[log(label: "operations-concurrency-info-dynamic-sync", expected: "runtime-sync-emitted")]]
         "runtime-sync-emitted"
     let info_surface_static_proof: string@View =
-        [[log(label: "operations-concurrency-info-static-proof", expected: "static-proof-no-runtime-sync")]]
         "static-proof-no-runtime-sync"
 
     let runtime_ok: bool =
@@ -28,19 +22,15 @@ public procedure RunConcurrencyInfoDiagnosticMatrix(ctx: Context) -> i32 {
         (info_surface_dynamic_sync == "runtime-sync-emitted") &&
         (info_surface_static_proof == "static-proof-no-runtime-sync")
     let runtime_ok_log: bool =
-        [[log(label: "operations-concurrency-info-diagnostic-matrix-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 810 } else { 0 }
     let metric_label: string@View = ConcurrencyInfoDiagnosticMatrixMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-operations-concurrency-info-diagnostic-matrix-metric", expected: "810")]]
         metric_label
     if (metric_log_actual != "810") {
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }

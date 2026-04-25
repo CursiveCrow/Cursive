@@ -7,60 +7,58 @@ procedure AttributeRegistryAndTargetMatrixMetricLabel(value: i32) -> string@View
 
 public procedure RunAttributeRegistryAndTargetMatrix(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let registry_count: i32 = 22
 
-    let a01: string@View = [[log(label: "attributes-registry-layout", expected: "layout")]] "layout"
-    let a02: string@View = [[log(label: "attributes-registry-inline", expected: "inline")]] "inline"
-    let a03: string@View = [[log(label: "attributes-registry-cold", expected: "cold")]] "cold"
-    let a04: string@View = [[log(label: "attributes-registry-deprecated", expected: "deprecated")]] "deprecated"
-    let a05: string@View = [[log(label: "attributes-registry-dynamic", expected: "dynamic")]] "dynamic"
-    let a06: string@View = [[log(label: "attributes-registry-stale-ok", expected: "stale_ok")]] "stale_ok"
-    let a07: string@View = [[log(label: "attributes-registry-log", expected: "log")]] "log"
-    let a08: string@View = [[log(label: "attributes-registry-relaxed", expected: "relaxed")]] "relaxed"
-    let a09: string@View = [[log(label: "attributes-registry-acquire", expected: "acquire")]] "acquire"
-    let a10: string@View = [[log(label: "attributes-registry-release", expected: "release")]] "release"
-    let a11: string@View = [[log(label: "attributes-registry-acqrel", expected: "acqrel")]] "acqrel"
-    let a12: string@View = [[log(label: "attributes-registry-seqcst", expected: "seqcst")]] "seqcst"
-    let a13: string@View = [[log(label: "attributes-registry-static", expected: "static")]] "static"
-    let a14: string@View = [[log(label: "attributes-registry-mangle", expected: "mangle")]] "mangle"
-    let a15: string@View = [[log(label: "attributes-registry-library", expected: "library")]] "library"
-    let a16: string@View = [[log(label: "attributes-registry-unwind", expected: "unwind")]] "unwind"
-    let a17: string@View = [[log(label: "attributes-registry-reflect", expected: "reflect")]] "reflect"
-    let a18: string@View = [[log(label: "attributes-registry-derive", expected: "derive")]] "derive"
-    let a19: string@View = [[log(label: "attributes-registry-emit", expected: "emit")]] "emit"
-    let a20: string@View = [[log(label: "attributes-registry-files", expected: "files")]] "files"
-    let a21: string@View = [[log(label: "attributes-registry-export", expected: "export")]] "export"
-    let a22: string@View = [[log(label: "attributes-registry-ffi-pass-by-value", expected: "ffi_pass_by_value")]] "ffi_pass_by_value"
-
-    let atr_003: string@View = [[log(label: "attributes-registry-feature-003", expected: "ATR-003")]] "ATR-003"
-    let atr_004: string@View = [[log(label: "attributes-registry-feature-004", expected: "ATR-004")]] "ATR-004"
-    let atr_005: string@View = [[log(label: "attributes-registry-feature-005", expected: "ATR-005")]] "ATR-005"
-    let atr_006: string@View = [[log(label: "attributes-registry-feature-006", expected: "ATR-006")]] "ATR-006"
+    let a01: string@View = "layout"
+    let a02: string@View = "inline"
+    let a03: string@View = "cold"
+    let a04: string@View = "deprecated"
+    let a05: string@View = "dynamic"
+    let a06: string@View = "stale_ok"
+    let a07: string@View = "relaxed"
+    let a08: string@View = "acquire"
+    let a09: string@View = "release"
+    let a10: string@View = "acqrel"
+    let a11: string@View = "seqcst"
+    let a12: string@View = "static"
+    let a13: string@View = "mangle"
+    let a14: string@View = "library"
+    let a15: string@View = "unwind"
+    let a16: string@View = "reflect"
+    let a17: string@View = "derive"
+    let a18: string@View = "emit"
+    let a19: string@View = "files"
+    let a20: string@View = "export"
+    let a21: string@View = "host_export"
+    let a22: string@View = "ffi_pass_by_value"
+    let atr_003: string@View = "ATR-003"
+    let atr_004: string@View = "ATR-004"
+    let atr_005: string@View = "ATR-005"
+    let atr_006: string@View = "ATR-006"
 
     let runtime_ok: bool =
         (registry_count == 22) &&
         (a01 == "layout") && (a02 == "inline") && (a03 == "cold") && (a04 == "deprecated") &&
-        (a05 == "dynamic") && (a06 == "stale_ok") && (a07 == "log") && (a08 == "relaxed") &&
-        (a09 == "acquire") && (a10 == "release") && (a11 == "acqrel") && (a12 == "seqcst") &&
-        (a13 == "static") && (a14 == "mangle") && (a15 == "library") &&
-        (a16 == "unwind") && (a17 == "reflect") && (a18 == "derive") && (a19 == "emit") &&
-        (a20 == "files") && (a21 == "export") && (a22 == "ffi_pass_by_value") &&
+        (a05 == "dynamic") && (a06 == "stale_ok") && (a07 == "relaxed") &&
+        (a08 == "acquire") && (a09 == "release") && (a10 == "acqrel") && (a11 == "seqcst") &&
+        (a12 == "static") && (a13 == "mangle") && (a14 == "library") &&
+        (a15 == "unwind") && (a16 == "reflect") && (a17 == "derive") && (a18 == "emit") &&
+        (a19 == "files") && (a20 == "export") && (a21 == "host_export") && (a22 == "ffi_pass_by_value") &&
         (atr_003 == "ATR-003") && (atr_004 == "ATR-004") && (atr_005 == "ATR-005") && (atr_006 == "ATR-006")
-    let runtime_ok_log: bool = [[log(label: "attributes-registry-target-matrix-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 22 } else { 0 }
     let metric_label: string@View = AttributeRegistryAndTargetMatrixMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-attributes-registry-target-matrix-metric", expected: "22")]]
         metric_label
     if (metric_log_actual != "22") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

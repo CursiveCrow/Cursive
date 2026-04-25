@@ -53,25 +53,18 @@ procedure RunTypeMetatheoreticPropertiesCoverage(ctx: Context) -> i32 {
     let no_dangling_ok: bool = pointer_metric == 11
 
     let progress_ok_log: bool =
-        [[log(label: "types-meta-progress-surface", expected: true)]]
         progress_ok
     let progress_branch_ok_log: bool =
-        [[log(label: "types-meta-progress-branch-surface", expected: true)]]
         (progress_branch_metric == 6)
     let preservation_ok_log: bool =
-        [[log(label: "types-meta-preservation-surface", expected: true)]]
         preservation_ok
     let preservation_projection_ok_log: bool =
-        [[log(label: "types-meta-preservation-projection-surface", expected: true)]]
         (preservation_projection == 9)
     let no_use_after_free_ok_log: bool =
-        [[log(label: "types-meta-no-use-after-free-surface", expected: true)]]
         no_use_after_free_ok
     let no_double_free_ok_log: bool =
-        [[log(label: "types-meta-no-double-free-surface", expected: true)]]
         no_double_free_ok
     let no_dangling_ok_log: bool =
-        [[log(label: "types-meta-no-dangling-pointer-surface", expected: true)]]
         no_dangling_ok
 
     let metric: i32 = if (
@@ -91,13 +84,10 @@ procedure RunTypeMetatheoreticPropertiesCoverage(ctx: Context) -> i32 {
 
     let metric_label: string@View = TypeMetatheoryMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-types-meta-theoretic-properties-metric", expected: "48")]]
         metric_label
     if (metric_log_actual != "48") {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }

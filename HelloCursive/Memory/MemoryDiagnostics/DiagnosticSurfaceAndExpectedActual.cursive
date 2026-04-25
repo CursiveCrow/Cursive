@@ -21,20 +21,16 @@ procedure DiagnosticCleanupProbe() -> i32 {
 }
 
 public procedure RunDiagnosticSurfaceAndExpectedActual(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     let expected_actual_metric: i32 = 4 + 5
-    let expected_actual_metric_log: i32 =        [[log(label: "memory-diagnostics-expected-actual", expected: 9)]]         expected_actual_metric
+    let expected_actual_metric_log: i32 =        expected_actual_metric
     let expected_actual_ok: bool = expected_actual_metric_log == 9
 
     let move_source: i32 = 8
     let moved_metric: i32 = DiagnosticMoveProbe(move move_source)
     let literal_metric: i32 = DiagnosticMoveProbe(9)
     let moved_metric_log: i32 =
-        [[log(label: "observed-memory-diagnostics-move-source-plus-one", expected: 9)]]
         moved_metric
     let literal_metric_log: i32 =
-        [[log(label: "observed-memory-diagnostics-literal-plus-one", expected: 10)]]
         literal_metric
     let move_runtime_ok: bool =
         (moved_metric_log == 9) && (literal_metric_log == 10)
@@ -43,7 +39,6 @@ public procedure RunDiagnosticSurfaceAndExpectedActual(ctx: Context) -> i32 {
     let pointer_valid: Ptr<i32>@Valid = &pointer_cell
     let pointer_metric: i32 = *pointer_valid
     let pointer_metric_log: i32 =
-        [[log(label: "observed-memory-diagnostics-pointer-valid-read", expected: 7)]]
         pointer_metric
 
     let pointer_null: Ptr<i32>@Null = Ptr::null()
@@ -58,7 +53,6 @@ public procedure RunDiagnosticSurfaceAndExpectedActual(ctx: Context) -> i32 {
 
     let cleanup_metric: i32 = DiagnosticCleanupProbe()
     let cleanup_metric_log: i32 =
-        [[log(label: "observed-memory-diagnostics-cleanup-metric", expected: 5)]]
         cleanup_metric
     let cleanup_runtime_ok: bool = cleanup_metric_log == 5
 
@@ -75,7 +69,6 @@ public procedure RunDiagnosticSurfaceAndExpectedActual(ctx: Context) -> i32 {
         }
     }
     let managed_metric_log: i32 =
-        [[log(label: "observed-memory-diagnostics-managed-alloc-length", expected: 2)]]
         managed_metric
     let alloc_runtime_ok: bool = managed_metric_log == 2
 
@@ -93,12 +86,12 @@ public procedure RunDiagnosticSurfaceAndExpectedActual(ctx: Context) -> i32 {
         }
     }
 
-    let expected_actual_ok_log: bool =        [[log(label: "memory-diagnostics-expected-actual-pass", expected: true)]]         expected_actual_ok
-    let move_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-runtime-move", expected: true)]]         move_runtime_ok
-    let pointer_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-runtime-pointer", expected: true)]]         pointer_diag_contract_ok
-    let cleanup_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-runtime-cleanup", expected: true)]]         cleanup_runtime_ok
-    let alloc_runtime_ok_log: bool =        [[log(label: "memory-diagnostics-runtime-allocation", expected: true)]]         alloc_runtime_ok
-    let allocation_error_contract_ok_log: bool = [[log(label: "memory-diagnostics-runtime-allocation-error-contract", expected: true)]] allocation_error_contract_ok
+    let expected_actual_ok_log: bool =        expected_actual_ok
+    let move_runtime_ok_log: bool =        move_runtime_ok
+    let pointer_runtime_ok_log: bool =        pointer_diag_contract_ok
+    let cleanup_runtime_ok_log: bool =        cleanup_runtime_ok
+    let alloc_runtime_ok_log: bool =        alloc_runtime_ok
+    let allocation_error_contract_ok_log: bool = allocation_error_contract_ok
 
     let metric_ok: bool = (expected_actual_ok_log == true) &&
         (move_runtime_ok_log == true) &&
@@ -108,12 +101,10 @@ public procedure RunDiagnosticSurfaceAndExpectedActual(ctx: Context) -> i32 {
         (allocation_error_contract_ok_log == true)
     let metric: i32 = if (metric_ok) { 45 } else { 0 }
     let metric_label: string@View = DiagnosticSurfaceMetricLabel(metric)
-    let metric_log_actual: string@View =        [[log(label: "observed-memory-diagnostics-surface-metric", expected: "45")]]         metric_label
+    let metric_log_actual: string@View =        metric_label
     if (metric_log_actual != "45") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

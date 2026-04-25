@@ -15,23 +15,13 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_StringOperationSemantics: string@View = "TextAndBufferOperations::StringOperationSemantics"
     let feature_BytesOperationSemantics: string@View = "TextAndBufferOperations::BytesOperationSemantics"
 
-    [[log(label: "operations-log-section_start")]]
-    [[log(label: "operations-log-transition")]]
     let status_StringOperationSemantics: i32 = RunStringOperationSemantics(ctx)
     if (status_StringOperationSemantics != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_StringOperationSemantics
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_BytesOperationSemantics: i32 = RunBytesOperationSemantics(ctx)
     if (status_BytesOperationSemantics != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_BytesOperationSemantics
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-section_end")]]
     return 0
 }

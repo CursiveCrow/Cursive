@@ -6,25 +6,17 @@ procedure ManagedDropHookSymbolCoverageMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunManagedDropHookSymbolCoverage(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     let string_drop_sym: string@View =
-        [[log(label: "memory-managed-drop-hook-string-symbol", expected: "cursive::runtime::string::drop_managed")]]
         "cursive::runtime::string::drop_managed"
     let bytes_drop_sym: string@View =
-        [[log(label: "memory-managed-drop-hook-bytes-symbol", expected: "cursive::runtime::bytes::drop_managed")]]
         "cursive::runtime::bytes::drop_managed"
     let string_drop_decl_rule: string@View =
-        [[log(label: "memory-managed-drop-hook-string-decl-rule", expected: "StringDropSym-Decl")]]
         "StringDropSym-Decl"
     let bytes_drop_decl_rule: string@View =
-        [[log(label: "memory-managed-drop-hook-bytes-decl-rule", expected: "BytesDropSym-Decl")]]
         "BytesDropSym-Decl"
     let string_drop_err_rule: string@View =
-        [[log(label: "memory-managed-drop-hook-string-err-rule", expected: "StringDropSym-Err")]]
         "StringDropSym-Err"
     let bytes_drop_err_rule: string@View =
-        [[log(label: "memory-managed-drop-hook-bytes-err-rule", expected: "BytesDropSym-Err")]]
         "BytesDropSym-Err"
 
     let bytes_seed: [u8; 2] = [72, 75]
@@ -58,10 +50,8 @@ public procedure RunManagedDropHookSymbolCoverage(ctx: Context) -> i32 {
     }
 
     let managed_text_len_log: i32 =
-        [[log(label: "observed-memory-managed-drop-hook-string-length", expected: 4)]]
         managed_text_len
     let managed_bytes_len_log: i32 =
-        [[log(label: "observed-memory-managed-drop-hook-bytes-length", expected: 2)]]
         managed_bytes_len
 
     let runtime_ok: bool =
@@ -74,19 +64,15 @@ public procedure RunManagedDropHookSymbolCoverage(ctx: Context) -> i32 {
         (managed_text_len_log == 4) &&
         (managed_bytes_len_log == 2)
     let runtime_ok_log: bool =
-        [[log(label: "memory-managed-drop-hook-symbol-coverage-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 216 } else { 0 }
     let metric_label: string@View = ManagedDropHookSymbolCoverageMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-memory-managed-drop-hook-symbol-coverage-metric", expected: "216")]]
         metric_label
     if (metric_log_actual != "216") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

@@ -15,7 +15,7 @@ procedure PermissionSoundnessMetricLabel(value: i32) -> string@View {
 
 public procedure RunPermissionSoundnessInvariants(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let left_unique: unique i32 = 5
     let right_unique: unique i32 = 12
@@ -30,27 +30,27 @@ public procedure RunPermissionSoundnessInvariants(ctx: Context) -> i32 {
 
     let soundness_anchor: string@View = "exclusive-and-preserving"
 
-    let left_metric_log: i32 = [[log(label: "observed-permissions-PermissionSoundnessInvariants-left", expected: 5)]] left_metric
-    let right_metric_log: i32 = [[log(label: "observed-permissions-PermissionSoundnessInvariants-right", expected: 12)]] right_metric
-    let preservation_metric_log: i32 = [[log(label: "observed-permissions-PermissionSoundnessInvariants-preservation", expected: 5)]] preservation_metric
-    let anchor_log: string@View = [[log(label: "permissions-PermissionSoundnessInvariants-anchor", expected: "exclusive-and-preserving")]] soundness_anchor
+    let left_metric_log: i32 = left_metric
+    let right_metric_log: i32 = right_metric
+    let preservation_metric_log: i32 = preservation_metric
+    let anchor_log: string@View = soundness_anchor
 
     let runtime_ok: bool =
         (left_metric_log == 5) &&
         (right_metric_log == 12) &&
         (preservation_metric_log == 5) &&
         (anchor_log == "exclusive-and-preserving")
-    let runtime_ok_log: bool = [[log(label: "permissions-PermissionSoundnessInvariants-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 29 } else { 0 }
     let metric_label: string@View = PermissionSoundnessMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-PermissionSoundnessInvariants-metric", expected: "29")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "29") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

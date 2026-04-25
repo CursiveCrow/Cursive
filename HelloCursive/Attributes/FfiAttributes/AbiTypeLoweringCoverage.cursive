@@ -7,55 +7,39 @@ procedure AbiTypeLoweringCoverageMetricLabel(value: i32) -> string@View {
 
 public procedure RunAbiTypeLoweringCoverage(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let abi_prim: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-prim", expected: "ABI-Prim")]]
         "ABI-Prim"
     let abi_perm: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-perm", expected: "ABI-Perm")]]
         "ABI-Perm"
     let abi_ptr: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-ptr", expected: "ABI-Ptr")]]
         "ABI-Ptr"
     let abi_raw_ptr: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-rawptr", expected: "ABI-RawPtr")]]
         "ABI-RawPtr"
     let abi_func: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-func", expected: "ABI-Func")]]
         "ABI-Func"
     let abi_alias: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-alias", expected: "ABI-Alias")]]
         "ABI-Alias"
     let abi_record: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-record", expected: "ABI-Record")]]
         "ABI-Record"
     let abi_tuple: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-tuple", expected: "ABI-Tuple")]]
         "ABI-Tuple"
     let abi_array: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-array", expected: "ABI-Array")]]
         "ABI-Array"
     let abi_slice: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-slice", expected: "ABI-Slice")]]
         "ABI-Slice"
     let abi_range: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-range", expected: "ABI-Range")]]
         "ABI-Range"
     let abi_enum: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-enum", expected: "ABI-Enum")]]
         "ABI-Enum"
     let abi_union: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-union", expected: "ABI-Union")]]
         "ABI-Union"
     let abi_modal: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-modal", expected: "ABI-Modal")]]
         "ABI-Modal"
     let abi_dynamic: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-dynamic", expected: "ABI-Dynamic")]]
         "ABI-Dynamic"
     let abi_string_bytes: string@View =
-        [[log(label: "attributes-ffi-abi-lowering-string-bytes", expected: "ABI-StringBytes")]]
         "ABI-StringBytes"
 
     let runtime_ok: bool =
@@ -76,19 +60,17 @@ public procedure RunAbiTypeLoweringCoverage(ctx: Context) -> i32 {
         (abi_dynamic == "ABI-Dynamic") &&
         (abi_string_bytes == "ABI-StringBytes")
     let runtime_ok_log: bool =
-        [[log(label: "attributes-ffi-abi-type-lowering-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 1622 } else { 0 }
     let metric_label: string@View = AbiTypeLoweringCoverageMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-attributes-ffi-abi-type-lowering-metric", expected: "1622")]]
         metric_label
     if (metric_log_actual != "1622") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -1,18 +1,15 @@
 procedure DiagnosticLogFeatureStatus(feature_name: string@View, status: i32) -> () {
-    [[log(label: "observed-memory-feature-status", expected: 0)]] status
-    [[log(label: "memory-log-feature_name")]] feature_name
+    status
+    feature_name
     return ()
 }
 
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "memory-log-section_start")]]
-
     let status_alloc_deref: i32 = RunAllocationAndDereferenceDiagnostics(ctx)
     DiagnosticLogFeatureStatus(
         "memory::MemoryDiagnostics::AllocationAndDereferenceDiagnostics",
         status_alloc_deref)
     if (status_alloc_deref != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_alloc_deref
     }
 
@@ -21,7 +18,6 @@ public procedure runGroup(ctx: Context) -> i32 {
         "memory::MemoryDiagnostics::MoveAndCleanupDiagnostics",
         status_move_cleanup)
     if (status_move_cleanup != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_move_cleanup
     }
 
@@ -30,7 +26,6 @@ public procedure runGroup(ctx: Context) -> i32 {
         "memory::MemoryDiagnostics::DiagnosticCodeMatrix",
         status_matrix)
     if (status_matrix != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_matrix
     }
 
@@ -39,10 +34,8 @@ public procedure runGroup(ctx: Context) -> i32 {
         "memory::MemoryDiagnostics::DiagnosticSurfaceAndExpectedActual",
         status_surface)
     if (status_surface != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_surface
     }
 
-    [[log(label: "memory-log-section_end")]]
     return 0
 }

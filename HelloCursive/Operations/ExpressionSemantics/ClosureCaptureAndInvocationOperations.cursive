@@ -6,8 +6,7 @@ procedure LogClosureExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure ClosureExpressionMetricLabel(value: i32) -> string@View {
     if (value == 7) {
@@ -40,40 +39,30 @@ procedure RunClosureCaptureAndInvocationOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyClosureCaptureAndInvocationOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogClosureExpressionObject(ctx.fs, scope, "closure_capture_seed", "i32", "constructed", "closure capture seed binding prepared")
     LogClosureExpressionObject(ctx.fs, scope, "closure_capture_expr", "|i32|->i32", "constructed", "closure expression with lexical capture prepared")
     LogClosureExpressionObject(ctx.fs, scope, "closure_typed_expr", "(i32)->i32", "constructed", "typed closure expression prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
     let capture_seed: i32 = 4
     let capture_closure = |input: i32| -> i32 {
         input + capture_seed
     }
-    [[log(label: "operations-log-transition_move")]]
     let capture_metric: i32 = capture_closure(3)
-    [[log(label: "operations-log-transition_move")]]
     let typed_closure: (i32) -> i32 = |value| {
         value + 1
     }
-    [[log(label: "operations-log-transition_move")]]
     let typed_metric: i32 = typed_closure(4)
-    [[log(label: "operations-log-transition_move")]]
     let block_body_closure = |flag: bool| -> i32 {
         if (flag) {
             8
@@ -102,15 +91,14 @@ procedure VerifyClosureCaptureAndInvocationOperationsItem(ctx: Context, scope: s
     let block_passed: bool = block_metric == 8
     let runtime_passed: bool = runtime_metric == 20
 
-    let capture_passed_log_actual = [[log(label: "observed-closure-capture-metric", expected: "7")]] capture_label
+    let capture_passed_log_actual = capture_label
     let capture_passed_with_log: bool = capture_passed && (capture_passed_log_actual == capture_label)
-    let typed_passed_log_actual = [[log(label: "observed-closure-typed-invocation-metric", expected: "5")]] typed_label
+    let typed_passed_log_actual = typed_label
     let typed_passed_with_log: bool = typed_passed && (typed_passed_log_actual == typed_label)
-    let block_passed_log_actual = [[log(label: "observed-closure-block-body-metric", expected: "8")]] block_label
+    let block_passed_log_actual = block_label
     let block_passed_with_log: bool = block_passed && (block_passed_log_actual == block_label)
-    let runtime_passed_log_actual = [[log(label: "observed-closure-runtime-aggregate-metric", expected: "20")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunClosureCaptureAndInvocationOperationsItem(
             ctx,
@@ -197,6 +185,5 @@ procedure RunClosureCaptureAndInvocationOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

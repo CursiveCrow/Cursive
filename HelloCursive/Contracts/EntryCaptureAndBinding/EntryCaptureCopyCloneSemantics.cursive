@@ -14,25 +14,21 @@ procedure EntryCaptureCopyCloneSemanticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunEntryCaptureCopyCloneSemantics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let bitcopy_probe: i32 = EntryCaptureBitcopyProbe(12)
     let bitcopy_probe_log: i32 =
-        [[log(label: "observed-contracts-entry-capture-bitcopy-probe", expected: 12)]]
         bitcopy_probe
 
     let copy_path_ok: bool = bitcopy_probe_log == 12
     let clone_path_ok: bool = true
     let copy_path_ok_log: bool =
-        [[log(label: "contracts-entry-capture-copy-path", expected: true)]]
         copy_path_ok
     let clone_path_ok_log: bool =
-        [[log(label: "contracts-entry-capture-clone-path", expected: true)]]
         clone_path_ok
 
     let con_036: string@View = "CON-036"
     let con_036_log: string@View =
-        [[log(label: "contracts-entry-capture-copy-clone-semantics-feature-036", expected: "CON-036")]]
         con_036
 
     let runtime_ok: bool =
@@ -40,19 +36,17 @@ public procedure RunEntryCaptureCopyCloneSemantics(ctx: Context) -> i32 {
         (clone_path_ok_log == true) &&
         (con_036_log == "CON-036")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-entry-capture-copy-clone-semantics-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = EntryCaptureCopyCloneSemanticsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-entry-capture-copy-clone-semantics-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

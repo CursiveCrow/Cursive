@@ -65,8 +65,6 @@ procedure UsePair(pair: IntPair) -> i32 {
 
 procedure RunAssociatedTypeAbstractDeclarations(ctx: Context) -> i32 {
     let scope: string@View = "types::Abstraction::AssociatedTypeAbstractDeclarations"
-    [[log(label: "types-log-item_begin")]]
-
     let container: IntContainer = IntContainer { stored: 4 }
     let container_result: i32 = UseContainer(container)
 
@@ -79,21 +77,17 @@ procedure RunAssociatedTypeAbstractDeclarations(ctx: Context) -> i32 {
     let combined: i32 = container_result + transform_result + pair_result
 
     let container_result_log: i32 =
-        [[log(label: "observed-types-assoc-type-container-result", expected: 9)]]
         container_result
     let transform_result_log: i32 =
-        [[log(label: "observed-types-assoc-type-transform-result", expected: 6)]]
         transform_result
     let pair_result_log: i32 =
-        [[log(label: "observed-types-assoc-type-pair-result", expected: 9)]]
         pair_result
     let combined_log: i32 =
-        [[log(label: "observed-types-assoc-type-combined-metric", expected: 24)]]
         combined
 
-    let ata_001: string@View = [[log(label: "types-assoc-type-feature-001", expected: "ATA-001")]] "ATA-001"
-    let ata_002: string@View = [[log(label: "types-assoc-type-feature-002", expected: "ATA-002")]] "ATA-002"
-    let ata_003: string@View = [[log(label: "types-assoc-type-feature-003", expected: "ATA-003")]] "ATA-003"
+    let ata_001: string@View = "ATA-001"
+    let ata_002: string@View = "ATA-002"
+    let ata_003: string@View = "ATA-003"
 
     let runtime_ok: bool =
         (container_result_log == 9) &&
@@ -103,16 +97,14 @@ procedure RunAssociatedTypeAbstractDeclarations(ctx: Context) -> i32 {
         (ata_001 == "ATA-001") &&
         (ata_002 == "ATA-002") &&
         (ata_003 == "ATA-003")
-    let runtime_ok_log: bool = [[log(label: "types-assoc-type-abstract-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 24 } else { 0 }
     let metric_label: string@View = AssociatedTypeMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-types-assoc-type-abstract-metric", expected: "24")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "24") {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }

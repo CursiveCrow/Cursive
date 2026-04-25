@@ -47,22 +47,16 @@ public procedure RunOrderingDefaultsAndFenceSurface(ctx: Context) -> i32 {
     }
 
     let order_slot_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-order-slot", expected: 5)]]
         order_slot
     let order_read_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-order-read", expected: 5)]]
         order_read_metric
     let release_slot_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-release-slot", expected: 7)]]
         release_slot
     let release_snapshot_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-release-read", expected: 7)]]
         release_snapshot
     let acqrel_slot_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-acqrel-slot", expected: 6)]]
         acqrel_slot
     let fence_metric_log: i32 =
-        [[log(label: "observed-memory-boundary-fence-metric", expected: 10)]]
         fence_step_metric
 
     let order_default_ok: bool = order_read_metric_log == 5
@@ -75,12 +69,12 @@ public procedure RunOrderingDefaultsAndFenceSurface(ctx: Context) -> i32 {
         (order_read_metric_log + order_slot_metric_log +
             release_snapshot_metric_log) == 17
 
-    let order_default_log: bool = [[log(label: "memory-boundary-order-default", expected: true)]] order_default_ok
-    let write_read_sequence_log: bool = [[log(label: "memory-boundary-order-write-read", expected: true)]] write_read_sequence_ok
-    let release_mode_log: bool = [[log(label: "memory-boundary-order-release-mode", expected: true)]] release_mode_ok
-    let acqrel_mode_log: bool = [[log(label: "memory-boundary-order-acqrel-mode", expected: true)]] acqrel_mode_ok
-    let fence_metric_ok_log: bool = [[log(label: "memory-boundary-fence-metric-ok", expected: true)]] fence_metric_ok
-    let fence_surface_log: bool = [[log(label: "memory-boundary-fence-surface", expected: true)]] fence_surface_ok
+    let order_default_log: bool = order_default_ok
+    let write_read_sequence_log: bool = write_read_sequence_ok
+    let release_mode_log: bool = release_mode_ok
+    let acqrel_mode_log: bool = acqrel_mode_ok
+    let fence_metric_ok_log: bool = fence_metric_ok
+    let fence_surface_log: bool = fence_surface_ok
 
     let metric: i32 = if (order_default_ok &&
         write_read_sequence_ok &&
@@ -95,14 +89,14 @@ public procedure RunOrderingDefaultsAndFenceSurface(ctx: Context) -> i32 {
         (fence_metric_ok_log == true) &&
         (fence_surface_log == true)) { 19 } else { 0 }
     let metric_label: string@View = OrderingDefaultsMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-boundary-defaults-metric", expected: "19")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "19") {
         let fail_marker: string@View = "memory-boundary-defaults-fail"
-        [[log(label: "memory-log-item_fail")]] fail_marker
+        fail_marker
         return 1
     }
 
     let success_marker: string@View = "memory-boundary-defaults-success"
-    [[log(label: "memory-log-memory_item_success")]] success_marker
+    success_marker
     return 0
 }

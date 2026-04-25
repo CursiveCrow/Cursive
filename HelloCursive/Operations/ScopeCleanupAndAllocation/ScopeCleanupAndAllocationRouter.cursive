@@ -19,55 +19,29 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_FrameOperations: string@View = "ScopeCleanupAndAllocation::FrameOperations"
     let feature_PanicAndUnwindingOperations: string@View = "ScopeCleanupAndAllocation::PanicAndUnwindingOperations"
 
-    [[log(label: "operations-log-section_start")]]
-    [[log(label: "operations-log-transition")]]
     let status_DeferOperations: i32 = RunDeferOperations(ctx)
     if (status_DeferOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_DeferOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_RegionBlockOperations: i32 = RunRegionBlockOperations(ctx)
     if (status_RegionBlockOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_RegionBlockOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_RegionOptionsOperations: i32 = RunRegionOptionsOperations(ctx)
     if (status_RegionOptionsOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_RegionOptionsOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_RegionAllocationOperatorOperations: i32 = RunRegionAllocationOperatorOperations(ctx)
     if (status_RegionAllocationOperatorOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_RegionAllocationOperatorOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_FrameOperations: i32 = RunFrameOperations(ctx)
     if (status_FrameOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_FrameOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_PanicAndUnwindingOperations: i32 = RunPanicAndUnwindingOperations(ctx)
     if (status_PanicAndUnwindingOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_PanicAndUnwindingOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-section_end")]]
     return 0
 }

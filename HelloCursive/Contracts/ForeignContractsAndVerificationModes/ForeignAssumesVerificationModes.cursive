@@ -51,7 +51,7 @@ procedure ForeignAssumesVerificationModesMetricLabel(value: i32) -> string@View 
 
 public procedure RunForeignAssumesVerificationModes(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let static_value: i32 = unsafe { hc_contracts_foreign_mode_static_impl(7) }
     let dynamic_value: i32 = unsafe { hc_contracts_foreign_mode_dynamic_impl(7) }
@@ -61,21 +61,16 @@ public procedure RunForeignAssumesVerificationModes(ctx: Context) -> i32 {
     }
 
     let static_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-assumes-static", expected: 8)]]
         static_value
     let dynamic_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-assumes-dynamic", expected: 9)]]
         dynamic_value
     let default_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-assumes-default", expected: 10)]]
         default_value
     let dynamic_pre_fail_catch_metric_log: i32 =
-        [[log(label: "observed-contracts-foreign-assumes-dynamic-pre-fail-catch", expected: 0)]]
         dynamic_pre_fail_catch_metric
 
     let con_068: string@View = "CON-068"
     let con_068_log: string@View =
-        [[log(label: "contracts-foreign-assumes-verification-modes-feature-068", expected: "CON-068")]]
         con_068
 
     let panic_2860: string@View =
@@ -85,7 +80,6 @@ public procedure RunForeignAssumesVerificationModes(ctx: Context) -> i32 {
             "missing"
         }
     let panic_2860_log: string@View =
-        [[log(label: "contracts-foreign-assumes-verification-modes-panic-2860", expected: "P-SEM-2860")]]
         panic_2860
 
     let runtime_ok: bool =
@@ -96,19 +90,17 @@ public procedure RunForeignAssumesVerificationModes(ctx: Context) -> i32 {
         (con_068_log == "CON-068") &&
         (panic_2860_log == "P-SEM-2860")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-assumes-verification-modes-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = ForeignAssumesVerificationModesMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-assumes-verification-modes-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

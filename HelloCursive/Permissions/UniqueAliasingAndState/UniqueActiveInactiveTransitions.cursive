@@ -11,7 +11,7 @@ procedure UniqueActiveTransitionsMetricLabel(value: i32) -> string@View {
 
 public procedure RunUniqueActiveInactiveTransitions(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let origin: unique i32 = 14
     let moved_once: unique i32 = move origin
@@ -23,25 +23,25 @@ public procedure RunUniqueActiveInactiveTransitions(ctx: Context) -> i32 {
 
     let transition_anchor: string@View = "move-deactivates-source"
 
-    let consumed_metric_log: i32 = [[log(label: "observed-permissions-UniqueActiveInactiveTransitions-consumed", expected: 15)]] consumed_metric
-    let replacement_metric_log: i32 = [[log(label: "observed-permissions-UniqueActiveInactiveTransitions-replacement", expected: 15)]] replacement_metric
-    let anchor_log: string@View = [[log(label: "permissions-UniqueActiveInactiveTransitions-anchor", expected: "move-deactivates-source")]] transition_anchor
+    let consumed_metric_log: i32 = consumed_metric
+    let replacement_metric_log: i32 = replacement_metric
+    let anchor_log: string@View = transition_anchor
 
     let runtime_ok: bool =
         (consumed_metric_log == 15) &&
         (replacement_metric_log == 15) &&
         (anchor_log == "move-deactivates-source")
-    let runtime_ok_log: bool = [[log(label: "permissions-UniqueActiveInactiveTransitions-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 30 } else { 0 }
     let metric_label: string@View = UniqueActiveTransitionsMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-UniqueActiveInactiveTransitions-metric", expected: "30")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "30") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

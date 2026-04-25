@@ -7,8 +7,6 @@ procedure RawPointerFormsMetricLabel(value: i32) -> string@View {
 
 public procedure RunRawPointerForms(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     var cell: i32 = 5
 
     let safe_for_imm: Ptr<i32>@Valid = &cell
@@ -32,13 +30,10 @@ public procedure RunRawPointerForms(ctx: Context) -> i32 {
     let raw_mut_write_ok: bool = raw_mut_write_metric == 14
 
     let raw_forms_declared_ok_log: bool =
-        [[log(label: "pointers-core-raw-forms-declared", expected: true)]]
         raw_forms_declared_ok
     let raw_imm_read_ok_log: bool =
-        [[log(label: "pointers-core-raw-imm-read", expected: true)]]
         raw_imm_read_ok
     let raw_mut_write_ok_log: bool =
-        [[log(label: "pointers-core-raw-mut-write", expected: true)]]
         raw_mut_write_ok
 
     let metric_ok: bool =
@@ -48,13 +43,10 @@ public procedure RunRawPointerForms(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 23 } else { 0 }
     let metric_label: string@View = RawPointerFormsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-core-raw-pointer-forms-metric", expected: "23")]]
         metric_label
     if (metric_log_actual != "23") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

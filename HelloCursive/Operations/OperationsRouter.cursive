@@ -12,104 +12,53 @@ import CrossAssemblyOperationIntegrations
 import OperationDiagnostics
 
 public procedure run(ctx: Context) -> i32 {
-    [[log(label: "operations-log-section_start")]]
-    [[log(label: "operations-log-transition")]]
     let status_expression_semantics: i32 = ExpressionSemantics::runGroup(ctx)
     if (status_expression_semantics != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_expression_semantics
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_access_and_invocation: i32 = AccessAndInvocation::runGroup(ctx)
     if (status_access_and_invocation != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_access_and_invocation
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_type_conversion_and_unsafe: i32 = TypeConversionAndUnsafe::runGroup(ctx)
     if (status_type_conversion_and_unsafe != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_type_conversion_and_unsafe
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_mutation_and_statements: i32 = MutationAndStatements::runGroup(ctx)
     if (status_mutation_and_statements != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_mutation_and_statements
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_control_flow_expressions: i32 = ControlFlowExpressions::runGroup(ctx)
     if (status_control_flow_expressions != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_control_flow_expressions
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_scope_cleanup_and_allocation: i32 = ScopeCleanupAndAllocation::runGroup(ctx)
     if (status_scope_cleanup_and_allocation != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_scope_cleanup_and_allocation
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_key_system_operations: i32 = KeySystemOperations::runGroup(ctx)
     if (status_key_system_operations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_key_system_operations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_text_and_buffer_operations: i32 = TextAndBufferOperations::runGroup(ctx)
     if (status_text_and_buffer_operations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_text_and_buffer_operations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_structured_parallel: i32 = StructuredParallel::runGroup(ctx)
     if (status_structured_parallel != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_structured_parallel
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_async_flow: i32 = AsyncFlow::runGroup(ctx)
     if (status_async_flow != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_async_flow
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_cross_assembly_operation_integrations: i32 = CrossAssemblyOperationIntegrations::runGroup(ctx)
     if (status_cross_assembly_operation_integrations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_cross_assembly_operation_integrations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_operation_diagnostics: i32 = OperationDiagnostics::runGroup(ctx)
     if (status_operation_diagnostics != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_operation_diagnostics
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-checkpoint")]]
-    [[log(label: "operations-log-section_end")]]
     return 0
 }

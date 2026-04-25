@@ -1195,15 +1195,6 @@ LowerResult LowerExpr(const ast::Expr& expr, LowerCtx& ctx) {
     ctx.RegisterTempValue(result.value, value_type);
   }
 
-  if (const auto* attr = std::get_if<ast::AttributedExpr>(&expr.node)) {
-    if (IRPtr log_ir =
-            EmitLogAttributeTrace(attr->attrs, expr.span, result.value,
-                                  value_type, "expression", ctx);
-        log_ir && !std::holds_alternative<IROpaque>(log_ir->node)) {
-      result.ir = SeqIR({result.ir, log_ir});
-    }
-  }
-
   if (IRPtr refine_check_ir =
           EmitDynamicRefinementChecksForExpr(expr, result.value, value_type, ctx);
       refine_check_ir && !std::holds_alternative<IROpaque>(refine_check_ir->node)) {

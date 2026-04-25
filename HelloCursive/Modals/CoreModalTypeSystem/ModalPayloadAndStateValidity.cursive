@@ -35,7 +35,7 @@ procedure ModalPayloadAndStateValidityMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let queued: ModalPayloadValidityProbe@Queued =
         ModalPayloadValidityProbe@Queued { id: 10, weight: 4 }
@@ -74,22 +74,16 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
         explicit_subst_ready.primary + explicit_subst_ready.mirror
 
     let payload_metric_log: i32 =
-        [[log(label: "observed-modals-modal-payload-validity", expected: 16)]]
         payload_metric
     let state_metric_log: i32 =
-        [[log(label: "observed-modals-modal-state-validity", expected: 10)]]
         state_metric
     let default_subst_metric_log: i32 =
-        [[log(label: "observed-modals-modal-payload-default-subst-pattern", expected: 21)]]
         default_subst_metric
     let default_subst_field_metric_log: i32 =
-        [[log(label: "observed-modals-modal-payload-default-subst-field", expected: 21)]]
         default_subst_field_metric
     let partial_subst_field_metric_log: i32 =
-        [[log(label: "observed-modals-modal-payload-partial-subst-field", expected: 14)]]
         partial_subst_field_metric
     let explicit_subst_metric_log: i32 =
-        [[log(label: "observed-modals-modal-payload-explicit-subst-field", expected: 7)]]
         explicit_subst_metric
 
     let diag_no_states: string@View = "E-TYP-2050"
@@ -97,25 +91,19 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
     let diag_state_name: string@View = "E-TYP-2054"
     let diag_dup_field: string@View = "E-TYP-2058"
     let diag_no_states_log: string@View =
-        [[log(label: "modals-core-modal-diagnostic-no-states", expected: "E-TYP-2050")]]
         diag_no_states
     let diag_dup_state_log: string@View =
-        [[log(label: "modals-core-modal-diagnostic-dup-state", expected: "E-TYP-2051")]]
         diag_dup_state
     let diag_state_name_log: string@View =
-        [[log(label: "modals-core-modal-diagnostic-state-name", expected: "E-TYP-2054")]]
         diag_state_name
     let diag_dup_field_log: string@View =
-        [[log(label: "modals-core-modal-diagnostic-dup-field", expected: "E-TYP-2058")]]
         diag_dup_field
 
     let mod_005: string@View = "MOD-005"
     let mod_007: string@View = "MOD-007"
     let mod_005_log: string@View =
-        [[log(label: "modals-core-modal-payload-validity-feature-005", expected: "MOD-005")]]
         mod_005
     let mod_007_log: string@View =
-        [[log(label: "modals-core-modal-payload-validity-feature-007", expected: "MOD-007")]]
         mod_007
 
     let runtime_ok: bool =
@@ -132,19 +120,17 @@ public procedure RunModalPayloadAndStateValidity(ctx: Context) -> i32 {
         (mod_005_log == "MOD-005") &&
         (mod_007_log == "MOD-007")
     let runtime_ok_log: bool =
-        [[log(label: "modals-core-modal-payload-validity-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 31 } else { 0 }
     let metric_label: string@View = ModalPayloadAndStateValidityMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-payload-validity-metric", expected: "31")]]
         metric_label
     if (metric_log_actual != "31") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

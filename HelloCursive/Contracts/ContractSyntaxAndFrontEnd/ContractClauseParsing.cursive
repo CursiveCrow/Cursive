@@ -32,7 +32,7 @@ procedure ContractClauseParsingMetricLabel(value: i32) -> string@View {
 
 public procedure RunContractClauseParsing(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let pre_only: i32 = ContractClauseParsePreOnly(4)
     let post_only: i32 = ContractClauseParsePostOnly(4)
@@ -40,21 +40,16 @@ public procedure RunContractClauseParsing(ctx: Context) -> i32 {
     let no_clause: i32 = ContractClauseParseNoClause(4)
 
     let pre_only_log: i32 =
-        [[log(label: "observed-contracts-contract-clause-pre-only", expected: 4)]]
         pre_only
     let post_only_log: i32 =
-        [[log(label: "observed-contracts-contract-clause-post-only", expected: 5)]]
         post_only
     let pre_post_log: i32 =
-        [[log(label: "observed-contracts-contract-clause-pre-post", expected: 6)]]
         pre_post
     let no_clause_log: i32 =
-        [[log(label: "observed-contracts-contract-clause-no-clause", expected: 7)]]
         no_clause
 
     let con_007: string@View = "CON-007"
     let con_007_log: string@View =
-        [[log(label: "contracts-contract-clause-parsing-feature-id", expected: "CON-007")]]
         con_007
 
     let runtime_ok: bool =
@@ -64,19 +59,17 @@ public procedure RunContractClauseParsing(ctx: Context) -> i32 {
         (no_clause_log == 7) &&
         (con_007_log == "CON-007")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-contract-clause-parsing-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 37 } else { 0 }
     let metric_label: string@View = ContractClauseParsingMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-contract-clause-parsing-metric", expected: "37")]]
         metric_label
     if (metric_log_actual != "37") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

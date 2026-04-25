@@ -12,8 +12,7 @@ procedure LogEnumsObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunEnumsItem(
     ctx: Context,
@@ -30,7 +29,6 @@ procedure RunEnumsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -39,17 +37,12 @@ procedure RunEnumsItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -73,7 +66,6 @@ procedure EnumsMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyEnumsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let unit_value: TypeEnumCase = TypeEnumCase::Unit
     let tuple_value: TypeEnumCase = TypeEnumCase::Tuple(2, 5)
     let record_value: TypeEnumCase = TypeEnumCase::Record { left: 3, right: 4 }
@@ -81,29 +73,21 @@ procedure VerifyEnumsItem(ctx: Context, scope: string@View, move item_index: i32
     LogEnumsObject(ctx.fs, scope, "tuple_value", "TypeEnumCase::Tuple", "constructed", "tuple variant value prepared")
     LogEnumsObject(ctx.fs, scope, "record_value", "TypeEnumCase::Record", "constructed", "record variant value prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let unit_metric = if unit_value is {
         TypeEnumCase::Unit { 1 }
         TypeEnumCase::Tuple(_, _) { 0 }
         TypeEnumCase::Record { left: _, right: _ } { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let tuple_metric = if tuple_value is {
         TypeEnumCase::Unit { 0 }
         TypeEnumCase::Tuple(a, b) { a + b }
         TypeEnumCase::Record { left: _, right: _ } { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let record_metric = if record_value is {
         TypeEnumCase::Unit { 0 }
         TypeEnumCase::Tuple(_, _) { 0 }
         TypeEnumCase::Record { left: l, right: r } { l + r }
     }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let discriminant_metric = if unit_value is {
         TypeEnumCase::Unit { 1 }
         TypeEnumCase::Tuple(_, _) { 0 }
@@ -117,14 +101,11 @@ procedure VerifyEnumsItem(ctx: Context, scope: string@View, move item_index: i32
         TypeEnumCase::Tuple(_, _) { 0 }
         TypeEnumCase::Record { left: _, right: _ } { 3 }
     }
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let exhaustive_metric = if tuple_value is {
         TypeEnumCase::Unit { 0 }
         TypeEnumCase::Tuple(_, _) { 1 }
         TypeEnumCase::Record { left: _, right: _ } { 0 }
     }
-    [[log(label: "types-log-transition_move")]]
     let observed_unit_step: string@View = "observed-unit-variant-metric"
     let observed_tuple_step: string@View = "observed-tuple-variant-metric"
     let observed_record_step: string@View = "observed-record-variant-metric"
@@ -146,17 +127,16 @@ procedure VerifyEnumsItem(ctx: Context, scope: string@View, move item_index: i32
     let discriminant_metric_passed: bool = discriminant_metric == 6
     let exhaustive_metric_passed: bool = exhaustive_metric == 1
 
-    let unit_metric_passed_log_actual = [[log(label: "observed-unit-variant-metric", expected: "1")]] unit_metric_label
+    let unit_metric_passed_log_actual = unit_metric_label
     let unit_metric_passed_with_log: bool = unit_metric_passed && (unit_metric_passed_log_actual == expected_unit)
-    let tuple_metric_passed_log_actual = [[log(label: "observed-tuple-variant-metric", expected: "7")]] tuple_metric_label
+    let tuple_metric_passed_log_actual = tuple_metric_label
     let tuple_metric_passed_with_log: bool = tuple_metric_passed && (tuple_metric_passed_log_actual == expected_tuple)
-    let record_metric_passed_log_actual = [[log(label: "observed-record-variant-metric", expected: "7")]] record_metric_label
+    let record_metric_passed_log_actual = record_metric_label
     let record_metric_passed_with_log: bool = record_metric_passed && (record_metric_passed_log_actual == expected_record)
-    let discriminant_metric_passed_log_actual = [[log(label: "observed-discriminant-metric", expected: "6")]] discriminant_metric_label
+    let discriminant_metric_passed_log_actual = discriminant_metric_label
     let discriminant_metric_passed_with_log: bool = discriminant_metric_passed && (discriminant_metric_passed_log_actual == expected_discriminant)
-    let exhaustive_metric_passed_log_actual = [[log(label: "observed-exhaustive-coverage-metric", expected: "1")]] exhaustive_metric_label
+    let exhaustive_metric_passed_log_actual = exhaustive_metric_label
     let exhaustive_metric_passed_with_log: bool = exhaustive_metric_passed && (exhaustive_metric_passed_log_actual == expected_exhaustive)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunEnumsItem(
             ctx,
@@ -287,6 +267,5 @@ procedure RunEnums(ctx: Context) -> i32 {
         return status_ExhaustivePatternCoverage
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

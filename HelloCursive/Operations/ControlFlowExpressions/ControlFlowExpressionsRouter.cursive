@@ -20,63 +20,33 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_LoopExpressionOperations: string@View = "ControlFlowExpressions::LoopExpressionOperations"
     let feature_LabeledLoopControlOperations: string@View = "ControlFlowExpressions::LabeledLoopControlOperations"
 
-    [[log(label: "operations-log-section_start")]]
-    [[log(label: "operations-log-transition")]]
     let status_IfExpressionOperations: i32 = RunIfExpressionOperations(ctx)
     if (status_IfExpressionOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_IfExpressionOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_IfIsCaseAnalysisOperations: i32 = RunIfIsCaseAnalysisOperations(ctx)
     if (status_IfIsCaseAnalysisOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_IfIsCaseAnalysisOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_PatternFormsAndGuards: i32 = RunPatternFormsAndGuards(ctx)
     if (status_PatternFormsAndGuards != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_PatternFormsAndGuards
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_RecordAndModalPatternOperations: i32 = RunRecordAndModalPatternOperations(ctx)
     if (status_RecordAndModalPatternOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_RecordAndModalPatternOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_IfIsExhaustivenessAndUnreachability: i32 = RunIfIsExhaustivenessAndUnreachability(ctx)
     if (status_IfIsExhaustivenessAndUnreachability != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_IfIsExhaustivenessAndUnreachability
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_LoopExpressionOperations: i32 = RunLoopExpressionOperations(ctx)
     if (status_LoopExpressionOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_LoopExpressionOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_LabeledLoopControlOperations: i32 = RunLabeledLoopControlOperations(ctx)
     if (status_LabeledLoopControlOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_LabeledLoopControlOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-section_end")]]
     return 0
 }

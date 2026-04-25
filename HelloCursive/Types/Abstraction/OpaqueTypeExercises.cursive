@@ -48,36 +48,30 @@ procedure OpaqueMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunOpaqueFactoryExercise(ctx: Context) -> i32 {
-    [[log(label: "types-log-item_begin")]]
-
     let opaque_a = MakeOpaqueA(5)
     let tag_a: i32 = opaque_a~>tag()
-    let tag_a_log: i32 = [[log(label: "observed-opaque-factory-a-tag", expected: 105)]] tag_a
+    let tag_a_log: i32 = tag_a
     let a_ok: bool = tag_a_log == 105
 
     let opaque_b = MakeOpaqueB(7)
     let tag_b: i32 = opaque_b~>tag()
-    let tag_b_log: i32 = [[log(label: "observed-opaque-factory-b-tag", expected: 207)]] tag_b
+    let tag_b_log: i32 = tag_b
     let b_ok: bool = tag_b_log == 207
 
     let combined: i32 = tag_a + tag_b
-    let combined_log: i32 = [[log(label: "observed-opaque-combined-tags", expected: 312)]] combined
+    let combined_log: i32 = combined
     let combined_ok: bool = combined_log == 312
 
     let all_ok: bool = a_ok && b_ok && combined_ok
-    let all_ok_log: bool = [[log(label: "opaque-factory-runtime", expected: true)]] all_ok
+    let all_ok_log: bool = all_ok
 
     if (all_ok_log != true) {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
 public procedure RunOpaqueSameFactoryIdentityExercise(ctx: Context) -> i32 {
-    [[log(label: "types-log-item_begin")]]
-
     let first = MakeOpaqueA(10)
     let second = MakeOpaqueA(10)
 
@@ -85,20 +79,18 @@ public procedure RunOpaqueSameFactoryIdentityExercise(ctx: Context) -> i32 {
     let tag_second: i32 = second~>tag()
 
     let tags_equal: bool = tag_first == tag_second
-    let tags_equal_log: bool = [[log(label: "observed-opaque-same-factory-identity", expected: true)]] tags_equal
+    let tags_equal_log: bool = tags_equal
 
     let first_expected: i32 = 110
-    let first_log: i32 = [[log(label: "observed-opaque-identity-value", expected: 110)]] tag_first
+    let first_log: i32 = tag_first
     let value_ok: bool = first_log == 110
 
     let all_ok: bool = tags_equal_log && value_ok
-    let all_ok_log: bool = [[log(label: "opaque-identity-runtime", expected: true)]] all_ok
+    let all_ok_log: bool = all_ok
 
     if (all_ok_log != true) {
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 

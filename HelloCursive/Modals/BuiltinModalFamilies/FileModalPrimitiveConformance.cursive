@@ -6,7 +6,7 @@ procedure FileModalPrimitiveConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileModalPrimitiveConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let runtime_logs_dir_path: string@View = "build/main/logs/runtime"
@@ -110,16 +110,12 @@ public procedure RunFileModalPrimitiveConformance(ctx: Context) -> i32 {
     }
 
     let write_ok_log: bool =
-        [[log(label: "observed-modals-file-primitive-write", expected: true)]]
         write_ok
     let append_ok_log: bool =
-        [[log(label: "observed-modals-file-primitive-append", expected: true)]]
         append_ok
     let read_text_len_log: i32 =
-        [[log(label: "observed-modals-file-primitive-read-text-len", expected: 10)]]
         read_text_len
     let read_bytes_len_log: i32 =
-        [[log(label: "observed-modals-file-primitive-read-bytes-len", expected: 10)]]
         read_bytes_len
 
     let metric: i32 = if (
@@ -130,17 +126,16 @@ public procedure RunFileModalPrimitiveConformance(ctx: Context) -> i32 {
     ) { 4 } else { 0 }
     let metric_label: string@View = FileModalPrimitiveConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-file-primitive-metric", expected: "4")]]
         metric_label
 
     let cleanup_probe_file: () | IoError = fs~>remove(probe_file_path)
     let _ = cleanup_probe_file
 
     if (metric_log_actual != "4") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -749,34 +749,6 @@ static bool IsCatchUnwind(const ast::AttributeList& attr_list) {
   return unwind_check.mode == "catch";
 }
 
-static const ast::Token* FindNamedTokenArg(const ast::AttributeItem& attr,
-                                           std::string_view key) {
-  for (const auto& arg : attr.args) {
-    if (!arg.key.has_value() || *arg.key != key) {
-      continue;
-    }
-    return std::get_if<ast::Token>(&arg.value);
-  }
-  return nullptr;
-}
-
-static bool IsNeverType(const TypeRef& type) {
-  TypeRef cur = type;
-  while (cur) {
-    if (const auto* perm = std::get_if<TypePerm>(&cur->node)) {
-      cur = perm->base;
-      continue;
-    }
-    if (const auto* refine = std::get_if<TypeRefine>(&cur->node)) {
-      cur = refine->base;
-      continue;
-    }
-    break;
-  }
-  const auto* prim = cur ? std::get_if<TypePrim>(&cur->node) : nullptr;
-  return prim && prim->name == "!";
-}
-
 static bool ContractClauseHasDirectDynamicAttr(
     const std::optional<ast::ContractClause>& contract) {
   if (!contract.has_value()) {
@@ -1737,67 +1709,6 @@ static std::optional<std::string_view> ValidateProcedureVerificationModeContext(
   return std::nullopt;
 }
 
-static std::optional<std::string_view> ValidateProcedureLogAttributes(
-    const ScopeContext& ctx,
-    const ast::ProcedureDecl& decl,
-    const ast::AttributeList& attrs_list,
-    const TypeRef& return_type) {
-  for (const auto& attr : attrs_list) {
-    if (attr.name != attrs::kLog) {
-      continue;
-    }
-
-    const ast::Token* expected_token = FindNamedTokenArg(attr, "expected");
-    if (!expected_token) {
-      continue;
-    }
-
-    if (IsNeverType(return_type)) {
-      return "E-MOD-2459";
-    }
-
-    if (!EqType(return_type)) {
-      return "E-MOD-2458";
-    }
-
-    if (expected_token->kind == lexer::TokenKind::Identifier) {
-      const auto param_it =
-          std::find_if(decl.params.begin(),
-                       decl.params.end(),
-                       [&](const ast::Param& param) {
-                         return param.name == expected_token->lexeme;
-                       });
-      if (param_it == decl.params.end()) {
-        return "E-MOD-2457";
-      }
-
-      const auto lowered_param = LowerType(ctx, param_it->type);
-      if (!lowered_param.ok || !lowered_param.type) {
-        return "E-MOD-2457";
-      }
-      const auto perm = PermOfType(lowered_param.type);
-      if (perm != Permission::Const && perm != Permission::Unique) {
-        return "E-MOD-2457";
-      }
-
-      const auto fwd = Subtyping(ctx, lowered_param.type, return_type);
-      const auto rev = Subtyping(ctx, return_type, lowered_param.type);
-      if (!(fwd.ok && fwd.subtype) && !(rev.ok && rev.subtype)) {
-        return "E-MOD-2457";
-      }
-      continue;
-    }
-
-    ast::LiteralExpr expected_lit;
-    expected_lit.literal = *expected_token;
-    const auto lit_check = CheckLiteralExpr(ctx, expected_lit, return_type);
-    if (!lit_check.ok) {
-      return "E-MOD-2457";
-    }
-  }
-  return std::nullopt;
-}
-
 }  // namespace
 
 void LogProcedureTypePerfSummary() {
@@ -1948,13 +1859,6 @@ ProcedureDeclResult TypeProcedureDecl(
   }
 
   result.func_type = sig.func_type;
-
-  if (const auto log_diag =
-          ValidateProcedureLogAttributes(ctx, decl, decl.attrs, sig.return_type)) {
-    result.ok = false;
-    result.diag_id = *log_diag;
-    return result;
-  }
 
   const bool has_export = HasAttribute(decl.attrs, attrs::kExport);
   const bool has_host_export = HasAttribute(decl.attrs, attrs::kHostExport);
@@ -2309,13 +2213,6 @@ ProcedureDeclResult TypeProcedureDeclSignature(
   }
 
   result.func_type = sig.func_type;
-
-  if (const auto log_diag =
-          ValidateProcedureLogAttributes(ctx, decl, decl.attrs, sig.return_type)) {
-    result.ok = false;
-    result.diag_id = *log_diag;
-    return result;
-  }
 
   SPEC_RULE("T-Proc-Sig-Ok");
   return result;

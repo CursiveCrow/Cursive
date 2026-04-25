@@ -19,7 +19,7 @@ procedure TypeInvariantEnforcementPointsMetricLabel(value: i32) -> string@View {
 
 public procedure RunTypeInvariantEnforcementPoints(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let probe: TypeInvariantEnforcementPointsProbe =
         TypeInvariantEnforcementPointsProbe { value: 1 }
@@ -29,22 +29,17 @@ public procedure RunTypeInvariantEnforcementPoints(ctx: Context) -> i32 {
     let post_call: i32 = shifted~>Read()
 
     let pre_call_log: i32 =
-        [[log(label: "observed-contracts-type-invariant-pre-call", expected: 1)]]
         pre_call
     let post_mutate_log: i32 =
-        [[log(label: "observed-contracts-type-invariant-post-mutate", expected: 2)]]
         post_mutate
     let post_call_log: i32 =
-        [[log(label: "observed-contracts-type-invariant-post-call", expected: 2)]]
         post_call
 
     let con_040: string@View = "CON-040"
     let con_040_log: string@View =
-        [[log(label: "contracts-type-invariant-enforcement-points-feature-040", expected: "CON-040")]]
         con_040
     let con_083: string@View = "CON-083"
     let con_083_log: string@View =
-        [[log(label: "contracts-type-invariant-enforcement-points-feature-083", expected: "CON-083")]]
         con_083
 
     let diag_2820: string@View = "E-SEM-2820"
@@ -52,16 +47,12 @@ public procedure RunTypeInvariantEnforcementPoints(ctx: Context) -> i32 {
     let diag_2822: string@View = "E-SEM-2822"
     let diag_2823: string@View = "E-SEM-2823"
     let diag_2820_log: string@View =
-        [[log(label: "contracts-type-invariant-enforcement-points-diag-2820", expected: "E-SEM-2820")]]
         diag_2820
     let diag_2821_log: string@View =
-        [[log(label: "contracts-type-invariant-enforcement-points-diag-2821", expected: "E-SEM-2821")]]
         diag_2821
     let diag_2822_log: string@View =
-        [[log(label: "contracts-type-invariant-enforcement-points-diag-2822", expected: "E-SEM-2822")]]
         diag_2822
     let diag_2823_log: string@View =
-        [[log(label: "contracts-type-invariant-enforcement-points-diag-2823", expected: "E-SEM-2823")]]
         diag_2823
 
     let runtime_ok: bool =
@@ -75,19 +66,17 @@ public procedure RunTypeInvariantEnforcementPoints(ctx: Context) -> i32 {
         (diag_2822_log == "E-SEM-2822") &&
         (diag_2823_log == "E-SEM-2823")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-type-invariant-enforcement-points-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 35 } else { 0 }
     let metric_label: string@View = TypeInvariantEnforcementPointsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-type-invariant-enforcement-points-metric", expected: "35")]]
         metric_label
     if (metric_log_actual != "35") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

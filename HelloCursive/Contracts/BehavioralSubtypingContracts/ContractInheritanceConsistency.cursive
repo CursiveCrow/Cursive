@@ -21,36 +21,32 @@ procedure ContractInheritanceConsistencyMetricLabel(value: i32) -> string@View {
 
 public procedure RunContractInheritanceConsistency(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let model: ContractInheritanceModel = ContractInheritanceModel()
     let observed_value: i32 = model~>Measure(4)
     let observed_value_log: i32 =
-        [[log(label: "observed-contracts-contract-inheritance-consistency-value", expected: 7)]]
         observed_value
 
     let con_066: string@View = "CON-066"
     let con_066_log: string@View =
-        [[log(label: "contracts-contract-inheritance-consistency-feature-066", expected: "CON-066")]]
         con_066
 
     let runtime_ok: bool =
         (observed_value_log == 7) &&
         (con_066_log == "CON-066")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-contract-inheritance-consistency-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = ContractInheritanceConsistencyMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-contract-inheritance-consistency-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

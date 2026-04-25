@@ -1,4 +1,4 @@
-record Issue5131MethodLogProbe {
+record Issue5131MethodLogUnknownProbe {
     [[log(label: "ping", expected: 7)]]
     procedure ping(~) -> i32 {
         return 7
@@ -7,6 +7,6 @@ record Issue5131MethodLogProbe {
 
 public procedure main(move ctx: Context) -> i32 {
     let _ = ctx
-    let probe: Issue5131MethodLogProbe = Issue5131MethodLogProbe()
+    let probe: Issue5131MethodLogUnknownProbe = Issue5131MethodLogUnknownProbe()
     return probe~>ping()
 }

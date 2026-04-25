@@ -1,44 +1,37 @@
 procedure DropLogFeatureStatus(feature_name: string@View, status: i32) -> () {
-    [[log(label: "observed-memory-feature-status", expected: 0)]] status
-    [[log(label: "memory-log-feature_name")]] feature_name
+    status
+    feature_name
     return ()
 }
 
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "memory-log-section_start")]]
-
-    [[log(label: "memory-log-feature_dispatch")]] "memory::DropCleanupAndUnwinding::DeferCleanupOrdering"
+    "memory::DropCleanupAndUnwinding::DeferCleanupOrdering"
     let status_ordering: i32 = RunDeferCleanupOrdering(ctx)
     DropLogFeatureStatus("memory::DropCleanupAndUnwinding::DeferCleanupOrdering", status_ordering)
     if (status_ordering != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_ordering
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::DropCleanupAndUnwinding::DropDispatchAndPartialDrop"
+    "memory::DropCleanupAndUnwinding::DropDispatchAndPartialDrop"
     let status_dispatch: i32 = RunDropDispatchAndPartialDrop(ctx)
     DropLogFeatureStatus("memory::DropCleanupAndUnwinding::DropDispatchAndPartialDrop", status_dispatch)
     if (status_dispatch != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_dispatch
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::DropCleanupAndUnwinding::PanicAbortContractSurface"
+    "memory::DropCleanupAndUnwinding::PanicAbortContractSurface"
     let status_panic_surface: i32 = RunPanicAbortContractSurface(ctx)
     DropLogFeatureStatus("memory::DropCleanupAndUnwinding::PanicAbortContractSurface", status_panic_surface)
     if (status_panic_surface != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_panic_surface
     }
 
-    [[log(label: "memory-log-feature_dispatch")]] "memory::DropCleanupAndUnwinding::UnwindingAndPanicCleanup"
+    "memory::DropCleanupAndUnwinding::UnwindingAndPanicCleanup"
     let status_unwind: i32 = RunUnwindingAndPanicCleanup(ctx)
     DropLogFeatureStatus("memory::DropCleanupAndUnwinding::UnwindingAndPanicCleanup", status_unwind)
     if (status_unwind != 0) {
-        [[log(label: "memory-log-section_end")]]
         return status_unwind
     }
 
-    [[log(label: "memory-log-section_end")]]
     return 0
 }

@@ -1,30 +1,30 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "contracts-log-section_start", expected: "section-start")]] "section-start"
+    "section-start"
 
     let status_contract_evaluation_contexts: i32 = RunContractEvaluationContexts(ctx)
     if (status_contract_evaluation_contexts != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_contract_evaluation_contexts
     }
 
     let status_contract_logical_operator_semantics: i32 = RunContractLogicalOperatorSemantics(ctx)
     if (status_contract_logical_operator_semantics != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_contract_logical_operator_semantics
     }
 
     let status_contract_predicate_impure_rejections: i32 = RunContractPredicateImpureRejections(ctx)
     if (status_contract_predicate_impure_rejections != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_contract_predicate_impure_rejections
     }
 
     let status_contract_predicate_purity_rules: i32 = RunContractPredicatePurityRules(ctx)
     if (status_contract_predicate_purity_rules != 0) {
-        [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_contract_predicate_purity_rules
     }
 
-    [[log(label: "contracts-log-section_end", expected: "section-end")]] "section-end"
+    "section-end"
     return 0
 }

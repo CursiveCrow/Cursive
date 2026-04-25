@@ -7,24 +7,22 @@ procedure ConcurrencyWarningDiagnosticMatrixMetricLabel(value: i32) -> string@Vi
 
 public procedure RunConcurrencyWarningDiagnosticMatrix(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "operations-log-item_begin")]]
-
-    let w0001: string@View = [[log(label: "operations-concurrency-warning-0001", expected: "W-CON-0001")]] "W-CON-0001"
-    let w0002: string@View = [[log(label: "operations-concurrency-warning-0002", expected: "W-CON-0002")]] "W-CON-0002"
-    let w0003: string@View = [[log(label: "operations-concurrency-warning-0003", expected: "W-CON-0003")]] "W-CON-0003"
-    let w0004: string@View = [[log(label: "operations-concurrency-warning-0004", expected: "W-CON-0004")]] "W-CON-0004"
-    let w0005: string@View = [[log(label: "operations-concurrency-warning-0005", expected: "W-CON-0005")]] "W-CON-0005"
-    let w0006: string@View = [[log(label: "operations-concurrency-warning-0006", expected: "W-CON-0006")]] "W-CON-0006"
-    let w0009: string@View = [[log(label: "operations-concurrency-warning-0009", expected: "W-CON-0009")]] "W-CON-0009"
-    let w0010: string@View = [[log(label: "operations-concurrency-warning-0010", expected: "W-CON-0010")]] "W-CON-0010"
-    let w0011: string@View = [[log(label: "operations-concurrency-warning-0011", expected: "W-CON-0011")]] "W-CON-0011"
-    let w0012: string@View = [[log(label: "operations-concurrency-warning-0012", expected: "W-CON-0012")]] "W-CON-0012"
-    let w0013: string@View = [[log(label: "operations-concurrency-warning-0013", expected: "W-CON-0013")]] "W-CON-0013"
-    let w0020: string@View = [[log(label: "operations-concurrency-warning-0020", expected: "W-CON-0020")]] "W-CON-0020"
-    let w0021: string@View = [[log(label: "operations-concurrency-warning-0021", expected: "W-CON-0021")]] "W-CON-0021"
-    let w0140: string@View = [[log(label: "operations-concurrency-warning-0140", expected: "W-CON-0140")]] "W-CON-0140"
-    let w0201: string@View = [[log(label: "operations-concurrency-warning-0201", expected: "W-CON-0201")]] "W-CON-0201"
-    let w0401: string@View = [[log(label: "operations-concurrency-warning-0401", expected: "W-CON-0401")]] "W-CON-0401"
+    let w0001: string@View = "W-CON-0001"
+    let w0002: string@View = "W-CON-0002"
+    let w0003: string@View = "W-CON-0003"
+    let w0004: string@View = "W-CON-0004"
+    let w0005: string@View = "W-CON-0005"
+    let w0006: string@View = "W-CON-0006"
+    let w0009: string@View = "W-CON-0009"
+    let w0010: string@View = "W-CON-0010"
+    let w0011: string@View = "W-CON-0011"
+    let w0012: string@View = "W-CON-0012"
+    let w0013: string@View = "W-CON-0013"
+    let w0020: string@View = "W-CON-0020"
+    let w0021: string@View = "W-CON-0021"
+    let w0140: string@View = "W-CON-0140"
+    let w0201: string@View = "W-CON-0201"
+    let w0401: string@View = "W-CON-0401"
 
     let block_a_ok: bool =
         (w0001 == "W-CON-0001") &&
@@ -48,19 +46,15 @@ public procedure RunConcurrencyWarningDiagnosticMatrix(ctx: Context) -> i32 {
 
     let runtime_ok: bool = block_a_ok && block_b_ok && block_c_ok
     let runtime_ok_log: bool =
-        [[log(label: "operations-concurrency-warning-diagnostic-matrix-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 811 } else { 0 }
     let metric_label: string@View = ConcurrencyWarningDiagnosticMatrixMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-operations-concurrency-warning-diagnostic-matrix-metric", expected: "811")]]
         metric_label
     if (metric_log_actual != "811") {
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }

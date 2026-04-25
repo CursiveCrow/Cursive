@@ -25,18 +25,18 @@ procedure DynamicScopeLexicalRulesMetricLabel(value: i32) -> string@View {
 
 public procedure RunDynamicScopeLexicalRules(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let direct_value: i32 = AttributeDynamicScopeProbe(5)
     let lexical_value: i32 = AttributeDynamicExpressionScopeProbe(5)
     let caller_value: i32 = AttributeDynamicScopeCaller(5)
 
-    let direct_value_log: i32 = [[log(label: "observed-attributes-dynamic-direct", expected: 6)]] direct_value
-    let lexical_value_log: i32 = [[log(label: "observed-attributes-dynamic-lexical", expected: 7)]] lexical_value
-    let caller_value_log: i32 = [[log(label: "observed-attributes-dynamic-caller", expected: 6)]] caller_value
+    let direct_value_log: i32 = direct_value
+    let lexical_value_log: i32 = lexical_value
+    let caller_value_log: i32 = caller_value
 
-    let atr_028: string@View = [[log(label: "attributes-dynamic-feature-028", expected: "ATR-028")]] "ATR-028"
-    let atr_029: string@View = [[log(label: "attributes-dynamic-feature-029", expected: "ATR-029")]] "ATR-029"
+    let atr_028: string@View = "ATR-028"
+    let atr_029: string@View = "ATR-029"
 
     let runtime_ok: bool =
         (direct_value_log == 6) &&
@@ -44,17 +44,17 @@ public procedure RunDynamicScopeLexicalRules(ctx: Context) -> i32 {
         (caller_value_log == 6) &&
         (atr_028 == "ATR-028") &&
         (atr_029 == "ATR-029")
-    let runtime_ok_log: bool = [[log(label: "attributes-dynamic-scope-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 19 } else { 0 }
     let metric_label: string@View = DynamicScopeLexicalRulesMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-dynamic-scope-lexical-rules-metric", expected: "19")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "19") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

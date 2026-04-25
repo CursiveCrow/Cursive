@@ -87,8 +87,6 @@ procedure UnwindingCleanupMetricLabel(value: i32) -> string@View {
 
 public procedure RunUnwindingAndPanicCleanup(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     let panic_cleanup_metric: i32 = PanicCleanupPropagationProbe()
     let unwinding_frames_metric: i32 = UnwindingAcrossFramesProbe()
     let child_order_metric: i32 = DropChildOrderProbe()
@@ -101,11 +99,11 @@ public procedure RunUnwindingAndPanicCleanup(ctx: Context) -> i32 {
     let aggregate_cleanup_ok: bool = aggregate_cleanup_metric == 345
     let double_cleanup_ok: bool = double_cleanup_metric == 14
 
-    let panic_cleanup_ok_log: bool =        [[log(label: "memory-drop-panic-cleanup", expected: true)]]         panic_cleanup_ok
-    let double_cleanup_ok_log: bool =        [[log(label: "memory-drop-double-cleanup-path", expected: true)]]         double_cleanup_ok
-    let unwinding_frames_ok_log: bool =        [[log(label: "memory-drop-unwinding-frames", expected: true)]]         unwinding_frames_ok
-    let drop_child_order_ok_log: bool =        [[log(label: "memory-drop-child-order", expected: true)]]         drop_child_order_ok
-    let aggregate_cleanup_ok_log: bool =        [[log(label: "memory-drop-aggregate-cleanup-order", expected: true)]]         aggregate_cleanup_ok
+    let panic_cleanup_ok_log: bool =        panic_cleanup_ok
+    let double_cleanup_ok_log: bool =        double_cleanup_ok
+    let unwinding_frames_ok_log: bool =        unwinding_frames_ok
+    let drop_child_order_ok_log: bool =        drop_child_order_ok
+    let aggregate_cleanup_ok_log: bool =        aggregate_cleanup_ok
 
     let metric_ok: bool = (panic_cleanup_ok_log == true) &&
         (double_cleanup_ok_log == true) &&
@@ -114,12 +112,10 @@ public procedure RunUnwindingAndPanicCleanup(ctx: Context) -> i32 {
         (aggregate_cleanup_ok_log == true)
     let metric: i32 = if (metric_ok) { 52 } else { 0 }
     let metric_label: string@View = UnwindingCleanupMetricLabel(metric)
-    let metric_log_actual: string@View =        [[log(label: "observed-memory-drop-unwinding-metric", expected: "52")]]         metric_label
+    let metric_log_actual: string@View =        metric_label
     if (metric_log_actual != "52") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

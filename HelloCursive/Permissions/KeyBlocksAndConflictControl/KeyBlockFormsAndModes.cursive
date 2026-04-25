@@ -7,7 +7,7 @@ procedure KeyBlockFormsAndModesMetricLabel(value: i32) -> string@View {
 
 [[dynamic]]
 public procedure RunKeyBlockFormsAndModes(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var gate: shared i32 = 4
     var read_metric: i32 = 0
@@ -42,13 +42,13 @@ public procedure RunKeyBlockFormsAndModes(ctx: Context) -> i32 {
     let diagnostic_nested_mode_mismatch: string@View = "E-CON-0012"
     let diagnostic_path_not_scope: string@View = "E-CON-0031"
 
-    let read_metric_log: i32 = [[log(label: "observed-permissions-KeyBlockFormsAndModes-read", expected: 4)]] read_metric
-    let write_metric_log: i32 = [[log(label: "observed-permissions-KeyBlockFormsAndModes-write", expected: 7)]] write_metric
-    let release_metric_log: i32 = [[log(label: "observed-permissions-KeyBlockFormsAndModes-release", expected: 9)]] release_metric
-    let dynamic_metric_log: i32 = [[log(label: "observed-permissions-KeyBlockFormsAndModes-dynamic", expected: 4)]] dynamic_metric
-    let dispatch_metric_log: i32 = [[log(label: "observed-permissions-KeyBlockFormsAndModes-dispatch", expected: 8)]] dispatch_metric
-    let diagnostic_nested_mode_mismatch_log: string@View = [[log(label: "permissions-KeyBlockFormsAndModes-diag-nested-mode", expected: "E-CON-0012")]] diagnostic_nested_mode_mismatch
-    let diagnostic_path_not_scope_log: string@View = [[log(label: "permissions-KeyBlockFormsAndModes-diag-path-scope", expected: "E-CON-0031")]] diagnostic_path_not_scope
+    let read_metric_log: i32 = read_metric
+    let write_metric_log: i32 = write_metric
+    let release_metric_log: i32 = release_metric
+    let dynamic_metric_log: i32 = dynamic_metric
+    let dispatch_metric_log: i32 = dispatch_metric
+    let diagnostic_nested_mode_mismatch_log: string@View = diagnostic_nested_mode_mismatch
+    let diagnostic_path_not_scope_log: string@View = diagnostic_path_not_scope
 
     let runtime_ok: bool =
         (read_metric_log == 4) &&
@@ -58,17 +58,17 @@ public procedure RunKeyBlockFormsAndModes(ctx: Context) -> i32 {
         (dispatch_metric_log == 8) &&
         (diagnostic_nested_mode_mismatch_log == "E-CON-0012") &&
         (diagnostic_path_not_scope_log == "E-CON-0031")
-    let runtime_ok_log: bool = [[log(label: "permissions-KeyBlockFormsAndModes-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 46 } else { 0 }
     let metric_label: string@View = KeyBlockFormsAndModesMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-KeyBlockFormsAndModes-metric", expected: "46")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "46") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

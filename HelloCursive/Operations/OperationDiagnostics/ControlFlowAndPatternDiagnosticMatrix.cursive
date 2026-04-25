@@ -11,8 +11,7 @@ procedure LogControlFlowPatternDiagnosticObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure ControlFlowPatternDiagnosticMetricLabel(value: i32) -> string@View {
     if (value == 4) {
@@ -41,22 +40,17 @@ procedure RunControlFlowPatternDiagnosticItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyControlFlowPatternDiagnosticItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let control_seed: i32 = 2
     let pattern_seed: ControlFlowPatternCase = ControlFlowPatternCase::Start(3, 4)
 
@@ -72,16 +66,11 @@ procedure VerifyControlFlowPatternDiagnosticItem(ctx: Context, scope: string@Vie
     LogControlFlowPatternDiagnosticObject(ctx.fs, scope, "diag_refutable_let_pattern", "diagnostic-code", "constructed", "refutable let pattern diagnostic mapping prepared")
     LogControlFlowPatternDiagnosticObject(ctx.fs, scope, "diag_break_outside_loop", "diagnostic-code", "constructed", "break outside loop diagnostic mapping prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let syntax_metric: i32 = if (control_seed < 3) { 4 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let static_metric: i32 = if pattern_seed is {
         ControlFlowPatternCase::Start(left, right) { left + right }
         ControlFlowPatternCase::Stop(value, _) { value }
     }
-    [[log(label: "operations-log-transition_move")]]
     var loop_index: i32 = 0
     var loop_sum: i32 = 0
     loop {
@@ -100,13 +89,13 @@ procedure VerifyControlFlowPatternDiagnosticItem(ctx: Context, scope: string@Vie
     let diag_refutable_let_pattern_ok: bool = diag_refutable_let_pattern == "E-SEM-2711"
     let diag_break_outside_loop_ok: bool = diag_break_outside_loop == "E-SEM-3162"
 
-    let diag_if_case_non_exhaustive_ok_log_actual = [[log(label: "diagnostic-if-case-non-exhaustive", expected: "E-SEM-2705")]] diag_if_case_non_exhaustive
+    let diag_if_case_non_exhaustive_ok_log_actual = diag_if_case_non_exhaustive
     let diag_if_case_non_exhaustive_ok_with_log: bool = diag_if_case_non_exhaustive_ok && (diag_if_case_non_exhaustive_ok_log_actual == diag_if_case_non_exhaustive)
-    let diag_if_case_unreachable_ok_log_actual = [[log(label: "diagnostic-if-case-unreachable", expected: "E-SEM-2751")]] diag_if_case_unreachable
+    let diag_if_case_unreachable_ok_log_actual = diag_if_case_unreachable
     let diag_if_case_unreachable_ok_with_log: bool = diag_if_case_unreachable_ok && (diag_if_case_unreachable_ok_log_actual == diag_if_case_unreachable)
-    let diag_refutable_let_pattern_ok_log_actual = [[log(label: "diagnostic-refutable-let-pattern", expected: "E-SEM-2711")]] diag_refutable_let_pattern
+    let diag_refutable_let_pattern_ok_log_actual = diag_refutable_let_pattern
     let diag_refutable_let_pattern_ok_with_log: bool = diag_refutable_let_pattern_ok && (diag_refutable_let_pattern_ok_log_actual == diag_refutable_let_pattern)
-    let diag_break_outside_loop_ok_log_actual = [[log(label: "diagnostic-break-outside-loop", expected: "E-SEM-3162")]] diag_break_outside_loop
+    let diag_break_outside_loop_ok_log_actual = diag_break_outside_loop
     let diag_break_outside_loop_ok_with_log: bool = diag_break_outside_loop_ok && (diag_break_outside_loop_ok_log_actual == diag_break_outside_loop)
     let diag_count: i32 = if (diag_if_case_non_exhaustive_ok && diag_if_case_unreachable_ok && diag_refutable_let_pattern_ok && diag_break_outside_loop_ok) { 4 } else { 0 }
     let runtime_metric: i32 = loop_sum + diag_count
@@ -116,15 +105,14 @@ procedure VerifyControlFlowPatternDiagnosticItem(ctx: Context, scope: string@Vie
     let runtime_passed: bool = runtime_metric == 12
 
     let actual_label_1: string@View = ControlFlowPatternDiagnosticMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-control-flow-pattern-syntax-metric", expected: "4")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = ControlFlowPatternDiagnosticMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-control-flow-pattern-static-metric", expected: "7")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = ControlFlowPatternDiagnosticMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-control-flow-pattern-runtime-metric", expected: "12")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunControlFlowPatternDiagnosticItem(
             ctx,
@@ -211,6 +199,5 @@ procedure RunControlFlowAndPatternDiagnosticMatrix(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

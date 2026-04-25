@@ -21,7 +21,7 @@ procedure ModalStateTypeWellFormednessMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalStateTypeWellFormedness(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let pair_explicit: ModalStateWfProbe@Pair =
         ModalStateWfProbe@Pair { left: 3, right: 9 }
@@ -38,27 +38,21 @@ public procedure RunModalStateTypeWellFormedness(ctx: Context) -> i32 {
     }
 
     let explicit_metric_log: i32 =
-        [[log(label: "observed-modals-modal-state-wf-explicit", expected: 12)]]
         explicit_metric
     let default_metric_log: i32 =
-        [[log(label: "observed-modals-modal-state-wf-default", expected: 10)]]
         default_metric
     let done_metric_log: i32 =
-        [[log(label: "observed-modals-modal-state-wf-done", expected: 5)]]
         done_metric
 
     let generic_argcount_diag: string@View = "E-TYP-2303"
     let generic_argcount_diag_log: string@View =
-        [[log(label: "modals-core-modal-state-generic-argcount-diagnostic", expected: "E-TYP-2303")]]
         generic_argcount_diag
 
     let mod_004: string@View = "MOD-004"
     let mod_006: string@View = "MOD-006"
     let mod_004_log: string@View =
-        [[log(label: "modals-core-modal-state-type-wf-feature-004", expected: "MOD-004")]]
         mod_004
     let mod_006_log: string@View =
-        [[log(label: "modals-core-modal-state-type-wf-feature-006", expected: "MOD-006")]]
         mod_006
 
     let runtime_ok: bool =
@@ -69,19 +63,17 @@ public procedure RunModalStateTypeWellFormedness(ctx: Context) -> i32 {
         (mod_004_log == "MOD-004") &&
         (mod_006_log == "MOD-006")
     let runtime_ok_log: bool =
-        [[log(label: "modals-core-modal-state-type-wf-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 23 } else { 0 }
     let metric_label: string@View = ModalStateTypeWellFormednessMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-state-type-wf-metric", expected: "23")]]
         metric_label
     if (metric_log_actual != "23") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

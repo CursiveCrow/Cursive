@@ -26,8 +26,7 @@ procedure LogYieldFromExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure YieldFromExpressionMetricLabel(value: i32) -> string@View {
     if (value == 5) {
@@ -57,33 +56,23 @@ procedure RunYieldFromExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyYieldFromExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogYieldFromExpressionObject(ctx.fs, scope, "yield_from_child", "Async<(),(),i32,!>", "constructed", "child async for yield-from delegation prepared")
     LogYieldFromExpressionObject(ctx.fs, scope, "yield_from_host", "Async<(),(),i32,!>", "constructed", "host async using yield from prepared")
     LogYieldFromExpressionObject(ctx.fs, scope, "yield_from_host_release", "Async<(),(),i32,!>", "constructed", "host async using yield release from prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let yield_from_metric: i32 = sync YieldFromHost()
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let yield_from_release_metric: i32 = sync YieldFromHostRelease()
-    [[log(label: "operations-log-transition_move")]]
     let yield_from_runtime_metric: i32 = yield_from_metric + yield_from_release_metric
 
     let observed_delegate_step: string@View = "observed-yield-from-delegate-metric"
@@ -99,13 +88,12 @@ procedure VerifyYieldFromExpressionOperationsItem(ctx: Context, scope: string@Vi
     let release_delegate_passed: bool = yield_from_release_metric == 8
     let runtime_passed: bool = yield_from_runtime_metric == 13
 
-    let delegate_passed_log_actual = [[log(label: "observed-yield-from-delegate-metric", expected: "5")]] delegate_label
+    let delegate_passed_log_actual = delegate_label
     let delegate_passed_with_log: bool = delegate_passed && (delegate_passed_log_actual == delegate_label)
-    let release_delegate_passed_log_actual = [[log(label: "observed-yield-from-release-delegate-metric", expected: "8")]] release_delegate_label
+    let release_delegate_passed_log_actual = release_delegate_label
     let release_delegate_passed_with_log: bool = release_delegate_passed && (release_delegate_passed_log_actual == release_delegate_label)
-    let runtime_passed_log_actual = [[log(label: "observed-yield-from-runtime-aggregate-metric", expected: "13")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunYieldFromExpressionOperationsItem(
             ctx,
@@ -192,6 +180,5 @@ procedure RunYieldFromExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

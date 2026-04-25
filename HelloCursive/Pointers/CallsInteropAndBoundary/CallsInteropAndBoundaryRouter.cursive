@@ -1,36 +1,28 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "pointers-log-section_start")]]
-
     let status_arg_modes: i32 = RunPointerArgPassingModes(ctx)
     if (status_arg_modes != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_arg_modes
     }
 
     let status_receiver: i32 = RunReceiverRefArgBehavior(ctx)
     if (status_receiver != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_receiver
     }
 
     let status_extern: i32 = RunExternUnsafePointerCalls(ctx)
     if (status_extern != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_extern
     }
 
     let status_ffi: i32 = RunFfiPointerBoundaryRules(ctx)
     if (status_ffi != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_ffi
     }
 
     let status_gpu: i32 = RunGpuPointerBoundaryRules(ctx)
     if (status_gpu != 0) {
-        [[log(label: "pointers-log-section_end")]]
         return status_gpu
     }
 
-    [[log(label: "pointers-log-section_end")]]
     return 0
 }

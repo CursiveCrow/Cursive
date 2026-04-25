@@ -16,8 +16,6 @@ procedure OwnershipDiagnosticsMetricLabel(value: i32) -> string@View {
 
 public procedure RunOwnershipDiagnostics(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     var whole_slot: i32 = 12
     let whole_take_one: i32 = OwnershipDiagConsume(move whole_slot)
     whole_slot = 20
@@ -43,9 +41,9 @@ public procedure RunOwnershipDiagnostics(ctx: Context) -> i32 {
     let arg_move_ok: bool =
         (place_take == 9) && (literal_take == 10)
 
-    let whole_move_ok_log: bool = [[log(label: "memory-ownership-diagnostic-whole-moved", expected: true)]] whole_move_ok
-    let field_move_ok_log: bool = [[log(label: "memory-ownership-diagnostic-field-moved", expected: true)]] field_move_ok
-    let arg_move_ok_log: bool = [[log(label: "memory-ownership-diagnostic-arg-move", expected: true)]] arg_move_ok
+    let whole_move_ok_log: bool = whole_move_ok
+    let field_move_ok_log: bool = field_move_ok
+    let arg_move_ok_log: bool = arg_move_ok
 
     let diag_ok: bool =
         (whole_move_ok_log == true) &&
@@ -54,12 +52,10 @@ public procedure RunOwnershipDiagnostics(ctx: Context) -> i32 {
 
     let metric: i32 = if (diag_ok) { 61 } else { 0 }
     let metric_label: string@View = OwnershipDiagnosticsMetricLabel(metric)
-    let metric_log_actual = [[log(label: "observed-memory-ownership-diagnostics-metric", expected: "61")]] metric_label
+    let metric_log_actual = metric_label
     if (metric_log_actual != "61") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

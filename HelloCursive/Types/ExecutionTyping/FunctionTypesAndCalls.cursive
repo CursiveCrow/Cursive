@@ -49,8 +49,7 @@ procedure LogFunctionCallObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunFunctionTypesAndCallsItem(
     ctx: Context,
@@ -67,7 +66,6 @@ procedure RunFunctionTypesAndCallsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -76,17 +74,12 @@ procedure RunFunctionTypesAndCallsItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -125,89 +118,53 @@ procedure FunctionMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyFunctionTypesAndCallsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let signature_fn: (i32, i32) -> i32 = AddCall
     let signature_lhs: i32 = 2
     let signature_rhs: i32 = 3
     LogFunctionCallObject(ctx.fs, scope, "signature_fn", "(i32,i32)->i32", "constructed", "typed procedure signature callable prepared")
     LogFunctionCallObject(ctx.fs, scope, "signature_args", "i32,i32", "constructed", "procedure signature call arguments prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let signature_metric: i32 = InvokeSignature(signature_fn, signature_lhs, signature_rhs)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     LogFunctionCallObject(ctx.fs, scope, "mode_literal", "i32 literal", "constructed", "parameter-mode consuming literal prepared")
-    [[log(label: "types-log-transition_move")]]
     let mode_metric: i32 = ConsumeMode(6)
-    [[log(label: "types-log-transition_move")]]
     let return_flag: bool = true
     LogFunctionCallObject(ctx.fs, scope, "return_flag", "bool", "constructed", "non-unit return obligation branch selector prepared")
-    [[log(label: "types-log-transition_move")]]
     let return_metric: i32 = NonUnitObligation(return_flag)
-    [[log(label: "types-log-transition_move")]]
     let call_lhs: i32 = 4
     let call_rhs: i32 = 5
     LogFunctionCallObject(ctx.fs, scope, "call_args", "i32,i32", "constructed", "call-site argument matching inputs prepared")
-    [[log(label: "types-log-transition_move")]]
     let call_metric: i32 = AddCall(call_lhs, call_rhs)
-    [[log(label: "types-log-transition_move")]]
     LogFunctionCallObject(ctx.fs, scope, "move_literal", "i32 literal", "constructed", "move-call semantics literal prepared")
-    [[log(label: "types-log-transition_move")]]
     let move_metric: i32 = ConsumeMode(9)
-    [[log(label: "types-log-transition_move")]]
     let move_signature_fn: (move i32) -> i32 = ConsumeMode
     LogFunctionCallObject(ctx.fs, scope, "move_signature_fn", "(move i32)->i32", "constructed", "move-parameter function signature prepared")
-    [[log(label: "types-log-transition_move")]]
     let move_signature_metric: i32 = move_signature_fn(10)
-    [[log(label: "types-log-transition_move")]]
     LogFunctionCallObject(ctx.fs, scope, "ref_literal_args", "const i32,const i32 literals", "constructed", "non-move reference-call literal arguments prepared")
-    [[log(label: "types-log-transition_move")]]
     let ref_literal_metric: i32 = ReadConstPair(3, 4)
-    [[log(label: "types-log-transition_move")]]
     let ref_place_left: i32 = 3
     let ref_place_right: i32 = 4
     LogFunctionCallObject(ctx.fs, scope, "ref_place_args", "const i32,const i32 places", "constructed", "non-move reference-call place arguments prepared")
-    [[log(label: "types-log-transition_move")]]
     let ref_place_metric: i32 = ReadConstPair(ref_place_left, ref_place_right)
-    [[log(label: "types-log-transition_move")]]
     let move_place_source: i32 = 12
     LogFunctionCallObject(ctx.fs, scope, "move_place_arg", "move i32 place", "constructed", "consuming-call provenance-bearing place argument prepared")
-    [[log(label: "types-log-transition_move")]]
     let move_place_metric: i32 = ConsumeMode(move move_place_source)
-    [[log(label: "types-log-transition_move")]]
     let provenance_metric: i32 = ref_literal_metric + ref_place_metric + move_place_metric
 
     let receiver_probe_seed: unique ReceiverPermissionProbe = ReceiverPermissionProbe { value: 5 }
     LogFunctionCallObject(ctx.fs, scope, "receiver_probe_seed", "unique ReceiverPermissionProbe", "constructed", "receiver permission probe seed value prepared")
-    [[log(label: "types-log-transition_move")]]
     var receiver_probe: unique ReceiverPermissionProbe = move receiver_probe_seed
-    [[log(label: "types-log-transition_move")]]
     LogFunctionCallObject(ctx.fs, scope, "receiver_probe", "unique ReceiverPermissionProbe", "constructed", "receiver permission probe prepared for ~, ~%, and ~! method calls")
 
-    [[log(label: "types-log-transition_move")]]
     let receiver_const_metric: i32 = receiver_probe~>read()
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let receiver_shared_metric: i32 = receiver_probe~>sync_read()
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let receiver_unique_metric: i32 = receiver_probe~>mutate()
-    [[log(label: "types-log-transition_move")]]
     let shared_probe_seed: unique ReceiverPermissionProbe = ReceiverPermissionProbe { value: 5 }
     LogFunctionCallObject(ctx.fs, scope, "shared_probe_seed", "unique ReceiverPermissionProbe", "constructed", "shared receiver probe seed prepared")
-    [[log(label: "types-log-transition_move")]]
     let shared_probe: shared ReceiverPermissionProbe = shared_probe_seed
-    [[log(label: "types-log-transition_move")]]
     LogFunctionCallObject(ctx.fs, scope, "shared_probe", "shared ReceiverPermissionProbe", "constructed", "shared receiver probe prepared for key-governed ~ and ~% method calls")
 
-    [[log(label: "types-log-transition_move")]]
     let shared_probe_const_metric: i32 = shared_probe~>read()
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let shared_probe_sync_metric: i32 = shared_probe~>sync_read()
-    [[log(label: "types-log-transition_move")]]
     let shared_key_metric: i32 = shared_probe_const_metric + shared_probe_sync_metric
     let receiver_metric: i32 = receiver_const_metric + receiver_shared_metric + receiver_unique_metric + shared_key_metric
 
@@ -260,31 +217,30 @@ procedure VerifyFunctionTypesAndCallsItem(ctx: Context, scope: string@View, move
     let receiver_metric_passed: bool = receiver_metric == 26
     let shared_key_metric_passed: bool = shared_key_metric == 10
 
-    let signature_metric_passed_log_actual = [[log(label: "observed-procedure-signature-metric", expected: "5")]] signature_metric_label
+    let signature_metric_passed_log_actual = signature_metric_label
     let signature_metric_passed_with_log: bool = signature_metric_passed && (signature_metric_passed_log_actual == expected_signature)
-    let mode_metric_passed_log_actual = [[log(label: "observed-parameter-mode-metric", expected: "6")]] mode_metric_label
+    let mode_metric_passed_log_actual = mode_metric_label
     let mode_metric_passed_with_log: bool = mode_metric_passed && (mode_metric_passed_log_actual == expected_mode)
-    let return_metric_passed_log_actual = [[log(label: "observed-return-obligation-metric", expected: "1")]] return_metric_label
+    let return_metric_passed_log_actual = return_metric_label
     let return_metric_passed_with_log: bool = return_metric_passed && (return_metric_passed_log_actual == expected_return)
-    let call_metric_passed_log_actual = [[log(label: "observed-call-site-metric", expected: "9")]] call_metric_label
+    let call_metric_passed_log_actual = call_metric_label
     let call_metric_passed_with_log: bool = call_metric_passed && (call_metric_passed_log_actual == expected_call)
-    let move_metric_passed_log_actual = [[log(label: "observed-move-call-metric", expected: "9")]] move_metric_label
+    let move_metric_passed_log_actual = move_metric_label
     let move_metric_passed_with_log: bool = move_metric_passed && (move_metric_passed_log_actual == expected_move)
-    let move_signature_metric_passed_log_actual = [[log(label: "observed-move-signature-metric", expected: "10")]] move_signature_metric_label
+    let move_signature_metric_passed_log_actual = move_signature_metric_label
     let move_signature_metric_passed_with_log: bool = move_signature_metric_passed && (move_signature_metric_passed_log_actual == expected_move_signature)
-    let ref_literal_metric_passed_log_actual = [[log(label: "observed-reference-literal-call-metric", expected: "7")]] ref_literal_metric_label
+    let ref_literal_metric_passed_log_actual = ref_literal_metric_label
     let ref_literal_metric_passed_with_log: bool = ref_literal_metric_passed && (ref_literal_metric_passed_log_actual == expected_ref_literal)
-    let ref_place_metric_passed_log_actual = [[log(label: "observed-reference-place-call-metric", expected: "7")]] ref_place_metric_label
+    let ref_place_metric_passed_log_actual = ref_place_metric_label
     let ref_place_metric_passed_with_log: bool = ref_place_metric_passed && (ref_place_metric_passed_log_actual == expected_ref_place)
-    let move_place_metric_passed_log_actual = [[log(label: "observed-move-place-call-metric", expected: "12")]] move_place_metric_label
+    let move_place_metric_passed_log_actual = move_place_metric_label
     let move_place_metric_passed_with_log: bool = move_place_metric_passed && (move_place_metric_passed_log_actual == expected_move_place)
-    let provenance_metric_passed_log_actual = [[log(label: "observed-provenance-aware-argument-temporary-metric", expected: "26")]] provenance_metric_label
+    let provenance_metric_passed_log_actual = provenance_metric_label
     let provenance_metric_passed_with_log: bool = provenance_metric_passed && (provenance_metric_passed_log_actual == expected_provenance)
-    let receiver_metric_passed_log_actual = [[log(label: "observed-receiver-permission-metric", expected: "26")]] receiver_metric_label
+    let receiver_metric_passed_log_actual = receiver_metric_label
     let receiver_metric_passed_with_log: bool = receiver_metric_passed && (receiver_metric_passed_log_actual == expected_receiver)
-    let shared_key_metric_passed_log_actual = [[log(label: "observed-shared-key-governed-receiver-metric", expected: "10")]] shared_key_metric_label
+    let shared_key_metric_passed_log_actual = shared_key_metric_label
     let shared_key_metric_passed_with_log: bool = shared_key_metric_passed && (shared_key_metric_passed_log_actual == expected_shared_key)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunFunctionTypesAndCallsItem(
             ctx,
@@ -481,6 +437,5 @@ procedure RunFunctionTypesAndCalls(ctx: Context) -> i32 {
         return status_ProvenanceAwareArgumentTemporaries
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

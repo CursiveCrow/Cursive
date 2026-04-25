@@ -7,7 +7,7 @@ procedure RegionModalLifecycleMetricLabel(value: i32) -> string@View {
 
 public procedure RunRegionModalLifecycle(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var reset_return_state_ok: bool = false
     var freeze_return_state_ok: bool = false
@@ -24,7 +24,6 @@ public procedure RunRegionModalLifecycle(ctx: Context) -> i32 {
             @Freed { } { false }
         }
         let returned_is_active_log: bool =
-            [[log(label: "observed-modals-region-reset-return-active", expected: true)]]
             returned_is_active
         reset_return_state_ok = returned_is_active_log == true
     }
@@ -40,7 +39,6 @@ public procedure RunRegionModalLifecycle(ctx: Context) -> i32 {
         @Freed { } { false }
     }
     let frozen_is_frozen_log: bool =
-        [[log(label: "observed-modals-region-freeze-return-frozen", expected: true)]]
         frozen_is_frozen
     freeze_return_state_ok = frozen_is_frozen_log == true
 
@@ -62,7 +60,6 @@ public procedure RunRegionModalLifecycle(ctx: Context) -> i32 {
         @Freed { } { false }
     }
     let thawed_is_active_log: bool =
-        [[log(label: "observed-modals-region-thaw-return-active", expected: true)]]
         thawed_is_active
     thaw_return_state_ok = thawed_is_active_log == true
 
@@ -93,35 +90,27 @@ public procedure RunRegionModalLifecycle(ctx: Context) -> i32 {
         @Freed { } { true }
     }
     let freed_from_frozen_metric_log: bool =
-        [[log(label: "observed-modals-region-free-from-frozen", expected: true)]]
         freed_from_frozen_metric
     frozen_free_return_state_ok = freed_from_frozen_metric_log == true
 
     let alloc_metric_log: i32 =
-        [[log(label: "observed-modals-region-lifecycle-alloc", expected: 6)]]
         alloc_metric
     let reset_metric_log: i32 =
-        [[log(label: "observed-modals-region-lifecycle-reset", expected: 2)]]
         reset_metric
     let thaw_metric_log: i32 =
-        [[log(label: "observed-modals-region-lifecycle-thaw", expected: 4)]]
         thaw_metric
     let freed_metric_log: bool =
-        [[log(label: "observed-modals-region-lifecycle-freed", expected: true)]]
         freed_metric
 
     let unchecked_diag: string@View = "E-MEM-3030"
     let unchecked_diag_log: string@View =
-        [[log(label: "modals-region-unchecked-unsafe-diagnostic", expected: "E-MEM-3030")]]
         unchecked_diag
 
     let mod_040: string@View = "MOD-040"
     let mod_041: string@View = "MOD-041"
     let mod_040_log: string@View =
-        [[log(label: "modals-builtin-region-feature-040", expected: "MOD-040")]]
         mod_040
     let mod_041_log: string@View =
-        [[log(label: "modals-builtin-region-feature-041", expected: "MOD-041")]]
         mod_041
 
     let runtime_ok: bool =
@@ -137,19 +126,17 @@ public procedure RunRegionModalLifecycle(ctx: Context) -> i32 {
         (mod_040_log == "MOD-040") &&
         (mod_041_log == "MOD-041")
     let runtime_ok_log: bool =
-        [[log(label: "modals-builtin-region-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 15 } else { 0 }
     let metric_label: string@View = RegionModalLifecycleMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-region-lifecycle-metric", expected: "15")]]
         metric_label
     if (metric_log_actual != "15") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

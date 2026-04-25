@@ -1,60 +1,60 @@
 public procedure runGroup(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-section_start", expected: "section-start")]] "section-start"
+    "section-start"
 
     let status_forms: i32 = RunKeyBlockFormsAndModes(ctx)
     if (status_forms != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_forms
     }
 
     let status_coarsen: i32 = RunKeyCoarseningInlineAndTypeBoundary(ctx)
     if (status_coarsen != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_coarsen
     }
 
     let status_ordered_surface: i32 = RunOrderedAndConflictDiagnosticSurface(ctx)
     if (status_ordered_surface != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_ordered_surface
     }
 
     let status_conflict: i32 = RunKeyConflictDetectionAndReadWriteProhibition(ctx)
     if (status_conflict != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_conflict
     }
 
     let status_nested: i32 = RunNestedReleaseAndReacquire(ctx)
     if (status_nested != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_nested
     }
 
     let status_reentrancy: i32 = RunKeyReentrancyProcedureBoundary(ctx)
     if (status_reentrancy != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_reentrancy
     }
 
     let status_speculative: i32 = RunSpeculativeKeyBlockRestrictions(ctx)
     if (status_speculative != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_speculative
     }
 
     let status_spec_cycle: i32 = RunSpeculativeCommitRetryFallback(ctx)
     if (status_spec_cycle != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_spec_cycle
     }
 
     let status_boundary_multi: i32 = RunKeyBoundaryFieldsAndMultiPath(ctx)
     if (status_boundary_multi != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_boundary_multi
     }
 
-    [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+    "section-end"
     return 0
 }

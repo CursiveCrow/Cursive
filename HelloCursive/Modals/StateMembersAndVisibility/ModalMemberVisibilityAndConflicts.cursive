@@ -29,7 +29,7 @@ procedure ModalMemberVisibilityAndConflictsMetricLabel(value: i32) -> string@Vie
 
 public procedure RunModalMemberVisibilityAndConflicts(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var draft_state: unique ModalMemberVisibilityProbe@Draft =
         ModalMemberVisibilityProbe@Draft { secret: 9 }
@@ -38,10 +38,8 @@ public procedure RunModalMemberVisibilityAndConflicts(ctx: Context) -> i32 {
     let published_metric: i32 = published_state~>reveal()
 
     let draft_metric_log: i32 =
-        [[log(label: "observed-modals-modal-member-visibility-draft", expected: 9)]]
         draft_metric
     let published_metric_log: i32 =
-        [[log(label: "observed-modals-modal-member-visibility-published", expected: 9)]]
         published_metric
 
     let diag_method_dup: string@View = "E-TYP-2061"
@@ -49,29 +47,22 @@ public procedure RunModalMemberVisibilityAndConflicts(ctx: Context) -> i32 {
     let diag_name_conflict: string@View = "E-TYP-2065"
     let diag_visibility_conflict: string@View = "E-TYP-2063"
     let diag_method_dup_log: string@View =
-        [[log(label: "modals-state-members-method-dup-diagnostic", expected: "E-TYP-2061")]]
         diag_method_dup
     let diag_transition_dup_log: string@View =
-        [[log(label: "modals-state-members-transition-dup-diagnostic", expected: "E-TYP-2062")]]
         diag_transition_dup
     let diag_name_conflict_log: string@View =
-        [[log(label: "modals-state-members-name-conflict-diagnostic", expected: "E-TYP-2065")]]
         diag_name_conflict
     let diag_visibility_conflict_log: string@View =
-        [[log(label: "modals-state-members-visibility-conflict-diagnostic", expected: "E-TYP-2063")]]
         diag_visibility_conflict
 
     let mod_016: string@View = "MOD-016"
     let mod_017: string@View = "MOD-017"
     let mod_018: string@View = "MOD-018"
     let mod_016_log: string@View =
-        [[log(label: "modals-state-members-visibility-feature-016", expected: "MOD-016")]]
         mod_016
     let mod_017_log: string@View =
-        [[log(label: "modals-state-members-visibility-feature-017", expected: "MOD-017")]]
         mod_017
     let mod_018_log: string@View =
-        [[log(label: "modals-state-members-visibility-feature-018", expected: "MOD-018")]]
         mod_018
 
     let runtime_ok: bool =
@@ -85,19 +76,17 @@ public procedure RunModalMemberVisibilityAndConflicts(ctx: Context) -> i32 {
         (mod_017_log == "MOD-017") &&
         (mod_018_log == "MOD-018")
     let runtime_ok_log: bool =
-        [[log(label: "modals-state-members-visibility-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 18 } else { 0 }
     let metric_label: string@View = ModalMemberVisibilityAndConflictsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-modal-member-visibility-metric", expected: "18")]]
         metric_label
     if (metric_log_actual != "18") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -284,8 +284,6 @@ procedure ManagedZeroLengthDropProbe(base_heap: $HeapAllocator) -> bool {
 }
 
 public procedure RunManagedDiagnosticsAndFailureModes(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     var quota_source: $HeapAllocator = ctx.heap
     let quota_heap_tight: $HeapAllocator = quota_source~>with_quota(1usize)
     let quota_heap_usable: $HeapAllocator = quota_source~>with_quota(8usize)
@@ -388,28 +386,28 @@ public procedure RunManagedDiagnosticsAndFailureModes(ctx: Context) -> i32 {
     let managed_zero_length_drop_ok: bool =
         ManagedZeroLengthDropProbe(ctx.heap)
 
-    let quota_tight_exhausted_log: bool = [[log(label: "memory-managed-heap-with-quota-tight", expected: true)]] quota_tight_exhausted
-    let quota_raw_roundtrip_ok_log: bool = [[log(label: "memory-managed-heap-with-quota-roundtrip", expected: true)]] quota_raw_roundtrip_ok
-    [[log(label: "observed-memory-managed-heap-with-quota-reuse")]] quota_raw_reuse_ok
+    let quota_tight_exhausted_log: bool = quota_tight_exhausted
+    let quota_raw_roundtrip_ok_log: bool = quota_raw_roundtrip_ok
+    quota_raw_reuse_ok
 
-    [[log(label: "observed-memory-managed-raw-alloc-roundtrip")]] raw_alloc_roundtrip_ok
-    let raw_alloc_roundtrip_ok_log: bool = [[log(label: "memory-managed-raw-alloc-dealloc-runtime", expected: true)]] raw_alloc_path_ok
+    raw_alloc_roundtrip_ok
+    let raw_alloc_roundtrip_ok_log: bool = raw_alloc_path_ok
 
     let managed_text_ok: bool = managed_text_len == 4
     let managed_clone_ok: bool = managed_clone_len == 4
     let managed_bytes_ok: bool = managed_bytes_len == 2
     let allocation_error_runtime_ok: bool = allocation_path_handled
 
-    let managed_text_ok_log: bool = [[log(label: "memory-managed-allocation-runtime", expected: true)]] managed_text_ok
-    let managed_clone_ok_log: bool = [[log(label: "memory-managed-clone-runtime", expected: true)]] managed_clone_ok
-    let managed_bytes_ok_log: bool = [[log(label: "memory-managed-bytes-runtime", expected: true)]] managed_bytes_ok
-    let allocation_error_runtime_ok_log: bool = [[log(label: "memory-managed-allocation-error-path", expected: true)]] allocation_error_runtime_ok
-    let managed_drop_hook_reuse_ok_log: bool = [[log(label: "memory-managed-drop-hook-reuse", expected: true)]] managed_drop_hook_reuse_ok
-    let managed_bytes_drop_hook_reuse_ok_log: bool = [[log(label: "memory-managed-bytes-drop-hook-reuse", expected: true)]] managed_bytes_drop_hook_reuse_ok
-    let managed_drop_hook_realloc_cap_ok_log: bool = [[log(label: "memory-managed-drop-hook-realloc-capacity", expected: true)]] managed_drop_hook_realloc_cap_ok
-    let managed_bytes_drop_hook_realloc_cap_ok_log: bool = [[log(label: "memory-managed-bytes-drop-hook-realloc-capacity", expected: true)]] managed_bytes_drop_hook_realloc_cap_ok
-    let managed_nested_quota_release_ok_log: bool = [[log(label: "memory-managed-drop-hook-nested-quota-release", expected: true)]] managed_nested_quota_release_ok
-    let managed_zero_length_drop_ok_log: bool = [[log(label: "memory-managed-drop-hook-zero-length", expected: true)]] managed_zero_length_drop_ok
+    let managed_text_ok_log: bool = managed_text_ok
+    let managed_clone_ok_log: bool = managed_clone_ok
+    let managed_bytes_ok_log: bool = managed_bytes_ok
+    let allocation_error_runtime_ok_log: bool = allocation_error_runtime_ok
+    let managed_drop_hook_reuse_ok_log: bool = managed_drop_hook_reuse_ok
+    let managed_bytes_drop_hook_reuse_ok_log: bool = managed_bytes_drop_hook_reuse_ok
+    let managed_drop_hook_realloc_cap_ok_log: bool = managed_drop_hook_realloc_cap_ok
+    let managed_bytes_drop_hook_realloc_cap_ok_log: bool = managed_bytes_drop_hook_realloc_cap_ok
+    let managed_nested_quota_release_ok_log: bool = managed_nested_quota_release_ok
+    let managed_zero_length_drop_ok_log: bool = managed_zero_length_drop_ok
 
     let metric_ok: bool =
         (quota_tight_exhausted_log == true) &&
@@ -427,12 +425,10 @@ public procedure RunManagedDiagnosticsAndFailureModes(ctx: Context) -> i32 {
         (managed_zero_length_drop_ok_log == true)
     let metric: i32 = if (metric_ok) { 79 } else { 0 }
     let metric_label: string@View = ManagedDiagnosticsMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-managed-diagnostics-metric", expected: "79")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "79") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

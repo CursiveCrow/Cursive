@@ -31,8 +31,6 @@ procedure NullAndExpiredPanicSurfaceMetricLabel(value: i32) -> string@View {
 
 public procedure RunNullAndExpiredPanicSurface(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let ptr_null: Ptr<i32>@Null = Ptr::null()
     let ptr_state: Ptr<i32> = ptr_null
     let null_panic_catch_metric: i32 = unsafe {
@@ -51,27 +49,21 @@ public procedure RunNullAndExpiredPanicSurface(ctx: Context) -> i32 {
     let diag_deref_expired: string@View = "E-TYP-2102"
 
     let diag_deref_null_logged: string@View =
-        [[log(label: "pointers-runtime-panic-diag-null", expected: "E-TYP-2101")]]
         diag_deref_null
     let diag_deref_null_ok: bool =
         diag_deref_null_logged == "E-TYP-2101"
     let diag_deref_expired_logged: string@View =
-        [[log(label: "pointers-runtime-panic-diag-expired", expected: "E-TYP-2102")]]
         diag_deref_expired
     let diag_deref_expired_ok: bool =
         diag_deref_expired_logged == "E-TYP-2102"
 
     let null_shape_ok_log: bool =
-        [[log(label: "pointers-runtime-panic-null-shape", expected: true)]]
         null_shape_ok
     let expired_shape_ok_log: bool =
-        [[log(label: "pointers-runtime-panic-expired-shape", expected: true)]]
         expired_shape_ok
     let null_panic_catch_ok_log: bool =
-        [[log(label: "pointers-runtime-panic-null-catch", expected: true)]]
         null_panic_catch_ok
     let expired_panic_catch_ok_log: bool =
-        [[log(label: "pointers-runtime-panic-expired-catch", expected: true)]]
         expired_panic_catch_ok
 
     let metric_ok: bool =
@@ -84,13 +76,10 @@ public procedure RunNullAndExpiredPanicSurface(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 20 } else { 0 }
     let metric_label: string@View = NullAndExpiredPanicSurfaceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-runtime-null-expired-panic-surface-metric", expected: "20")]]
         metric_label
     if (metric_log_actual != "20") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

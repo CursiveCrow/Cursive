@@ -257,7 +257,6 @@ const char* node_kind(const Stmt& s) {
         if constexpr (std::is_same_v<T, UnsafeBlockStmt>) return "UnsafeBlockStmt";
         if constexpr (std::is_same_v<T, CtStmt>) return "CtStmt";
         if constexpr (std::is_same_v<T, KeyBlockStmt>) return "KeyBlockStmt";
-        if constexpr (std::is_same_v<T, LogStmt>) return "LogStmt";
         if constexpr (std::is_same_v<T, ErrorStmt>) return "ErrorStmt";
         return "UnknownStmt";
       },

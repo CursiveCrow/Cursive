@@ -8,70 +8,70 @@ import ParallelAsyncPermissionIntegration
 import PermissionDiagnostics
 
 procedure PermissionsLogGroupStatus(group_name: string@View, status: i32) -> () {
-    [[log(label: "permissions-log-group-name")]] group_name
-    [[log(label: "observed-permissions-group-status", expected: 0)]] status
+    group_name
+    status
     return ()
 }
 
 public procedure run(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-section_start", expected: "section-start")]] "section-start"
+    "section-start"
 
     let status_core: i32 = CorePermissionModel::runGroup(ctx)
     PermissionsLogGroupStatus("permissions::CorePermissionModel", status_core)
     if (status_core != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_core
     }
 
     let status_unique: i32 = UniqueAliasingAndState::runGroup(ctx)
     PermissionsLogGroupStatus("permissions::UniqueAliasingAndState", status_unique)
     if (status_unique != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_unique
     }
 
     let status_receiver: i32 = ReceiverPermissionSemantics::runGroup(ctx)
     PermissionsLogGroupStatus("permissions::ReceiverPermissionSemantics", status_receiver)
     if (status_receiver != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_receiver
     }
 
     let status_key_core: i32 = KeySystemCore::runGroup(ctx)
     PermissionsLogGroupStatus("permissions::KeySystemCore", status_key_core)
     if (status_key_core != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_key_core
     }
 
     let status_key_blocks: i32 = KeyBlocksAndConflictControl::runGroup(ctx)
     PermissionsLogGroupStatus("permissions::KeyBlocksAndConflictControl", status_key_blocks)
     if (status_key_blocks != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_key_blocks
     }
 
     let status_capture: i32 = SharedCaptureAndDynamicKeying::runGroup(ctx)
     PermissionsLogGroupStatus("permissions::SharedCaptureAndDynamicKeying", status_capture)
     if (status_capture != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_capture
     }
 
     let status_parallel: i32 = ParallelAsyncPermissionIntegration::runGroup(ctx)
     PermissionsLogGroupStatus("permissions::ParallelAsyncPermissionIntegration", status_parallel)
     if (status_parallel != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_parallel
     }
 
     let status_diagnostics: i32 = PermissionDiagnostics::runGroup(ctx)
     PermissionsLogGroupStatus("permissions::PermissionDiagnostics", status_diagnostics)
     if (status_diagnostics != 0) {
-        [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_diagnostics
     }
 
-    [[log(label: "permissions-log-section_end", expected: "section-end")]] "section-end"
+    "section-end"
     return 0
 }

@@ -7,8 +7,6 @@ procedure GpuPointerBoundaryRulesMetricLabel(value: i32) -> string@View {
 
 public procedure RunGpuPointerBoundaryRules(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "pointers-log-item_begin")]]
-
     let gpu_domain = ctx~>gpu()
     let gpu_metric: i64 = parallel gpu_domain { 9 as i64 }
     let gpu_capture_seed: i64 = 4 as i64
@@ -18,29 +16,24 @@ public procedure RunGpuPointerBoundaryRules(ctx: Context) -> i32 {
     let gpu_metric_ok: bool = gpu_metric == (9 as i64)
     let gpu_capture_ok: bool = gpu_capture_metric == (7 as i64)
     let gpu_metric_ok_log: bool =
-        [[log(label: "pointers-calls-gpu-runtime-domain", expected: true)]]
         gpu_metric_ok
     let gpu_capture_ok_log: bool =
-        [[log(label: "pointers-calls-gpu-runtime-capture", expected: true)]]
         gpu_capture_ok
 
     let diag_gpu_host_heap_pointer: string@View = "E-CON-0150"
     let diag_gpu_ptr_addrspace_mismatch: string@View = "E-TYP-2641"
 
     let diag_gpu_host_heap_pointer_logged: string@View =
-        [[log(label: "pointers-calls-gpu-diag-host-heap-pointer", expected: "E-CON-0150")]]
         diag_gpu_host_heap_pointer
     let diag_gpu_host_heap_pointer_ok: bool =
         diag_gpu_host_heap_pointer_logged == "E-CON-0150"
     let diag_gpu_ptr_addrspace_mismatch_logged: string@View =
-        [[log(label: "pointers-calls-gpu-diag-addrspace-mismatch", expected: "E-TYP-2641")]]
         diag_gpu_ptr_addrspace_mismatch
     let diag_gpu_ptr_addrspace_mismatch_ok: bool =
         diag_gpu_ptr_addrspace_mismatch_logged == "E-TYP-2641"
 
     let gpu_pointer_boundary_contract: string@View = "GpuPointerBoundaryRestricted"
     let gpu_pointer_boundary_contract_logged: string@View =
-        [[log(label: "pointers-calls-gpu-contract-boundary", expected: "GpuPointerBoundaryRestricted")]]
         gpu_pointer_boundary_contract
     let gpu_pointer_boundary_contract_ok: bool =
         gpu_pointer_boundary_contract_logged == "GpuPointerBoundaryRestricted"
@@ -54,13 +47,10 @@ public procedure RunGpuPointerBoundaryRules(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 16 } else { 0 }
     let metric_label: string@View = GpuPointerBoundaryRulesMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-pointers-calls-gpu-pointer-boundary-rules-metric", expected: "16")]]
         metric_label
     if (metric_log_actual != "16") {
-        [[log(label: "pointers-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "pointers-log-item_success")]]
     return 0
 }

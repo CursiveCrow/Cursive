@@ -7,8 +7,6 @@ procedure DiagnosticCodeMatrixMetricLabel(value: i32) -> string@View {
 
 public procedure RunDiagnosticCodeMatrix(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     let mem_1206: string@View = "E-MEM-1206"
     let mem_1207: string@View = "E-MEM-1207"
     let mem_1208: string@View = "E-MEM-1208"
@@ -33,29 +31,29 @@ public procedure RunDiagnosticCodeMatrix(ctx: Context) -> i32 {
     let sem_2535: string@View = "E-SEM-2535"
     let sem_3152: string@View = "E-SEM-3152"
 
-    let mem_1206_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-1206", expected: "E-MEM-1206")]] mem_1206
-    let mem_1207_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-1207", expected: "E-MEM-1207")]] mem_1207
-    let mem_1208_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-1208", expected: "E-MEM-1208")]] mem_1208
-    let mem_3001_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3001", expected: "E-MEM-3001")]] mem_3001
-    let mem_3003_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3003", expected: "E-MEM-3003")]] mem_3003
-    let mem_3004_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3004", expected: "E-MEM-3004")]] mem_3004
-    let mem_3005_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3005", expected: "E-MEM-3005")]] mem_3005
-    let mem_3006_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3006", expected: "E-MEM-3006")]] mem_3006
-    let mem_3007_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3007", expected: "E-MEM-3007")]] mem_3007
-    let mem_3020_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3020", expected: "E-MEM-3020")]] mem_3020
-    let mem_3021_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3021", expected: "E-MEM-3021")]] mem_3021
-    let mem_3030_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3030", expected: "E-MEM-3030")]] mem_3030
-    let mem_3031_log: string@View = [[log(label: "memory-diagnostic-code-E-MEM-3031", expected: "E-MEM-3031")]] mem_3031
+    let mem_1206_log: string@View = mem_1206
+    let mem_1207_log: string@View = mem_1207
+    let mem_1208_log: string@View = mem_1208
+    let mem_3001_log: string@View = mem_3001
+    let mem_3003_log: string@View = mem_3003
+    let mem_3004_log: string@View = mem_3004
+    let mem_3005_log: string@View = mem_3005
+    let mem_3006_log: string@View = mem_3006
+    let mem_3007_log: string@View = mem_3007
+    let mem_3020_log: string@View = mem_3020
+    let mem_3021_log: string@View = mem_3021
+    let mem_3030_log: string@View = mem_3030
+    let mem_3031_log: string@View = mem_3031
 
-    let typ_2101_log: string@View = [[log(label: "memory-diagnostic-code-E-TYP-2101", expected: "E-TYP-2101")]] typ_2101
-    let typ_2102_log: string@View = [[log(label: "memory-diagnostic-code-E-TYP-2102", expected: "E-TYP-2102")]] typ_2102
-    let typ_2103_log: string@View = [[log(label: "memory-diagnostic-code-E-TYP-2103", expected: "E-TYP-2103")]] typ_2103
-    let typ_2104_log: string@View = [[log(label: "memory-diagnostic-code-E-TYP-2104", expected: "E-TYP-2104")]] typ_2104
-    let typ_2105_log: string@View = [[log(label: "memory-diagnostic-code-E-TYP-2105", expected: "E-TYP-2105")]] typ_2105
-    let typ_2106_log: string@View = [[log(label: "memory-diagnostic-code-E-TYP-2106", expected: "E-TYP-2106")]] typ_2106
-    let sem_2534_log: string@View = [[log(label: "memory-diagnostic-code-E-SEM-2534", expected: "E-SEM-2534")]] sem_2534
-    let sem_2535_log: string@View = [[log(label: "memory-diagnostic-code-E-SEM-2535", expected: "E-SEM-2535")]] sem_2535
-    let sem_3152_log: string@View = [[log(label: "memory-diagnostic-code-E-SEM-3152", expected: "E-SEM-3152")]] sem_3152
+    let typ_2101_log: string@View = typ_2101
+    let typ_2102_log: string@View = typ_2102
+    let typ_2103_log: string@View = typ_2103
+    let typ_2104_log: string@View = typ_2104
+    let typ_2105_log: string@View = typ_2105
+    let typ_2106_log: string@View = typ_2106
+    let sem_2534_log: string@View = sem_2534
+    let sem_2535_log: string@View = sem_2535
+    let sem_3152_log: string@View = sem_3152
 
     let mem_codes_ok: bool =
         (mem_1206_log == "E-MEM-1206") &&
@@ -84,11 +82,11 @@ public procedure RunDiagnosticCodeMatrix(ctx: Context) -> i32 {
         (sem_3152_log == "E-SEM-3152")
 
     let matrix_cardinality: i32 = if (mem_codes_ok && pointer_codes_ok && sem_codes_ok) { 22 } else { 0 }
-    let matrix_cardinality_log: i32 = [[log(label: "memory-diagnostic-code-matrix-cardinality", expected: 22)]] matrix_cardinality
+    let matrix_cardinality_log: i32 = matrix_cardinality
 
-    let mem_codes_ok_log: bool = [[log(label: "memory-diagnostic-code-matrix-emem", expected: true)]] mem_codes_ok
-    let pointer_codes_ok_log: bool = [[log(label: "memory-diagnostic-code-matrix-pointer", expected: true)]] pointer_codes_ok
-    let sem_codes_ok_log: bool = [[log(label: "memory-diagnostic-code-matrix-sem", expected: true)]] sem_codes_ok
+    let mem_codes_ok_log: bool = mem_codes_ok
+    let pointer_codes_ok_log: bool = pointer_codes_ok
+    let sem_codes_ok_log: bool = sem_codes_ok
 
     let metric_ok: bool =
         (mem_codes_ok_log == true) &&
@@ -98,12 +96,10 @@ public procedure RunDiagnosticCodeMatrix(ctx: Context) -> i32 {
 
     let metric: i32 = if (metric_ok) { 88 } else { 0 }
     let metric_label: string@View = DiagnosticCodeMatrixMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-diagnostic-code-matrix-metric", expected: "88")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "88") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

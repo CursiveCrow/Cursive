@@ -16,28 +16,28 @@ procedure WeakLinkageMetricLabel(value: i32) -> string@View {
 
 public procedure RunWeakLinkageAttribute(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let weak_value: i32 = unsafe { hc_attributes_weak_probe(5) }
-    let weak_value_log: i32 = [[log(label: "observed-attributes-weak-linkage-runtime", expected: 7)]] weak_value
+    let weak_value_log: i32 = weak_value
 
-    let atr_weak_001: string@View = [[log(label: "attributes-weak-linkage-feature-001", expected: "ATR-WEAK-001")]] "ATR-WEAK-001"
-    let atr_weak_002: string@View = [[log(label: "attributes-weak-linkage-feature-002", expected: "ATR-WEAK-002")]] "ATR-WEAK-002"
+    let atr_weak_001: string@View = "ATR-WEAK-001"
+    let atr_weak_002: string@View = "ATR-WEAK-002"
 
     let runtime_ok: bool =
         (weak_value_log == 7) &&
         (atr_weak_001 == "ATR-WEAK-001") &&
         (atr_weak_002 == "ATR-WEAK-002")
-    let runtime_ok_log: bool = [[log(label: "attributes-weak-linkage-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 7 } else { 0 }
     let metric_label: string@View = WeakLinkageMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-weak-linkage-metric", expected: "7")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "7") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

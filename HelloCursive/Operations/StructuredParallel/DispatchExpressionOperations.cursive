@@ -10,8 +10,7 @@ procedure LogDispatchExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure DispatchExpressionMetricLabel(value: i32) -> string@View {
     if (value == 0) {
@@ -86,22 +85,17 @@ procedure RunDispatchExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyDispatchExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogDispatchExpressionObject(ctx.fs, scope, "dispatch_reduce_basic", "i32", "constructed", "dispatch reduce metric container prepared")
     LogDispatchExpressionObject(ctx.fs, scope, "dispatch_reduce_chunk", "i32", "constructed", "dispatch reduce+chunk metric container prepared")
     LogDispatchExpressionObject(ctx.fs, scope, "dispatch_ordered_reduce", "i32", "constructed", "dispatch ordered+reduce metric container prepared")
@@ -110,30 +104,18 @@ procedure VerifyDispatchExpressionOperationsItem(ctx: Context, scope: string@Vie
     LogDispatchExpressionObject(ctx.fs, scope, "dispatch_reduce_operator_matrix", "i32", "constructed", "dispatch non-plus reduction operator matrix container prepared")
     LogDispatchExpressionObject(ctx.fs, scope, "dispatch_custom_reduce", "i32", "constructed", "dispatch custom identifier reduce metric container prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let dispatch_reduce_metric: i32 = parallel ctx~>cpu() { dispatch _ in 0usize..4usize [reduce: +] { 1 } }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let dispatch_chunk_metric: i32 = parallel ctx~>cpu() { dispatch _ in 0usize..3usize [reduce: +, chunk: 1usize] { 2 } }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let dispatch_ordered_metric: i32 = parallel ctx~>cpu() { dispatch _ in 0usize..1usize [ordered, reduce: +] { 3 } }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let dispatch_key_read_metric: i32 = parallel ctx~>cpu() {
         let key_gate: i32 = 0
         dispatch i in 0usize..4usize key key_gate read [reduce: +] { (i as i32) + 2 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let dispatch_key_write_metric: i32 = parallel ctx~>cpu() {
         var write_gate: i32 = 0
         dispatch _ in 0usize..4usize key write_gate write { write_gate = write_gate + 1; }
         write_gate
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let dispatch_mul_metric: i32 = parallel ctx~>cpu() { dispatch _ in 1usize..4usize [reduce: *] { 2 } }
     let dispatch_min_metric: i32 = parallel ctx~>cpu() { dispatch _ in 0usize..4usize [reduce: min] { 6 } }
     let dispatch_max_metric: i32 = parallel ctx~>cpu() { dispatch _ in 0usize..4usize [reduce: max] { 4 } }
@@ -142,10 +124,7 @@ procedure VerifyDispatchExpressionOperationsItem(ctx: Context, scope: string@Vie
     let dispatch_and_metric: i32 = if (dispatch_and_bool) { 1 } else { 0 }
     let dispatch_or_metric: i32 = if (dispatch_or_bool) { 1 } else { 0 }
     let dispatch_reduce_matrix_metric: i32 = dispatch_mul_metric + dispatch_min_metric + dispatch_max_metric + dispatch_and_metric + dispatch_or_metric
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let dispatch_custom_reduce_metric: i32 = parallel ctx~>cpu() { dispatch _ in 0usize..4usize [ordered, reduce: DispatchCustomReduce] { 1 } }
-    [[log(label: "operations-log-transition_move")]]
     let dispatch_static_matrix_metric: i32 = dispatch_key_read_metric + dispatch_key_write_metric + dispatch_reduce_matrix_metric + dispatch_custom_reduce_metric
     let dispatch_runtime_metric: i32 = dispatch_reduce_metric + dispatch_chunk_metric + dispatch_ordered_metric + dispatch_static_matrix_metric
 
@@ -206,35 +185,34 @@ procedure VerifyDispatchExpressionOperationsItem(ctx: Context, scope: string@Vie
     let static_matrix_passed: bool = dispatch_static_matrix_metric == 42
     let runtime_passed: bool = dispatch_runtime_metric == 55
 
-    let reduce_passed_log_actual = [[log(label: "observed-dispatch-reduce-metric", expected: "4")]] reduce_label
+    let reduce_passed_log_actual = reduce_label
     let reduce_passed_with_log: bool = reduce_passed && (reduce_passed_log_actual == reduce_label)
-    let chunk_passed_log_actual = [[log(label: "observed-dispatch-reduce-chunk-metric", expected: "6")]] chunk_label
+    let chunk_passed_log_actual = chunk_label
     let chunk_passed_with_log: bool = chunk_passed && (chunk_passed_log_actual == chunk_label)
-    let ordered_passed_log_actual = [[log(label: "observed-dispatch-ordered-metric", expected: "3")]] ordered_label
+    let ordered_passed_log_actual = ordered_label
     let ordered_passed_with_log: bool = ordered_passed && (ordered_passed_log_actual == ordered_label)
-    let key_read_passed_log_actual = [[log(label: "observed-dispatch-key-read-reduce-metric", expected: "14")]] key_read_label
+    let key_read_passed_log_actual = key_read_label
     let key_read_passed_with_log: bool = key_read_passed && (key_read_passed_log_actual == key_read_label)
-    let key_write_passed_log_actual = [[log(label: "observed-dispatch-key-write-metric", expected: "4")]] key_write_label
+    let key_write_passed_log_actual = key_write_label
     let key_write_passed_with_log: bool = key_write_passed && (key_write_passed_log_actual == key_write_label)
-    let mul_passed_log_actual = [[log(label: "observed-dispatch-reduce-mul-metric", expected: "8")]] mul_label
+    let mul_passed_log_actual = mul_label
     let mul_passed_with_log: bool = mul_passed && (mul_passed_log_actual == mul_label)
-    let min_passed_log_actual = [[log(label: "observed-dispatch-reduce-min-metric", expected: "6")]] min_label
+    let min_passed_log_actual = min_label
     let min_passed_with_log: bool = min_passed && (min_passed_log_actual == min_label)
-    let max_passed_log_actual = [[log(label: "observed-dispatch-reduce-max-metric", expected: "4")]] max_label
+    let max_passed_log_actual = max_label
     let max_passed_with_log: bool = max_passed && (max_passed_log_actual == max_label)
-    let and_passed_log_actual = [[log(label: "observed-dispatch-reduce-and-metric", expected: "1")]] and_label
+    let and_passed_log_actual = and_label
     let and_passed_with_log: bool = and_passed && (and_passed_log_actual == and_label)
-    let or_passed_log_actual = [[log(label: "observed-dispatch-reduce-or-metric", expected: "1")]] or_label
+    let or_passed_log_actual = or_label
     let or_passed_with_log: bool = or_passed && (or_passed_log_actual == or_label)
-    let reduce_matrix_passed_log_actual = [[log(label: "observed-dispatch-reduce-operator-matrix-metric", expected: "20")]] reduce_matrix_label
+    let reduce_matrix_passed_log_actual = reduce_matrix_label
     let reduce_matrix_passed_with_log: bool = reduce_matrix_passed && (reduce_matrix_passed_log_actual == reduce_matrix_label)
-    let custom_reduce_passed_log_actual = [[log(label: "observed-dispatch-custom-reduce-metric", expected: "4")]] custom_reduce_label
+    let custom_reduce_passed_log_actual = custom_reduce_label
     let custom_reduce_passed_with_log: bool = custom_reduce_passed && (custom_reduce_passed_log_actual == custom_reduce_label)
-    let static_matrix_passed_log_actual = [[log(label: "observed-dispatch-static-matrix-metric", expected: "42")]] static_matrix_label
+    let static_matrix_passed_log_actual = static_matrix_label
     let static_matrix_passed_with_log: bool = static_matrix_passed && (static_matrix_passed_log_actual == static_matrix_label)
-    let runtime_passed_log_actual = [[log(label: "observed-dispatch-runtime-aggregate-metric", expected: "55")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunDispatchExpressionOperationsItem(
             ctx,
@@ -321,6 +299,5 @@ procedure RunDispatchExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

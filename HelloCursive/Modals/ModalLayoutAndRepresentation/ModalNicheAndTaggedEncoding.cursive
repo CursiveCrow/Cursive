@@ -15,7 +15,7 @@ procedure ModalNicheAndTaggedEncodingMetricLabel(value: i32) -> string@View {
 
 public procedure RunModalNicheAndTaggedEncoding(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let none_general: ModalTaggedEncodingProbe =
         widen(ModalTaggedEncodingProbe@None { })
@@ -32,20 +32,16 @@ public procedure RunModalNicheAndTaggedEncoding(ctx: Context) -> i32 {
     }
 
     let none_metric_log: i32 =
-        [[log(label: "observed-modals-tagged-encoding-none", expected: 1)]]
         none_metric
     let data_metric_log: i32 =
-        [[log(label: "observed-modals-tagged-encoding-data", expected: 10)]]
         data_metric
 
     let zeroed_padding_note: string@View = "modal-tagged-padding-zeroed"
     let zeroed_padding_note_log: string@View =
-        [[log(label: "observed-modals-tagged-encoding-padding", expected: "modal-tagged-padding-zeroed")]]
         zeroed_padding_note
 
     let mod_055: string@View = "MOD-055"
     let mod_055_log: string@View =
-        [[log(label: "modals-layout-tagged-encoding-feature-055", expected: "MOD-055")]]
         mod_055
 
     let runtime_ok: bool =
@@ -54,19 +50,17 @@ public procedure RunModalNicheAndTaggedEncoding(ctx: Context) -> i32 {
         (zeroed_padding_note_log == "modal-tagged-padding-zeroed") &&
         (mod_055_log == "MOD-055")
     let runtime_ok_log: bool =
-        [[log(label: "modals-layout-tagged-encoding-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 11 } else { 0 }
     let metric_label: string@View = ModalNicheAndTaggedEncodingMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-tagged-encoding-metric", expected: "11")]]
         metric_label
     if (metric_log_actual != "11") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

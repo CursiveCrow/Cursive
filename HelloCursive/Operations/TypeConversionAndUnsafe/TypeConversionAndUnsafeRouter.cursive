@@ -18,47 +18,25 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_RawPointerUnsafeOperations: string@View = "TypeConversionAndUnsafe::RawPointerUnsafeOperations"
     let feature_AddressOfAndDereferenceOperations: string@View = "TypeConversionAndUnsafe::AddressOfAndDereferenceOperations"
 
-    [[log(label: "operations-log-section_start")]]
-    [[log(label: "operations-log-transition")]]
     let status_SafeCastOperations: i32 = RunSafeCastOperations(ctx)
     if (status_SafeCastOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_SafeCastOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_UnsafeCastOperations: i32 = RunUnsafeCastOperations(ctx)
     if (status_UnsafeCastOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_UnsafeCastOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_TransmuteOperations: i32 = RunTransmuteOperations(ctx)
     if (status_TransmuteOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_TransmuteOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_RawPointerUnsafeOperations: i32 = RunRawPointerUnsafeOperations(ctx)
     if (status_RawPointerUnsafeOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_RawPointerUnsafeOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_AddressOfAndDereferenceOperations: i32 = RunAddressOfAndDereferenceOperations(ctx)
     if (status_AddressOfAndDereferenceOperations != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_AddressOfAndDereferenceOperations
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-section_end")]]
     return 0
 }

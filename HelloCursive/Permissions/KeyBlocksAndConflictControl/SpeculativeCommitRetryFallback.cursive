@@ -7,7 +7,7 @@ procedure SpeculativeCommitRetryFallbackMetricLabel(value: i32) -> string@View {
 
 public procedure RunSpeculativeCommitRetryFallback(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var slot: shared i32 = 4
     # slot speculative write {
@@ -45,17 +45,17 @@ public procedure RunSpeculativeCommitRetryFallback(ctx: Context) -> i32 {
     let warn_retry_contention: string@View = "W-CON-0020"
     let warn_retry_fallback: string@View = "W-CON-0021"
 
-    let commit_metric_log: i32 = [[log(label: "observed-permissions-SpeculativeCommitRetryFallback-commit", expected: 6)]] commit_metric
-    let pair_metric_log: i32 = [[log(label: "observed-permissions-SpeculativeCommitRetryFallback-pair", expected: 11)]] pair_metric
-    let retry_metric_log: i32 = [[log(label: "observed-permissions-SpeculativeCommitRetryFallback-retry", expected: 13)]] retry_metric
-    let cycle_anchor_log: string@View = [[log(label: "permissions-SpeculativeCommitRetryFallback-anchor", expected: "snapshot-execute-commit-retry-fallback")]] cycle_anchor
+    let commit_metric_log: i32 = commit_metric
+    let pair_metric_log: i32 = pair_metric
+    let retry_metric_log: i32 = retry_metric
+    let cycle_anchor_log: string@View = cycle_anchor
 
-    let diag_pure_body_log: string@View = [[log(label: "permissions-SpeculativeCommitRetryFallback-diag-0091", expected: "E-CON-0091")]] diag_pure_body
-    let diag_mem_ordering_log: string@View = [[log(label: "permissions-SpeculativeCommitRetryFallback-diag-0096", expected: "E-CON-0096")]] diag_mem_ordering
-    let diag_retry_limit_log: string@View = [[log(label: "permissions-SpeculativeCommitRetryFallback-diag-0101", expected: "E-CON-0101")]] diag_retry_limit
-    let diag_fallback_path_log: string@View = [[log(label: "permissions-SpeculativeCommitRetryFallback-diag-0103", expected: "E-CON-0103")]] diag_fallback_path
-    let warn_retry_contention_log: string@View = [[log(label: "permissions-SpeculativeCommitRetryFallback-warn-0020", expected: "W-CON-0020")]] warn_retry_contention
-    let warn_retry_fallback_log: string@View = [[log(label: "permissions-SpeculativeCommitRetryFallback-warn-0021", expected: "W-CON-0021")]] warn_retry_fallback
+    let diag_pure_body_log: string@View = diag_pure_body
+    let diag_mem_ordering_log: string@View = diag_mem_ordering
+    let diag_retry_limit_log: string@View = diag_retry_limit
+    let diag_fallback_path_log: string@View = diag_fallback_path
+    let warn_retry_contention_log: string@View = warn_retry_contention
+    let warn_retry_fallback_log: string@View = warn_retry_fallback
 
     let runtime_ok: bool =
         (commit_metric_log == 6) &&
@@ -68,17 +68,17 @@ public procedure RunSpeculativeCommitRetryFallback(ctx: Context) -> i32 {
         (diag_fallback_path_log == "E-CON-0103") &&
         (warn_retry_contention_log == "W-CON-0020") &&
         (warn_retry_fallback_log == "W-CON-0021")
-    let runtime_ok_log: bool = [[log(label: "permissions-SpeculativeCommitRetryFallback-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 30 } else { 0 }
     let metric_label: string@View = SpeculativeCommitRetryFallbackMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-SpeculativeCommitRetryFallback-metric", expected: "30")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "30") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

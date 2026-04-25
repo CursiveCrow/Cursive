@@ -66,7 +66,6 @@ public procedure RunMemoryIntrinsicsCoverage(ctx: Context) -> i32 {
         (lifetime_metric == 3)
 
     let intrinsics_surface_ok_log: bool =
-        [[log(label: "memory-managed-intrinsics-surface", expected: true)]]
         intrinsics_surface_ok
 
     let metric: i32 = if (
@@ -75,15 +74,14 @@ public procedure RunMemoryIntrinsicsCoverage(ctx: Context) -> i32 {
     ) { 30 } else { 0 }
     let metric_label: string@View = MemoryIntrinsicsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-memory-managed-intrinsics-metric", expected: "30")]]
         metric_label
     if (metric_log_actual != "30") {
         let fail_marker: string@View = "memory-managed-intrinsics-fail"
-        [[log(label: "memory-log-item_fail")]] fail_marker
+        fail_marker
         return 1
     }
 
     let success_marker: string@View = "memory-managed-intrinsics-success"
-    [[log(label: "memory-log-memory_item_success")]] success_marker
+    success_marker
     return 0
 }

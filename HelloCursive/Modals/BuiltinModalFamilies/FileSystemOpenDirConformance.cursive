@@ -6,7 +6,7 @@ procedure FileSystemOpenDirConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunFileSystemOpenDirConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let build_dir_path: string@View = "build"
@@ -116,19 +116,14 @@ public procedure RunFileSystemOpenDirConformance(ctx: Context) -> i32 {
     }
 
     let runtime_logs_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-open-dir-runtime-dir-ready", expected: true)]]
         runtime_logs_dir_ready
     let probe_dir_ready_log: bool =
-        [[log(label: "observed-modals-fs-open-dir-probe-dir-ready", expected: true)]]
         probe_dir_ready
     let probe_file_seeded_log: bool =
-        [[log(label: "observed-modals-fs-open-dir-probe-file-seeded", expected: true)]]
         probe_file_seeded
     let first_entry_ok_log: bool =
-        [[log(label: "observed-modals-fs-open-dir-first-entry", expected: true)]]
         first_entry_ok
     let missing_dir_error_log: bool =
-        [[log(label: "observed-modals-fs-open-dir-missing-error", expected: true)]]
         missing_dir_error
 
     let metric: i32 = if (
@@ -140,7 +135,6 @@ public procedure RunFileSystemOpenDirConformance(ctx: Context) -> i32 {
     ) { 6 } else { 0 }
     let metric_label: string@View = FileSystemOpenDirConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-open-dir-metric", expected: "6")]]
         metric_label
 
     let cleanup_probe_file: () | IoError = fs~>remove(probe_file_path)
@@ -151,10 +145,10 @@ public procedure RunFileSystemOpenDirConformance(ctx: Context) -> i32 {
     let _ = cleanup_missing_dir
 
     if (metric_log_actual != "6") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

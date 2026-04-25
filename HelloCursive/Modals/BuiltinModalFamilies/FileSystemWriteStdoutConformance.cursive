@@ -6,7 +6,7 @@ procedure FileSystemWriteStdoutConformanceMetricLabel(value: i32) -> string@View
 }
 
 public procedure RunFileSystemWriteStdoutConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let stdout_marker: string@View = "modals-fs-write-stdout-sentinel\n"
@@ -20,10 +20,8 @@ public procedure RunFileSystemWriteStdoutConformance(ctx: Context) -> i32 {
     }
 
     let write_stdout_ok_log: bool =
-        [[log(label: "observed-modals-fs-write-stdout-success", expected: true)]]
         write_stdout_ok
     let write_stdout_empty_ok_log: bool =
-        [[log(label: "observed-modals-fs-write-stdout-empty-success", expected: true)]]
         write_stdout_empty_ok
 
     let metric: i32 = if (
@@ -32,14 +30,13 @@ public procedure RunFileSystemWriteStdoutConformance(ctx: Context) -> i32 {
     ) { 2 } else { 0 }
     let metric_label: string@View = FileSystemWriteStdoutConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-fs-write-stdout-metric", expected: "2")]]
         metric_label
 
     if (metric_log_actual != "2") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -51,45 +51,43 @@ procedure BoundaryVerificationModeMetricLabel(value: i32) -> string@View {
 
 public procedure RunFfiUnwindAndVerificationModes(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     let static_value: i32 = unsafe { hc_memory_boundary_foreign_static_impl(12) }
     let dynamic_value: i32 = unsafe { hc_memory_boundary_foreign_dynamic_impl(13) }
     let default_value: i32 = unsafe { hc_memory_boundary_foreign_default_impl(14) }
 
     let catch_value: i32 = unsafe { hc_memory_boundary_unwind_catch_impl(7) }
 
-    let static_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-static-mode", expected: 12)]] static_value
-    let dynamic_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-dynamic-mode", expected: 13)]] dynamic_value
-    let default_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-default-mode", expected: 14)]] default_value
-    let catch_value_log: i32 = [[log(label: "observed-memory-boundary-ffi-catch-mode", expected: 0)]] catch_value
+    let static_value_log: i32 = static_value
+    let dynamic_value_log: i32 = dynamic_value
+    let default_value_log: i32 = default_value
+    let catch_value_log: i32 = catch_value
 
     let static_mode_ok: bool = static_value_log == 12
     let dynamic_mode_ok: bool = dynamic_value_log == 13
     let default_mode_ok: bool = default_value_log == 14
     let catch_mode_ok: bool = catch_value_log == 0
 
-    let static_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-static-mode", expected: true)]] static_mode_ok
-    let dynamic_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-dynamic-mode", expected: true)]] dynamic_mode_ok
-    let default_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-default-mode", expected: true)]] default_mode_ok
-    let catch_mode_ok_log: bool = [[log(label: "memory-boundary-ffi-unwind-catch-mode", expected: true)]] catch_mode_ok
+    let static_mode_ok_log: bool = static_mode_ok
+    let dynamic_mode_ok_log: bool = dynamic_mode_ok
+    let default_mode_ok_log: bool = default_mode_ok
+    let catch_mode_ok_log: bool = catch_mode_ok
 
     let diag_extern_unsafe: string@View = "E-TYP-2106"
     let diag_foreign_assumes: string@View = "E-SEM-2850"
     let diag_foreign_ensures: string@View = "E-SEM-2853"
     let diag_export_zeroable: string@View = "E-TYP-2631"
 
-    let diag_extern_unsafe_log: string@View = [[log(label: "memory-boundary-diagnostic-code-extern-unsafe-call", expected: "E-TYP-2106")]] diag_extern_unsafe
-    let diag_foreign_assumes_log: string@View = [[log(label: "memory-boundary-diagnostic-code-foreign-assumes-mode", expected: "E-SEM-2850")]] diag_foreign_assumes
-    let diag_foreign_ensures_log: string@View = [[log(label: "memory-boundary-diagnostic-code-foreign-ensures-mode", expected: "E-SEM-2853")]] diag_foreign_ensures
-    let diag_export_zeroable_log: string@View = [[log(label: "memory-boundary-diagnostic-code-export-zeroable", expected: "E-TYP-2631")]] diag_export_zeroable
+    let diag_extern_unsafe_log: string@View = diag_extern_unsafe
+    let diag_foreign_assumes_log: string@View = diag_foreign_assumes
+    let diag_foreign_ensures_log: string@View = diag_foreign_ensures
+    let diag_export_zeroable_log: string@View = diag_export_zeroable
 
     let diag_matrix_ok: bool =
         (diag_extern_unsafe_log == "E-TYP-2106") &&
         (diag_foreign_assumes_log == "E-SEM-2850") &&
         (diag_foreign_ensures_log == "E-SEM-2853") &&
         (diag_export_zeroable_log == "E-TYP-2631")
-    let diag_matrix_ok_log: bool = [[log(label: "memory-boundary-ffi-diagnostic-matrix", expected: true)]] diag_matrix_ok
+    let diag_matrix_ok_log: bool = diag_matrix_ok
 
     let metric_ok: bool =
         (static_mode_ok_log == true) &&
@@ -100,12 +98,10 @@ public procedure RunFfiUnwindAndVerificationModes(ctx: Context) -> i32 {
 
     let metric: i32 = if (metric_ok) { 39 } else { 0 }
     let metric_label: string@View = BoundaryVerificationModeMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-boundary-ffi-verification-modes-metric", expected: "39")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "39") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

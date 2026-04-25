@@ -6,8 +6,6 @@ procedure ParallelMemoryAllocationOperationsMetricLabel(value: i32) -> string@Vi
 }
 
 public procedure RunParallelMemoryAllocationOperations(ctx: Context) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
-
     let heap_capture_metric: i32 = parallel ctx~>cpu() {
         let managed_text_result: string@Managed | AllocationError =
             string::to_managed("par", ctx.heap)
@@ -35,20 +33,15 @@ public procedure RunParallelMemoryAllocationOperations(ctx: Context) -> i32 {
     let combined_metric: i32 = heap_capture_metric + region_alloc_metric
 
     let captured_allocator_rule: string@View =
-        [[log(label: "operations-parallel-allocation-rule-captured-allocator", expected: "captured-allocator")]]
         "captured-allocator"
     let region_allocation_rule: string@View =
-        [[log(label: "operations-parallel-allocation-rule-region", expected: "region-allocation")]]
         "region-allocation"
 
     let heap_capture_log: i32 =
-        [[log(label: "observed-operations-parallel-allocation-heap-capture-metric", expected: 3)]]
         heap_capture_metric
     let region_alloc_log: i32 =
-        [[log(label: "observed-operations-parallel-allocation-region-metric", expected: 5)]]
         region_alloc_metric
     let combined_log: i32 =
-        [[log(label: "observed-operations-parallel-allocation-combined-metric", expected: 8)]]
         combined_metric
 
     let runtime_ok: bool =
@@ -58,19 +51,15 @@ public procedure RunParallelMemoryAllocationOperations(ctx: Context) -> i32 {
         (region_alloc_log == 5) &&
         (combined_log == 8)
     let runtime_ok_log: bool =
-        [[log(label: "operations-parallel-memory-allocation-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 183 } else { 0 }
     let metric_label: string@View = ParallelMemoryAllocationOperationsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-operations-parallel-memory-allocation-metric", expected: "183")]]
         metric_label
     if (metric_log_actual != "183") {
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }

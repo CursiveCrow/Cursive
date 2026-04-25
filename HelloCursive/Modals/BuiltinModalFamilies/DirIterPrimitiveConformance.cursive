@@ -6,7 +6,7 @@ procedure DirIterPrimitiveConformanceMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunDirIterPrimitiveConformance(ctx: Context) -> i32 {
-    [[log(label: "modals-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let fs: $FileSystem = ctx.fs
     let runtime_logs_dir_path: string@View = "build/main/logs/runtime"
@@ -89,13 +89,10 @@ public procedure RunDirIterPrimitiveConformance(ctx: Context) -> i32 {
     }
 
     let probe_dir_ready_log: bool =
-        [[log(label: "observed-modals-diriter-primitive-dir-ready", expected: true)]]
         probe_dir_ready
     let first_entry_name_len_log: i32 =
-        [[log(label: "observed-modals-diriter-primitive-entry-name-len", expected: 9)]]
         first_entry_name_len
     let first_entry_kind_is_file_log: bool =
-        [[log(label: "observed-modals-diriter-primitive-entry-kind-file", expected: true)]]
         first_entry_kind_is_file
 
     let metric: i32 = if (
@@ -105,7 +102,6 @@ public procedure RunDirIterPrimitiveConformance(ctx: Context) -> i32 {
     ) { 3 } else { 0 }
     let metric_label: string@View = DirIterPrimitiveConformanceMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-modals-diriter-primitive-metric", expected: "3")]]
         metric_label
 
     let cleanup_probe_file: () | IoError = fs~>remove(probe_file_path)
@@ -114,10 +110,10 @@ public procedure RunDirIterPrimitiveConformance(ctx: Context) -> i32 {
     let _ = cleanup_probe_dir
 
     if (metric_log_actual != "3") {
-        [[log(label: "modals-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "modals-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

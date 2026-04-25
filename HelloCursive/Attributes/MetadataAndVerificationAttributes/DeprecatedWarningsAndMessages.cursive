@@ -11,28 +11,28 @@ procedure DeprecatedWarningsAndMessagesMetricLabel(value: i32) -> string@View {
 
 public procedure RunDeprecatedWarningsAndMessages(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let deprecated_value: i32 = AttributeDeprecatedProbe(7)
-    let deprecated_value_log: i32 = [[log(label: "observed-attributes-deprecated-probe", expected: 8)]] deprecated_value
+    let deprecated_value_log: i32 = deprecated_value
 
-    let warning_code: string@View = [[log(label: "attributes-deprecated-warning", expected: "W-CNF-0601")]] "W-CNF-0601"
-    let atr_027: string@View = [[log(label: "attributes-deprecated-feature-027", expected: "ATR-027")]] "ATR-027"
+    let warning_code: string@View = "W-CNF-0601"
+    let atr_027: string@View = "ATR-027"
 
     let runtime_ok: bool =
         (deprecated_value_log == 8) &&
         (warning_code == "W-CNF-0601") &&
         (atr_027 == "ATR-027")
-    let runtime_ok_log: bool = [[log(label: "attributes-deprecated-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 8 } else { 0 }
     let metric_label: string@View = DeprecatedWarningsAndMessagesMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-deprecated-metric", expected: "8")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "8") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

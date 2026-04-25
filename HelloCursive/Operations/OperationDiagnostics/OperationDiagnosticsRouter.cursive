@@ -21,71 +21,37 @@ public procedure runGroup(ctx: Context) -> i32 {
     let feature_ConcurrencyInfoDiagnosticMatrix: string@View = "OperationDiagnostics::ConcurrencyInfoDiagnosticMatrix"
     let feature_ConcurrencyWarningDiagnosticMatrix: string@View = "OperationDiagnostics::ConcurrencyWarningDiagnosticMatrix"
 
-    [[log(label: "operations-log-section_start")]]
-    [[log(label: "operations-log-transition")]]
     let status_OperatorAndExpressionDiagnosticMatrix: i32 = RunOperatorAndExpressionDiagnosticMatrix(ctx)
     if (status_OperatorAndExpressionDiagnosticMatrix != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_OperatorAndExpressionDiagnosticMatrix
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_AssignmentAndMutationDiagnosticMatrix: i32 = RunAssignmentAndMutationDiagnosticMatrix(ctx)
     if (status_AssignmentAndMutationDiagnosticMatrix != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_AssignmentAndMutationDiagnosticMatrix
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_ControlFlowAndPatternDiagnosticMatrix: i32 = RunControlFlowAndPatternDiagnosticMatrix(ctx)
     if (status_ControlFlowAndPatternDiagnosticMatrix != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_ControlFlowAndPatternDiagnosticMatrix
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_UnsafeAndPointerDiagnosticMatrix: i32 = RunUnsafeAndPointerDiagnosticMatrix(ctx)
     if (status_UnsafeAndPointerDiagnosticMatrix != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_UnsafeAndPointerDiagnosticMatrix
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_KeySystemDiagnosticMatrix: i32 = RunKeySystemDiagnosticMatrix(ctx)
     if (status_KeySystemDiagnosticMatrix != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_KeySystemDiagnosticMatrix
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_AsyncConcurrencyDiagnosticMatrix: i32 = RunAsyncConcurrencyDiagnosticMatrix(ctx)
     if (status_AsyncConcurrencyDiagnosticMatrix != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_AsyncConcurrencyDiagnosticMatrix
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_ConcurrencyInfoDiagnosticMatrix: i32 = RunConcurrencyInfoDiagnosticMatrix(ctx)
     if (status_ConcurrencyInfoDiagnosticMatrix != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_ConcurrencyInfoDiagnosticMatrix
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-transition")]]
     let status_ConcurrencyWarningDiagnosticMatrix: i32 = RunConcurrencyWarningDiagnosticMatrix(ctx)
     if (status_ConcurrencyWarningDiagnosticMatrix != 0) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-section_end")]]
         return status_ConcurrencyWarningDiagnosticMatrix
     }
-    [[log(label: "operations-log-transition")]]
-    [[log(label: "operations-log-section_end")]]
     return 0
 }

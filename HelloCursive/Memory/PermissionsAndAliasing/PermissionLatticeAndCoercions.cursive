@@ -18,8 +18,6 @@ procedure PermissionsMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunPermissionLatticeAndCoercions(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     let unique_seed: unique i32 = 5
     let read_unique_metric: i32 = PermissionReadUnique(unique_seed)
     let read_shared_metric: i32 = {
@@ -34,17 +32,15 @@ public procedure RunPermissionLatticeAndCoercions(ctx: Context) -> i32 {
 
     let lattice_ok: bool = (read_const_metric == 5) && (read_shared_metric == 5) && (read_unique_metric == 5)
     let coercion_ok: bool = (read_const_metric == 5)
-    let lattice_ok_log = [[log(label: "memory-permissions-lattice", expected: true)]] lattice_ok
-    let coercion_ok_log = [[log(label: "memory-permissions-strong-to-weak-coercion", expected: true)]] coercion_ok
+    let lattice_ok_log = lattice_ok
+    let coercion_ok_log = coercion_ok
 
     let metric: i32 = if (lattice_ok && coercion_ok && (lattice_ok_log == true) && (coercion_ok_log == true)) { 15 } else { 0 }
     let metric_label: string@View = PermissionsMetricLabel(metric)
-    let metric_log_actual = [[log(label: "observed-memory-permissions-lattice-metric", expected: "15")]] metric_label
+    let metric_log_actual = metric_label
     if (metric_log_actual != "15") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

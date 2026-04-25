@@ -30,7 +30,7 @@ procedure ForeignEnsuresTypeRestrictionsMetricLabel(value: i32) -> string@View {
 }
 
 public procedure RunForeignEnsuresTypeRestrictions(ctx: Context) -> i32 {
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let seed_value: i32 = 31
     let seed_ptr_safe: Ptr<i32>@Valid = &seed_value
@@ -45,27 +45,21 @@ public procedure RunForeignEnsuresTypeRestrictions(ctx: Context) -> i32 {
     }
 
     let observed_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-ensures-type-restrictions-call", expected: 9)]]
         observed_value
     let observed_ptr_non_null_log: bool =
-        [[log(label: "observed-contracts-foreign-ensures-type-restrictions-nullable-pointer-non-null", expected: true)]]
         observed_ptr_non_null != null
     let observed_ptr_null_log: bool =
-        [[log(label: "observed-contracts-foreign-ensures-type-restrictions-nullable-pointer-null", expected: true)]]
         observed_ptr_null == null
 
     let con_071: string@View = "CON-071"
     let con_071_log: string@View =
-        [[log(label: "contracts-foreign-ensures-type-restrictions-feature-071", expected: "CON-071")]]
         con_071
 
     let diag_2853: string@View = "E-SEM-2853"
     let diag_2855: string@View = "E-SEM-2855"
     let diag_2853_log: string@View =
-        [[log(label: "contracts-foreign-ensures-type-restrictions-diag-2853", expected: "E-SEM-2853")]]
         diag_2853
     let diag_2855_log: string@View =
-        [[log(label: "contracts-foreign-ensures-type-restrictions-diag-2855", expected: "E-SEM-2855")]]
         diag_2855
 
     let runtime_ok: bool =
@@ -76,19 +70,17 @@ public procedure RunForeignEnsuresTypeRestrictions(ctx: Context) -> i32 {
         (diag_2853_log == "E-SEM-2853") &&
         (diag_2855_log == "E-SEM-2855")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-ensures-type-restrictions-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 21 } else { 0 }
     let metric_label: string@View = ForeignEnsuresTypeRestrictionsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-ensures-type-restrictions-metric", expected: "21")]]
         metric_label
     if (metric_log_actual != "21") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

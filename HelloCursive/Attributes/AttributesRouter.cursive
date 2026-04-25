@@ -2,87 +2,78 @@ import AttributeSyntaxAndRegistry
 import LayoutAttributes
 import OptimizationHintAttributes
 import MetadataAndVerificationAttributes
-import LogAttributeSemantics
 import MemoryOrderingAttributes
 import FfiAttributes
 import AttributeDiagnostics
 
 procedure AttributesLogGroupStatus(group_name: string@View, status: i32) -> () {
-    [[log(label: "attributes-log-group-name", expected: "group")]] "group"
-    [[log(label: "observed-attributes-group-name")]] group_name
-    [[log(label: "observed-attributes-group-status", expected: 0)]] status
+    "group"
+    group_name
+    status
     return ()
 }
 
 public procedure run(ctx: Context) -> i32 {
-    [[log(label: "attributes-log-section_start", expected: "section-start")]] "section-start"
+    "section-start"
 
     let atr_068: string@View = "ATR-068"
     let atr_068_log: string@View =
-        [[log(label: "attributes-router-feature-068", expected: "ATR-068")]]
         atr_068
     if (atr_068_log != "ATR-068") {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return 1
     }
 
     let status_syntax: i32 = AttributeSyntaxAndRegistry::runGroup(ctx)
     AttributesLogGroupStatus("attributes::AttributeSyntaxAndRegistry", status_syntax)
     if (status_syntax != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_syntax
     }
 
     let status_layout: i32 = LayoutAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::LayoutAttributes", status_layout)
     if (status_layout != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_layout
     }
 
     let status_optimization: i32 = OptimizationHintAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::OptimizationHintAttributes", status_optimization)
     if (status_optimization != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_optimization
     }
 
     let status_metadata: i32 = MetadataAndVerificationAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::MetadataAndVerificationAttributes", status_metadata)
     if (status_metadata != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_metadata
-    }
-
-    let status_log: i32 = LogAttributeSemantics::runGroup(ctx)
-    AttributesLogGroupStatus("attributes::LogAttributeSemantics", status_log)
-    if (status_log != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
-        return status_log
     }
 
     let status_memory_order: i32 = MemoryOrderingAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::MemoryOrderingAttributes", status_memory_order)
     if (status_memory_order != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_memory_order
     }
 
     let status_ffi: i32 = FfiAttributes::runGroup(ctx)
     AttributesLogGroupStatus("attributes::FfiAttributes", status_ffi)
     if (status_ffi != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_ffi
     }
 
     let status_diagnostics: i32 = AttributeDiagnostics::runGroup(ctx)
     AttributesLogGroupStatus("attributes::AttributeDiagnostics", status_diagnostics)
     if (status_diagnostics != 0) {
-        [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+        "section-end"
         return status_diagnostics
     }
 
-    [[log(label: "attributes-log-section_end", expected: "section-end")]] "section-end"
+    "section-end"
     return 0
 }
 

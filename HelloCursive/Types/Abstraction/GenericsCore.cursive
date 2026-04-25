@@ -45,8 +45,7 @@ procedure LogGenericsObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "types-log-object")]]
-}
+    }
 
 procedure RunGenericsCoreItem(
     ctx: Context,
@@ -63,7 +62,6 @@ procedure RunGenericsCoreItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "type feature item exercise start"
-    [[log(label: "types-log-item_begin")]]
     let phase_running: string@View = "running"
     let phase_step_begin: string@View = "step-begin"
     let phase_step_pass: string@View = "step-pass"
@@ -72,17 +70,12 @@ procedure RunGenericsCoreItem(
     let reason_fail: string@View = "expected output did not align with actual output"
     let passed_place: bool = passed
 
-    [[log(label: "types-log-runtime_phase")]]
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "types-log-transition")]]
-        [[log(label: "types-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "types-log-transition")]]
-    [[log(label: "types-log-types_item_success")]]
     return 0
 }
 
@@ -115,7 +108,6 @@ procedure GenericsMetricLabel(value: i32) -> string@View {
 }
 
 procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "types-log-runtime_phase_move")]]
     let generic_type_left_source: i32 = 4
     let generic_type_right_source: i32 = 6
     let generic_type_pair: GenericPairAlias<i32> = (generic_type_left_source, generic_type_right_source)
@@ -139,31 +131,16 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     LogGenericsObject(ctx.fs, scope, "generic_place_arg", "i32 place", "constructed", "inferred generic call provenance-bearing place argument prepared")
     LogGenericsObject(ctx.fs, scope, "generic_owner_clause_alias", "GenericOwnerClauseAlias<i32>", "constructed", "generic alias with owning predicate clause prepared")
 
-    [[log(label: "types-log-runtime_phase_move")]]
-    [[log(label: "types-log-transition_move")]]
     let generic_type_left_metric: i32 = SelectLeft(generic_type_pair)
     let generic_type_right_metric: i32 = SelectRight(generic_type_pair)
     let generic_type_metric: i32 = generic_type_left_metric + generic_type_right_metric
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let generic_proc_metric: i32 = ChooseFirst(generic_proc_input, generic_proc_fallback)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let explicit_metric: i32 = ChooseFirst<i32>(explicit_primary, explicit_secondary)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let mono_i32: i32 = ChooseFirst<i32>(mono_i32_input, mono_i32_fallback)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let mono_bool: bool = ChooseFirst<bool>(mono_bool_input, mono_bool_fallback)
-    [[log(label: "types-log-transition_move")]]
-    [[log(label: "types-log-transition_move")]]
     let generic_literal_metric: i32 = Identity(11)
-    [[log(label: "types-log-transition_move")]]
     let generic_place_source: i32 = 11
-    [[log(label: "types-log-transition_move")]]
     let generic_place_metric: i32 = Identity(generic_place_source)
-    [[log(label: "types-log-transition_move")]]
     let generic_provenance_metric: i32 = generic_literal_metric + generic_place_metric
     let monomorph_metric: i32 = if ((mono_i32 == 2) && mono_bool) { 1 } else { 0 }
     let owner_clause_alias: GenericOwnerClauseAlias<i32> = MakeGenericOwnerClauseAlias<i32>(12)
@@ -203,23 +180,22 @@ procedure VerifyGenericsCoreItem(ctx: Context, scope: string@View, move item_ind
     let generic_provenance_metric_passed: bool = generic_provenance_metric == 22
     let owner_clause_metric_passed: bool = owner_clause_metric == 12
 
-    let type_parameters_metric_passed_log_actual = [[log(label: "observed-generic-type-parameters-metric", expected: "10")]] type_parameters_metric_label
+    let type_parameters_metric_passed_log_actual = type_parameters_metric_label
     let type_parameters_metric_passed_with_log: bool = type_parameters_metric_passed && (type_parameters_metric_passed_log_actual == expected_type_parameters)
-    let procedure_parameters_metric_passed_log_actual = [[log(label: "observed-generic-procedure-parameters-metric", expected: "5")]] procedure_parameters_metric_label
+    let procedure_parameters_metric_passed_log_actual = procedure_parameters_metric_label
     let procedure_parameters_metric_passed_with_log: bool = procedure_parameters_metric_passed && (procedure_parameters_metric_passed_log_actual == expected_procedure_parameters)
-    let instantiation_metric_passed_log_actual = [[log(label: "observed-generic-instantiation-metric", expected: "8")]] instantiation_metric_label
+    let instantiation_metric_passed_log_actual = instantiation_metric_label
     let instantiation_metric_passed_with_log: bool = instantiation_metric_passed && (instantiation_metric_passed_log_actual == expected_instantiation)
-    let monomorph_metric_passed_log_actual = [[log(label: "observed-monomorphized-calls-metric", expected: "1")]] monomorph_metric_label
+    let monomorph_metric_passed_log_actual = monomorph_metric_label
     let monomorph_metric_passed_with_log: bool = monomorph_metric_passed && (monomorph_metric_passed_log_actual == expected_monomorph)
-    let generic_literal_metric_passed_log_actual = [[log(label: "observed-generic-literal-call-metric", expected: "11")]] generic_literal_metric_label
+    let generic_literal_metric_passed_log_actual = generic_literal_metric_label
     let generic_literal_metric_passed_with_log: bool = generic_literal_metric_passed && (generic_literal_metric_passed_log_actual == expected_generic_literal)
-    let generic_place_metric_passed_log_actual = [[log(label: "observed-generic-place-call-metric", expected: "11")]] generic_place_metric_label
+    let generic_place_metric_passed_log_actual = generic_place_metric_label
     let generic_place_metric_passed_with_log: bool = generic_place_metric_passed && (generic_place_metric_passed_log_actual == expected_generic_place)
-    let generic_provenance_metric_passed_log_actual = [[log(label: "observed-generic-provenance-aware-call-metric", expected: "22")]] generic_provenance_metric_label
+    let generic_provenance_metric_passed_log_actual = generic_provenance_metric_label
     let generic_provenance_metric_passed_with_log: bool = generic_provenance_metric_passed && (generic_provenance_metric_passed_log_actual == expected_generic_provenance)
-    let owner_clause_metric_passed_log_actual = [[log(label: "observed-generic-owner-clause-alias-metric", expected: "12")]] owner_clause_metric_label
+    let owner_clause_metric_passed_log_actual = owner_clause_metric_label
     let owner_clause_metric_passed_with_log: bool = owner_clause_metric_passed && (owner_clause_metric_passed_log_actual == expected_owner_clause)
-    [[log(label: "types-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunGenericsCoreItem(
             ctx,
@@ -372,6 +348,5 @@ procedure RunGenericsCore(ctx: Context) -> i32 {
         return status_GenericOwnerClauseAlias
     }
 
-    [[log(label: "types-log-checkpoint")]]
     return 0
 }

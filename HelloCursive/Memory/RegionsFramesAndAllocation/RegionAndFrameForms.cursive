@@ -7,13 +7,11 @@ procedure RegionFrameFormsMetricLabel(value: i32) -> string@View {
 
 public procedure RunRegionAndFrameForms(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "memory-log-item_begin")]]
-
     var alias_region_probe_ok: bool = false
     region as r {
         let local_value: i32 = 4
         let local_ok: bool = local_value == 4
-        let local_ok_log = [[log(label: "memory-regions-region-with-alias", expected: true)]] local_ok
+        let local_ok_log = local_ok
         alias_region_probe_ok = local_ok_log == true
     }
 
@@ -21,7 +19,7 @@ public procedure RunRegionAndFrameForms(ctx: Context) -> i32 {
     region {
         let local_value: i32 = 3
         let local_ok: bool = local_value == 3
-        let local_ok_log = [[log(label: "memory-regions-region-without-alias", expected: true)]] local_ok
+        let local_ok_log = local_ok
         no_alias_region_probe_ok = local_ok_log == true
     }
 
@@ -32,7 +30,7 @@ public procedure RunRegionAndFrameForms(ctx: Context) -> i32 {
             local_value = local_value + 5
         }
         let frame_implicit_ok: bool = local_value == 8
-        let frame_implicit_ok_log = [[log(label: "memory-regions-frame-implicit", expected: true)]] frame_implicit_ok
+        let frame_implicit_ok_log = frame_implicit_ok
         frame_implicit_probe_ok = frame_implicit_ok_log == true
     }
 
@@ -43,7 +41,7 @@ public procedure RunRegionAndFrameForms(ctx: Context) -> i32 {
             local_value = local_value + 7
         }
         let frame_explicit_ok: bool = local_value == 9
-        let frame_explicit_ok_log = [[log(label: "memory-regions-frame-explicit", expected: true)]] frame_explicit_ok
+        let frame_explicit_ok_log = frame_explicit_ok
         frame_explicit_probe_ok = frame_explicit_ok_log == true
     }
 
@@ -56,12 +54,10 @@ public procedure RunRegionAndFrameForms(ctx: Context) -> i32 {
         0
     }
     let metric_label: string@View = RegionFrameFormsMetricLabel(metric)
-    let metric_log_actual = [[log(label: "observed-memory-region-frame-forms-metric", expected: "14")]] metric_label
+    let metric_log_actual = metric_label
     if (metric_log_actual != "14") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

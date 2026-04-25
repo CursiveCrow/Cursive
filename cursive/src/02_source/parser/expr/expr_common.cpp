@@ -612,19 +612,6 @@ ParseElemResult<ExprPtr> ParseExprWithLeadingAttrs(Parser parser,
                                                    ParseBodyFn&& parse_body) {
   ParseElemResult<AttrOpt> attrs = ParseAttributeListOpt(parser);
   Parser next = attrs.parser;
-  const AttributeList& attr_list = AttrListOf(attrs.elem);
-  bool log_only_attrs = attrs.elem.has_value();
-  for (const auto& attr : attr_list) {
-    if (attr.name != "log") {
-      log_only_attrs = false;
-      break;
-    }
-  }
-  if (log_only_attrs) {
-    while (Tok(next) && Tok(next)->kind == TokenKind::Newline) {
-      Advance(next);
-    }
-  }
 
   ParseElemResult<ExprPtr> expr = parse_body(next);
   if (attrs.elem.has_value()) {

@@ -6,7 +6,7 @@ procedure ParallelCaptureRulesConstSharedUniqueMetricLabel(value: i32) -> string
 }
 
 public procedure RunParallelCaptureRulesConstSharedUnique(ctx: Context) -> i32 {
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let const_capture: const i32 = 4
     let const_metric: i32 = parallel ctx~>cpu() {
@@ -39,11 +39,11 @@ public procedure RunParallelCaptureRulesConstSharedUnique(ctx: Context) -> i32 {
 
     let diagnostic_code: string@View = "E-CON-0120"
 
-    let const_metric_log: i32 = [[log(label: "observed-permissions-ParallelCaptureRulesConstSharedUnique-const", expected: 6)]] const_metric
-    let shared_metric_log: i32 = [[log(label: "observed-permissions-ParallelCaptureRulesConstSharedUnique-shared", expected: 8)]] shared_metric
-    let unique_metric_log: i32 = [[log(label: "observed-permissions-ParallelCaptureRulesConstSharedUnique-unique-move", expected: 11)]] unique_metric
-    let dispatch_const_metric_log: i32 = [[log(label: "observed-permissions-ParallelCaptureRulesConstSharedUnique-dispatch", expected: 15)]] dispatch_const_metric
-    let diagnostic_log: string@View = [[log(label: "permissions-ParallelCaptureRulesConstSharedUnique-diagnostic", expected: "E-CON-0120")]] diagnostic_code
+    let const_metric_log: i32 = const_metric
+    let shared_metric_log: i32 = shared_metric
+    let unique_metric_log: i32 = unique_metric
+    let dispatch_const_metric_log: i32 = dispatch_const_metric
+    let diagnostic_log: string@View = diagnostic_code
 
     let runtime_ok: bool =
         (const_metric_log == 6) &&
@@ -51,17 +51,17 @@ public procedure RunParallelCaptureRulesConstSharedUnique(ctx: Context) -> i32 {
         (unique_metric_log == 11) &&
         (dispatch_const_metric_log == 15) &&
         (diagnostic_log == "E-CON-0120")
-    let runtime_ok_log: bool = [[log(label: "permissions-ParallelCaptureRulesConstSharedUnique-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log) { 40 } else { 0 }
     let metric_label: string@View = ParallelCaptureRulesConstSharedUniqueMetricLabel(metric)
-    let metric_label_log: string@View = [[log(label: "observed-permissions-ParallelCaptureRulesConstSharedUnique-metric", expected: "40")]] metric_label
+    let metric_label_log: string@View = metric_label
 
     if (metric_label_log != "40") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

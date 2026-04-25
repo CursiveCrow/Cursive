@@ -6,8 +6,6 @@ procedure AllocationDereferenceDiagnosticsMetricLabel(value: i32) -> string@View
 }
 
 public procedure RunAllocationAndDereferenceDiagnostics(ctx: Context) -> i32 {
-    [[log(label: "memory-log-item_begin")]]
-
     let safe_ptr_null: Ptr<i32>@Null = Ptr::null()
     let safe_ptr_null_check: Ptr<i32>@Null = Ptr::null()
     let safe_ptr_state: Ptr<i32> = safe_ptr_null
@@ -22,10 +20,8 @@ public procedure RunAllocationAndDereferenceDiagnostics(ctx: Context) -> i32 {
     let safe_deref_metric: i32 = *safe_ptr_valid
     let raw_deref_metric: i32 = unsafe { *raw_ptr_valid }
     let safe_deref_metric_log: i32 =
-        [[log(label: "observed-memory-diagnostics-safe-deref-metric", expected: 8)]]
         safe_deref_metric
     let raw_deref_metric_log: i32 =
-        [[log(label: "observed-memory-diagnostics-raw-deref-metric", expected: 8)]]
         raw_deref_metric
 
     let managed_alloc_result: string@Managed | AllocationError =
@@ -56,7 +52,6 @@ public procedure RunAllocationAndDereferenceDiagnostics(ctx: Context) -> i32 {
     }
 
     let alloc_metric_log: i32 =
-        [[log(label: "observed-memory-diagnostics-managed-alloc-metric", expected: 1)]]
         alloc_metric
     let allocation_runtime_ok: bool = alloc_metric_log == 1
     let dereference_runtime_ok: bool =
@@ -67,19 +62,14 @@ public procedure RunAllocationAndDereferenceDiagnostics(ctx: Context) -> i32 {
     let expired_shape_ok: bool = safe_ptr_state == safe_ptr_state_check
 
     let allocation_runtime_ok_log: bool =
-        [[log(label: "memory-diagnostics-alloc-runtime", expected: true)]]
         allocation_runtime_ok
     let dereference_runtime_ok_log: bool =
-        [[log(label: "memory-diagnostics-deref-runtime", expected: true)]]
         dereference_runtime_ok
     let null_surface_ok_log: bool =
-        [[log(label: "memory-diagnostics-null-surface", expected: true)]]
         null_surface_ok
     let expired_shape_ok_log: bool =
-        [[log(label: "memory-diagnostics-expired-shape", expected: true)]]
         expired_shape_ok
     let allocation_error_path_ok_log: bool =
-        [[log(label: "memory-diagnostics-allocation-error-runtime", expected: true)]]
         allocation_error_path_ok
 
     let metric_ok: bool = (allocation_runtime_ok_log == true) &&
@@ -90,13 +80,10 @@ public procedure RunAllocationAndDereferenceDiagnostics(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 15 } else { 0 }
     let metric_label: string@View = AllocationDereferenceDiagnosticsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-memory-diagnostics-alloc-deref-metric", expected: "15")]]
         metric_label
     if (metric_log_actual != "15") {
-        [[log(label: "memory-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "memory-log-memory_item_success")]]
     return 0
 }

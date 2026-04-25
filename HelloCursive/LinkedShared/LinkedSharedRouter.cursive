@@ -20,13 +20,10 @@ public procedure run(ctx: Context) -> i32 {
     let first_counter_ok: bool = first_counter_value == 11
     let second_counter_ok: bool = second_counter_value == 12
     let contribution_ok_log: bool =
-        [[log(label: "observed-linkedshared-contribution", expected: true)]]
         contribution_ok
     let first_counter_ok_log: bool =
-        [[log(label: "observed-linkedshared-counter-first", expected: true)]]
         first_counter_ok
     let second_counter_ok_log: bool =
-        [[log(label: "observed-linkedshared-counter-second", expected: true)]]
         second_counter_ok
 
     if ((contribution_ok_log == false) ||

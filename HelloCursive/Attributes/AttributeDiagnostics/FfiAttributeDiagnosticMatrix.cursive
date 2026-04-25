@@ -7,26 +7,26 @@ procedure FfiAttributeDiagnosticMatrixMetricLabel(value: i32) -> string@View {
 
 public procedure RunFfiAttributeDiagnosticMatrix(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
-    let e3340: string@View = [[log(label: "attributes-ffi-diagnostic-3340", expected: "E-SYS-3340")]] "E-SYS-3340"
-    let e3341: string@View = [[log(label: "attributes-ffi-diagnostic-3341", expected: "E-SYS-3341")]] "E-SYS-3341"
-    let e3342: string@View = [[log(label: "attributes-ffi-diagnostic-3342", expected: "E-SYS-3342")]] "E-SYS-3342"
-    let e3345: string@View = [[log(label: "attributes-ffi-diagnostic-3345", expected: "E-SYS-3345")]] "E-SYS-3345"
-    let e3346: string@View = [[log(label: "attributes-ffi-diagnostic-3346", expected: "E-SYS-3346")]] "E-SYS-3346"
-    let e3347: string@View = [[log(label: "attributes-ffi-diagnostic-3347", expected: "E-SYS-3347")]] "E-SYS-3347"
-    let e3350: string@View = [[log(label: "attributes-ffi-diagnostic-3350", expected: "E-SYS-3350")]] "E-SYS-3350"
-    let e3351: string@View = [[log(label: "attributes-ffi-diagnostic-3351", expected: "E-SYS-3351")]] "E-SYS-3351"
-    let e3353: string@View = [[log(label: "attributes-ffi-diagnostic-3353", expected: "E-SYS-3353")]] "E-SYS-3353"
-    let e3355: string@View = [[log(label: "attributes-ffi-diagnostic-3355", expected: "E-SYS-3355")]] "E-SYS-3355"
-    let e3356: string@View = [[log(label: "attributes-ffi-diagnostic-3356", expected: "E-SYS-3356")]] "E-SYS-3356"
+    let e3340: string@View = "E-SYS-3340"
+    let e3341: string@View = "E-SYS-3341"
+    let e3342: string@View = "E-SYS-3342"
+    let e3345: string@View = "E-SYS-3345"
+    let e3346: string@View = "E-SYS-3346"
+    let e3347: string@View = "E-SYS-3347"
+    let e3350: string@View = "E-SYS-3350"
+    let e3351: string@View = "E-SYS-3351"
+    let e3353: string@View = "E-SYS-3353"
+    let e3355: string@View = "E-SYS-3355"
+    let e3356: string@View = "E-SYS-3356"
 
-    let e2540: string@View = [[log(label: "attributes-ffi-diagnostic-2540", expected: "E-TYP-2540")]] "E-TYP-2540"
-    let e2542: string@View = [[log(label: "attributes-ffi-diagnostic-2542", expected: "E-TYP-2542")]] "E-TYP-2542"
-    let e2624: string@View = [[log(label: "attributes-ffi-diagnostic-2624", expected: "E-TYP-2624")]] "E-TYP-2624"
-    let e2625: string@View = [[log(label: "attributes-ffi-diagnostic-2625", expected: "E-TYP-2625")]] "E-TYP-2625"
-    let e2630: string@View = [[log(label: "attributes-ffi-diagnostic-2630", expected: "E-TYP-2630")]] "E-TYP-2630"
-    let e2631: string@View = [[log(label: "attributes-ffi-diagnostic-2631", expected: "E-TYP-2631")]] "E-TYP-2631"
+    let e2540: string@View = "E-TYP-2540"
+    let e2542: string@View = "E-TYP-2542"
+    let e2624: string@View = "E-TYP-2624"
+    let e2625: string@View = "E-TYP-2625"
+    let e2630: string@View = "E-TYP-2630"
+    let e2631: string@View = "E-TYP-2631"
 
     let runtime_ok: bool =
         (e3340 == "E-SYS-3340") && (e3341 == "E-SYS-3341") && (e3342 == "E-SYS-3342") &&
@@ -36,17 +36,17 @@ public procedure RunFfiAttributeDiagnosticMatrix(ctx: Context) -> i32 {
         (e2540 == "E-TYP-2540") && (e2542 == "E-TYP-2542") &&
         (e2624 == "E-TYP-2624") && (e2625 == "E-TYP-2625") &&
         (e2630 == "E-TYP-2630") && (e2631 == "E-TYP-2631")
-    let runtime_ok_log: bool = [[log(label: "attributes-ffi-diagnostic-matrix-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 91 } else { 0 }
     let metric_label: string@View = FfiAttributeDiagnosticMatrixMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-ffi-diagnostic-matrix-metric", expected: "91")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "91") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

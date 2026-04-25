@@ -14,33 +14,27 @@ procedure EntryScopeCapabilityAndSideEffectRejectionsMetricLabel(value: i32) -> 
 
 public procedure RunEntryScopeCapabilityAndSideEffectRejections(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let baseline: i32 = EntryScopeBaseline(10)
     let baseline_log: i32 =
-        [[log(label: "observed-contracts-entry-scope-baseline", expected: 10)]]
         baseline
 
     let con_037: string@View = "CON-037"
     let con_038: string@View = "CON-038"
     let con_037_log: string@View =
-        [[log(label: "contracts-entry-scope-capability-and-side-effect-rejections-feature-037", expected: "CON-037")]]
         con_037
     let con_038_log: string@View =
-        [[log(label: "contracts-entry-scope-capability-and-side-effect-rejections-feature-038", expected: "CON-038")]]
         con_038
 
     let diag_2807: string@View = "E-SEM-2807"
     let diag_0415: string@View = "E-CON-0415"
     let diag_0416: string@View = "E-CON-0416"
     let diag_2807_log: string@View =
-        [[log(label: "contracts-entry-scope-diag-2807", expected: "E-SEM-2807")]]
         diag_2807
     let diag_0415_log: string@View =
-        [[log(label: "contracts-entry-scope-diag-0415", expected: "E-CON-0415")]]
         diag_0415
     let diag_0416_log: string@View =
-        [[log(label: "contracts-entry-scope-diag-0416", expected: "E-CON-0416")]]
         diag_0416
 
     let runtime_ok: bool =
@@ -51,19 +45,17 @@ public procedure RunEntryScopeCapabilityAndSideEffectRejections(ctx: Context) ->
         (diag_0415_log == "E-CON-0415") &&
         (diag_0416_log == "E-CON-0416")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-entry-scope-capability-and-side-effect-rejections-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 28 } else { 0 }
     let metric_label: string@View = EntryScopeCapabilityAndSideEffectRejectionsMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-entry-scope-capability-and-side-effect-rejections-metric", expected: "28")]]
         metric_label
     if (metric_log_actual != "28") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

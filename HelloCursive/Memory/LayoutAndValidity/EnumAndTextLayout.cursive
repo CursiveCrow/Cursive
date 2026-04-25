@@ -36,20 +36,20 @@ public procedure RunEnumAndTextLayout(ctx: Context) -> i32 {
     let string_bytes_ok: bool = (string::length(string_seed) == 3usize) && (bytes::length(bytes_view) == 2usize)
     let validity_surface_ok: bool = (bytes_first == 70u8) && (bytes_second == 71u8)
 
-    let enum_layout_log: bool = [[log(label: "memory-layout-enum-discriminant", expected: true)]] enum_layout_ok
-    let string_bytes_log: bool = [[log(label: "memory-layout-string-bytes", expected: true)]] string_bytes_ok
-    let validity_surface_log: bool = [[log(label: "memory-layout-value-validity", expected: true)]] validity_surface_ok
+    let enum_layout_log: bool = enum_layout_ok
+    let string_bytes_log: bool = string_bytes_ok
+    let validity_surface_log: bool = validity_surface_ok
 
     let metric: i32 = if (enum_layout_ok && string_bytes_ok && validity_surface_ok && (enum_layout_log == true) && (string_bytes_log == true) && (validity_surface_log == true)) { 22 } else { 0 }
     let metric_label: string@View = EnumTextLayoutMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-memory-layout-enum-text-metric", expected: "22")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "22") {
         let fail_marker: string@View = "memory-layout-enum-text-fail"
-        [[log(label: "memory-log-item_fail")]] fail_marker
+        fail_marker
         return 1
     }
 
     let success_marker: string@View = "memory-layout-enum-text-success"
-    [[log(label: "memory-log-memory_item_success")]] success_marker
+    success_marker
     return 0
 }

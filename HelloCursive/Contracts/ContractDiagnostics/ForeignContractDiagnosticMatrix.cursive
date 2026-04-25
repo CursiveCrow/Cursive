@@ -6,7 +6,7 @@ procedure ForeignContractDiagnosticMatrixMetricLabel(value: i32) -> string@View 
 }
 
 public procedure RunForeignContractDiagnosticMatrix(ctx: Context) -> i32 {
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let status_assumes_syntax: i32 = ForeignContractsAndVerificationModes::RunForeignAssumesSyntaxAndScope(ctx)
     let status_assumes_modes: i32 = ForeignContractsAndVerificationModes::RunForeignAssumesVerificationModes(ctx)
@@ -15,19 +15,14 @@ public procedure RunForeignContractDiagnosticMatrix(ctx: Context) -> i32 {
     let status_dynamic_runtime: i32 = ForeignContractsAndVerificationModes::RunForeignDynamicRuntimeChecks(ctx)
 
     let status_assumes_syntax_log: i32 =
-        [[log(label: "observed-contracts-foreign-diagnostic-assumes-syntax-status", expected: 0)]]
         status_assumes_syntax
     let status_assumes_modes_log: i32 =
-        [[log(label: "observed-contracts-foreign-diagnostic-assumes-modes-status", expected: 0)]]
         status_assumes_modes
     let status_ensures_predicate_forms_log: i32 =
-        [[log(label: "observed-contracts-foreign-diagnostic-ensures-predicate-forms-status", expected: 0)]]
         status_ensures_predicate_forms
     let status_ensures_type_restrictions_log: i32 =
-        [[log(label: "observed-contracts-foreign-diagnostic-ensures-type-restrictions-status", expected: 0)]]
         status_ensures_type_restrictions
     let status_dynamic_runtime_log: i32 =
-        [[log(label: "observed-contracts-foreign-diagnostic-dynamic-runtime-status", expected: 0)]]
         status_dynamic_runtime
 
     let assumptions_ok: bool =
@@ -73,15 +68,15 @@ public procedure RunForeignContractDiagnosticMatrix(ctx: Context) -> i32 {
     let panic_2860: string@View = if (status_assumes_modes_log == 0) { "P-SEM-2860" } else { "missing" }
     let panic_2861: string@View = if (status_dynamic_runtime_log == 0) { "P-SEM-2861" } else { "missing" }
 
-    let check_0: string@View = [[log(label: "contracts-foreign-diagnostic-feature-077", expected: "CON-077")]] con_077
-    let check_1: string@View = [[log(label: "contracts-foreign-diagnostic-2850", expected: "E-SEM-2850")]] diag_2850
-    let check_2: string@View = [[log(label: "contracts-foreign-diagnostic-2851", expected: "E-SEM-2851")]] diag_2851
-    let check_3: string@View = [[log(label: "contracts-foreign-diagnostic-2852", expected: "E-SEM-2852")]] diag_2852
-    let check_4: string@View = [[log(label: "contracts-foreign-diagnostic-2853", expected: "E-SEM-2853")]] diag_2853
-    let check_5: string@View = [[log(label: "contracts-foreign-diagnostic-2854", expected: "E-SEM-2854")]] diag_2854
-    let check_6: string@View = [[log(label: "contracts-foreign-diagnostic-2855", expected: "E-SEM-2855")]] diag_2855
-    let check_7: string@View = [[log(label: "contracts-foreign-diagnostic-2860", expected: "P-SEM-2860")]] panic_2860
-    let check_8: string@View = [[log(label: "contracts-foreign-diagnostic-2861", expected: "P-SEM-2861")]] panic_2861
+    let check_0: string@View = con_077
+    let check_1: string@View = diag_2850
+    let check_2: string@View = diag_2851
+    let check_3: string@View = diag_2852
+    let check_4: string@View = diag_2853
+    let check_5: string@View = diag_2854
+    let check_6: string@View = diag_2855
+    let check_7: string@View = panic_2860
+    let check_8: string@View = panic_2861
 
     let matrix_ok: bool =
         (check_0 == "CON-077") &&
@@ -94,19 +89,17 @@ public procedure RunForeignContractDiagnosticMatrix(ctx: Context) -> i32 {
         (check_7 == "P-SEM-2860") &&
         (check_8 == "P-SEM-2861")
     let matrix_ok_log: bool =
-        [[log(label: "contracts-foreign-diagnostic-matrix", expected: true)]]
         matrix_ok
 
     let metric: i32 = if (matrix_ok_log == true) { 56 } else { 0 }
     let metric_label: string@View = ForeignContractDiagnosticMatrixMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-contract-diagnostic-matrix-metric", expected: "56")]]
         metric_label
     if (metric_log_actual != "56") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

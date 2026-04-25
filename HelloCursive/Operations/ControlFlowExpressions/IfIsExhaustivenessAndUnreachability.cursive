@@ -12,8 +12,7 @@ procedure LogIfCaseCoverageObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure IfCaseCoverageMetricLabel(value: i32) -> string@View {
     if (value == 1) {
@@ -43,22 +42,17 @@ procedure RunIfIsExhaustivenessAndUnreachabilityItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyIfIsExhaustivenessAndUnreachabilityItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let exhaustive_scrutinee: ExhaustiveOperationCase = ExhaustiveOperationCase::One(4, 0)
     let unreachability_scrutinee: i32 = 1
     let runtime_scrutinee: ExhaustiveOperationCase = ExhaustiveOperationCase::Pair(2, 3)
@@ -66,27 +60,20 @@ procedure VerifyIfIsExhaustivenessAndUnreachabilityItem(ctx: Context, scope: str
     LogIfCaseCoverageObject(ctx.fs, scope, "unreachability_scrutinee", "i32", "constructed", "scalar scrutinee for first-clause reachability baseline prepared")
     LogIfCaseCoverageObject(ctx.fs, scope, "runtime_scrutinee", "ExhaustiveOperationCase", "constructed", "enum scrutinee for runtime payload extraction prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let coverage_syntax_metric: i32 = if exhaustive_scrutinee is {
         ExhaustiveOperationCase::Zero { 0 }
         ExhaustiveOperationCase::One(v, _) { v }
         ExhaustiveOperationCase::Pair(left, right) { left + right }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let coverage_static_metric: i32 = if unreachability_scrutinee is {
         1 { 1 }
         _ { 0 }
     }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let coverage_runtime_metric: i32 = if runtime_scrutinee is {
         ExhaustiveOperationCase::Zero { 0 }
         ExhaustiveOperationCase::One(v, _) { v }
         ExhaustiveOperationCase::Pair(left, right) { left + right }
     }
-    [[log(label: "operations-log-transition_move")]]
     let observed_syntax_step: string@View = "observed-if-is-exhaustive-syntax-metric"
     let observed_static_step: string@View = "observed-if-is-exhaustive-static-metric"
     let observed_runtime_step: string@View = "observed-if-is-exhaustive-runtime-metric"
@@ -100,13 +87,12 @@ procedure VerifyIfIsExhaustivenessAndUnreachabilityItem(ctx: Context, scope: str
     let static_passed: bool = coverage_static_metric == 1
     let runtime_passed: bool = coverage_runtime_metric == 5
 
-    let syntax_passed_log_actual = [[log(label: "observed-if-is-exhaustive-syntax-metric", expected: "4")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-if-is-exhaustive-static-metric", expected: "1")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-if-is-exhaustive-runtime-metric", expected: "5")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunIfIsExhaustivenessAndUnreachabilityItem(
             ctx,
@@ -193,6 +179,5 @@ procedure RunIfIsExhaustivenessAndUnreachability(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

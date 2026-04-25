@@ -26,25 +26,21 @@ procedure ForeignContractParsingMetricLabel(value: i32) -> string@View {
 
 public procedure RunForeignContractParsing(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "contracts-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let assumes_value: i32 = unsafe { hc_contracts_foreign_parse_assumes_impl(7) }
     let ensures_value: i32 = unsafe { hc_contracts_foreign_parse_ensures_impl(8) }
 
     let assumes_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-parse-assumes", expected: 8)]]
         assumes_value
     let ensures_value_log: i32 =
-        [[log(label: "observed-contracts-foreign-parse-ensures", expected: 10)]]
         ensures_value
 
     let con_008: string@View = "CON-008"
     let con_009: string@View = "CON-009"
     let con_008_log: string@View =
-        [[log(label: "contracts-foreign-contract-parsing-feature-008", expected: "CON-008")]]
         con_008
     let con_009_log: string@View =
-        [[log(label: "contracts-foreign-contract-parsing-feature-009", expected: "CON-009")]]
         con_009
 
     let runtime_ok: bool =
@@ -53,19 +49,17 @@ public procedure RunForeignContractParsing(ctx: Context) -> i32 {
         (con_008_log == "CON-008") &&
         (con_009_log == "CON-009")
     let runtime_ok_log: bool =
-        [[log(label: "contracts-foreign-contract-parsing-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 46 } else { 0 }
     let metric_label: string@View = ForeignContractParsingMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-contracts-foreign-contract-parsing-metric", expected: "46")]]
         metric_label
     if (metric_log_actual != "46") {
-        [[log(label: "contracts-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "contracts-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

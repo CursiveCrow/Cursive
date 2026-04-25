@@ -35,7 +35,7 @@ procedure PermissionTokenInventoryMetricLabel(value: i32) -> string@View {
 
 public procedure RunPermissionTokenInventoryCoverage(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "permissions-log-item_begin", expected: "running")]] "running"
+    "running"
 
     var receiver_probe: unique PermissionTokenInventoryProbe =
         PermissionTokenInventoryProbe { value: 9 }
@@ -53,22 +53,16 @@ public procedure RunPermissionTokenInventoryCoverage(ctx: Context) -> i32 {
     let type_unique_metric: i32 = PermissionTokenInventoryReadUnique(unique_value)
 
     let receiver_const_metric_log: i32 =
-        [[log(label: "observed-permissions-token-inventory-receiver-const", expected: 9)]]
         receiver_const_metric
     let receiver_shared_metric_log: i32 =
-        [[log(label: "observed-permissions-token-inventory-receiver-shared", expected: 9)]]
         receiver_shared_metric
     let receiver_unique_metric_log: i32 =
-        [[log(label: "observed-permissions-token-inventory-receiver-unique", expected: 13)]]
         receiver_unique_metric
     let type_const_metric_log: i32 =
-        [[log(label: "observed-permissions-token-inventory-type-const", expected: 14)]]
         type_const_metric
     let type_shared_metric_log: i32 =
-        [[log(label: "observed-permissions-token-inventory-type-shared", expected: 14)]]
         type_shared_metric
     let type_unique_metric_log: i32 =
-        [[log(label: "observed-permissions-token-inventory-type-unique", expected: 18)]]
         type_unique_metric
 
     let runtime_ok: bool =
@@ -79,19 +73,17 @@ public procedure RunPermissionTokenInventoryCoverage(ctx: Context) -> i32 {
         (type_shared_metric_log == 14) &&
         (type_unique_metric_log == 18)
     let runtime_ok_log: bool =
-        [[log(label: "permissions-token-inventory-runtime", expected: true)]]
         runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 77 } else { 0 }
     let metric_label: string@View = PermissionTokenInventoryMetricLabel(metric)
     let metric_label_log: string@View =
-        [[log(label: "observed-permissions-token-inventory-metric", expected: "77")]]
         metric_label
     if (metric_label_log != "77") {
-        [[log(label: "permissions-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "permissions-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }

@@ -12,25 +12,25 @@ procedure ColdHintAcceptanceMetricLabel(value: i32) -> string@View {
 
 public procedure RunColdHintAcceptance(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let cold_value: i32 = AttributeColdProbe(6)
-    let cold_value_log: i32 = [[log(label: "observed-attributes-cold-hint", expected: 11)]] cold_value
+    let cold_value_log: i32 = cold_value
 
-    let atr_026: string@View = [[log(label: "attributes-cold-feature-026", expected: "ATR-026")]] "ATR-026"
+    let atr_026: string@View = "ATR-026"
 
     let runtime_ok: bool = (cold_value_log == 11) && (atr_026 == "ATR-026")
-    let runtime_ok_log: bool = [[log(label: "attributes-cold-hint-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 11 } else { 0 }
     let metric_label: string@View = ColdHintAcceptanceMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-cold-hint-acceptance-metric", expected: "11")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "11") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

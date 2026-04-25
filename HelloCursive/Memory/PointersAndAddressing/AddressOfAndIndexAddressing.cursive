@@ -51,22 +51,16 @@ public procedure RunAddressOfAndIndexAddressing(ctx: Context) -> i32 {
     let raw_index_metric: i32 = unsafe { *raw_from_index }
 
     let ptr_metric_log: i32 =
-        [[log(label: "observed-memory-pointers-address-of-place-metric", expected: 9)]]
         ptr_metric
     let tuple_metric_log: i32 =
-        [[log(label: "observed-memory-pointers-tuple-addressing-metric", expected: 5)]]
         tuple_metric
     let index_metric_log: i32 =
-        [[log(label: "observed-memory-pointers-index-addressing-metric", expected: 4)]]
         index_metric
     let record_metric_log: i32 =
-        [[log(label: "observed-memory-pointers-record-field-address-metric", expected: 24)]]
         record_metric
     let nested_metric_log: i32 =
-        [[log(label: "observed-memory-pointers-nested-address-flow-metric", expected: 12)]]
         nested_metric
     let raw_index_metric_log: i32 =
-        [[log(label: "observed-memory-pointers-raw-index-address-metric", expected: 5)]]
         raw_index_metric
 
     let address_of_ok: bool = ptr_metric_log == 9
@@ -77,22 +71,16 @@ public procedure RunAddressOfAndIndexAddressing(ctx: Context) -> i32 {
     let raw_index_address_ok: bool = raw_index_metric_log == 5
 
     let address_of_ok_log: bool =
-        [[log(label: "memory-pointers-address-of-place", expected: true)]]
         address_of_ok
     let tuple_addressing_ok_log: bool =
-        [[log(label: "memory-pointers-tuple-addressing", expected: true)]]
         tuple_addressing_ok
     let index_addressing_ok_log: bool =
-        [[log(label: "memory-pointers-index-addressing", expected: true)]]
         index_addressing_ok
     let record_field_address_ok_log: bool =
-        [[log(label: "memory-pointers-record-field-addressing", expected: true)]]
         record_field_address_ok
     let nested_provenance_flow_ok_log: bool =
-        [[log(label: "memory-pointers-address-provenance-flow", expected: true)]]
         nested_provenance_flow_ok
     let raw_index_address_ok_log: bool =
-        [[log(label: "memory-pointers-raw-index-addressing", expected: true)]]
         raw_index_address_ok
 
     let metric_ok: bool =
@@ -111,15 +99,14 @@ public procedure RunAddressOfAndIndexAddressing(ctx: Context) -> i32 {
     let metric: i32 = if (metric_ok) { 57 } else { 0 }
     let metric_label: string@View = PointerAddressingMetricLabel(metric)
     let metric_log_actual: string@View =
-        [[log(label: "observed-memory-pointer-addressing-metric", expected: "57")]]
         metric_label
     if (metric_log_actual != "57") {
         let fail_marker: string@View = "memory-pointer-addressing-fail"
-        [[log(label: "memory-log-item_fail")]] fail_marker
+        fail_marker
         return 1
     }
 
     let success_marker: string@View = "memory-pointer-addressing-success"
-    [[log(label: "memory-log-memory_item_success")]] success_marker
+    success_marker
     return 0
 }

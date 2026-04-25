@@ -20,8 +20,7 @@ procedure LogSyncExpressionObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure SyncExpressionMetricLabel(value: i32) -> string@View {
     if (value == 4) {
@@ -54,36 +53,24 @@ procedure RunSyncExpressionOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifySyncExpressionOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogSyncExpressionObject(ctx.fs, scope, "sync_async_immediate", "Async<(),(),i32,!>", "constructed", "immediate async source prepared")
     LogSyncExpressionObject(ctx.fs, scope, "sync_async_yield", "Async<(),(),i32,!>", "constructed", "yielding async source prepared")
     LogSyncExpressionObject(ctx.fs, scope, "sync_async_yield_release", "Async<(),(),i32,!>", "constructed", "yield-release async source prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let sync_immediate_metric: i32 = sync SyncImmediate()
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let sync_yield_metric: i32 = sync SyncYieldOnce()
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let sync_yield_release_metric: i32 = sync SyncYieldReleaseOnce()
-    [[log(label: "operations-log-transition_move")]]
     let sync_runtime_metric: i32 = sync_immediate_metric + sync_yield_metric + sync_yield_release_metric
 
     let observed_immediate_step: string@View = "observed-sync-immediate-metric"
@@ -103,15 +90,14 @@ procedure VerifySyncExpressionOperationsItem(ctx: Context, scope: string@View, m
     let release_passed: bool = sync_yield_release_metric == 9
     let runtime_passed: bool = sync_runtime_metric == 20
 
-    let immediate_passed_log_actual = [[log(label: "observed-sync-immediate-metric", expected: "4")]] immediate_label
+    let immediate_passed_log_actual = immediate_label
     let immediate_passed_with_log: bool = immediate_passed && (immediate_passed_log_actual == immediate_label)
-    let yield_passed_log_actual = [[log(label: "observed-sync-yield-metric", expected: "7")]] yield_label
+    let yield_passed_log_actual = yield_label
     let yield_passed_with_log: bool = yield_passed && (yield_passed_log_actual == yield_label)
-    let release_passed_log_actual = [[log(label: "observed-sync-yield-release-metric", expected: "9")]] release_label
+    let release_passed_log_actual = release_label
     let release_passed_with_log: bool = release_passed && (release_passed_log_actual == release_label)
-    let runtime_passed_log_actual = [[log(label: "observed-sync-runtime-aggregate-metric", expected: "20")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunSyncExpressionOperationsItem(
             ctx,
@@ -198,6 +184,5 @@ procedure RunSyncExpressionOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

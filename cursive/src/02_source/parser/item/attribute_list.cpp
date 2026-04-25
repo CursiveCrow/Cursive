@@ -68,10 +68,6 @@ static void EmitAttrSyntaxErr(Parser& parser, const core::Span& span) {
   EmitAttrDiagById(parser, "E-MOD-2450", span);
 }
 
-static void EmitLogArgErr(Parser& parser, const core::Span& span) {
-  EmitAttrDiagById(parser, "E-MOD-2456", span);
-}
-
 // =============================================================================
 // ParseAttrArgListTail - Parse remaining attribute args after first
 // =============================================================================
@@ -80,10 +76,6 @@ ParseElemResult<std::vector<AttributeArg>> ParseAttrArgListTail(
     Parser parser, std::vector<AttributeArg> xs);
 ParseElemResult<std::vector<AttributeArg>> ParseAttrArgList(Parser parser);
 ParseElemResult<std::vector<AttributeArg>> ParseInlineArgList(Parser parser);
-ParseElemResult<AttributeArg> ParseLogArg(Parser parser);
-ParseElemResult<std::vector<AttributeArg>> ParseLogArgList(Parser parser);
-ParseElemResult<std::vector<AttributeArg>> ParseLogArgListTail(
-    Parser parser, std::vector<AttributeArg> xs);
 ParseElemResult<AttributeArg> ParseLayoutArg(Parser parser);
 ParseElemResult<std::vector<AttributeArg>> ParseLayoutArgList(Parser parser);
 ParseElemResult<std::vector<AttributeArg>> ParseLayoutArgListTail(
@@ -111,10 +103,6 @@ static bool RequiresAttrArgList(const AttrName& name) {
 
 static bool UsesInlineArgGrammar(const AttrName& name) {
   return !name.vendor_prefix_opt.has_value() && name.leaf_name == "inline";
-}
-
-static bool UsesLogArgGrammar(const AttrName& name) {
-  return !name.vendor_prefix_opt.has_value() && name.leaf_name == "log";
 }
 
 static bool UsesBareMarkerAttrGrammar(const AttrName& name) {
@@ -284,72 +272,6 @@ ParseElemResult<std::vector<AttributeArg>> ParseInlineArgList(Parser parser) {
   return {after, {arg}};
 }
 
-ParseElemResult<AttributeArg> ParseLogArg(Parser parser) {
-  AttributeArg arg;
-  SkipNewlines(parser);
-  const Token* tok = Tok(parser);
-  if (!tok) {
-    EmitAttrSyntaxErr(parser, TokSpan(parser));
-    return {parser, arg};
-  }
-
-  if (tok->kind != TokenKind::Identifier) {
-    EmitAttrSyntaxErr(parser, TokSpan(parser));
-    return {parser, arg};
-  }
-
-  ParseElemResult<Identifier> name = ParseIdent(parser);
-  Parser after_name = name.parser;
-  if (!IsPunc(after_name, ":")) {
-    EmitAttrSyntaxErr(after_name, TokSpan(after_name));
-    return {after_name, arg};
-  }
-
-  Parser after_colon = after_name;
-  Advance(after_colon);
-  SkipNewlines(after_colon);
-  const Token* value = Tok(after_colon);
-  if (!value) {
-    EmitAttrSyntaxErr(after_colon, TokSpan(after_colon));
-    return {after_colon, arg};
-  }
-
-  Parser after_value = after_colon;
-  Advance(after_value);
-
-  if (name.elem == "label") {
-    if (value->kind != TokenKind::StringLiteral) {
-      EmitLogArgErr(after_colon, TokSpan(after_colon));
-      return {after_value, arg};
-    }
-  } else if (name.elem == "expected") {
-    if (!IsLiteralToken(*value) && value->kind != TokenKind::Identifier) {
-      EmitLogArgErr(after_colon, TokSpan(after_colon));
-      return {after_value, arg};
-    }
-  } else {
-    EmitLogArgErr(parser, SpanBetween(parser, after_name));
-    return {after_value, arg};
-  }
-
-  arg.key = name.elem;
-  arg.value = *value;
-  return {after_value, arg};
-}
-
-ParseElemResult<std::vector<AttributeArg>> ParseLogArgList(Parser parser) {
-  SkipNewlines(parser);
-  if (IsPunc(parser, ")")) {
-    EmitAttrSyntaxErr(parser, TokSpan(parser));
-    return {parser, {}};
-  }
-
-  ParseElemResult<AttributeArg> first = ParseLogArg(parser);
-  std::vector<AttributeArg> xs;
-  xs.push_back(first.elem);
-  return ParseLogArgListTail(first.parser, std::move(xs));
-}
-
 ParseElemResult<AttributeArg> ParseLayoutArg(Parser parser) {
   AttributeArg arg;
   SkipNewlines(parser);
@@ -445,28 +367,6 @@ ParseElemResult<std::vector<AttributeArg>> ParseLayoutArgListTail(
   ParseElemResult<AttributeArg> arg = ParseLayoutArg(after);
   xs.push_back(arg.elem);
   return ParseLayoutArgListTail(arg.parser, std::move(xs));
-}
-
-ParseElemResult<std::vector<AttributeArg>> ParseLogArgListTail(
-    Parser parser, std::vector<AttributeArg> xs) {
-  SkipNewlines(parser);
-  if (!IsPunc(parser, ",")) {
-    return {parser, xs};
-  }
-
-  const EndSetToken end_set[] = {EndPunct(")")};
-  Parser after = parser;
-  Advance(after);
-  SkipNewlines(after);
-  if (IsPunc(after, ")")) {
-    EmitTrailingCommaErr(parser, end_set);
-    after.diags = parser.diags;
-    return {after, xs};
-  }
-
-  ParseElemResult<AttributeArg> arg = ParseLogArg(after);
-  xs.push_back(arg.elem);
-  return ParseLogArgListTail(arg.parser, std::move(xs));
 }
 
 // =============================================================================
@@ -679,8 +579,6 @@ ParseElemResult<AttributeItem> ParseAttributeItem(Parser parser) {
       item.span = SpanBetween(parser, args.parser);
       return {args.parser, item};
     }
-  } else if (UsesLogArgGrammar(item.name)) {
-    args = ParseLogArgList(after_open);
   } else {
     args = ParseAttrArgList(after_open);
   }

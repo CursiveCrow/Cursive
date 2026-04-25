@@ -10,8 +10,7 @@ procedure LogExpressionStatementObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure ExpressionStatementMetricLabel(value: i32) -> string@View {
     if (value == 3) {
@@ -40,60 +39,47 @@ procedure RunExpressionStatementItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyExpressionStatementItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogExpressionStatementObject(ctx.fs, scope, "expression_statement_syntax_slot", "i32", "constructed", "syntax expression-statement slot prepared")
     LogExpressionStatementObject(ctx.fs, scope, "expression_statement_static_slot", "i32", "constructed", "static expression-statement slot prepared")
     LogExpressionStatementObject(ctx.fs, scope, "expression_statement_runtime_slot", "i32", "constructed", "runtime expression-statement slot prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var syntax_slot: i32 = 1
     ExpressionStatementSink(syntax_slot)
     syntax_slot = syntax_slot + 2
     let syntax_metric: i32 = syntax_slot
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var static_slot: i32 = 0
     {
         static_slot = static_slot + 4
     }
     let static_metric: i32 = static_slot
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var runtime_slot: i32 = 0
     ExpressionStatementSink(runtime_slot)
     runtime_slot = runtime_slot + 5
     let runtime_metric: i32 = syntax_metric + static_metric + runtime_slot
-    [[log(label: "operations-log-transition_move")]]
     let syntax_passed: bool = syntax_metric == 3
     let static_passed: bool = static_metric == 4
     let runtime_passed: bool = runtime_metric == 12
 
     let actual_label_1: string@View = ExpressionStatementMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-expression-statement-syntax-metric", expected: "3")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = ExpressionStatementMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-expression-statement-static-metric", expected: "4")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = ExpressionStatementMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-expression-statement-runtime-metric", expected: "12")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunExpressionStatementItem(
             ctx,
@@ -180,6 +166,5 @@ procedure RunExpressionStatementOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

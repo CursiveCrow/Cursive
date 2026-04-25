@@ -11,8 +11,7 @@ procedure LogSpeculativeKeyBlockObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure SpeculativeKeyBlockMetricLabel(value: i32) -> string@View {
     if (value == 3) {
@@ -41,22 +40,17 @@ procedure RunSpeculativeKeyBlockItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifySpeculativeKeyBlockItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let diag_spec_nested_key: string@View = "E-CON-0090"
     let diag_spec_write_outside_set: string@View = "E-CON-0091"
 
@@ -66,16 +60,12 @@ procedure VerifySpeculativeKeyBlockItem(ctx: Context, scope: string@View, move i
     LogSpeculativeKeyBlockObject(ctx.fs, scope, "diag_spec_nested_key", "diagnostic-code", "constructed", "speculative nested-key diagnostic mapping prepared")
     LogSpeculativeKeyBlockObject(ctx.fs, scope, "diag_spec_write_outside_set", "diagnostic-code", "constructed", "speculative outside-key-set diagnostic mapping prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var syntax_slot: shared i32 = 2
     # syntax_slot speculative write {
         let rmw_warning_19 = syntax_slot
         syntax_slot = rmw_warning_19 + 1
     }
     let syntax_metric: i32 = syntax_slot
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var static_pair: shared SpeculativeKeyPair = SpeculativeKeyPair { left: 1, right: 2 }
     # static_pair.left, static_pair.right speculative write {
         let rmw_warning_20 = static_pair.left
@@ -84,20 +74,17 @@ procedure VerifySpeculativeKeyBlockItem(ctx: Context, scope: string@View, move i
         static_pair.right = rmw_warning_21 + 1
     }
     let static_metric: i32 = static_pair.left + static_pair.right
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     var runtime_slot: shared i32 = 4
     # runtime_slot speculative write {
         let rmw_warning_22 = runtime_slot
         runtime_slot = rmw_warning_22 + 3
     }
-    [[log(label: "operations-log-transition_move")]]
     let diag_spec_nested_key_ok: bool = diag_spec_nested_key == "E-CON-0090"
     let diag_spec_write_outside_set_ok: bool = diag_spec_write_outside_set == "E-CON-0091"
 
-    let diag_spec_nested_key_ok_log_actual = [[log(label: "diagnostic-speculative-nested-key", expected: "E-CON-0090")]] diag_spec_nested_key
+    let diag_spec_nested_key_ok_log_actual = diag_spec_nested_key
     let diag_spec_nested_key_ok_with_log: bool = diag_spec_nested_key_ok && (diag_spec_nested_key_ok_log_actual == diag_spec_nested_key)
-    let diag_spec_write_outside_set_ok_log_actual = [[log(label: "diagnostic-speculative-write-outside-set", expected: "E-CON-0091")]] diag_spec_write_outside_set
+    let diag_spec_write_outside_set_ok_log_actual = diag_spec_write_outside_set
     let diag_spec_write_outside_set_ok_with_log: bool = diag_spec_write_outside_set_ok && (diag_spec_write_outside_set_ok_log_actual == diag_spec_write_outside_set)
     let diag_count: i32 = if (diag_spec_nested_key_ok && diag_spec_write_outside_set_ok) { 2 } else { 0 }
     let runtime_metric: i32 = runtime_slot + diag_count
@@ -110,13 +97,12 @@ procedure VerifySpeculativeKeyBlockItem(ctx: Context, scope: string@View, move i
     let static_actual: string@View = SpeculativeKeyBlockMetricLabel(static_metric)
     let runtime_actual: string@View = SpeculativeKeyBlockMetricLabel(runtime_metric)
 
-    let syntax_passed_log_actual = [[log(label: "observed-speculative-key-block-syntax-metric", expected: "3")]] syntax_actual
+    let syntax_passed_log_actual = syntax_actual
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_actual)
-    let static_passed_log_actual = [[log(label: "observed-speculative-key-block-static-metric", expected: "6")]] static_actual
+    let static_passed_log_actual = static_actual
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_actual)
-    let runtime_passed_log_actual = [[log(label: "observed-speculative-key-block-runtime-metric", expected: "9")]] runtime_actual
+    let runtime_passed_log_actual = runtime_actual
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_actual)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunSpeculativeKeyBlockItem(
             ctx,
@@ -203,6 +189,5 @@ procedure RunSpeculativeKeyBlockOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

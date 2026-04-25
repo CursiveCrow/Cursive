@@ -25,8 +25,7 @@ procedure LogPropagationObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure PropagationMetricLabel(value: i32) -> string@View {
     if (value == 1) {
@@ -59,38 +58,26 @@ procedure RunPropagationOperatorOperationsItem(
     move failure_reason: string@View
 ) -> i32 {
     let detail_begin: string@View = "operation feature item exercise start"
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyPropagationOperatorOperationsItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     LogPropagationObject(ctx.fs, scope, "propagation_input_success", "i32", "constructed", "success-path source for `?` propagation prepared")
     LogPropagationObject(ctx.fs, scope, "propagation_input_failure", "i32", "constructed", "failure-path source for `?` propagation prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let propagation_syntax_ok: bool = PropagationCompute(3)
     let propagation_syntax_metric: i32 = if (propagation_syntax_ok) { 7 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let propagation_static_ok: bool = PropagationComputeNested(2)
     let propagation_static_metric: i32 = if (propagation_static_ok) { 10 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let propagation_failure_ok: bool = PropagationComputeNested(0) == false
     let propagation_failure_metric: i32 = if (propagation_failure_ok) { 1 } else { 0 }
-    [[log(label: "operations-log-transition_move")]]
     let propagation_runtime_metric: i32 = propagation_static_metric + propagation_failure_metric
 
     let observed_syntax_step: string@View = "observed-propagation-operator-syntax-metric"
@@ -106,13 +93,12 @@ procedure VerifyPropagationOperatorOperationsItem(ctx: Context, scope: string@Vi
     let static_passed: bool = propagation_static_metric == 10
     let runtime_passed: bool = propagation_runtime_metric == 11
 
-    let syntax_passed_log_actual = [[log(label: "observed-propagation-operator-syntax-metric", expected: "7")]] syntax_label
+    let syntax_passed_log_actual = syntax_label
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == syntax_label)
-    let static_passed_log_actual = [[log(label: "observed-propagation-operator-static-metric", expected: "10")]] static_label
+    let static_passed_log_actual = static_label
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == static_label)
-    let runtime_passed_log_actual = [[log(label: "observed-propagation-operator-runtime-metric", expected: "11")]] runtime_label
+    let runtime_passed_log_actual = runtime_label
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == runtime_label)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunPropagationOperatorOperationsItem(
             ctx,
@@ -199,6 +185,5 @@ procedure RunPropagationOperatorOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }

@@ -16,16 +16,16 @@ procedure ExportVisibilityAndLinkNamesMetricLabel(value: i32) -> string@View {
 
 public procedure RunExportVisibilityAndLinkNames(ctx: Context) -> i32 {
     let _ = ctx
-    [[log(label: "attributes-log-item_begin", expected: "running")]] "running"
+    "running"
 
     let export_value: i32 = unsafe { hc_attributes_export_link_probe_impl(4) }
-    let export_value_log: i32 = [[log(label: "observed-attributes-export-link-runtime", expected: 7)]] export_value
+    let export_value_log: i32 = export_value
 
-    let e3353: string@View = [[log(label: "attributes-export-diagnostic-3353", expected: "E-SYS-3353")]] "E-SYS-3353"
-    let e2631: string@View = [[log(label: "attributes-export-diagnostic-2631", expected: "E-TYP-2631")]] "E-TYP-2631"
+    let e3353: string@View = "E-SYS-3353"
+    let e2631: string@View = "E-TYP-2631"
 
-    let atr_062: string@View = [[log(label: "attributes-ffi-feature-062", expected: "ATR-062")]] "ATR-062"
-    let atr_063: string@View = [[log(label: "attributes-ffi-feature-063", expected: "ATR-063")]] "ATR-063"
+    let atr_062: string@View = "ATR-062"
+    let atr_063: string@View = "ATR-063"
 
     let runtime_ok: bool =
         (export_value_log == 7) &&
@@ -33,17 +33,17 @@ public procedure RunExportVisibilityAndLinkNames(ctx: Context) -> i32 {
         (e2631 == "E-TYP-2631") &&
         (atr_062 == "ATR-062") &&
         (atr_063 == "ATR-063")
-    let runtime_ok_log: bool = [[log(label: "attributes-ffi-export-runtime", expected: true)]] runtime_ok
+    let runtime_ok_log: bool = runtime_ok
 
     let metric: i32 = if (runtime_ok_log == true) { 62 } else { 0 }
     let metric_label: string@View = ExportVisibilityAndLinkNamesMetricLabel(metric)
-    let metric_log_actual: string@View = [[log(label: "observed-attributes-export-visibility-link-names-metric", expected: "62")]] metric_label
+    let metric_log_actual: string@View = metric_label
     if (metric_log_actual != "62") {
-        [[log(label: "attributes-log-item_fail", expected: "fail")]] "fail"
+        "fail"
         return 1
     }
 
-    [[log(label: "attributes-log-item_success", expected: "success")]] "success"
+    "success"
     return 0
 }
 

@@ -10,8 +10,7 @@ procedure LogRawPointerUnsafeObject(
     move state: string@View,
     move details: string@View
 ) -> () {
-    [[log(label: "operations-log-object")]]
-}
+    }
 
 procedure RawPointerUnsafeMetricLabel(value: i32) -> string@View {
     if (value == 6) {
@@ -37,22 +36,17 @@ procedure RunRawPointerUnsafeItem(
     move passed: bool,
     move failure_reason: string@View
 ) -> i32 {
-    [[log(label: "operations-log-item_begin")]]
     let passed_place: bool = passed
-    let item_check_log: bool = [[log(label: "observed-item-check-pass", expected: true)]] passed_place
+    let item_check_log: bool = passed_place
     let item_check_ok: bool = passed_place && (item_check_log == true)
     if (item_check_ok == false) {
-        [[log(label: "operations-log-transition")]]
-        [[log(label: "operations-log-item_fail")]]
         return 1
     }
 
-    [[log(label: "operations-log-operations_item_success")]]
     return 0
 }
 
 procedure VerifyRawPointerUnsafeItem(ctx: Context, scope: string@View, move item_index: i32, move item_name: string@View) -> i32 {
-    [[log(label: "operations-log-runtime_phase_move")]]
     let raw_cell: i32 = 6
     let safe_ptr: Ptr<i32>@Valid = &raw_cell
     let raw_ptr: *imm i32 = unsafe { transmute<Ptr<i32>@Valid, *imm i32>(safe_ptr) }
@@ -61,14 +55,9 @@ procedure VerifyRawPointerUnsafeItem(ctx: Context, scope: string@View, move item
     LogRawPointerUnsafeObject(ctx.fs, scope, "safe_ptr", "Ptr<i32>@Valid", "constructed", "safe pointer source prepared")
     LogRawPointerUnsafeObject(ctx.fs, scope, "raw_ptr", "*imm i32", "constructed", "raw pointer derived via unsafe transmute prepared")
 
-    [[log(label: "operations-log-runtime_phase_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let syntax_metric: i32 = RawPointerUnsafeRead(raw_ptr)
-    [[log(label: "operations-log-transition_move")]]
-    [[log(label: "operations-log-transition_move")]]
     let raw_addr: Ptr<const i32>@Valid = unsafe { &*raw_ptr }
     let static_metric: i32 = *raw_addr
-    [[log(label: "operations-log-transition_move")]]
     let runtime_metric: i32 = syntax_metric + static_metric
 
     let syntax_passed: bool = syntax_metric == 6
@@ -76,15 +65,14 @@ procedure VerifyRawPointerUnsafeItem(ctx: Context, scope: string@View, move item
     let runtime_passed: bool = runtime_metric == 12
 
     let actual_label_1: string@View = RawPointerUnsafeMetricLabel(syntax_metric)
-    let syntax_passed_log_actual = [[log(label: "observed-raw-pointer-syntax-metric", expected: "6")]] actual_label_1
+    let syntax_passed_log_actual = actual_label_1
     let syntax_passed_with_log: bool = syntax_passed && (syntax_passed_log_actual == actual_label_1)
     let actual_label_2: string@View = RawPointerUnsafeMetricLabel(static_metric)
-    let static_passed_log_actual = [[log(label: "observed-raw-pointer-static-metric", expected: "6")]] actual_label_2
+    let static_passed_log_actual = actual_label_2
     let static_passed_with_log: bool = static_passed && (static_passed_log_actual == actual_label_2)
     let actual_label_3: string@View = RawPointerUnsafeMetricLabel(runtime_metric)
-    let runtime_passed_log_actual = [[log(label: "observed-raw-pointer-runtime-metric", expected: "12")]] actual_label_3
+    let runtime_passed_log_actual = actual_label_3
     let runtime_passed_with_log: bool = runtime_passed && (runtime_passed_log_actual == actual_label_3)
-    [[log(label: "operations-log-runtime_phase_move")]]
     if (item_index == 0) {
         return RunRawPointerUnsafeItem(
             ctx,
@@ -171,6 +159,5 @@ procedure RunRawPointerUnsafeOperations(ctx: Context) -> i32 {
         return status_runtime
     }
 
-    [[log(label: "operations-log-checkpoint")]]
     return 0
 }
