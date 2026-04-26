@@ -67,6 +67,7 @@ static inline void SpecDefsModalDecl() {
   SPEC_DEF("T-Modal-Method-Body", "5.6");
   SPEC_DEF("T-Modal-Transition-Body", "5.6");
   SPEC_DEF("StateVisOk", "5.2.14");
+  SPEC_DEF("Methods", "14.4.3");
 }
 
 // =============================================================================
@@ -812,6 +813,32 @@ ModalDeclResult TypeModalDecl(
           "' cannot satisfy required class field '" +
           field_table.fields.front()->name + "'";
       return result;
+    }
+
+    const auto method_table = ClassMethodTable(ctx, impl_path);
+    if (!method_table.ok) {
+      result.ok = false;
+      result.diag_id = method_table.diag_id;
+      return result;
+    }
+    if (!method_table.methods.empty()) {
+      SPEC_RULE("Methods");
+    }
+    for (const auto& entry : method_table.methods) {
+      if (!entry.method) {
+        continue;
+      }
+      if (!entry.method->body_opt) {
+        SPEC_RULE("Impl-Missing-Method");
+        result.ok = false;
+        result.diag_id = "Impl-Missing-Method";
+        result.diag_detail =
+            "modal type '" + decl.name +
+            "' has no general Methods(T) entry for required class method '" +
+            entry.method->name + "'";
+        return result;
+      }
+      SPEC_RULE("Impl-Concrete-Default");
     }
 
     if (!IsModalClass(class_it->second)) {

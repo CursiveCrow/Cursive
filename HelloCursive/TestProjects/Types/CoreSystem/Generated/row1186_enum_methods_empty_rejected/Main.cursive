@@ -1,0 +1,12 @@
+class RequiresEnumGeneralMethod {
+    procedure required(~) -> i32
+}
+
+enum EmptyMethodsEnum <: RequiresEnumGeneralMethod {
+    Ready
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    return 0
+}

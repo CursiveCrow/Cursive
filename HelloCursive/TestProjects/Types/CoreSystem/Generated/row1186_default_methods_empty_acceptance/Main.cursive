@@ -1,0 +1,34 @@
+class EnumDefaultSurface {
+    procedure enum_default(~) -> i32 {
+        return 23
+    }
+}
+
+class ModalDefaultSurface {
+    procedure modal_default(~) -> i32 {
+        return 37
+    }
+}
+
+enum EmptyMethodsDefaultEnum <: EnumDefaultSurface {
+    Ready
+}
+
+modal EmptyMethodsDefaultModal <: ModalDefaultSurface {
+    @Ready {
+        value: i32
+    }
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let enum_value: EmptyMethodsDefaultEnum = EmptyMethodsDefaultEnum::Ready
+    let ready: EmptyMethodsDefaultModal@Ready =
+        EmptyMethodsDefaultModal@Ready { value: 5 }
+    let general: EmptyMethodsDefaultModal = widen(ready)
+    let metric: i32 = enum_value~>enum_default() + general~>modal_default()
+    if (metric != 60) {
+        return 1
+    }
+    return 0
+}

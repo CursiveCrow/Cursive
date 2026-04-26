@@ -13,6 +13,18 @@ public class BiasSurface {
     }
 }
 
+public class EmptyMethodsEnumDefaultSurface {
+    procedure enum_default(~) -> i32 {
+        return 23
+    }
+}
+
+public class EmptyMethodsModalDefaultSurface {
+    procedure modal_default(~) -> i32 {
+        return 37
+    }
+}
+
 public class MethodNameProjectionSurface {
     marker: i32
     type Output = i32
@@ -64,6 +76,16 @@ public record FieldNameProjectionImpl <: FieldNameProjectionSurface {
     }
 }
 
+public enum EmptyMethodsDefaultEnum <: EmptyMethodsEnumDefaultSurface {
+    Ready
+}
+
+public modal EmptyMethodsDefaultModal <: EmptyMethodsModalDefaultSurface {
+    @Ready {
+        value: i32
+    }
+}
+
 procedure LogScalarSurfaceState(
     fs: $FileSystem,
     scope: string@View,
@@ -79,6 +101,14 @@ procedure AssocMethod(surface: ScalarSurface, delta: i32) -> i32 {
 
 procedure ResolveObligation(surface: ScalarSurface, input: i32) -> i32 {
     return surface~>measure(input) + surface~>bias()
+}
+
+procedure EmptyMethodsDefaultMetric() -> i32 {
+    let enum_value: EmptyMethodsDefaultEnum = EmptyMethodsDefaultEnum::Ready
+    let ready: EmptyMethodsDefaultModal@Ready =
+        EmptyMethodsDefaultModal@Ready { value: 5 }
+    let general: EmptyMethodsDefaultModal = widen(ready)
+    return enum_value~>enum_default() + general~>modal_default()
 }
 
 procedure RunClassesImplAssocTypesItem(
@@ -138,6 +168,9 @@ procedure ClassMetricLabel(value: i32) -> string@View {
     if (value == 19) {
         return "19"
     }
+    if (value == 60) {
+        return "60"
+    }
     return "other"
 }
 
@@ -156,6 +189,7 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     LogScalarSurfaceState(ctx.fs, scope, "method_names_surface", "constructed", "method-name projection surface prepared")
     let field_names_surface: FieldNameProjectionImpl = FieldNameProjectionImpl { primary: 8, secondary: 11 }
     LogScalarSurfaceState(ctx.fs, scope, "field_names_surface", "constructed", "field-name projection surface prepared")
+    let empty_methods_default_metric: i32 = EmptyMethodsDefaultMetric()
 
     let class_decl_input: i32 = 0
     let class_decl_metric: i32 = class_decl_surface~>measure(class_decl_input)
@@ -177,6 +211,7 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     let observed_obligation_step: string@View = "observed-obligation-resolution-metric"
     let observed_method_names_step: string@View = "observed-method-names-projection-metric"
     let observed_field_names_step: string@View = "observed-field-names-projection-metric"
+    let observed_empty_methods_default_step: string@View = "observed-empty-methods-default-metric"
     let expected_declarations: string@View = "2"
     let expected_impl: string@View = "4"
     let expected_associated_type: string@View = "5"
@@ -184,6 +219,7 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     let expected_obligation: string@View = "11"
     let expected_method_names: string@View = "16"
     let expected_field_names: string@View = "19"
+    let expected_empty_methods_default: string@View = "60"
     let declarations_metric_label: string@View = ClassMetricLabel(class_decl_metric)
     let impl_metric_label: string@View = ClassMetricLabel(impl_metric)
     let associated_type_metric_label: string@View = ClassMetricLabel(assoc_metric)
@@ -191,6 +227,7 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     let obligation_metric_label: string@View = ClassMetricLabel(obligation_metric)
     let method_names_metric_label: string@View = ClassMetricLabel(method_names_metric)
     let field_names_metric_label: string@View = ClassMetricLabel(field_names_metric)
+    let empty_methods_default_label: string@View = ClassMetricLabel(empty_methods_default_metric)
     let declarations_metric_passed: bool = class_decl_metric == 2
     let impl_metric_passed: bool = impl_metric == 4
     let associated_type_metric_passed: bool = assoc_metric == 5
@@ -198,6 +235,7 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     let obligation_metric_passed: bool = obligation_metric == 11
     let method_names_metric_passed: bool = method_names_metric == 16
     let field_names_metric_passed: bool = field_names_metric == 19
+    let empty_methods_default_passed: bool = empty_methods_default_metric == 60
 
     let declarations_metric_passed_log_actual = declarations_metric_label
     let declarations_metric_passed_with_log: bool = declarations_metric_passed && (declarations_metric_passed_log_actual == expected_declarations)
@@ -213,6 +251,8 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
     let method_names_metric_passed_with_log: bool = method_names_metric_passed && (method_names_metric_passed_log_actual == expected_method_names)
     let field_names_metric_passed_log_actual = field_names_metric_label
     let field_names_metric_passed_with_log: bool = field_names_metric_passed && (field_names_metric_passed_log_actual == expected_field_names)
+    let empty_methods_default_log_actual = empty_methods_default_label
+    let empty_methods_default_passed_with_log: bool = empty_methods_default_passed && (empty_methods_default_log_actual == expected_empty_methods_default)
     if (item_index == 0) {
         return RunClassesImplAssocTypesItem(
             ctx,
@@ -332,6 +372,23 @@ procedure VerifyClassesImplAssocTypesItem(ctx: Context, scope: string@View, move
         )
     }
 
+    if (item_index == 7) {
+        return RunClassesImplAssocTypesItem(
+            ctx,
+            scope,
+            "EmptyMethodsDefaultReuse",
+            "enum and modal Methods(T) empty projection with class default methods",
+            "validated empty method-set default reuse",
+            "empty-methods-default-reuse",
+            "invoke class default methods through enum and widened modal receivers",
+            "60",
+            "60",
+            "not-60",
+            move empty_methods_default_passed_with_log,
+            "empty Methods(T) default reuse check failed"
+        )
+    }
+
     return RunClassesImplAssocTypesItem(
         ctx,
         scope,
@@ -385,6 +442,11 @@ procedure RunClassesImplAssocTypes(ctx: Context) -> i32 {
     let status_FieldNamesProjection: i32 = VerifyClassesImplAssocTypesItem(ctx, scope, 6, "FieldNamesProjection")
     if (status_FieldNamesProjection != 0) {
         return status_FieldNamesProjection
+    }
+
+    let status_EmptyMethodsDefaultReuse: i32 = VerifyClassesImplAssocTypesItem(ctx, scope, 7, "EmptyMethodsDefaultReuse")
+    if (status_EmptyMethodsDefaultReuse != 0) {
+        return status_EmptyMethodsDefaultReuse
     }
 
     return 0

@@ -51,6 +51,7 @@ static inline void SpecDefsEnumDecl() {
   SPEC_DEF("Discriminant", "5.2.14");
   SPEC_DEF("TypeInvariant", "5.2.14");
   SPEC_DEF("Impl-Ok", "5.2.14");
+  SPEC_DEF("Methods", "14.4.3");
 }
 
 // =============================================================================
@@ -383,6 +384,9 @@ EnumDeclResult TypeEnumDecl(
       return result;
     }
 
+    if (!method_table.methods.empty()) {
+      SPEC_RULE("Methods");
+    }
     for (const auto& entry : method_table.methods) {
       if (!entry.method) {
         continue;
@@ -393,6 +397,7 @@ EnumDeclResult TypeEnumDecl(
         result.diag_id = "Impl-Missing-Method";
         return result;
       }
+      SPEC_RULE("Impl-Concrete-Default");
     }
   }
 

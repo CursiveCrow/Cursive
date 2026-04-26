@@ -184,6 +184,26 @@ procedure run_row1176_class_field_method_name_conflict_rejected(ctx: Context) ->
     return testsupport::runCompileCheckCommand(ctx, command, "row1176_class_field_method_name_conflict_rejected")
 }
 
+procedure run_row1186_enum_methods_empty_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance row1186_enum_methods_empty_rejected.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_enum_methods_empty_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1186_enum_methods_empty_rejected.json 2> build\\main\\logs\\compile_checks\\row1186_enum_methods_empty_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2503\\\"\" build\\main\\logs\\compile_checks\\row1186_enum_methods_empty_rejected.json >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Methods\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_enum_methods_empty_rejected\\build\\probe\\logs\\conformance\\row1186_enum_methods_empty_rejected.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Impl-Missing-Method\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_enum_methods_empty_rejected\\build\\probe\\logs\\conformance\\row1186_enum_methods_empty_rejected.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1186_enum_methods_empty_rejected")
+}
+
+procedure run_row1186_modal_methods_empty_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance row1186_modal_methods_empty_rejected.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_modal_methods_empty_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1186_modal_methods_empty_rejected.json 2> build\\main\\logs\\compile_checks\\row1186_modal_methods_empty_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2503\\\"\" build\\main\\logs\\compile_checks\\row1186_modal_methods_empty_rejected.json >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Methods\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_modal_methods_empty_rejected\\build\\probe\\logs\\conformance\\row1186_modal_methods_empty_rejected.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Impl-Missing-Method\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_modal_methods_empty_rejected\\build\\probe\\logs\\conformance\\row1186_modal_methods_empty_rejected.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1186_modal_methods_empty_rejected")
+}
+
+procedure run_row1186_modal_class_methods_empty_rejected(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance row1186_modal_class_methods_empty_rejected.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_modal_class_methods_empty_rejected\\Main.cursive > build\\main\\logs\\compile_checks\\row1186_modal_class_methods_empty_rejected.json 2> build\\main\\logs\\compile_checks\\row1186_modal_class_methods_empty_rejected.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2503\\\"\" build\\main\\logs\\compile_checks\\row1186_modal_class_methods_empty_rejected.json >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Methods\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_modal_class_methods_empty_rejected\\build\\probe\\logs\\conformance\\row1186_modal_class_methods_empty_rejected.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Impl-Missing-Method\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_modal_class_methods_empty_rejected\\build\\probe\\logs\\conformance\\row1186_modal_class_methods_empty_rejected.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1186_modal_class_methods_empty_rejected")
+}
+
+procedure run_row1186_default_methods_empty_acceptance(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance row1186_default_methods_empty_acceptance.log ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_default_methods_empty_acceptance\\Main.cursive > build\\main\\logs\\compile_checks\\row1186_default_methods_empty_acceptance.json 2> build\\main\\logs\\compile_checks\\row1186_default_methods_empty_acceptance.stderr & if errorlevel 1 exit /b 1 & findstr /C:\"Methods\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_default_methods_empty_acceptance\\build\\probe\\logs\\conformance\\row1186_default_methods_empty_acceptance.log >nul & if errorlevel 1 exit /b 1 & findstr /C:\"Impl-Concrete-Default\" ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1186_default_methods_empty_acceptance\\build\\probe\\logs\\conformance\\row1186_default_methods_empty_acceptance.log >nul"
+    return testsupport::runCompileCheckCommand(ctx, command, "row1186_default_methods_empty_acceptance")
+}
+
 procedure run_row1189_implements_vs_supers_acceptance(ctx: Context) -> i32 {
     let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Types\\CoreSystem\\Generated\\row1189_implements_vs_supers_acceptance\\Main.cursive > build\\main\\logs\\compile_checks\\row1189_implements_vs_supers_acceptance.json 2> build\\main\\logs\\compile_checks\\row1189_implements_vs_supers_acceptance.stderr & if errorlevel 1 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "row1189_implements_vs_supers_acceptance")
@@ -418,6 +438,26 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_row1176_class_field_method_name_conflict_rejected: i32 = run_row1176_class_field_method_name_conflict_rejected(ctx)
     if (status_row1176_class_field_method_name_conflict_rejected != 0) {
         return status_row1176_class_field_method_name_conflict_rejected
+    }
+
+    let status_row1186_enum_methods_empty_rejected: i32 = run_row1186_enum_methods_empty_rejected(ctx)
+    if (status_row1186_enum_methods_empty_rejected != 0) {
+        return status_row1186_enum_methods_empty_rejected
+    }
+
+    let status_row1186_modal_methods_empty_rejected: i32 = run_row1186_modal_methods_empty_rejected(ctx)
+    if (status_row1186_modal_methods_empty_rejected != 0) {
+        return status_row1186_modal_methods_empty_rejected
+    }
+
+    let status_row1186_modal_class_methods_empty_rejected: i32 = run_row1186_modal_class_methods_empty_rejected(ctx)
+    if (status_row1186_modal_class_methods_empty_rejected != 0) {
+        return status_row1186_modal_class_methods_empty_rejected
+    }
+
+    let status_row1186_default_methods_empty_acceptance: i32 = run_row1186_default_methods_empty_acceptance(ctx)
+    if (status_row1186_default_methods_empty_acceptance != 0) {
+        return status_row1186_default_methods_empty_acceptance
     }
 
     let status_row1189_implements_vs_supers_acceptance: i32 = run_row1189_implements_vs_supers_acceptance(ctx)
