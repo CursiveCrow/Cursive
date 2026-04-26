@@ -28,6 +28,7 @@ class StaticRuleEntry:
     diag_id: str | None
     source_path: str
     premises_text: str | None
+    has_bottom_premise: bool
 
 
 def normalize_rel_path(base_path: Path, path: Path) -> str:
@@ -55,6 +56,55 @@ def write_text_if_changed(path: Path, content: str) -> bool:
         path.chmod(path.stat().st_mode | stat.S_IWRITE)
         path.write_text(content, encoding="utf-8", newline="\n")
     return True
+
+
+def check_text_matches(path: Path, content: str) -> bool:
+    if not path.exists():
+        print(f"Generated output is missing: {path}", file=sys.stderr)
+        return False
+    if path.read_text(encoding="utf-8") == content:
+        return True
+    print(f"Generated output is stale: {path}", file=sys.stderr)
+    return False
+
+
+def cpp_bool(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def has_bottom_premise(premises: list[str] | None) -> bool:
+    if premises is None:
+        return False
+    return any(premise.strip() == "⊥" for premise in premises)
+
+
+def parse_static_judgment_families(spec_path: Path) -> list[str]:
+    text = spec_path.read_text(encoding="utf-8-sig")
+    match = re.search(r"StaticJudgSet\s*=\s*(?P<body>[^\n]+)", text)
+    if match is None:
+        return []
+    return [part.strip() for part in match.group("body").split("∪") if part.strip()]
+
+
+def run_self_test() -> int:
+    cases = [
+        (["⊥"], True),
+        (["mode = ⊥"], False),
+        (["Code(DiagIdOf(J)) = ⊥"], False),
+        (["Γ ⊢ T ⇓ τ", "⊥"], True),
+        ([], False),
+        (None, False),
+    ]
+    for premises, expected in cases:
+        actual = has_bottom_premise(premises)
+        if actual != expected:
+            print(
+                f"Self-test failed for premises={premises!r}: expected {expected}, got {actual}",
+                file=sys.stderr,
+            )
+            return 1
+    print("[static-rule-registry-self-test] PASS")
+    return 0
 
 
 def parse_spec_rule_premises(spec_path: Path) -> dict[str, list[str]]:
@@ -111,17 +161,35 @@ def resolve_rule_family(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--repo-root", required=True)
+    parser.add_argument("--repo-root", default="")
     parser.add_argument("--spec-path", default="")
-    parser.add_argument("--mapping-path", required=True)
-    parser.add_argument("--output-path", required=True)
+    parser.add_argument("--mapping-path", default="")
+    parser.add_argument("--output-path", default="")
     parser.add_argument("--report-path", default="")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="validate that output-path is up to date without rewriting it",
+    )
+    parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if args.self_test:
+        return run_self_test()
+
+    if not args.repo_root:
+        print("--repo-root is required unless --self-test is used", file=sys.stderr)
+        return 1
+    if not args.mapping_path:
+        print("--mapping-path is required unless --self-test is used", file=sys.stderr)
+        return 1
+    if not args.output_path:
+        print("--output-path is required unless --self-test is used", file=sys.stderr)
+        return 1
 
     repo_root = Path(args.repo_root).resolve()
     spec_path = Path(args.spec_path).resolve() if args.spec_path else resolve_spec_path(repo_root)
@@ -141,6 +209,11 @@ def main() -> int:
 
     mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
     premises_by_rule = parse_spec_rule_premises(spec_path)
+    static_judgment_families = parse_static_judgment_families(spec_path)
+    if not static_judgment_families:
+        print("Unable to parse StaticJudgSet from canonical specification", file=sys.stderr)
+        return 1
+
     default_family = str(mapping.get("default_family", "")).strip()
     if not default_family:
         print("Mapping file missing default_family", file=sys.stderr)
@@ -165,6 +238,7 @@ def main() -> int:
     rule_to_sources: dict[str, list[str]] = {}
     family_conflicts: list[object] = []
     unmapped_rules: list[str] = []
+    unknown_families: list[object] = []
 
     for file_path in files:
         content = file_path.read_text(encoding="utf-8")
@@ -201,6 +275,7 @@ def main() -> int:
                 diag_id=diag_id,
                 source_path=source_rel,
                 premises_text=None if premises is None else "\n".join(premises),
+                has_bottom_premise=has_bottom_premise(premises),
             )
 
     invalid_source_overrides: list[str] = []
@@ -228,17 +303,35 @@ def main() -> int:
                 diag_id=entry.diag_id,
                 source_path=preferred_source,
                 premises_text=entry.premises_text,
+                has_bottom_premise=entry.has_bottom_premise,
             )
         applied_source_overrides[rule_id] = preferred_source
 
     sorted_rule_ids = sorted(rule_to_entry)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    static_judgment_family_set = set(static_judgment_families)
+    for rule_id in sorted_rule_ids:
+        entry = rule_to_entry[rule_id]
+        if entry.conclusion_family not in static_judgment_family_set:
+            unknown_families.append(
+                {
+                    "rule_id": rule_id,
+                    "family": entry.conclusion_family,
+                    "source_path": entry.source_path,
+                }
+            )
 
     lines = [
         "// Auto-generated by cursive/tools/generate_static_rule_registry.py",
         "// DO NOT EDIT MANUALLY.",
-        "static const StaticRuleMeta kStaticRules[] = {",
+        "static constexpr std::string_view kStaticJudgmentFamilies[] = {",
     ]
+    for family in static_judgment_families:
+        lines.append(f'    "{escape_cpp_string(family)}",')
+    lines.extend([
+        "};",
+        "",
+        "static const StaticRuleMeta kStaticRules[] = {",
+    ])
     for rule_id in sorted_rule_ids:
         entry = rule_to_entry[rule_id]
         diag_field = "std::nullopt"
@@ -248,16 +341,24 @@ def main() -> int:
         if entry.premises_text is not None:
             premises_field = f'std::string_view("{escape_cpp_string(entry.premises_text)}")'
         lines.append(
-            '    {{"{0}", "{1}", {2}, "{3}", {4}}},'.format(
+            '    {{"{0}", "{1}", {2}, "{3}", {4}, {5}}},'.format(
                 escape_cpp_string(entry.rule_id),
                 escape_cpp_string(entry.conclusion_family),
                 diag_field,
                 escape_cpp_string(entry.source_path),
                 premises_field,
+                cpp_bool(entry.has_bottom_premise),
             )
         )
     lines.append("};")
-    write_text_if_changed(output_path, "\n".join(lines) + "\n")
+    output_content = "\n".join(lines) + "\n"
+
+    if args.check:
+        output_current = check_text_matches(output_path, output_content)
+    else:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        write_text_if_changed(output_path, output_content)
+        output_current = True
 
     duplicate_rule_ids = []
     for rule_id in sorted_rule_ids:
@@ -274,14 +375,29 @@ def main() -> int:
     report = {
         "generated_at": datetime.now(timezone.utc).astimezone().isoformat(),
         "source_root": str(source_root),
+        "static_judgment_family_count": len(static_judgment_families),
+        "static_judgment_families": static_judgment_families,
         "rule_count": len(sorted_rule_ids),
         "unique_rule_count": len(sorted_rule_ids),
+        "rules_missing_premises": [
+            rule_id
+            for rule_id in sorted_rule_ids
+            if rule_to_entry[rule_id].premises_text is None
+        ],
+        "rules_with_bottom_premise": [
+            rule_id
+            for rule_id in sorted_rule_ids
+            if rule_to_entry[rule_id].has_bottom_premise
+        ],
         "duplicate_rule_ids": duplicate_rule_ids,
         "applied_source_overrides": applied_source_overrides,
         "invalid_source_overrides": invalid_source_overrides,
         "family_conflicts": family_conflicts,
         "unmapped_rules": unmapped_rules,
+        "unknown_static_judgment_families": unknown_families,
         "output_path": str(output_path),
+        "check_mode": args.check,
+        "output_current": output_current,
     }
 
     if report_path is not None:
@@ -296,8 +412,24 @@ def main() -> int:
             joined = ", ".join(invalid_source_overrides)
             print(f"Strict mode failed: invalid source overrides detected ({joined}).", file=sys.stderr)
             return 1
+        if unknown_families:
+            print(
+                f"Strict mode failed: unknown static judgment families detected ({len(unknown_families)}).",
+                file=sys.stderr,
+            )
+            return 1
 
-    print(f"[static-rule-registry] rules={len(sorted_rule_ids)} unmapped={len(unmapped_rules)} conflicts={len(family_conflicts)}")
+    if args.check and not output_current:
+        return 1
+
+    print(
+        "[static-rule-registry] "
+        f"rules={len(sorted_rule_ids)} "
+        f"families={len(static_judgment_families)} "
+        f"bottom_rules={len(report['rules_with_bottom_premise'])} "
+        f"unmapped={len(unmapped_rules)} "
+        f"conflicts={len(family_conflicts)}"
+    )
     return 0
 
 

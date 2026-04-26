@@ -76,6 +76,7 @@ struct StaticRuleMeta {
   std::optional<std::string_view> diag_id;
   std::string_view source_path;
   std::optional<std::string_view> premises_text;
+  bool has_bottom_premise;
 };
 
 ErrorRecoveryPolicy DefaultErrorRecoveryPolicy();

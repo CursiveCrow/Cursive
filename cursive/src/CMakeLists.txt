@@ -86,6 +86,7 @@ add_custom_target(generate_static_rule_registry
   COMMAND ${Python3_EXECUTABLE}
           "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.py"
           --repo-root "${CURSIVE_REPO_ROOT}"
+          --spec-path "${CURSIVE_DIAG_SPEC_PATH}"
           --mapping-path "${CURSIVE_STATIC_RULE_MAPPING}"
           --output-path "${CURSIVE_STATIC_RULE_REGISTRY_INC}"
           --report-path "${CURSIVE_STATIC_RULE_REGISTRY_REPORT}"
@@ -95,8 +96,33 @@ add_custom_target(generate_static_rule_registry
           "${CURSIVE_STATIC_RULE_REGISTRY_REPORT}"
   DEPENDS
           "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.py"
+          "${CURSIVE_TOOLS_DIR}/resolve_spec_path.py"
           "${CURSIVE_STATIC_RULE_MAPPING}"
+          "${CURSIVE_DIAG_SPEC_PATH}"
   COMMENT "Generating static rule registry for §1.2 conformance"
+  VERBATIM
+)
+
+add_custom_target(validate_static_rule_registry_sync
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${CURSIVE_BUILD_DIR}/logs/conformance"
+  COMMAND ${Python3_EXECUTABLE}
+          "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.py"
+          --self-test
+  COMMAND ${Python3_EXECUTABLE}
+          "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.py"
+          --repo-root "${CURSIVE_REPO_ROOT}"
+          --spec-path "${CURSIVE_DIAG_SPEC_PATH}"
+          --mapping-path "${CURSIVE_STATIC_RULE_MAPPING}"
+          --output-path "${CURSIVE_STATIC_RULE_REGISTRY_INC}"
+          --report-path "${CURSIVE_STATIC_RULE_REGISTRY_REPORT}"
+          --strict
+          --check
+  DEPENDS
+          "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.py"
+          "${CURSIVE_TOOLS_DIR}/resolve_spec_path.py"
+          "${CURSIVE_STATIC_RULE_MAPPING}"
+          "${CURSIVE_DIAG_SPEC_PATH}"
+  COMMENT "Validating static rule registry sync against canonical language spec"
   VERBATIM
 )
 
@@ -120,12 +146,19 @@ add_custom_target(generate_diagnostic_registry
 
 add_custom_target(validate_diagnostic_spec_sync
   COMMAND ${Python3_EXECUTABLE}
+          "${CURSIVE_TOOLS_DIR}/generate_diagnostic_registry.py"
+          --repo-root "${CURSIVE_REPO_ROOT}"
+          --spec-path "${CURSIVE_DIAG_SPEC_PATH}"
+          --output-registry-path "${CURSIVE_DIAG_REGISTRY_INC}"
+          --output-typecheck-map-path "${CURSIVE_TYPECHECK_DIAG_MAP_INC}"
+          --check
+  COMMAND ${Python3_EXECUTABLE}
           "${CURSIVE_TOOLS_DIR}/validate_diagnostic_spec_sync.py"
           --repo-root "${CURSIVE_REPO_ROOT}"
           --spec-path "${CURSIVE_DIAG_SPEC_PATH}"
           --registry-path "${CURSIVE_DIAG_REGISTRY_INC}"
   DEPENDS
-          generate_diagnostic_registry
+          "${CURSIVE_TOOLS_DIR}/generate_diagnostic_registry.py"
           "${CURSIVE_TOOLS_DIR}/validate_diagnostic_spec_sync.py"
           "${CURSIVE_TOOLS_DIR}/resolve_spec_path.py"
           "${CURSIVE_DIAG_SPEC_PATH}"
@@ -157,8 +190,7 @@ add_custom_target(validate_ast_phase_coverage
 )
 
 add_dependencies(cursive_core
-  generate_static_rule_registry
-  generate_diagnostic_registry
+  validate_static_rule_registry_sync
   validate_diagnostic_spec_sync
   validate_phase_includes
   validate_ast_phase_coverage

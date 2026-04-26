@@ -44,12 +44,27 @@ def read_existing_diag_map(paths: list[Path]) -> dict[str, str]:
     return result
 
 
+def check_text_matches(path: Path, content: str) -> bool:
+    if not path.exists():
+        print(f"Generated output is missing: {path}", file=sys.stderr)
+        return False
+    if path.read_text(encoding="utf-8") == content:
+        return True
+    print(f"Generated output is stale: {path}", file=sys.stderr)
+    return False
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", default="")
     parser.add_argument("--spec-path", default="")
     parser.add_argument("--output-registry-path", default="")
     parser.add_argument("--output-typecheck-map-path", default="")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="validate generated outputs are up to date without rewriting them",
+    )
     return parser.parse_args()
 
 
@@ -144,9 +159,6 @@ def main() -> int:
     ordered_rows = [rows_by_code[code] for code in sorted(rows_by_code)]
     ordered_map = sorted(map_by_diag_id.items(), key=lambda item: item[0])
 
-    output_registry_path.parent.mkdir(parents=True, exist_ok=True)
-    output_typecheck_map_path.parent.mkdir(parents=True, exist_ok=True)
-
     registry_lines = [
         "// ===========================================================================",
         "// diag_registry.inc - Diagnostic Registry (generated from canonical language spec)",
@@ -185,7 +197,7 @@ def main() -> int:
             )
         )
     registry_lines.append("};")
-    output_registry_path.write_text("\n".join(registry_lines) + "\n", encoding="utf-8", newline="\n")
+    registry_content = "\n".join(registry_lines) + "\n"
 
     typecheck_lines = [
         "// ===========================================================================",
@@ -204,7 +216,18 @@ def main() -> int:
             )
         )
     typecheck_lines.extend(["  {nullptr, nullptr},", "};"])
-    output_typecheck_map_path.write_text("\n".join(typecheck_lines) + "\n", encoding="utf-8", newline="\n")
+    typecheck_content = "\n".join(typecheck_lines) + "\n"
+
+    if args.check:
+        registry_current = check_text_matches(output_registry_path, registry_content)
+        typecheck_current = check_text_matches(output_typecheck_map_path, typecheck_content)
+        if not registry_current or not typecheck_current:
+            return 1
+    else:
+        output_registry_path.parent.mkdir(parents=True, exist_ok=True)
+        output_typecheck_map_path.parent.mkdir(parents=True, exist_ok=True)
+        output_registry_path.write_text(registry_content, encoding="utf-8", newline="\n")
+        output_typecheck_map_path.write_text(typecheck_content, encoding="utf-8", newline="\n")
 
     print(f"[diag-registry] rows={len(ordered_rows)} map_entries={len(ordered_map)}")
     return 0

@@ -44,87 +44,6 @@ namespace cursive::core {
 
 namespace {
 
-static constexpr std::string_view kStaticJudgmentFamilies[] = {
-    "WFModulePathJudg",
-    "LinkJudg",
-    "ParseJudgment",
-    "ResolvePathJudg",
-    "ResolveExprListJudg",
-    "ResolveEnumPayloadJudg",
-    "ResolveCalleeJudg",
-    "ResolveIfCaseJudg",
-    "ResolveStmtSeqJudg",
-    "TypeEqJudg",
-    "ConstLenJudg",
-    "SubtypingJudg",
-    "PermAdmitsJudg",
-    "ArgsOkTJudg",
-    "TypeInfJudg",
-    "StmtJudg",
-    "PatJudg",
-    "ExprJudg",
-    "CaseJudg",
-    "DeclJudg",
-    "BJudgment",
-    "ArgPassJudg",
-    "ProvPlaceJudg",
-    "ProvExprJudg",
-    "ProvStmtJudg",
-    "BlockProvJudg",
-    "ArgsOkJudg",
-    "TypeWFJudg",
-    "StringBytesJudg",
-    "BitcopyDropJudg",
-    "BitcopyJudg",
-    "CloneJudg",
-    "DropJudg",
-    "FfiSafeJudg",
-    "TypeRefsJudg",
-    "ValueRefsJudg",
-    "CodegenJudg",
-    "LayoutJudg",
-    "EncodeConstJudg",
-    "ValidValueJudg",
-    "RecordLayoutJudg",
-    "UnionLayoutJudg",
-    "TupleLayoutJudg",
-    "RangeLayoutJudg",
-    "EnumLayoutJudg",
-    "ModalLayoutJudg",
-    "DynLayoutJudg",
-    "ABITyJudg",
-    "ABIParamJudg",
-    "ABIRetJudg",
-    "ABICallJudg",
-    "LowerCallJudg",
-    "MangleJudg",
-    "LinkageJudg",
-    "EvalOrderJudg",
-    "LowerExprJudg",
-    "LowerStmtJudg",
-    "PatternLowerJudg",
-    "LowerBindJudg",
-    "GlobalsJudg",
-    "ConstInitJudg",
-    "CleanupJudg",
-    "RuntimeIfcJudg",
-    "DynDispatchJudg",
-    "ChecksJudg",
-    "LLVMAttrJudg",
-    "RuntimeDeclJudg",
-    "LLVMTyJudg",
-    "LLVMEmitJudg",
-    "LowerIRJudg",
-    "BindStorageJudg",
-    "LLVMCallJudg",
-    "VTableJudg",
-    "LiteralEmitJudg",
-    "BuiltinSymJudg",
-    "DropHookJudg",
-    "EntryJudg",
-    "PoisonJudg",
-};
-
 #include "generated/static_rule_registry.inc"
 
 static bool IsUpperAscii(char c) {
@@ -150,13 +69,6 @@ static bool IsDiagnosticCodeLike(std::string_view id) {
          IsDigitAscii(id[7]) &&
          IsDigitAscii(id[8]) &&
          IsDigitAscii(id[9]);
-}
-
-static bool HasBottomPremiseSignal(std::string_view rule_id) {
-  // StaticUndefined still uses a conservative name-level signal until
-  // PremisesHold/RuleId/SectionId are implemented against the full rule model.
-  return rule_id.find("Err") != std::string_view::npos ||
-         rule_id.find("Fail") != std::string_view::npos;
 }
 
 std::vector<std::string_view> SplitPremises(std::string_view premises_text) {
@@ -335,7 +247,7 @@ bool StaticUndefined(std::string_view judgment_family) {
     if (meta.conclusion_family != judgment_family) {
       continue;
     }
-    if (HasBottomPremiseSignal(meta.rule_id)) {
+    if (meta.has_bottom_premise) {
       return true;
     }
   }
