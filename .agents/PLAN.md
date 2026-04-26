@@ -1,27 +1,14 @@
----
-plan_id: "second-review-prewrite-plan-guard-2026-04-26"
-status: "completed"
-allowed_writes:
-  - path: ".agents/DIRECTIVES"
-    ops: ["create", "update"]
-  - path: ".agents/PLAN.md"
-    ops: ["create", "update"]
-  - path: ".opencode/plugins/pre-write-plan-guard.ts"
-    ops: ["create", "update"]
-completion_condition: "The directive file and OpenCode pre-write plugin are installed, and lightweight syntax validation has been attempted."
-invalidation_triggers:
-  - "OpenCode edit tool creation semantics differ from the inspected implementation."
-  - "OpenCode after-hook behavior differs from documented plugin signatures."
-  - "Validation shows the plugin no longer loads with the current project/runtime setup."
----
+# Plan: Hook Planning And Stop Cleanup
 
-# Plan
+Plan artifact status: complete
+Execution status: passed
+Timestamp: 2026-04-26T00:00:00-07:00
+Work branch: hook-planning-stop-cleanup
 
-Run a second correctness review of `.opencode/plugins/pre-write-plan-guard.ts` and
-fix defects found by adversarial inspection. Specifically verify edit-based file
-creation/deletion classification and frozen-plan closure after a successful plan
-write.
-
-Completed: fixed edit-based file creation classification, made frozen-plan cleanup
-verify actual on-disk plan closure, fixed pending closure cleanup, and re-ran syntax,
-plugin discovery, tool-definition, and expanded behavior tests.
+1. Keep full prewrite plan/directive injection only in `systemMessage`, with short visible `reason` text.
+2. Normalize missing-file and planning Stop block responses so visible `reason` is concise and detailed instructions are model-facing.
+3. Tighten planning prompt detection so implementation prompts mentioning a proposal are not misclassified as planning.
+4. Make Stop validation honor explicit Stop payload mode when available before falling back to stored prompt state.
+5. Prefer `Plan artifact status: complete` in hook instructions while accepting the existing `Plan status: complete` format for compatibility.
+6. Add regression tests for response shape, planning prompt classification, explicit Stop mode, and no duplicated block payloads.
+7. Sync the updated hook and tests to WSL and verify both installed test suites.
