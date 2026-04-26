@@ -99,7 +99,7 @@ add_custom_target(generate_static_rule_registry
           "${CURSIVE_TOOLS_DIR}/resolve_spec_path.py"
           "${CURSIVE_STATIC_RULE_MAPPING}"
           "${CURSIVE_DIAG_SPEC_PATH}"
-  COMMENT "Generating static rule registry for ง1.2 conformance"
+  COMMENT "Generating static rule registry for ยง1.2 conformance"
   VERBATIM
 )
 

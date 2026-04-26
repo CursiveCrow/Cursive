@@ -1,7 +1,7 @@
 Phase: Cross-Phase / Build Setup and Infrastructure
 Rule Name: `Subject(Γ ⊢ j)`
 Spec Location: CursiveSpecification.md:213
-Compiler Location: cursive/include/00_core/behavior_model.h; cursive/src/00_core/behavior_model.cpp; cursive/tools/generate_static_rule_registry.py; cursive/tools/generate_static_rule_registry.ps1
+Compiler Location: cursive/include/00_core/behavior_model.h; cursive/src/00_core/behavior_model.cpp; cursive/tools/generate_static_rule_registry.py
 Ambiguity: `Subject(Γ ⊢ j) = j_0 where j_0 is the leftmost term to the right of ⊢` does not define how to segment multi-token judgment subjects used elsewhere in the specification, including forms such as ``widen` e`, `e ~> m(args)`, `R record wf`, `T satisfies Bounds`, and `@result as T_variant : T_variant`. Without a formal grammar for metatheory judgments or operator/binding rules for the “leftmost term”, implementing `Subject(...)` would require invented semantics.
 ---
 Phase: Phase 1 - Parse and Aggregate
