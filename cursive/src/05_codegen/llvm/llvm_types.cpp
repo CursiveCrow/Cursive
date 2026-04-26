@@ -33,7 +33,10 @@
 
 #include "00_core/spec_trace.h"
 #include "04_analysis/layout/layout.h"
+#include "04_analysis/modal/modal.h"
 #include "05_codegen/llvm/llvm_emit.h"
+#include "05_codegen/llvm/emit/internal_helpers.h"
+#include "05_codegen/llvm/emit/llvm_emit_helpers.h"
 
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/LLVMContext.h"
@@ -572,5 +575,691 @@ llvm::Type* BuildAsyncLLVMType(LLVMEmitter& emitter,
   auto disc_type = analysis::MakeTypePrim("u8");
   return CreateTaggedStructType(emitter, disc_type, max_payload_size, max_payload_align, size);
 }
+
+using namespace emit_detail;
+
+  // T-LLVM-002: Opaque Pointer Model
+  llvm::Type *LLVMEmitter::GetOpaquePtr()
+  {
+    SPEC_DEF("OpaquePointerModel", "§6.12.2");
+    return llvm::PointerType::get(context_, 0);
+  }
+
+  // T-LLVM-007: Type Mapping
+  llvm::Type *LLVMEmitter::GetLLVMType(analysis::TypeRef type)
+  {
+    if (!type)
+    {
+      SPEC_RULE("LLVMTy-Err");
+      return llvm::Type::getVoidTy(context_);
+    }
+
+    if (type_cache_.count(type))
+    {
+      return type_cache_[type];
+    }
+
+    llvm::Type *ll_ty = nullptr;
+
+    if (current_ctx_ && current_ctx_->sigma)
+    {
+      const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+      if (const auto async_sig = analysis::AsyncSigOf(scope, type))
+      {
+        SPEC_RULE("LLVMTy-Async");
+        std::vector<analysis::TypeRef> async_args;
+        async_args.reserve(4);
+        async_args.push_back(async_sig->out);
+        async_args.push_back(async_sig->in);
+        async_args.push_back(async_sig->result);
+        async_args.push_back(async_sig->err);
+        ll_ty = BuildAsyncLLVMType(*this, async_args);
+        type_cache_[type] = ll_ty;
+        return ll_ty;
+      }
+    }
+
+    if (const auto *prim = std::get_if<analysis::TypePrim>(&type->node))
+    {
+      SPEC_RULE("LLVMTy-Prim");
+      ll_ty = GetPrimType(context_, prim->name);
+    }
+    else if (const auto *perm = std::get_if<analysis::TypePerm>(&type->node))
+    {
+      SPEC_RULE("LLVMTy-Perm");
+      ll_ty = GetLLVMType(perm->base);
+    }
+    else if (const auto *refine = std::get_if<analysis::TypeRefine>(&type->node))
+    {
+      SPEC_RULE("LLVMTy-Refine");
+      // Refinement types are representationally identical to their base type.
+      ll_ty = GetLLVMType(refine->base);
+    }
+    else if (const auto *opaque = std::get_if<analysis::TypeOpaque>(&type->node))
+    {
+      SPEC_RULE("LLVMTy-Opaque");
+      if (opaque->origin && current_ctx_ && current_ctx_->sigma)
+      {
+        const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+        const auto it = scope.sigma.opaque_underlying.find(opaque->origin);
+        if (it != scope.sigma.opaque_underlying.end() && it->second &&
+            it->second.get() != type.get())
+        {
+          ll_ty = GetLLVMType(it->second);
+        }
+      }
+      if (!ll_ty)
+      {
+        SPEC_RULE("LLVMTy-Err");
+        if (current_ctx_)
+        {
+          current_ctx_->ReportCodegenFailure();
+        }
+      }
+    }
+    else if (std::holds_alternative<analysis::TypePtr>(type->node))
+    {
+      SPEC_RULE("LLVMTy-Ptr");
+      ll_ty = GetOpaquePtr();
+    }
+    else if (std::holds_alternative<analysis::TypeRawPtr>(type->node))
+    {
+      SPEC_RULE("LLVMTy-RawPtr");
+      ll_ty = GetOpaquePtr();
+    }
+    else if (std::holds_alternative<analysis::TypeFunc>(type->node))
+    {
+      SPEC_RULE("LLVMTy-Func");
+      ll_ty = GetOpaquePtr();
+    }
+    else if (const auto *closure = std::get_if<analysis::TypeClosure>(&type->node))
+    {
+      (void)closure;
+      // Runtime closure values are lowered as a pair (env_ptr, code_ptr).
+      // Both components are represented as opaque pointers at LLVM level.
+      SPEC_RULE("LLVMTy-Tuple");
+      llvm::Type *ptr_ty = GetOpaquePtr();
+      ll_ty = llvm::StructType::get(context_, {ptr_ty, ptr_ty});
+    }
+    else if (const auto *tuple = std::get_if<analysis::TypeTuple>(&type->node))
+    {
+      SPEC_RULE("LLVMTy-Tuple");
+      if (!current_ctx_ || !current_ctx_->sigma)
+      {
+        ll_ty = llvm::StructType::get(context_, {});
+      }
+      else
+      {
+        const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+        const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, tuple->elements);
+        std::vector<llvm::Type *> elems;
+        if (layout.has_value())
+        {
+          elems = ComputeStructElements(*this, tuple->elements, layout->offsets, layout->layout.size);
+        }
+        ll_ty = llvm::StructType::get(context_, elems);
+      }
+    }
+    else if (const auto *uni = std::get_if<analysis::TypeUnion>(&type->node))
+    {
+      SPEC_RULE("LLVMTy-Union");
+      if (!current_ctx_ || !current_ctx_->sigma)
+      {
+        ll_ty = llvm::Type::getInt8Ty(context_);
+      }
+      else
+      {
+        const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+        const auto layout = ::cursive::analysis::layout::UnionLayoutOf(scope, *uni);
+        if (UnionDebugEnabled())
+        {
+          std::cerr << "[union-debug-llvmtype] union=" << analysis::TypeToString(type)
+                    << " layout=" << (layout.has_value() ? "ok" : "missing");
+          if (layout.has_value())
+          {
+            std::cerr << " niche=" << (layout->niche ? 1 : 0)
+                      << " payload_size=" << layout->payload_size;
+            if (layout->disc_type.has_value())
+            {
+              std::cerr << " disc=" << *layout->disc_type;
+            }
+          }
+          std::cerr << "\n";
+        }
+        if (layout.has_value())
+        {
+          auto is_unit_type = [](const analysis::TypeRef &member) -> bool
+          {
+            if (!member)
+            {
+              return false;
+            }
+            analysis::TypeRef stripped = analysis::StripPerm(member);
+            if (!stripped)
+            {
+              stripped = member;
+            }
+            const auto *prim = std::get_if<analysis::TypePrim>(&stripped->node);
+            return prim && prim->name == "()";
+          };
+
+          if (layout->niche)
+          {
+            analysis::TypeRef payload_member = nullptr;
+            for (const auto &member : layout->member_list)
+            {
+              if (!is_unit_type(member))
+              {
+                payload_member = member;
+                break;
+              }
+            }
+            if (payload_member)
+            {
+              ll_ty = GetLLVMType(payload_member);
+            }
+            else
+            {
+              ll_ty = llvm::Type::getInt8Ty(context_);
+            }
+          }
+          else
+          {
+            analysis::TypeRef disc_type = analysis::MakeTypePrim("u8");
+            if (layout->disc_type.has_value())
+            {
+              disc_type = analysis::MakeTypePrim(*layout->disc_type);
+            }
+            ll_ty = CreateTaggedStructType(*this,
+                                           disc_type,
+                                           layout->payload_size,
+                                           layout->payload_align,
+                                           layout->layout.size);
+          }
+        }
+      }
+    }
+    else if (const auto *path = std::get_if<analysis::TypePathType>(&type->node))
+    {
+      if (IsRuntimeHandleModalPath(path->path))
+      {
+        ll_ty = GetOpaquePtr();
+      }
+      else if (current_ctx_ && current_ctx_->sigma)
+      {
+        const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+        if (analysis::IsAsyncType(type))
+        {
+          if (const auto async_sig = analysis::GetAsyncSig(type))
+          {
+            std::vector<analysis::TypeRef> async_args;
+            async_args.reserve(4);
+            async_args.push_back(async_sig->out);
+            async_args.push_back(async_sig->in);
+            async_args.push_back(async_sig->result);
+            async_args.push_back(async_sig->err);
+            ll_ty = BuildAsyncLLVMType(*this, async_args);
+          }
+        }
+        if (const ast::RecordDecl *record = analysis::LookupRecordDecl(scope, path->path))
+        {
+          SPEC_RULE("LLVMTy-Tuple");
+          analysis::TypeSubst record_subst;
+          if (record->generic_params && !record->generic_params->params.empty())
+          {
+            if (path->generic_args.size() > record->generic_params->params.size())
+            {
+              return nullptr;
+            }
+            record_subst = analysis::BuildSubstitution(
+                record->generic_params->params,
+                path->generic_args);
+          }
+          std::vector<analysis::TypeRef> fields;
+          for (const auto &member : record->members)
+          {
+            const auto *field = std::get_if<ast::FieldDecl>(&member);
+            if (!field)
+            {
+              continue;
+            }
+            auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
+            if (lowered.has_value())
+            {
+              analysis::TypeRef field_type = *lowered;
+              if (!record_subst.empty())
+              {
+                field_type = analysis::InstantiateType(field_type, record_subst);
+              }
+              fields.push_back(field_type);
+            }
+            else
+            {
+              fields.push_back(analysis::MakeTypePrim("u8"));
+            }
+          }
+          const auto record_layout_options = ::cursive::analysis::layout::ResolveRecordLayoutOptions(record->attrs);
+          if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields, record_layout_options))
+          {
+            std::vector<llvm::Type *> elems =
+                ComputeStructElements(*this,
+                                      fields,
+                                      layout->offsets,
+                                      layout->layout.size,
+                                      layout->layout.align);
+            ll_ty = llvm::StructType::get(context_, elems, record_layout_options.packed);
+          }
+          else
+          {
+            ll_ty = llvm::StructType::get(context_, {});
+          }
+        }
+        if (!ll_ty)
+        {
+          if (const ast::EnumDecl *enum_decl = analysis::LookupEnumDecl(scope, path->path))
+          {
+            SPEC_RULE("LLVMTy-Enum");
+            if (const auto layout = ::cursive::analysis::layout::EnumLayoutOf(
+                    scope,
+                    *enum_decl,
+                    ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs)))
+            {
+              analysis::TypeRef disc_type = analysis::MakeTypePrim(layout->disc_type);
+              if (layout->payload_size == 0) {
+                ll_ty = GetLLVMType(disc_type);
+              } else {
+                ll_ty = CreateTaggedStructType(*this,
+                                               disc_type,
+                                               layout->payload_size,
+                                               layout->payload_align,
+                                               layout->layout.size);
+              }
+            }
+          }
+        }
+        if (!ll_ty)
+        {
+          ast::TypePath syntax_path;
+          syntax_path.reserve(path->path.size());
+          for (const auto &seg : path->path)
+          {
+            syntax_path.push_back(seg);
+          }
+          const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
+          if (it != scope.sigma.types.end())
+          {
+            if (const auto *alias = std::get_if<ast::TypeAliasDecl>(&it->second))
+            {
+              if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, alias->type))
+              {
+                analysis::TypeRef inst = *lowered;
+                if (alias->generic_params &&
+                    !alias->generic_params->params.empty())
+                {
+                  if (path->generic_args.size() > alias->generic_params->params.size())
+                  {
+                    return nullptr;
+                  }
+                  analysis::TypeSubst subst =
+                      analysis::BuildSubstitution(alias->generic_params->params,
+                                                  path->generic_args);
+                  inst = analysis::InstantiateType(inst, subst);
+                }
+                ll_ty = GetLLVMType(inst);
+              }
+            }
+          }
+        }
+        if (!ll_ty)
+        {
+          if (const auto builtin_layout =
+                  analysis::LookupBuiltinModalLayout(path->path))
+          {
+            ll_ty = CreateTaggedStructType(
+                *this,
+                analysis::MakeTypePrim(builtin_layout->disc_prim),
+                builtin_layout->payload_size,
+                builtin_layout->payload_align,
+                builtin_layout->size);
+          }
+        }
+        if (!ll_ty)
+        {
+          ast::TypePath syntax_path;
+          syntax_path.reserve(path->path.size());
+          for (const auto &seg : path->path)
+          {
+            syntax_path.push_back(seg);
+          }
+          const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
+          if (it != scope.sigma.types.end())
+          {
+            if (const auto *modal = std::get_if<ast::ModalDecl>(&it->second))
+            {
+              SPEC_RULE("LLVMTy-Tuple");
+              if (const auto layout = ::cursive::analysis::layout::ModalLayoutOf(scope, *modal, path->generic_args))
+              {
+                if (layout->disc_type.has_value())
+                {
+                  analysis::TypeRef disc_type = analysis::MakeTypePrim(*layout->disc_type);
+                  ll_ty = CreateTaggedStructType(*this,
+                                                 disc_type,
+                                                 layout->payload_size,
+                                                 layout->payload_align,
+                                                 layout->layout.size);
+                }
+                else
+                {
+                  ll_ty = llvm::ArrayType::get(
+                      llvm::Type::getInt8Ty(context_),
+                      static_cast<std::uint64_t>(layout->layout.size));
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    else if (const auto *modal_state = std::get_if<analysis::TypeModalState>(&type->node))
+    {
+      if (IsRuntimeHandleModalPath(modal_state->path))
+      {
+        ll_ty = GetOpaquePtr();
+      }
+      else
+      {
+        if (analysis::IsAsyncType(type))
+        {
+          if (const auto async_sig = analysis::GetAsyncSig(type))
+          {
+            std::vector<analysis::TypeRef> async_args;
+            async_args.reserve(4);
+            async_args.push_back(async_sig->out);
+            async_args.push_back(async_sig->in);
+            async_args.push_back(async_sig->result);
+            async_args.push_back(async_sig->err);
+            ll_ty = BuildAsyncLLVMType(*this, async_args);
+          }
+        }
+        if (!ll_ty)
+        {
+          if (const auto builtin_layout =
+                  analysis::LookupBuiltinModalLayout(modal_state->path))
+          {
+            ll_ty = CreateTaggedStructType(
+                *this,
+                analysis::MakeTypePrim(builtin_layout->disc_prim),
+                builtin_layout->payload_size,
+                builtin_layout->payload_align,
+                builtin_layout->size);
+          }
+        }
+        if (!ll_ty && current_ctx_ && current_ctx_->sigma)
+        {
+          const analysis::ScopeContext &scope = BuildScope(current_ctx_);
+          const ast::ModalDecl *modal_decl =
+              analysis::LookupModalDecl(scope, modal_state->path);
+          analysis::TypeSubst modal_subst;
+          if (modal_decl)
+          {
+            if (modal_decl->generic_params &&
+                !modal_decl->generic_params->params.empty())
+            {
+              if (modal_state->generic_args.size() >
+                  modal_decl->generic_params->params.size())
+              {
+                return nullptr;
+              }
+              modal_subst = analysis::BuildSubstitution(
+                  modal_decl->generic_params->params,
+                  modal_state->generic_args);
+            }
+            const ast::StateBlock *state_block = nullptr;
+            for (const auto &state : modal_decl->states)
+            {
+              if (analysis::IdEq(state.name, modal_state->state))
+              {
+                state_block = &state;
+                break;
+              }
+            }
+
+            if (state_block)
+            {
+              SPEC_RULE("LLVMTy-Tuple");
+              std::vector<analysis::TypeRef> fields;
+              for (const auto &member : state_block->members)
+              {
+                const auto *field = std::get_if<ast::StateFieldDecl>(&member);
+                if (!field)
+                {
+                  continue;
+                }
+                auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field->type);
+                if (lowered.has_value())
+                {
+                  analysis::TypeRef field_type = *lowered;
+                  if (!modal_subst.empty())
+                  {
+                    field_type = analysis::InstantiateType(field_type, modal_subst);
+                  }
+                  fields.push_back(field_type);
+                }
+                else
+                {
+                  fields.push_back(analysis::MakeTypePrim("u8"));
+                }
+              }
+              if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields))
+              {
+                std::vector<llvm::Type *> elems = ComputeStructElements(
+                    *this, fields, layout->offsets, layout->layout.size);
+                ll_ty = llvm::StructType::get(context_, elems);
+              }
+              else
+              {
+                ll_ty = llvm::StructType::get(context_, {});
+              }
+            }
+          }
+
+          if (!ll_ty && modal_decl)
+          {
+            // Fallback to general modal layout if state layout synthesis fails.
+            if (const auto layout = ::cursive::analysis::layout::ModalLayoutOf(scope, *modal_decl, modal_state->generic_args))
+            {
+              if (layout->disc_type.has_value())
+              {
+                analysis::TypeRef disc_type = analysis::MakeTypePrim(*layout->disc_type);
+                ll_ty = CreateTaggedStructType(*this,
+                                               disc_type,
+                                               layout->payload_size,
+                                               layout->payload_align,
+                                               layout->layout.size);
+              }
+              else
+              {
+                ll_ty = llvm::ArrayType::get(
+                    llvm::Type::getInt8Ty(context_),
+                    static_cast<std::uint64_t>(layout->layout.size));
+              }
+            }
+          }
+        }
+      }
+    }
+    else if (const auto *arr = std::get_if<analysis::TypeArray>(&type->node))
+    {
+      SPEC_RULE("LLVMTy-Array");
+      llvm::Type *elem_ty = GetLLVMType(arr->element);
+      ll_ty = llvm::ArrayType::get(elem_ty, arr->length);
+    }
+    else if (std::holds_alternative<analysis::TypeSlice>(type->node))
+    {
+      SPEC_RULE("LLVMTy-Slice");
+      ll_ty = GetSliceType(context_);
+    }
+    else if (const auto *str = std::get_if<analysis::TypeString>(&type->node))
+    {
+      if (str->state.has_value() && *str->state == analysis::StringState::View)
+      {
+        SPEC_RULE("LLVMTy-StringView");
+        ll_ty = GetStringViewType(context_);
+      }
+      else if (str->state.has_value() && *str->state == analysis::StringState::Managed)
+      {
+        SPEC_RULE("LLVMTy-StringManaged");
+        ll_ty = GetStringManagedType(context_);
+      }
+      else
+      {
+        SPEC_RULE("LLVMTy-Modal-StringBytes");
+        const std::uint64_t payload_size = 3 * ::cursive::analysis::layout::kPtrSize;
+        const std::uint64_t payload_align = ::cursive::analysis::layout::kPtrAlign;
+        const std::uint64_t payload_off =
+            ((1 + payload_align - 1) / payload_align) * payload_align;
+        const std::uint64_t total_size_raw = payload_off + payload_size;
+        const std::uint64_t total_size =
+            ((total_size_raw + payload_align - 1) / payload_align) * payload_align;
+        ll_ty = CreateTaggedStructType(
+            *this,
+            analysis::MakeTypePrim("u8"),
+            payload_size,
+            payload_align,
+            total_size);
+      }
+    }
+    else if (const auto *bytes = std::get_if<analysis::TypeBytes>(&type->node))
+    {
+      if (bytes->state.has_value() && *bytes->state == analysis::BytesState::View)
+      {
+        SPEC_RULE("LLVMTy-BytesView");
+        ll_ty = GetBytesViewType(context_);
+      }
+      else if (bytes->state.has_value() && *bytes->state == analysis::BytesState::Managed)
+      {
+        SPEC_RULE("LLVMTy-BytesManaged");
+        ll_ty = GetBytesManagedType(context_);
+      }
+      else
+      {
+        SPEC_RULE("LLVMTy-Modal-StringBytes");
+        const std::uint64_t payload_size = 3 * ::cursive::analysis::layout::kPtrSize;
+        const std::uint64_t payload_align = ::cursive::analysis::layout::kPtrAlign;
+        const std::uint64_t payload_off =
+            ((1 + payload_align - 1) / payload_align) * payload_align;
+        const std::uint64_t total_size_raw = payload_off + payload_size;
+        const std::uint64_t total_size =
+            ((total_size_raw + payload_align - 1) / payload_align) * payload_align;
+        ll_ty = CreateTaggedStructType(
+            *this,
+            analysis::MakeTypePrim("u8"),
+            payload_size,
+            payload_align,
+            total_size);
+      }
+    }
+    else if (std::holds_alternative<analysis::TypeDynamic>(type->node))
+    {
+      SPEC_RULE("LLVMTy-Dynamic");
+      ll_ty = GetDynamicType(context_);
+    }
+    else if (analysis::IsRangeType(type))
+    {
+      analysis::TypeRef stripped = type;
+      while (stripped)
+      {
+        if (const auto *perm = std::get_if<analysis::TypePerm>(&stripped->node))
+        {
+          stripped = perm->base;
+          continue;
+        }
+        if (const auto *refine = std::get_if<analysis::TypeRefine>(&stripped->node))
+        {
+          stripped = refine->base;
+          continue;
+        }
+        break;
+      }
+
+      std::vector<analysis::TypeRef> fields;
+      if (const auto *range = stripped ? std::get_if<analysis::TypeRange>(&stripped->node)
+                                       : nullptr)
+      {
+        SPEC_RULE("LLVMTy-Range");
+        fields.push_back(range->base);
+        fields.push_back(range->base);
+      }
+      else if (const auto *range = stripped ? std::get_if<analysis::TypeRangeInclusive>(&stripped->node)
+                                            : nullptr)
+      {
+        SPEC_RULE("LLVMTy-RangeInclusive");
+        fields.push_back(range->base);
+        fields.push_back(range->base);
+      }
+      else if (const auto *range = stripped ? std::get_if<analysis::TypeRangeFrom>(&stripped->node)
+                                            : nullptr)
+      {
+        SPEC_RULE("LLVMTy-RangeFrom");
+        fields.push_back(range->base);
+      }
+      else if (const auto *range = stripped ? std::get_if<analysis::TypeRangeTo>(&stripped->node)
+                                            : nullptr)
+      {
+        SPEC_RULE("LLVMTy-RangeTo");
+        fields.push_back(range->base);
+      }
+      else if (const auto *range =
+                   stripped ? std::get_if<analysis::TypeRangeToInclusive>(&stripped->node)
+                            : nullptr)
+      {
+        SPEC_RULE("LLVMTy-RangeToInclusive");
+        fields.push_back(range->base);
+      }
+      else if (stripped &&
+               std::holds_alternative<analysis::TypeRangeFull>(stripped->node))
+      {
+        SPEC_RULE("LLVMTy-RangeFull");
+      }
+
+      if (fields.empty())
+      {
+        ll_ty = llvm::StructType::get(context_, {});
+      }
+      else
+      {
+        const analysis::ScopeContext scope = BuildScope(current_ctx_);
+        if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields))
+        {
+          std::vector<llvm::Type *> elems = ComputeStructElements(
+              *this, fields, layout->offsets, layout->layout.size);
+          ll_ty = llvm::StructType::get(context_, elems);
+        }
+        else
+        {
+          std::vector<llvm::Type *> elems;
+          elems.reserve(fields.size());
+          for (const auto &field : fields)
+          {
+            elems.push_back(GetLLVMType(field));
+          }
+          ll_ty = llvm::StructType::get(context_, elems);
+        }
+      }
+    }
+    else
+    {
+      SPEC_RULE("LLVMTy-Err");
+      ll_ty = llvm::Type::getInt8Ty(context_);
+    }
+
+    if (!ll_ty)
+    {
+      ll_ty = llvm::Type::getInt8Ty(context_);
+    }
+
+    type_cache_[type] = ll_ty;
+    return ll_ty;
+  }
 
 }  // namespace cursive::codegen

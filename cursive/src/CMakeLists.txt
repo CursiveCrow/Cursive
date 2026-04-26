@@ -96,7 +96,7 @@ add_custom_target(generate_static_rule_registry
   DEPENDS
           "${CURSIVE_TOOLS_DIR}/generate_static_rule_registry.py"
           "${CURSIVE_STATIC_RULE_MAPPING}"
-  COMMENT "Generating static rule registry for ยง1.2 conformance"
+  COMMENT "Generating static rule registry for ง1.2 conformance"
   VERBATIM
 )
 
@@ -660,8 +660,67 @@ add_library(cursive_codegen STATIC
   05_codegen/llvm/llvm_call.cpp
   05_codegen/llvm/llvm_emit.cpp
   05_codegen/llvm/emit/emitter_state.cpp
+  05_codegen/llvm/emit/entry_emit.cpp
   05_codegen/llvm/emit/global_emit.cpp
+  05_codegen/llvm/emit/hosted_emit.cpp
+  05_codegen/llvm/emit/ir_emit.cpp
+  05_codegen/llvm/emit/ir_instruction_visitor.cpp
+  05_codegen/llvm/emit/ir/control/block.cpp
+  05_codegen/llvm/emit/ir/control/branch_phi.cpp
+  05_codegen/llvm/emit/ir/control/break_continue.cpp
+  05_codegen/llvm/emit/ir/control/defer_state.cpp
+  05_codegen/llvm/emit/ir/control/frame.cpp
+  05_codegen/llvm/emit/ir/control/if.cpp
+  05_codegen/llvm/emit/ir/control/if_case.cpp
+  05_codegen/llvm/emit/ir/control/loop.cpp
+  05_codegen/llvm/emit/ir/control/opaque.cpp
+  05_codegen/llvm/emit/ir/control/region.cpp
+  05_codegen/llvm/emit/ir/control/result.cpp
+  05_codegen/llvm/emit/ir/control/return.cpp
+  05_codegen/llvm/emit/ir/control/seq.cpp
+  05_codegen/llvm/emit/ir/memory/addr_of.cpp
+  05_codegen/llvm/emit/ir/memory/bind_var.cpp
+  05_codegen/llvm/emit/ir/memory/place.cpp
+  05_codegen/llvm/emit/ir/memory/ptr.cpp
+  05_codegen/llvm/emit/ir/memory/read_path.cpp
+  05_codegen/llvm/emit/ir/memory/read_var.cpp
+  05_codegen/llvm/emit/ir/memory/store_global.cpp
+  05_codegen/llvm/emit/ir/memory/store_var.cpp
+  05_codegen/llvm/emit/ir/checks/check_cast.cpp
+  05_codegen/llvm/emit/ir/checks/check_index.cpp
+  05_codegen/llvm/emit/ir/checks/check_op.cpp
+  05_codegen/llvm/emit/ir/checks/check_poison.cpp
+  05_codegen/llvm/emit/ir/checks/check_range.cpp
+  05_codegen/llvm/emit/ir/checks/check_slice_len.cpp
+  05_codegen/llvm/emit/ir/checks/panic.cpp
+  05_codegen/llvm/emit/ir/async/all.cpp
+  05_codegen/llvm/emit/ir/async/async_complete.cpp
+  05_codegen/llvm/emit/ir/async/async_fail.cpp
+  05_codegen/llvm/emit/ir/async/cancellation.cpp
+  05_codegen/llvm/emit/ir/async/dispatch.cpp
+  05_codegen/llvm/emit/ir/async/parallel.cpp
+  05_codegen/llvm/emit/ir/async/race_return.cpp
+  05_codegen/llvm/emit/ir/async/race_yield.cpp
+  05_codegen/llvm/emit/ir/async/spawn.cpp
+  05_codegen/llvm/emit/ir/async/speculation.cpp
+  05_codegen/llvm/emit/ir/async/sync.cpp
+  05_codegen/llvm/emit/ir/async/wait.cpp
+  05_codegen/llvm/emit/ir/async/yield.cpp
+  05_codegen/llvm/emit/ir/async/yield_from.cpp
+  05_codegen/llvm/emit/ir/ops/alloc.cpp
+  05_codegen/llvm/emit/ir/ops/binary.cpp
+  05_codegen/llvm/emit/ir/ops/cast.cpp
+  05_codegen/llvm/emit/ir/ops/context_bundle.cpp
+  05_codegen/llvm/emit/ir/ops/fence.cpp
+  05_codegen/llvm/emit/ir/ops/transmute.cpp
+  05_codegen/llvm/emit/ir/ops/unary.cpp
+  05_codegen/llvm/emit/ir/call/direct.cpp
+  05_codegen/llvm/emit/ir/call/vtable.cpp
+  05_codegen/llvm/emit/ir_storage_emit.cpp
+  05_codegen/llvm/emit/ir/value/evaluate.cpp
+  05_codegen/llvm/emit/llvm_emit_helpers.cpp
   05_codegen/llvm/emit/module_emit.cpp
+  05_codegen/llvm/emit/proc_emit.cpp
   05_codegen/llvm/llvm_ir_panic.cpp
   05_codegen/llvm/llvm_module.cpp
   05_codegen/llvm/llvm_passes.cpp

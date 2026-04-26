@@ -9,7 +9,6 @@
 
 #include "01_project/target_profile.h"
 #include "05_codegen/ir/ir_model.h"
-#include "05_codegen/abi/abi.h"
 #include "05_codegen/llvm/llvm_attr.h"
 #include "05_codegen/lower/lower_expr.h"
 
@@ -30,23 +29,6 @@ namespace llvm {
 }
 
 namespace cursive::codegen {
-
-enum class ABIArgCarrierKind {
-    Direct,
-    Indirect,
-};
-
-struct ABICallResult {
-    llvm::FunctionType* func_type = nullptr;
-    std::vector<llvm::Type*> param_types;
-    std::vector<AttrSet> llvm_param_attrs;
-    llvm::Type* ret_type = nullptr;
-    bool has_sret = false;
-    bool valid = false;
-    std::vector<PassKind> param_kinds;
-    std::vector<std::optional<unsigned>> param_indices;
-    std::vector<ABIArgCarrierKind> param_carriers;
-};
 
 struct AsyncEmitState {
   const LowerCtx::AsyncProcInfo* info = nullptr;
@@ -104,20 +86,6 @@ public:
   // Ownership transfer
   std::unique_ptr<llvm::Module> ReleaseModule();
   
-  // T-LLVM-011: Call ABI
-  ABICallResult ComputeCallABI(const std::vector<IRParam>& params,
-                               analysis::TypeRef ret_type,
-                               bool use_c_abi_aggregate_sret = false,
-                               bool foreign_boundary_mode_independent = false);
-  ABICallResult ComputeProcABI(const std::string& symbol,
-                               const std::vector<IRParam>& params,
-                               analysis::TypeRef ret_type,
-                               bool use_c_abi_aggregate_sret = false,
-                               bool foreign_boundary_mode_independent = false);
-
-
-
-
   // Builder access (needs casting in impl)
   void* GetBuilderRaw() { return builder_.get(); }
   
@@ -267,21 +235,6 @@ public:
   llvm::BasicBlock* CurrentLoopContinueTarget() const;
   llvm::Value* CurrentLoopBreakValueSlot() const;
   analysis::TypeRef CurrentLoopBreakResultType() const;
-
-  // T-LLVM-004: Checked Arithmetic (UB/Poison Avoidance)
-  llvm::Value* EmitCheckedAdd(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
-  llvm::Value* EmitCheckedSub(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
-  llvm::Value* EmitCheckedMul(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
-  llvm::Value* EmitCheckedDiv(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
-  llvm::Value* EmitCheckedRem(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
-  llvm::Value* EmitCheckedShl(llvm::Value* lhs, llvm::Value* rhs);
-  llvm::Value* EmitCheckedShr(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
-
-  // T-LLVM-005: Memory Intrinsics
-  void EmitMemCpy(llvm::Value* dst, llvm::Value* src, llvm::Value* size, uint64_t align = 1);
-  void EmitMemSet(llvm::Value* dst, llvm::Value* val, llvm::Value* size, uint64_t align = 1);
-  void EmitMemMove(llvm::Value* dst, llvm::Value* src, llvm::Value* size, uint64_t align = 1);
-
 
 private:
   llvm::LLVMContext& context_;

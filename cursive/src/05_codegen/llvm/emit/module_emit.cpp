@@ -208,7 +208,7 @@ using namespace emit_detail;
       if (auto *proc = std::get_if<ProcIR>(&decl))
       {
         ++pass1_proc_count;
-        ABICallResult abi = ComputeProcABI(proc->symbol, proc->params, proc->ret);
+        ABICallResult abi = ComputeProcABI(*this, proc->symbol, proc->params, proc->ret);
         llvm::GlobalValue::LinkageTypes linkage =
             ProcLLVMLinkageFor(current_ctx_, proc->symbol);
         if (!abi.valid || !abi.func_type)
@@ -284,6 +284,7 @@ using namespace emit_detail;
         // Extern procedures always cross a foreign ABI boundary. Aggregate
         // returns must therefore follow platform C ABI lowering.
         ABICallResult abi = ComputeCallABI(
+            *this,
             ext->params,
             ext->ret,
             /*use_c_abi_aggregate_sret=*/true,

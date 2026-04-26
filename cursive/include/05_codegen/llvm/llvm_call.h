@@ -33,6 +33,23 @@ namespace cursive::codegen {
 class LLVMEmitter;
 struct LowerCtx;
 
+enum class ABIArgCarrierKind {
+    Direct,
+    Indirect,
+};
+
+struct ABICallResult {
+    llvm::FunctionType* func_type = nullptr;
+    std::vector<llvm::Type*> param_types;
+    std::vector<AttrSet> llvm_param_attrs;
+    llvm::Type* ret_type = nullptr;
+    bool has_sret = false;
+    bool valid = false;
+    std::vector<PassKind> param_kinds;
+    std::vector<std::optional<unsigned>> param_indices;
+    std::vector<ABIArgCarrierKind> param_carriers;
+};
+
 // =============================================================================
 // §6.12.9 LLVM Call Signature Lowering
 // =============================================================================
@@ -40,8 +57,7 @@ struct LowerCtx;
 // LLVMCallSig(params, R) ⇓ sig
 // Maps Cursive procedure signatures to LLVM function types with ABI lowering
 
-// Result of LLVM call signature computation (extends ABICallResult in llvm_emit.h)
-// ABICallResult is already declared in llvm_emit.h, additional helpers here
+// Result of LLVM call signature computation.
 
 // -----------------------------------------------------------------------------
 // Call ABI Helpers
@@ -127,6 +143,19 @@ std::optional<std::vector<llvm::Type*>> ComputeLLVMParamTypes(
 std::optional<llvm::Type*> ComputeLLVMReturnType(LLVMEmitter& emitter,
                                                  const analysis::TypeRef& ret_type,
                                                  PassKind ret_kind);
+
+ABICallResult ComputeCallABI(LLVMEmitter& emitter,
+                             const std::vector<IRParam>& params,
+                             analysis::TypeRef ret_type,
+                             bool use_c_abi_aggregate_sret = false,
+                             bool foreign_boundary_mode_independent = false);
+
+ABICallResult ComputeProcABI(LLVMEmitter& emitter,
+                             const std::string& symbol,
+                             const std::vector<IRParam>& params,
+                             analysis::TypeRef ret_type,
+                             bool use_c_abi_aggregate_sret = false,
+                             bool foreign_boundary_mode_independent = false);
 
 // -----------------------------------------------------------------------------
 // Call Emission

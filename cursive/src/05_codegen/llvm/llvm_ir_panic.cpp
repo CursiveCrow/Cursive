@@ -36,6 +36,7 @@
 #include "04_analysis/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
 #include "05_codegen/llvm/emit/internal_helpers.h"
+#include "05_codegen/llvm/emit/llvm_emit_helpers.h"
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -758,6 +759,66 @@ void RestoreDeinitPanicIfAny(LLVMEmitter& emitter,
 
   builder->SetInsertPoint(cont_bb);
 }
+
+using namespace emit_detail;
+
+  void LLVMEmitter::EmitPoisonCheck(const std::string &module_name)
+  {
+    SPEC_RULE("LowerIRDecl-PoisonCheck");
+    auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
+    if (!builder || !builder->GetInsertBlock() ||
+        builder->GetInsertBlock()->getTerminator())
+    {
+      return;
+    }
+
+    const auto module_path = SplitModulePathString(module_name);
+    llvm::Value *flag_ptr = GetPoisonFlagPtr(*this, module_path);
+    if (!flag_ptr)
+    {
+      if (current_ctx_)
+      {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Type *bool_ty = GetLLVMType(analysis::MakeTypePrim("bool"));
+    if (!bool_ty)
+    {
+      if (current_ctx_)
+      {
+        current_ctx_->ReportCodegenFailure();
+      }
+      return;
+    }
+
+    llvm::Value *poisoned = builder->CreateLoad(bool_ty, flag_ptr);
+    llvm::Function *func = builder->GetInsertBlock()->getParent();
+    llvm::BasicBlock *panic_bb =
+        llvm::BasicBlock::Create(context_, "poison.take", func);
+    llvm::BasicBlock *cont_bb =
+        llvm::BasicBlock::Create(context_, "poison.cont", func);
+    builder->CreateCondBr(AsBool(builder, poisoned), panic_bb, cont_bb);
+
+    builder->SetInsertPoint(panic_bb);
+    StorePanicRecord(*this, builder, PanicCode(PanicReason::InitPanic));
+    if (current_ctx_)
+    {
+      CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(*current_ctx_);
+      IRPtr cleanup_ir = EmitCleanupOnPanic(cleanup_plan, *current_ctx_);
+      if (cleanup_ir)
+      {
+        EmitIR(cleanup_ir);
+      }
+    }
+    if (!builder->GetInsertBlock()->getTerminator())
+    {
+      EmitReturn(*this, builder);
+    }
+
+    builder->SetInsertPoint(cont_bb);
+  }
 
 }  // namespace cursive::codegen
 

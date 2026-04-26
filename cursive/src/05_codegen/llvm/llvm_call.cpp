@@ -129,6 +129,30 @@ analysis::TypeRef LoweredByRefWrapperType(const analysis::TypeRef& type) {
   return nullptr;
 }
 
+bool IsForeignAbiAggregateLLVMType(llvm::Type* ty) {
+  return ty && (ty->isStructTy() || ty->isArrayTy());
+}
+
+bool IsWin64CAbiAggregateDirectSize(std::uint64_t size) {
+  return size == 1 || size == 2 || size == 4 || size == 8;
+}
+
+llvm::Type* Win64CAbiDirectAggregateCarrier(llvm::LLVMContext& ctx,
+                                            std::uint64_t size) {
+  switch (size) {
+    case 1:
+      return llvm::Type::getInt8Ty(ctx);
+    case 2:
+      return llvm::Type::getInt16Ty(ctx);
+    case 4:
+      return llvm::Type::getInt32Ty(ctx);
+    case 8:
+      return llvm::Type::getInt64Ty(ctx);
+    default:
+      return nullptr;
+  }
+}
+
 }  // namespace
 
 AttrSet ComputeLoweredParamAttrs(const std::string& param_name,
@@ -492,7 +516,8 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
 
   auto* builder = static_cast<llvm::IRBuilder<>*>(builder_base);
 
-  ABICallResult abi = emitter.ComputeCallABI(
+  ABICallResult abi = ComputeCallABI(
+      emitter,
       params,
       ret_type,
       use_c_abi_aggregate_sret,
@@ -1150,10 +1175,201 @@ bool IsExternC(std::string_view symbol) {
 }
 
 // -----------------------------------------------------------------------------
-// Procedure ABI Wrapper
+// Procedure ABI Lowering
 // -----------------------------------------------------------------------------
 
-  ABICallResult LLVMEmitter::ComputeProcABI(
+ABICallResult ComputeCallABI(LLVMEmitter& emitter,
+                             const std::vector<IRParam>& params,
+                             analysis::TypeRef ret_type,
+                             bool use_c_abi_aggregate_sret,
+                             bool foreign_boundary_mode_independent) {
+  SPEC_RULE("LLVMCall-ByValue");
+  SPEC_RULE("LLVMCall-SRet");
+
+  ABICallResult result;
+  LowerCtx* current_ctx = emitter.GetCurrentCtx();
+  const analysis::ScopeContext& scope = BuildScope(current_ctx);
+  auto invalidate = [&]() -> ABICallResult {
+    if (current_ctx) {
+      current_ctx->ReportCodegenFailure();
+    }
+    return result;
+  };
+
+  std::vector<std::pair<std::optional<analysis::ParamMode>, analysis::TypeRef>>
+      abi_params;
+  abi_params.reserve(params.size());
+  for (const auto& param : params) {
+    abi_params.push_back({param.mode, param.type});
+  }
+
+  const auto param_policy =
+      foreign_boundary_mode_independent
+          ? ABIParamPolicy::ForeignBoundary
+          : ABIParamPolicy::ModeAware;
+  const auto call_info = ABICall(scope, abi_params, ret_type, param_policy);
+  if (!call_info.has_value()) {
+    SPEC_RULE("LLVMCall-Err");
+    llvm::Function* debug_func = nullptr;
+    auto* debug_builder =
+        static_cast<llvm::IRBuilder<>*>(emitter.GetBuilderRaw());
+    if (debug_builder && debug_builder->GetInsertBlock()) {
+      debug_func = debug_builder->GetInsertBlock()->getParent();
+    }
+    std::cerr << "[cursive] ABICall failed in "
+              << (debug_func ? debug_func->getName().str()
+                             : std::string("<no-func>"))
+              << " ret_null=" << (ret_type ? 0 : 1)
+              << " param_count=" << params.size()
+              << " ret_type="
+              << (ret_type ? analysis::TypeToString(ret_type)
+                           : std::string("<null>"))
+              << "\n";
+    for (std::size_t i = 0; i < params.size(); ++i) {
+      const int mode_tag =
+          params[i].mode.has_value() ? static_cast<int>(*params[i].mode) : -1;
+      std::cerr << "[cursive]   param[" << i << "] mode=" << mode_tag
+                << " type_null=" << (params[i].type ? 0 : 1)
+                << " type="
+                << (params[i].type ? analysis::TypeToString(params[i].type)
+                                   : std::string("<null>"))
+                << "\n";
+    }
+    if (current_ctx) {
+      current_ctx->ReportCodegenFailure();
+    }
+    return result;
+  }
+
+  result.param_kinds = call_info->param_kinds;
+  result.param_carriers.assign(params.size(), ABIArgCarrierKind::Direct);
+
+  const bool win64_foreign_abi =
+      use_c_abi_aggregate_sret &&
+      emitter.GetTargetProfile() == project::TargetProfile::X86_64Win64;
+
+  bool c_abi_sret = false;
+  if (win64_foreign_abi && ret_type) {
+    const auto ret_size = ::cursive::analysis::layout::SizeOf(scope, ret_type);
+    llvm::Type* ret_ll = emitter.GetLLVMType(ret_type);
+    if (ret_size.has_value() && *ret_size > 0 &&
+        IsForeignAbiAggregateLLVMType(ret_ll) &&
+        !IsWin64CAbiAggregateDirectSize(*ret_size)) {
+      c_abi_sret = true;
+    }
+  }
+
+  result.has_sret = call_info->has_sret || c_abi_sret;
+  llvm::Type* sret_storage_ty =
+      ret_type ? emitter.GetLLVMType(ret_type) : nullptr;
+
+  if (result.has_sret) {
+    SPEC_RULE("LLVMRetLower-SRet");
+    if (!sret_storage_ty || sret_storage_ty->isVoidTy()) {
+      SPEC_RULE("LLVMRetLower-Err");
+      return invalidate();
+    }
+    result.ret_type = llvm::Type::getVoidTy(emitter.GetContext());
+  } else {
+    const auto size = ::cursive::analysis::layout::SizeOf(scope, ret_type);
+    if (!size.has_value()) {
+      SPEC_RULE("LLVMRetLower-Err");
+      return invalidate();
+    }
+    if (*size == 0) {
+      SPEC_RULE("LLVMRetLower-ByValue-ZST");
+      result.ret_type = llvm::Type::getVoidTy(emitter.GetContext());
+    } else {
+      SPEC_RULE("LLVMRetLower-ByValue");
+      result.ret_type = emitter.GetLLVMType(ret_type);
+      if (win64_foreign_abi && ret_type) {
+        const auto ret_size =
+            ::cursive::analysis::layout::SizeOf(scope, ret_type);
+        if (ret_size.has_value() && *ret_size > 0 &&
+            IsForeignAbiAggregateLLVMType(result.ret_type)) {
+          if (llvm::Type* carrier =
+                  Win64CAbiDirectAggregateCarrier(emitter.GetContext(),
+                                                  *ret_size)) {
+            result.ret_type = carrier;
+          } else {
+            result.ret_type = llvm::Type::getVoidTy(emitter.GetContext());
+          }
+        }
+      }
+      if (!result.ret_type) {
+        SPEC_RULE("LLVMRetLower-Err");
+        return invalidate();
+      }
+    }
+  }
+
+  result.param_indices.assign(params.size(), std::nullopt);
+
+  if (result.has_sret) {
+    result.param_types.push_back(emitter.GetOpaquePtr());
+    result.llvm_param_attrs.push_back(
+        ComputeSRetParamAttrs(ret_type, sret_storage_ty, current_ctx));
+  }
+
+  unsigned llvm_index = result.has_sret ? 1u : 0u;
+  for (std::size_t i = 0; i < params.size(); ++i) {
+    if (i >= result.param_kinds.size()) {
+      break;
+    }
+
+    const auto kind = result.param_kinds[i];
+    if (kind == PassKind::ByRef) {
+      SPEC_RULE("LLVMArgLower-ByRef");
+      result.param_types.push_back(emitter.GetOpaquePtr());
+      result.llvm_param_attrs.push_back(
+          ComputeLoweredParamAttrs(params[i].name,
+                                   params[i].type,
+                                   kind,
+                                   current_ctx));
+      result.param_indices[i] = llvm_index++;
+      result.param_carriers[i] = ABIArgCarrierKind::Indirect;
+      continue;
+    }
+
+    const auto size = ::cursive::analysis::layout::SizeOf(scope, params[i].type);
+    if (!size.has_value()) {
+      SPEC_RULE("LLVMArgLower-Err");
+      return invalidate();
+    }
+    if (*size == 0) {
+      result.param_indices[i] = std::nullopt;
+      continue;
+    }
+
+    llvm::Type* llvm_ty = emitter.GetLLVMType(params[i].type);
+    if (win64_foreign_abi && llvm_ty &&
+        IsForeignAbiAggregateLLVMType(llvm_ty)) {
+      if (llvm::Type* carrier =
+              Win64CAbiDirectAggregateCarrier(emitter.GetContext(), *size)) {
+        llvm_ty = carrier;
+      } else {
+        llvm_ty = emitter.GetOpaquePtr();
+        result.param_carriers[i] = ABIArgCarrierKind::Indirect;
+      }
+    }
+    if (!llvm_ty) {
+      SPEC_RULE("LLVMArgLower-Err");
+      return invalidate();
+    }
+    result.param_types.push_back(llvm_ty);
+    result.llvm_param_attrs.push_back(
+        ComputeLoweredParamAttrs(params[i].name, params[i].type, kind, current_ctx));
+    result.param_indices[i] = llvm_index++;
+  }
+
+  result.func_type =
+      llvm::FunctionType::get(result.ret_type, result.param_types, false);
+  result.valid = true;
+  return result;
+}
+
+ABICallResult ComputeProcABI(
+      LLVMEmitter& emitter,
       const std::string &symbol,
       const std::vector<IRParam> &params,
       analysis::TypeRef ret_type,
@@ -1161,12 +1377,13 @@ bool IsExternC(std::string_view symbol) {
       bool foreign_boundary_mode_independent)
   {
     std::vector<IRParam> augmented = params;
-    if (RequiresHostedEnvParam(symbol) && !emit_detail::HasLeadingHostedEnvParam(augmented))
+    if (emitter.RequiresHostedEnvParam(symbol) && !emit_detail::HasLeadingHostedEnvParam(augmented))
     {
       augmented.insert(augmented.begin(), HostedEnvParam());
     }
+    LowerCtx* current_ctx = emitter.GetCurrentCtx();
     const bool needs_panic_out =
-        current_ctx_ ? current_ctx_->NeedsPanicOutForSymbol(symbol)
+        current_ctx ? current_ctx->NeedsPanicOutForSymbol(symbol)
                      : NeedsPanicOut(symbol);
     if (needs_panic_out &&
         (augmented.empty() || augmented.back().name != std::string(kPanicOutName)))
@@ -1176,16 +1393,16 @@ bool IsExternC(std::string_view symbol) {
 
     analysis::TypeRef abi_ret = ret_type;
     if (const LowerCtx::AsyncProcInfo *async_info =
-            current_ctx_ ? current_ctx_->LookupAsyncProc(symbol) : nullptr;
+            current_ctx ? current_ctx->LookupAsyncProc(symbol) : nullptr;
         async_info && async_info->is_resume &&
         emit_detail::HasNamedParam(augmented, kAsyncOutParamName))
     {
       abi_ret = analysis::MakeTypePrim("()");
     }
 
-    if (!use_c_abi_aggregate_sret && current_ctx_)
+    if (!use_c_abi_aggregate_sret && current_ctx)
     {
-      if (const auto *sig = current_ctx_->LookupProcSig(symbol);
+      if (const auto *sig = current_ctx->LookupProcSig(symbol);
           sig && sig->abi.has_value())
       {
         use_c_abi_aggregate_sret = true;
@@ -1193,7 +1410,8 @@ bool IsExternC(std::string_view symbol) {
       }
     }
 
-    return ComputeCallABI(augmented,
+    return ComputeCallABI(emitter,
+                          augmented,
                           abi_ret,
                           use_c_abi_aggregate_sret,
                           foreign_boundary_mode_independent);

@@ -15,6 +15,7 @@
 #include "00_core/process_config.h"
 #include "00_core/host/services.h"
 #include "00_core/symbols.h"
+#include "05_codegen/abi/abi.h"
 #include "05_codegen/llvm/llvm_emit.h"
 #include "05_codegen/llvm/llvm_module.h"
 

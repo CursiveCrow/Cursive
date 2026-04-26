@@ -42,6 +42,7 @@
 #include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/llvm/llvm_emit.h"
 #include "05_codegen/llvm/llvm_attr.h"
+#include "05_codegen/llvm/llvm_call.h"
 
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Comdat.h"
@@ -320,6 +321,7 @@ bool RuntimeDeclsCover(const llvm::Module& module, const IRDecls& decls) {
       }
 
       ABICallResult abi = ComputeCallABI(
+          *this,
           info->params,
           info->ret,
           /*use_c_abi_aggregate_sret=*/true,
