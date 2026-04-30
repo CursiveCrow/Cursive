@@ -10,6 +10,16 @@ void IRInstructionVisitor::operator()(const IRStoreVar &store) const
 {
   llvm::Value *slot = emitter.GetLocal(store.name);
   llvm::Value *source_storage = emitter.GetAddressableStorage(store.value);
+  const LowerCtx *active_ctx = emitter.GetCurrentCtx();
+  analysis::TypeRef target_type = emitter.LookupLocalType(store.name);
+  if (!target_type && active_ctx)
+  {
+    if (const BindingState *state = active_ctx->GetBindingState(store.name))
+    {
+      target_type = state->type;
+    }
+  }
+  analysis::TypeRef source_type = LookupValueType(store.value);
   if (!slot)
   {
     slot = emitter.GetLocalHomeStorage(store.name);
@@ -48,7 +58,20 @@ void IRInstructionVisitor::operator()(const IRStoreVar &store) const
     }
     else if (auto *alloca = llvm::dyn_cast<llvm::AllocaInst>(new_slot))
     {
-      value = CoerceTo(&builder, value, alloca->getAllocatedType());
+      if (target_type)
+      {
+        value = CoerceToTyped(
+            emitter,
+            &builder,
+            value,
+            alloca->getAllocatedType(),
+            source_type,
+            target_type);
+      }
+      else
+      {
+        value = CoerceTo(&builder, value, alloca->getAllocatedType());
+      }
       if (!value)
       {
         value = llvm::Constant::getNullValue(alloca->getAllocatedType());
@@ -70,7 +93,20 @@ void IRInstructionVisitor::operator()(const IRStoreVar &store) const
   llvm::Value *value = EvaluateOrDefault(store.value);
   if (auto *alloca = llvm::dyn_cast<llvm::AllocaInst>(slot))
   {
-    value = CoerceTo(&builder, value, alloca->getAllocatedType());
+    if (target_type)
+    {
+      value = CoerceToTyped(
+          emitter,
+          &builder,
+          value,
+          alloca->getAllocatedType(),
+          source_type,
+          target_type);
+    }
+    else
+    {
+      value = CoerceTo(&builder, value, alloca->getAllocatedType());
+    }
     if (!value)
     {
       value = llvm::Constant::getNullValue(alloca->getAllocatedType());

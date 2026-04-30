@@ -505,6 +505,9 @@ class ProcedureKeyAccessSummaryBuilder {
       return IdKeyOf(ident->name);
     }
     if (const auto* typed = std::get_if<ast::TypedPattern>(&pat->node)) {
+      if (typed->name == "_") {
+        return std::nullopt;
+      }
       return IdKeyOf(typed->name);
     }
     return std::nullopt;
@@ -1299,13 +1302,13 @@ static bool ExpandTypeArgsWithDefaults(
     std::optional<std::string_view>& diag_id) {
   out_args = provided_args;
   if (out_args.size() > params.size()) {
-    diag_id = "Generic-Call-ArgCount-Err";
+    diag_id = "E-SEM-2532";
     return false;
   }
 
   for (std::size_t i = out_args.size(); i < params.size(); ++i) {
     if (!params[i].default_type) {
-      diag_id = "Call-ArgType-Err";
+      diag_id = "E-SEM-2533";
       return false;
     }
     const auto lowered_default = LowerType(ctx, params[i].default_type);
@@ -1407,7 +1410,7 @@ static std::optional<std::string_view> CollectCallArgTypesForInference(
     std::vector<TypeRef>& out_expected_param_types) {
   (void)ctx;
   if (proc.params.size() != args.size()) {
-    return "Call-ArgCount-Err";
+    return "E-SEM-2532";
   }
 
   std::vector<TypeFuncParam> lowered_params;
@@ -1425,10 +1428,10 @@ static std::optional<std::string_view> CollectCallArgTypesForInference(
 
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (MissingRequiredMoveForConsuming(lowered_params[i].mode, args[i])) {
-      return "Call-Move-Missing";
+      return "E-SEM-2534";
     }
     if (!lowered_params[i].mode.has_value() && args[i].moved) {
-      return "Call-Move-Unexpected";
+      return "E-SEM-2535";
     }
   }
 
@@ -1438,7 +1441,7 @@ static std::optional<std::string_view> CollectCallArgTypesForInference(
     if (!lowered_params[i].mode.has_value()) {
       const bool has_source_prov = HasSourceProvenance(args[i].value);
       if (has_source_prov && !IsPlaceExprForCall(args[i].value)) {
-        return "Call-Arg-NotPlace";
+        return "E-TYP-1603";
       }
       if (has_source_prov && type_place) {
         const auto place = (*type_place)(args[i].value);
@@ -1494,7 +1497,7 @@ static GenericCallSubstResult InferGenericCallSubstForProc(
                           i < actual_arg_types.size(); ++i) {
     if (!BindTypeParamsForCall(type_params, expected_param_types[i],
                                actual_arg_types[i], bindings)) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
   }
@@ -1510,7 +1513,7 @@ static GenericCallSubstResult InferGenericCallSubstForProc(
     const bool matched = BindTypeParamsForCall(type_params, lowered_return.type,
                                                *expected_return, bindings);
     if (contains_type_param && !matched) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
   }
@@ -2457,7 +2460,7 @@ std::optional<TypeSubst> BuildGenericCallSubst(
     const auto required = RequiredTypeArgCount(params);
     if (call_generic_args.size() < required ||
         call_generic_args.size() > params.size()) {
-      result.diag_id = "Generic-Call-ArgCount-Err";
+      result.diag_id = "E-SEM-2532";
       return result;
     }
 
@@ -2514,6 +2517,15 @@ GenericCallSubstResult InferGenericCallSubst(
                                       type_expr, type_place);
 }
 
+void RecordGenericCallSubst(const ScopeContext& ctx,
+                            const ast::CallExpr& call,
+                            const TypeSubst& subst) {
+  if (!ctx.generic_call_substs) {
+    return;
+  }
+  (*ctx.generic_call_substs)[&call] = subst;
+}
+
 static std::optional<std::string_view> BuildGenericCallSubstChecked(
     const ScopeContext& ctx,
     const ast::ExprPtr& callee,
@@ -2521,13 +2533,13 @@ static std::optional<std::string_view> BuildGenericCallSubstChecked(
     TypeSubst& out_subst) {
   const auto lookup = LookupProcedureForCallee(ctx, callee);
   if (!lookup || !lookup->proc || !lookup->proc->generic_params) {
-    return std::optional<std::string_view>{"Call-ArgType-Err"};
+    return std::optional<std::string_view>{"E-SEM-2533"};
   }
 
   const auto& params = lookup->proc->generic_params->params;
   const auto required = RequiredTypeArgCount(params);
   if (generic_args.size() < required || generic_args.size() > params.size()) {
-    return std::optional<std::string_view>{"Generic-Call-ArgCount-Err"};
+    return std::optional<std::string_view>{"E-SEM-2532"};
   }
 
   std::vector<TypeRef> provided_args;
@@ -2635,7 +2647,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
         r.diag_id = "Barrier-Outside-Err";
       } else {
         SPEC_RULE("GpuIntrinsic-Outside-Err");
-        r.diag_id = "GpuIntrinsic-Outside-Err";
+        r.diag_id = "E-CON-0154";
       }
       return r;
     }
@@ -2679,10 +2691,10 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
         BuildGenericCallSubstChecked(ctx, node.callee, node.generic_args, subst);
     if (subst_diag.has_value()) {
       ExprTypeResult r;
-      if (*subst_diag == "Generic-Call-ArgCount-Err" ||
+      if (*subst_diag == "E-SEM-2532" ||
           GenericArgCountMismatch(ctx, node.callee, node.generic_args.size())) {
         SPEC_RULE("Generic-Call-ArgCount-Err");
-        r.diag_id = "Generic-Call-ArgCount-Err";
+        r.diag_id = "E-SEM-2532";
       } else {
         r.diag_id = *subst_diag;
       }
@@ -2732,6 +2744,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
     EmitDeprecatedReferenceWarning(ctx, type_ctx, node.callee);
     r.ok = true;
     r.type = call.type;
+    RecordGenericCallSubst(ctx, node, subst);
     SPEC_RULE("T-Generic-Call");
     return r;
   }
@@ -2744,7 +2757,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
                                      std::nullopt, type_expr, &type_place);
     ExprTypeResult r;
     if (!inferred.ok) {
-      r.diag_id = inferred.diag_id.value_or("Call-ArgType-Err");
+      r.diag_id = inferred.diag_id.value_or("E-SEM-2533");
       return r;
     }
     const auto call = TypeCallWithSubst(ctx, node.callee, node.args, inferred.subst,
@@ -2789,6 +2802,7 @@ ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
     EmitDeprecatedReferenceWarning(ctx, type_ctx, node.callee);
     r.ok = true;
     r.type = call.type;
+    RecordGenericCallSubst(ctx, node, inferred.subst);
     SPEC_RULE("T-Generic-Call");
     return r;
   }

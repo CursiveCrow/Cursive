@@ -51,9 +51,37 @@
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/composite/enums.h"
+#include "04_analysis/generics/monomorphize.h"
 
 namespace cursive::analysis::layout {
 namespace {
+
+std::optional<cursive::analysis::TypeSubst> BuildEnumLayoutSubstitution(
+    const std::optional<cursive::ast::GenericParams>& generic_params,
+    const std::vector<cursive::analysis::TypeRef>& generic_args) {
+  if (!generic_params.has_value() || generic_params->params.empty()) {
+    return cursive::analysis::TypeSubst{};
+  }
+  if (generic_args.size() > generic_params->params.size()) {
+    return std::nullopt;
+  }
+  return cursive::analysis::BuildSubstitution(generic_params->params,
+                                              generic_args);
+}
+
+std::optional<cursive::analysis::TypeRef> LowerEnumPayloadType(
+    const cursive::analysis::ScopeContext& ctx,
+    const std::shared_ptr<cursive::ast::Type>& type,
+    const cursive::analysis::TypeSubst& subst) {
+  const auto lowered = LowerTypeForLayout(ctx, type);
+  if (!lowered.has_value()) {
+    return std::nullopt;
+  }
+  if (subst.empty()) {
+    return *lowered;
+  }
+  return cursive::analysis::InstantiateType(*lowered, subst);
+}
 
 std::uint64_t AlignUp(std::uint64_t value, std::uint64_t align) {
   if (align == 0) {
@@ -148,7 +176,20 @@ std::optional<EnumLayout> EnumLayoutOf(
     const cursive::analysis::ScopeContext& ctx,
     const cursive::ast::EnumDecl& decl,
     const EnumLayoutOptions& options) {
+  const std::vector<cursive::analysis::TypeRef> generic_args;
+  return EnumLayoutOf(ctx, decl, generic_args, options);
+}
+
+std::optional<EnumLayout> EnumLayoutOf(
+    const cursive::analysis::ScopeContext& ctx,
+    const cursive::ast::EnumDecl& decl,
+    const std::vector<cursive::analysis::TypeRef>& generic_args,
+    const EnumLayoutOptions& options) {
   if (decl.variants.empty()) {
+    return std::nullopt;
+  }
+  const auto subst = BuildEnumLayoutSubstitution(decl.generic_params, generic_args);
+  if (!subst.has_value()) {
     return std::nullopt;
   }
   const auto discs = cursive::analysis::EnumDiscriminants(decl);
@@ -223,7 +264,7 @@ std::optional<EnumLayout> EnumLayoutOf(
       std::vector<cursive::analysis::TypeRef> elems;
       elems.reserve(tuple->elements.size());
       for (const auto& elem : tuple->elements) {
-        const auto lowered = LowerTypeForLayout(ctx, elem);
+        const auto lowered = LowerEnumPayloadType(ctx, elem, *subst);
         if (!lowered.has_value()) {
           return std::nullopt;
         }
@@ -236,7 +277,7 @@ std::optional<EnumLayout> EnumLayoutOf(
       std::vector<cursive::analysis::TypeRef> fields;
       fields.reserve(rec->fields.size());
       for (const auto& field : rec->fields) {
-        const auto lowered = LowerTypeForLayout(ctx, field.type);
+        const auto lowered = LowerEnumPayloadType(ctx, field.type, *subst);
         if (!lowered.has_value()) {
           return std::nullopt;
         }
@@ -265,6 +306,102 @@ std::optional<EnumLayout> EnumLayoutOf(
   out.payload_size = payload_size;
   out.payload_align = payload_align;
   return out;
+}
+
+std::optional<EnumPayloadMemberLayout> EnumTuplePayloadMemberLayout(
+    const cursive::analysis::ScopeContext& ctx,
+    const cursive::ast::EnumDecl& decl,
+    const cursive::ast::VariantDecl& variant,
+    const std::vector<cursive::analysis::TypeRef>& generic_args,
+    std::size_t index) {
+  const auto enum_layout =
+      EnumLayoutOf(ctx, decl, generic_args, ResolveEnumLayoutOptions(decl.attrs));
+  if (!enum_layout.has_value() || !variant.payload_opt.has_value()) {
+    return std::nullopt;
+  }
+  const auto* tuple =
+      std::get_if<cursive::ast::VariantPayloadTuple>(&*variant.payload_opt);
+  if (!tuple || index >= tuple->elements.size()) {
+    return std::nullopt;
+  }
+  const auto subst = BuildEnumLayoutSubstitution(decl.generic_params, generic_args);
+  if (!subst.has_value()) {
+    return std::nullopt;
+  }
+
+  std::vector<cursive::analysis::TypeRef> field_types;
+  field_types.reserve(tuple->elements.size());
+  for (const auto& elem : tuple->elements) {
+    const auto lowered = LowerEnumPayloadType(ctx, elem, *subst);
+    if (!lowered.has_value()) {
+      return std::nullopt;
+    }
+    field_types.push_back(*lowered);
+  }
+  const auto layout = RecordLayoutOf(ctx, field_types);
+  if (!layout.has_value() || index >= layout->offsets.size()) {
+    return std::nullopt;
+  }
+
+  EnumPayloadMemberLayout out;
+  out.type = field_types[index];
+  out.offset = layout->offsets[index];
+  out.payload_size = enum_layout->payload_size;
+  out.payload_align = enum_layout->payload_align;
+  return out;
+}
+
+std::optional<EnumPayloadMemberLayout> EnumRecordPayloadMemberLayout(
+    const cursive::analysis::ScopeContext& ctx,
+    const cursive::ast::EnumDecl& decl,
+    const cursive::ast::VariantDecl& variant,
+    const std::vector<cursive::analysis::TypeRef>& generic_args,
+    std::string_view field_name) {
+  const auto enum_layout =
+      EnumLayoutOf(ctx, decl, generic_args, ResolveEnumLayoutOptions(decl.attrs));
+  if (!enum_layout.has_value() || !variant.payload_opt.has_value()) {
+    return std::nullopt;
+  }
+  const auto* record =
+      std::get_if<cursive::ast::VariantPayloadRecord>(&*variant.payload_opt);
+  if (!record) {
+    return std::nullopt;
+  }
+  const auto subst = BuildEnumLayoutSubstitution(decl.generic_params, generic_args);
+  if (!subst.has_value()) {
+    return std::nullopt;
+  }
+
+  std::vector<cursive::analysis::TypeRef> field_types;
+  std::vector<std::string> field_names;
+  field_types.reserve(record->fields.size());
+  field_names.reserve(record->fields.size());
+  for (const auto& field : record->fields) {
+    const auto lowered = LowerEnumPayloadType(ctx, field.type, *subst);
+    if (!lowered.has_value()) {
+      return std::nullopt;
+    }
+    field_types.push_back(*lowered);
+    field_names.push_back(field.name);
+  }
+
+  const auto layout = RecordLayoutOf(ctx, field_types);
+  if (!layout.has_value()) {
+    return std::nullopt;
+  }
+  for (std::size_t i = 0; i < field_names.size() && i < layout->offsets.size(); ++i) {
+    if (!cursive::analysis::IdEq(field_names[i], std::string(field_name))) {
+      continue;
+    }
+    EnumPayloadMemberLayout out;
+    out.type = field_types[i];
+    out.offset = layout->offsets[i];
+    out.payload_size = enum_layout->payload_size;
+    out.payload_align = enum_layout->payload_align;
+    return out;
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace cursive::analysis::layout

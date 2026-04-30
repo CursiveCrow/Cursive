@@ -86,6 +86,9 @@ bool PatternBindsName(const ast::Pattern& pattern, const IdKey& key) {
         if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
           return NameMatches(key, node.name);
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
+          if (node.name == "_") {
+            return false;
+          }
           return NameMatches(key, node.name);
         } else if constexpr (std::is_same_v<T, ast::WildcardPattern> ||
                              std::is_same_v<T, ast::LiteralPattern>) {

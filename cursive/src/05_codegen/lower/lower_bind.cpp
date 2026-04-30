@@ -61,6 +61,46 @@ analysis::TypeRef LowerBindingType(const std::shared_ptr<ast::Type>& type_opt,
   return nullptr;
 }
 
+analysis::TypeRef StripPermAndRefine(const analysis::TypeRef& type) {
+  analysis::TypeRef stripped = type;
+  while (stripped) {
+    if (const auto* perm = std::get_if<analysis::TypePerm>(&stripped->node)) {
+      stripped = perm->base;
+      continue;
+    }
+    if (const auto* refine =
+            std::get_if<analysis::TypeRefine>(&stripped->node)) {
+      stripped = refine->base;
+      continue;
+    }
+    break;
+  }
+  return stripped;
+}
+
+std::vector<analysis::TypeRef> GenericArgsFromHint(
+    const analysis::TypeRef& type_hint) {
+  const analysis::TypeRef stripped = StripPermAndRefine(type_hint);
+  if (!stripped) {
+    return {};
+  }
+  const std::vector<analysis::TypeRef>* args =
+      analysis::AppliedTypeArgs(*stripped);
+  if (!args) {
+    return {};
+  }
+  return *args;
+}
+
+analysis::TypeRef InstantiateActiveGenericType(const analysis::TypeRef& type,
+                                               const LowerCtx& ctx) {
+  if (!type || !ctx.active_generic_type_subst.has_value() ||
+      ctx.active_generic_type_subst->empty()) {
+    return type;
+  }
+  return analysis::InstantiateType(type, *ctx.active_generic_type_subst);
+}
+
 // Lookup record declaration by path
 const ast::RecordDecl* LookupRecordDecl(const ast::TypePath& path,
                                         const LowerCtx& ctx) {
@@ -131,33 +171,30 @@ const ast::VariantDecl* FindVariant(const ast::EnumDecl& decl,
 }
 
 // Get type of an enum payload field
-analysis::TypeRef EnumPayloadFieldType(const ast::VariantDecl& variant,
+analysis::TypeRef EnumPayloadFieldType(const ast::EnumDecl& decl,
+                                       const ast::VariantDecl& variant,
+                                       const std::vector<analysis::TypeRef>& generic_args,
                                        std::string_view name,
                                        LowerCtx& ctx) {
-  if (!variant.payload_opt.has_value()) {
-    return nullptr;
-  }
-  if (const auto* record = std::get_if<ast::VariantPayloadRecord>(&*variant.payload_opt)) {
-    for (const auto& field : record->fields) {
-      if (analysis::IdEq(field.name, name)) {
-        return LowerBindingType(field.type, ctx);
-      }
-    }
+  const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+  const auto member = analysis::layout::EnumRecordPayloadMemberLayout(
+      scope, decl, variant, generic_args, name);
+  if (member.has_value()) {
+    return member->type;
   }
   return nullptr;
 }
 
-// Get type of an enum payload tuple element
-analysis::TypeRef EnumPayloadTupleType(const ast::VariantDecl& variant,
+analysis::TypeRef EnumPayloadTupleType(const ast::EnumDecl& decl,
+                                       const ast::VariantDecl& variant,
+                                       const std::vector<analysis::TypeRef>& generic_args,
                                        std::size_t index,
                                        LowerCtx& ctx) {
-  if (!variant.payload_opt.has_value()) {
-    return nullptr;
-  }
-  if (const auto* tuple = std::get_if<ast::VariantPayloadTuple>(&*variant.payload_opt)) {
-    if (index < tuple->elements.size()) {
-      return LowerBindingType(tuple->elements[index], ctx);
-    }
+  const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+  const auto member = analysis::layout::EnumTuplePayloadMemberLayout(
+      scope, decl, variant, generic_args, index);
+  if (member.has_value()) {
+    return member->type;
   }
   return nullptr;
 }
@@ -290,7 +327,11 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                                 prov_region, false, prov_region_tag);
                 return;
               } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
-                analysis::TypeRef typed = LowerBindingType(node.type, ctx);
+                if (node.name == "_") {
+                  return;
+                }
+                analysis::TypeRef typed =
+                    InstantiateActiveGenericType(LowerBindingType(node.type, ctx), ctx);
                 if (!typed) {
                   typed = hint;
                 }
@@ -340,16 +381,19 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
                       if constexpr (std::is_same_v<P, ast::TuplePayloadPattern>) {
                         for (std::size_t i = 0; i < payload.elements.size(); ++i) {
                           analysis::TypeRef elem_type;
-                          if (variant) {
-                            elem_type = EnumPayloadTupleType(*variant, i, ctx);
+                          if (enum_decl && variant) {
+                            elem_type = EnumPayloadTupleType(
+                                *enum_decl, *variant, GenericArgsFromHint(hint), i, ctx);
                           }
                           walk(*payload.elements[i], elem_type);
                         }
                       } else {
                         for (const auto& field : payload.fields) {
                           analysis::TypeRef field_type;
-                          if (variant) {
-                            field_type = EnumPayloadFieldType(*variant, field.name, ctx);
+                          if (enum_decl && variant) {
+                            field_type = EnumPayloadFieldType(
+                                *enum_decl, *variant, GenericArgsFromHint(hint),
+                                field.name, ctx);
                           }
                           if (field.pattern_opt) {
                             walk(*field.pattern_opt, field_type);
@@ -411,7 +455,7 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
             pat.node);
       };
 
-  walk(pattern, type_hint);
+  walk(pattern, InstantiateActiveGenericType(type_hint, ctx));
 }
 
 // ============================================================================

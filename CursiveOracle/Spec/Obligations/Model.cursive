@@ -1,0 +1,483 @@
+public enum ObligationKind {
+    FormalRule
+    GrammarProduction
+    DiagnosticTableRow
+    NormativeSentence
+    ConformanceStatement
+    InformativeUnit
+    OutsideConformanceUnit
+}
+
+public enum ObligationStrength {
+    Required
+    Recommended
+    Permitted
+    Informative
+}
+
+public enum ObligationState {
+    Candidate
+    Parsed
+    Classified
+    BlockedBySpecParse
+    BlockedByClassification
+    InformativeOnly
+    OutsideConformance
+}
+
+public enum ObligationBlockerKind {
+    NoBlocker
+    SpecParseError
+    ClassificationGap
+    ReferenceModelGap
+    OracleLanguageSupport
+    CurrentCompiler
+    InformativeOnly
+    OutsideConformance
+}
+
+public record ObligationSource {
+    public spec_path: string@View
+    public spec_unit_id: string@View
+    public section_path: string@View
+    public heading_text: string@View
+    public source_start: i32
+    public source_end: i32
+    public source_line: i32
+    public source_column: i32
+    public content_identity: i32
+}
+
+public record SpecObligation {
+    public obligation_id: string@View
+    public kind: ObligationKind
+    public strength: ObligationStrength
+    public state: ObligationState
+    public blocker: ObligationBlockerKind
+    public owner: string@View
+    public source: ObligationSource
+}
+
+public record ObligationCounts {
+    public total_count: i32
+    public required_count: i32
+    public recommended_count: i32
+    public permitted_count: i32
+    public informative_count: i32
+    public outside_conformance_count: i32
+    public formal_rule_count: i32
+    public grammar_production_count: i32
+    public diagnostic_table_row_count: i32
+    public normative_sentence_count: i32
+    public conformance_statement_count: i32
+    public parsed_count: i32
+    public classified_count: i32
+    public blocked_count: i32
+}
+
+public record ObligationLedgerSummary {
+    public path: string@View
+    public record_count: i32
+    public storage_failure_count: i32
+    public malformed_record_count: i32
+}
+
+public record ObligationRecord {
+    public ordinal: i32
+    public source_start: i32
+    public source_end: i32
+    public source_line: i32
+    public source_column: i32
+    public content_identity: i32
+    public kind: ObligationKind
+    public strength: ObligationStrength
+    public state: ObligationState
+    public blocker: ObligationBlockerKind
+    public parse_defect_count: i32
+    public source_unit_id: bytes@View
+    public owner: bytes@View
+    public phase: bytes@View
+    public applies_to: bytes@View
+    public summary: bytes@View
+    public labels: bytes@View
+}
+
+public enum ObligationRecordReadState {
+    Readable
+    EndOfLedger
+    Malformed
+}
+
+public record ObligationRecordRead {
+    public state: ObligationRecordReadState
+    public next_offset: i32
+    public record: ObligationRecord
+}
+
+public record ObligationSummary {
+    public ctx: Reporting::OutputContext
+    public status: i32
+    public counts: ObligationCounts
+    public ledger: ObligationLedgerSummary
+    public primary_obligation: SpecObligation
+}
+
+public procedure obligationSource(
+    spec_path: string@View,
+    spec_unit_id: string@View,
+    section_path: string@View,
+    heading_text: string@View,
+    source_start: i32,
+    source_end: i32,
+    source_line: i32,
+    source_column: i32,
+    content_identity: i32
+) -> ObligationSource {
+    return ObligationSource {
+        spec_path: spec_path,
+        spec_unit_id: spec_unit_id,
+        section_path: section_path,
+        heading_text: heading_text,
+        source_start: source_start,
+        source_end: source_end,
+        source_line: source_line,
+        source_column: source_column,
+        content_identity: content_identity
+    }
+}
+
+public procedure specObligation(
+    obligation_id: string@View,
+    kind: ObligationKind,
+    strength: ObligationStrength,
+    state: ObligationState,
+    blocker: ObligationBlockerKind,
+    owner: string@View,
+    source: ObligationSource
+) -> SpecObligation {
+    return SpecObligation {
+        obligation_id: obligation_id,
+        kind: kind,
+        strength: strength,
+        state: state,
+        blocker: blocker,
+        owner: owner,
+        source: source
+    }
+}
+
+public procedure obligationCounts(
+    total_count: i32,
+    required_count: i32,
+    recommended_count: i32,
+    permitted_count: i32,
+    informative_count: i32,
+    outside_conformance_count: i32,
+    formal_rule_count: i32,
+    grammar_production_count: i32,
+    diagnostic_table_row_count: i32,
+    normative_sentence_count: i32,
+    conformance_statement_count: i32,
+    parsed_count: i32,
+    classified_count: i32,
+    blocked_count: i32
+) -> ObligationCounts {
+    return ObligationCounts {
+        total_count: total_count,
+        required_count: required_count,
+        recommended_count: recommended_count,
+        permitted_count: permitted_count,
+        informative_count: informative_count,
+        outside_conformance_count: outside_conformance_count,
+        formal_rule_count: formal_rule_count,
+        grammar_production_count: grammar_production_count,
+        diagnostic_table_row_count: diagnostic_table_row_count,
+        normative_sentence_count: normative_sentence_count,
+        conformance_statement_count: conformance_statement_count,
+        parsed_count: parsed_count,
+        classified_count: classified_count,
+        blocked_count: blocked_count
+    }
+}
+
+public procedure obligationLedgerSummary(
+    path: string@View,
+    record_count: i32,
+    storage_failure_count: i32,
+    malformed_record_count: i32
+) -> ObligationLedgerSummary {
+    return ObligationLedgerSummary {
+        path: path,
+        record_count: record_count,
+        storage_failure_count: storage_failure_count,
+        malformed_record_count: malformed_record_count
+    }
+}
+
+public procedure emptyObligationRecord() -> ObligationRecord {
+    return ObligationRecord {
+        ordinal: 0,
+        source_start: 0,
+        source_end: 0,
+        source_line: 1,
+        source_column: 1,
+        content_identity: 0,
+        kind: ObligationKind::OutsideConformanceUnit,
+        strength: ObligationStrength::Informative,
+        state: ObligationState::BlockedBySpecParse,
+        blocker: ObligationBlockerKind::SpecParseError,
+        parse_defect_count: 1,
+        source_unit_id: bytes::view_string(""),
+        owner: bytes::view_string(""),
+        phase: bytes::view_string(""),
+        applies_to: bytes::view_string(""),
+        summary: bytes::view_string(""),
+        labels: bytes::view_string("")
+    }
+}
+
+public procedure emptyObligationSource(path: string@View) -> ObligationSource {
+    return obligationSource(
+        path,
+        "spec_unit.absent",
+        "section.absent",
+        "-",
+        0,
+        0,
+        1,
+        1,
+        0
+    )
+}
+
+public procedure absentSpecObligation(path: string@View) -> SpecObligation {
+    return specObligation(
+        "obligation.absent",
+        ObligationKind::FormalRule,
+        ObligationStrength::Required,
+        ObligationState::BlockedBySpecParse,
+        ObligationBlockerKind::SpecParseError,
+        "Spec::Obligations",
+        emptyObligationSource(path)
+    )
+}
+
+public procedure obligationSummary(
+    ctx: Reporting::OutputContext,
+    status: i32,
+    counts: ObligationCounts,
+    ledger: ObligationLedgerSummary,
+    primary_obligation: SpecObligation
+) -> ObligationSummary {
+    return ObligationSummary {
+        ctx: ctx,
+        status: status,
+        counts: counts,
+        ledger: ledger,
+        primary_obligation: primary_obligation
+    }
+}
+
+public procedure renderObligationKind(value: ObligationKind) -> string@View {
+    return if value is {
+        ObligationKind::FormalRule { "formal_rule" }
+        ObligationKind::GrammarProduction { "grammar_production" }
+        ObligationKind::DiagnosticTableRow { "diagnostic_table_row" }
+        ObligationKind::NormativeSentence { "normative_sentence" }
+        ObligationKind::ConformanceStatement { "conformance_statement" }
+        ObligationKind::InformativeUnit { "informative_unit" }
+        ObligationKind::OutsideConformanceUnit { "outside_conformance_unit" }
+    }
+}
+
+public procedure renderObligationStrength(value: ObligationStrength) -> string@View {
+    return if value is {
+        ObligationStrength::Required { "required" }
+        ObligationStrength::Recommended { "recommended" }
+        ObligationStrength::Permitted { "permitted" }
+        ObligationStrength::Informative { "informative" }
+    }
+}
+
+public procedure renderObligationState(value: ObligationState) -> string@View {
+    return if value is {
+        ObligationState::Candidate { "candidate" }
+        ObligationState::Parsed { "parsed" }
+        ObligationState::Classified { "classified" }
+        ObligationState::BlockedBySpecParse { "blocked_by_spec_parse" }
+        ObligationState::BlockedByClassification { "blocked_by_classification" }
+        ObligationState::InformativeOnly { "informative_only" }
+        ObligationState::OutsideConformance { "outside_conformance" }
+    }
+}
+
+public procedure renderObligationBlockerKind(value: ObligationBlockerKind) -> string@View {
+    return if value is {
+        ObligationBlockerKind::NoBlocker { "no_blocker" }
+        ObligationBlockerKind::SpecParseError { "spec_parse_error" }
+        ObligationBlockerKind::ClassificationGap { "classification_gap" }
+        ObligationBlockerKind::ReferenceModelGap { "reference_model_gap" }
+        ObligationBlockerKind::OracleLanguageSupport { "oracle_language_support" }
+        ObligationBlockerKind::CurrentCompiler { "current_compiler" }
+        ObligationBlockerKind::InformativeOnly { "informative_only" }
+        ObligationBlockerKind::OutsideConformance { "outside_conformance" }
+    }
+}
+
+public procedure obligationKindTag(value: ObligationKind) -> i32 {
+    return if value is {
+        ObligationKind::FormalRule { 1 }
+        ObligationKind::GrammarProduction { 2 }
+        ObligationKind::DiagnosticTableRow { 3 }
+        ObligationKind::NormativeSentence { 4 }
+        ObligationKind::ConformanceStatement { 5 }
+        ObligationKind::InformativeUnit { 6 }
+        ObligationKind::OutsideConformanceUnit { 7 }
+    }
+}
+
+public procedure obligationKindFromTag(tag: i32) -> ObligationKind {
+    if (tag == 1) { return ObligationKind::FormalRule }
+    if (tag == 2) { return ObligationKind::GrammarProduction }
+    if (tag == 3) { return ObligationKind::DiagnosticTableRow }
+    if (tag == 4) { return ObligationKind::NormativeSentence }
+    if (tag == 5) { return ObligationKind::ConformanceStatement }
+    if (tag == 6) { return ObligationKind::InformativeUnit }
+    return ObligationKind::OutsideConformanceUnit
+}
+
+public procedure obligationStrengthTag(value: ObligationStrength) -> i32 {
+    return if value is {
+        ObligationStrength::Required { 1 }
+        ObligationStrength::Recommended { 2 }
+        ObligationStrength::Permitted { 3 }
+        ObligationStrength::Informative { 4 }
+    }
+}
+
+public procedure obligationStrengthFromTag(tag: i32) -> ObligationStrength {
+    if (tag == 1) { return ObligationStrength::Required }
+    if (tag == 2) { return ObligationStrength::Recommended }
+    if (tag == 3) { return ObligationStrength::Permitted }
+    return ObligationStrength::Informative
+}
+
+public procedure obligationStateTag(value: ObligationState) -> i32 {
+    return if value is {
+        ObligationState::Candidate { 1 }
+        ObligationState::Parsed { 2 }
+        ObligationState::Classified { 3 }
+        ObligationState::BlockedBySpecParse { 4 }
+        ObligationState::BlockedByClassification { 5 }
+        ObligationState::InformativeOnly { 6 }
+        ObligationState::OutsideConformance { 7 }
+    }
+}
+
+public procedure obligationStateFromTag(tag: i32) -> ObligationState {
+    if (tag == 1) { return ObligationState::Candidate }
+    if (tag == 2) { return ObligationState::Parsed }
+    if (tag == 3) { return ObligationState::Classified }
+    if (tag == 4) { return ObligationState::BlockedBySpecParse }
+    if (tag == 5) { return ObligationState::BlockedByClassification }
+    if (tag == 6) { return ObligationState::InformativeOnly }
+    if (tag == 7) { return ObligationState::OutsideConformance }
+    return ObligationState::BlockedBySpecParse
+}
+
+public procedure obligationBlockerTag(value: ObligationBlockerKind) -> i32 {
+    return if value is {
+        ObligationBlockerKind::NoBlocker { 0 }
+        ObligationBlockerKind::SpecParseError { 1 }
+        ObligationBlockerKind::ClassificationGap { 2 }
+        ObligationBlockerKind::ReferenceModelGap { 3 }
+        ObligationBlockerKind::OracleLanguageSupport { 4 }
+        ObligationBlockerKind::CurrentCompiler { 5 }
+        ObligationBlockerKind::InformativeOnly { 6 }
+        ObligationBlockerKind::OutsideConformance { 7 }
+    }
+}
+
+public procedure obligationBlockerFromTag(tag: i32) -> ObligationBlockerKind {
+    if (tag == 0) { return ObligationBlockerKind::NoBlocker }
+    if (tag == 1) { return ObligationBlockerKind::SpecParseError }
+    if (tag == 2) { return ObligationBlockerKind::ClassificationGap }
+    if (tag == 3) { return ObligationBlockerKind::ReferenceModelGap }
+    if (tag == 4) { return ObligationBlockerKind::OracleLanguageSupport }
+    if (tag == 5) { return ObligationBlockerKind::CurrentCompiler }
+    if (tag == 6) { return ObligationBlockerKind::InformativeOnly }
+    if (tag == 7) { return ObligationBlockerKind::OutsideConformance }
+    return ObligationBlockerKind::SpecParseError
+}
+
+public procedure obligationIsRequired(value: SpecObligation) -> bool {
+    return if value.strength is {
+        ObligationStrength::Required { true }
+        _ { false }
+    }
+}
+
+public procedure obligationIsBlocked(value: SpecObligation) -> bool {
+    return if value.blocker is {
+        ObligationBlockerKind::NoBlocker { false }
+        _ { true }
+    }
+}
+
+public procedure obligationRecordIsRequired(value: ObligationRecord) -> bool {
+    return if value.strength is {
+        ObligationStrength::Required { true }
+        _ { false }
+    }
+}
+
+public procedure obligationRecordIsBlocked(value: ObligationRecord) -> bool {
+    return if value.blocker is {
+        ObligationBlockerKind::NoBlocker { false }
+        _ { true }
+    }
+}
+
+procedure obligationStateIsInformativeOnly(value: ObligationState) -> bool {
+    return if value is {
+        ObligationState::InformativeOnly { true }
+        _ { false }
+    }
+}
+
+procedure obligationStateIsOutsideConformance(value: ObligationState) -> bool {
+    return if value is {
+        ObligationState::OutsideConformance { true }
+        _ { false }
+    }
+}
+
+procedure obligationKindIsInformativeUnit(value: ObligationKind) -> bool {
+    return if value is {
+        ObligationKind::InformativeUnit { true }
+        _ { false }
+    }
+}
+
+procedure obligationKindIsOutsideConformanceUnit(value: ObligationKind) -> bool {
+    return if value is {
+        ObligationKind::OutsideConformanceUnit { true }
+        _ { false }
+    }
+}
+
+public procedure obligationIsConformanceRelevant(value: SpecObligation) -> bool {
+    if (obligationStateIsInformativeOnly(value.state) == true) {
+        return false
+    }
+    if (obligationStateIsOutsideConformance(value.state) == true) {
+        return false
+    }
+    if (obligationKindIsInformativeUnit(value.kind) == true) {
+        return false
+    }
+    if (obligationKindIsOutsideConformanceUnit(value.kind) == true) {
+        return false
+    }
+    return true
+}

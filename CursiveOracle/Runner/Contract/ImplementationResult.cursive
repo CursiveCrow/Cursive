@@ -1,0 +1,83 @@
+import core::Reporting
+
+public enum RunnerCommandMode {
+    CheckOnly
+    RuntimeSkipped
+}
+
+public record CompilerUnderTest {
+    public executable_path: string@View
+    public check_command: string@View
+}
+
+public record ImplementationResult {
+    public case_id: string@View
+    public obligation_id: string@View
+    public command_mode: RunnerCommandMode
+    public command_text: string@View
+    public exit_status: i32
+    public stdout_path: string@View
+    public stderr_path: string@View
+    public diagnostic_path: string@View
+    public artifact_path: string@View
+}
+
+public record CompilerRunResult {
+    public ctx: Reporting::OutputContext
+    public result: ImplementationResult
+}
+
+public procedure repositoryDefaultCompiler() -> CompilerUnderTest {
+    return CompilerUnderTest {
+        executable_path: "cursive/build/windows/Debug/Cursive.exe",
+        check_command: "cmd /c cursive\\build\\windows\\Debug\\Cursive.exe build CursiveOracle\\build\\main\\generated-cases\\case_obligation_0001\\src\\Main.cursive --check --incremental=off --diag-json > CursiveOracle\\build\\main\\runner\\case_obligation_0001\\compiler.stdout 2> CursiveOracle\\build\\main\\runner\\case_obligation_0001\\compiler.stderr"
+    }
+}
+
+public procedure renderRunnerCommandMode(value: RunnerCommandMode) -> string@View {
+    return if value is {
+        RunnerCommandMode::CheckOnly { "check_only" }
+        RunnerCommandMode::RuntimeSkipped { "runtime_skipped" }
+    }
+}
+
+public procedure implementationResult(
+    case_id: string@View,
+    obligation_id: string@View,
+    command_mode: RunnerCommandMode,
+    command_text: string@View,
+    exit_status: i32,
+    stdout_path: string@View,
+    stderr_path: string@View,
+    diagnostic_path: string@View,
+    artifact_path: string@View
+) -> ImplementationResult {
+    return ImplementationResult {
+        case_id: case_id,
+        obligation_id: obligation_id,
+        command_mode: command_mode,
+        command_text: command_text,
+        exit_status: exit_status,
+        stdout_path: stdout_path,
+        stderr_path: stderr_path,
+        diagnostic_path: diagnostic_path,
+        artifact_path: artifact_path
+    }
+}
+
+public procedure compilerRunResult(
+    ctx: Reporting::OutputContext,
+    result: ImplementationResult
+) -> CompilerRunResult {
+    return CompilerRunResult {
+        ctx: ctx,
+        result: result
+    }
+}
+
+public procedure runnerStatus(value: ImplementationResult) -> Reporting::ReportStatus {
+    if (value.exit_status == 0) {
+        return Reporting::ReportStatus::ExecutedPass
+    }
+    return Reporting::ReportStatus::ExecutedFail
+}

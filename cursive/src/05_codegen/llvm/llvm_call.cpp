@@ -32,6 +32,7 @@
 #include "04_analysis/layout/layout.h"
 #include "05_codegen/llvm/llvm_emit.h"
 #include "05_codegen/llvm/emit/internal_helpers.h"
+#include "05_codegen/llvm/emit/llvm_emit_helpers.h"
 #include "05_codegen/llvm/llvm_ir_panic.h"
 #include "05_codegen/llvm/llvm_types.h"
 
@@ -636,6 +637,21 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
               materialize_array_slice_storage(storage, elem_ty)) {
         return slice_storage;
       }
+      if (LowerCtx* ctx = emitter.GetCurrentCtx()) {
+        analysis::TypeRef stored_type = analysis::StripPerm(
+            ctx->LookupValueType((*source_args)[index]));
+        if (stored_type) {
+          if (const auto* ptr =
+                  std::get_if<analysis::TypePtr>(&stored_type->node)) {
+            stored_type = analysis::StripPerm(ptr->element);
+          }
+        }
+        llvm::Type* stored_llvm_ty =
+            stored_type ? emitter.GetLLVMType(stored_type) : nullptr;
+        if (stored_llvm_ty && stored_llvm_ty != elem_ty) {
+          return nullptr;
+        }
+      }
       llvm::Type* target_ptr_ty = llvm::PointerType::get(elem_ty, 0);
       if (storage->getType() != target_ptr_ty) {
         storage = CoerceValue(builder, storage, target_ptr_ty);
@@ -792,6 +808,86 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     return loaded;
   };
 
+  auto source_arg_value_type = [&](std::size_t index) -> analysis::TypeRef {
+    if (!source_args || index >= source_args->size()) {
+      return nullptr;
+    }
+    LowerCtx* ctx = emitter.GetCurrentCtx();
+    if (!ctx) {
+      return nullptr;
+    }
+    analysis::TypeRef type =
+        analysis::StripPerm(ctx->LookupValueType((*source_args)[index]));
+    if (!type) {
+      return nullptr;
+    }
+    if (const auto* ptr = std::get_if<analysis::TypePtr>(&type->node)) {
+      return analysis::StripPerm(ptr->element);
+    }
+    return type;
+  };
+
+  auto materialize_mismatched_pointer_arg =
+      [&](std::size_t index,
+          llvm::Value* ptr_arg,
+          llvm::Type* target_elem_ty,
+          const analysis::TypeRef& target_source_type,
+          std::string_view scratch_name) -> llvm::Value* {
+    if (!ptr_arg || !ptr_arg->getType()->isPointerTy() || !target_elem_ty) {
+      return nullptr;
+    }
+
+    llvm::Type* source_elem_ty = nullptr;
+    analysis::TypeRef source_type = source_arg_value_type(index);
+    if (source_type) {
+      source_elem_ty = emitter.GetLLVMType(source_type);
+    }
+    if (!source_elem_ty) {
+      if (auto* alloca = llvm::dyn_cast<llvm::AllocaInst>(ptr_arg)) {
+        source_elem_ty = alloca->getAllocatedType();
+      }
+    }
+    if (!source_elem_ty || source_elem_ty == target_elem_ty) {
+      return nullptr;
+    }
+
+    llvm::Value* typed_source = ptr_arg;
+    llvm::Type* source_ptr_ty = llvm::PointerType::get(source_elem_ty, 0);
+    if (typed_source->getType() != source_ptr_ty) {
+      typed_source = CoerceValue(builder, typed_source, source_ptr_ty);
+    }
+    if (!typed_source) {
+      report_codegen_failure("byref-source-pointer-type", index, ptr_arg);
+      return nullptr;
+    }
+
+    llvm::Value* loaded = builder->CreateLoad(source_elem_ty, typed_source);
+    llvm::Value* stored =
+        emit_detail::CoerceToTyped(emitter,
+                                   builder,
+                                   loaded,
+                                   target_elem_ty,
+                                   source_type,
+                                   target_source_type);
+    if (!stored) {
+      stored = CoerceValue(builder, loaded, target_elem_ty);
+    }
+    if (!stored) {
+      report_codegen_failure("byref-pointer-coercion", index, ptr_arg);
+      return nullptr;
+    }
+
+    const unsigned ordinal = next_scratch_ordinal(target_elem_ty, scratch_name);
+    llvm::AllocaInst* slot =
+        AcquireReusableEntryAlloca(func, target_elem_ty, scratch_name, ordinal);
+    if (!slot) {
+      report_codegen_failure("byref-pointer-scratch-allocation", index, ptr_arg);
+      return nullptr;
+    }
+    builder->CreateStore(stored, slot);
+    return slot;
+  };
+
   // Handle sret parameter
   if (abi.has_sret) {
     llvm::Type* ret_ty = emitter.GetLLVMType(ret_type);
@@ -880,6 +976,15 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
         }
         continue;
       }
+      if (llvm::Value* storage =
+              materialize_mismatched_pointer_arg(i,
+                                                 arg,
+                                                 elem_ty,
+                                                 params[i].type,
+                                                 "byref_arg")) {
+        call_args[idx] = storage;
+        continue;
+      }
       llvm::Type* target_ty = abi.param_types[idx];
       if (target_ty && arg->getType() != target_ty) {
         arg = CoerceValue(builder, arg, target_ty);
@@ -922,6 +1027,14 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
             continue;
           }
         }
+      }
+      if (llvm::Value* storage =
+              materialize_mismatched_pointer_arg(i,
+                                                 ptr_arg,
+                                                 elem_ty,
+                                                 params[i].type,
+                                                 "indirect_arg")) {
+        ptr_arg = storage;
       }
       llvm::Type* target_ty = abi.param_types[idx];
       if (target_ty && ptr_arg->getType() != target_ty) {

@@ -760,8 +760,8 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
     return LowerResult{SeqIR(std::move(seq)), result};
   }
 
-  // Legacy/lowered-as-path pointer forms: treat `Ptr<...>` as safe pointers
-  // and `RawPtr<...>` as raw pointers when analysis typing did not normalize.
+  // Lowered path-shaped pointer forms: treat `Ptr<...>` as safe pointers and
+  // `RawPtr<...>` as raw pointers when analysis typing did not normalize.
   if (path_ptr != nullptr && !path_ptr->path.empty()) {
     const std::string& tail = path_ptr->path.back();
     if (tail == "RawPtr") {

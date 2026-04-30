@@ -29,6 +29,11 @@ procedure run_no_ambient_explicit_context_flow(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "no_ambient_explicit_context_flow")
 }
 
+procedure run_issue_call_ref_usize_literal_width(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off build ..\\TestProjects\\Operations\\Generated\\issue_call_ref_usize_literal_width\\Cursive.toml --build-progress off > build\\main\\logs\\compile_checks\\issue_call_ref_usize_literal_width.stdout 2> build\\main\\logs\\compile_checks\\issue_call_ref_usize_literal_width.stderr & if errorlevel 1 exit /b 1 & ..\\TestProjects\\Operations\\Generated\\issue_call_ref_usize_literal_width\\build\\probe\\bin\\probe.exe"
+    return testsupport::runCompileCheckCommand(ctx, command, "issue_call_ref_usize_literal_width")
+}
+
 procedure run_issue33_expr_helper_trace(ctx: Context) -> i32 {
     let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json --conformance issue33_expr_helper_trace.log ..\\TestProjects\\Operations\\Generated\\issue33_expr_helper_trace\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_expr_helper_trace.json 2> build\\main\\logs\\compile_checks\\issue33_expr_helper_trace.stderr & if errorlevel 2 exit /b 1"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_expr_helper_trace")
@@ -298,6 +303,11 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_Invoke_Issue61KeyPathResolutionConformanceCase: i32 = run_Invoke_Issue61KeyPathResolutionConformanceCase(ctx)
     if (status_Invoke_Issue61KeyPathResolutionConformanceCase != 0) {
         return status_Invoke_Issue61KeyPathResolutionConformanceCase
+    }
+
+    let status_issue_call_ref_usize_literal_width: i32 = run_issue_call_ref_usize_literal_width(ctx)
+    if (status_issue_call_ref_usize_literal_width != 0) {
+        return status_issue_call_ref_usize_literal_width
     }
 
     return 0

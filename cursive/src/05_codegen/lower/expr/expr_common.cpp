@@ -190,7 +190,7 @@ LowerResult LowerExprImpl(const ast::Expr& expr, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, ast::RecordExpr>) {
           return LowerRecord(node, ctx);
         } else if constexpr (std::is_same_v<T, ast::EnumLiteralExpr>) {
-          return LowerEnumLiteral(node, ctx);
+          return LowerEnumLiteral(expr, node, ctx);
         } else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>) {
           return LowerReadPlaceFieldAccess(node, expr, ctx);
         } else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>) {

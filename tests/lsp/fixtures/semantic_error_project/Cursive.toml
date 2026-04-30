@@ -1,0 +1,1 @@
+assembly = { name = "SemanticErrorProject", kind = "executable", root = "src" }

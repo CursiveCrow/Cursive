@@ -188,7 +188,7 @@ static LinearizationResult LinearizeImpl(const ScopeContext& ctx,
     SPEC_RULE("Lin-Fail");
     SPEC_RULE("Superclass-Cycle");
     LinearizationResult cycle;
-    cycle.diag_id = "Superclass-Cycle";
+    cycle.diag_id = "E-TYP-2508";
     return cycle;
   }
   state.active.insert(key);
@@ -218,9 +218,9 @@ static LinearizationResult LinearizeImpl(const ScopeContext& ctx,
     if (!linearized.ok) {
       LinearizationResult failed = linearized;
       if (!failed.diag_id.has_value()) {
-        failed.diag_id = "Superclass-Cycle";
+        failed.diag_id = "E-TYP-2508";
       }
-      if (*failed.diag_id == "Superclass-Cycle") {
+      if (*failed.diag_id == "E-TYP-2508") {
         SPEC_RULE("Superclass-Cycle");
       }
       state.active.erase(key);
@@ -236,7 +236,7 @@ static LinearizationResult LinearizeImpl(const ScopeContext& ctx,
     SPEC_RULE("Lin-Fail");
     SPEC_RULE("Superclass-Cycle");
     LinearizationResult failed = merged;
-    failed.diag_id = "Superclass-Cycle";
+    failed.diag_id = "E-TYP-2508";
     state.active.erase(key);
     state.memo.emplace(key, failed);
     return failed;

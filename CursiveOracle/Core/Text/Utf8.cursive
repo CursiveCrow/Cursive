@@ -1,0 +1,158 @@
+public enum Utf8Status {
+    Valid
+    Invalid
+}
+
+public record Utf8Validation {
+    public status: Utf8Status
+    public byte_length: i32
+    public codepoint_count: i32
+}
+
+public procedure utf8ValidationIsValid(result: Utf8Validation) -> bool {
+    return if result.status is {
+        Utf8Status::Valid { true }
+        Utf8Status::Invalid { false }
+    }
+}
+
+procedure isUtf8Continuation(byte: u8) -> bool {
+    return (byte >= 128) && (byte <= 191)
+}
+
+public procedure utf8Validate(view: bytes@View) -> Utf8Validation {
+    let length: i32 = byteLength(view)
+    let slice: const [u8] = bytes::as_slice(view)
+    var index: i32 = 0
+    var count: i32 = 0
+
+    loop {
+        if (index >= length) {
+            break
+        }
+
+        let first: u8 = slice[index as usize]
+        if (first <= 127) {
+            index = index + 1
+            count = count + 1
+        } else if ((first >= 194) && (first <= 223)) {
+            if ((index + 1) >= length) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            let second: u8 = slice[(index + 1) as usize]
+            if (isUtf8Continuation(second) == false) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            index = index + 2
+            count = count + 1
+        } else if ((first >= 224) && (first <= 239)) {
+            if ((index + 2) >= length) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            let second: u8 = slice[(index + 1) as usize]
+            let third: u8 = slice[(index + 2) as usize]
+            if (isUtf8Continuation(second) == false) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            if (isUtf8Continuation(third) == false) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            if ((first == 224) && (second < 160)) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            if ((first == 237) && (second > 159)) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            index = index + 3
+            count = count + 1
+        } else if ((first >= 240) && (first <= 244)) {
+            if ((index + 3) >= length) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            let second: u8 = slice[(index + 1) as usize]
+            let third: u8 = slice[(index + 2) as usize]
+            let fourth: u8 = slice[(index + 3) as usize]
+            if (isUtf8Continuation(second) == false) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            if (isUtf8Continuation(third) == false) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            if (isUtf8Continuation(fourth) == false) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            if ((first == 240) && (second < 144)) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            if ((first == 244) && (second > 143)) {
+                return Utf8Validation {
+                    status: Utf8Status::Invalid,
+                    byte_length: length,
+                    codepoint_count: 0
+                }
+            }
+            index = index + 4
+            count = count + 1
+        } else {
+            return Utf8Validation {
+                status: Utf8Status::Invalid,
+                byte_length: length,
+                codepoint_count: 0
+            }
+        }
+    }
+
+    return Utf8Validation {
+        status: Utf8Status::Valid,
+        byte_length: length,
+        codepoint_count: count
+    }
+}

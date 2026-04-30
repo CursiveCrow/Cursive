@@ -21,6 +21,15 @@ procedure SafeCastMetricLabel(value: i32) -> string@View {
     return "other"
 }
 
+procedure SafeCastNonzeroBool() -> bool {
+    let raw: u8 = 125u8
+    return raw as bool
+}
+
+procedure SafeCastBytePredicate(byte: u8) -> bool {
+    return (byte == 32u8) || (byte == 9u8) || (byte == 10u8) || (byte == 13u8)
+}
+
 procedure RunSafeCastItem(
     ctx: Context,
     scope: string@View,
@@ -58,7 +67,26 @@ procedure VerifySafeCastItem(ctx: Context, scope: string@View, move item_index: 
     let static_metric: i32 = static_u32 as i32
     let bool_true: bool = 1 as bool
     let bool_false: bool = 0 as bool
-    let runtime_metric: i32 = syntax_metric + if (bool_true && !bool_false) { 2 } else { 0 }
+    let nonzero_byte: u8 = 125u8
+    let bool_nonzero: bool = nonzero_byte as bool
+    let bool_nonzero_stored: bool = bool_nonzero
+    let bool_returned: bool = SafeCastNonzeroBool()
+    let bool_returned_branch_metric: i32 = if (bool_returned) { 1 } else { 0 }
+    let predicate_miss: bool = SafeCastBytePredicate(125u8) == false
+    let predicate_hit: bool =
+        SafeCastBytePredicate(32u8) &&
+        SafeCastBytePredicate(9u8) &&
+        SafeCastBytePredicate(10u8) &&
+        SafeCastBytePredicate(13u8)
+    let bool_canonical_ok: bool =
+        (bool_nonzero == true) &&
+        (bool_nonzero_stored == true) &&
+        (bool_returned == true) &&
+        (bool_returned_branch_metric == 1) &&
+        predicate_miss &&
+        predicate_hit
+    let runtime_metric: i32 =
+        syntax_metric + if ((bool_true && !bool_false) && bool_canonical_ok) { 2 } else { 0 }
     let syntax_passed: bool = syntax_metric == 5
     let static_passed: bool = static_metric == 65
     let runtime_passed: bool = runtime_metric == 7

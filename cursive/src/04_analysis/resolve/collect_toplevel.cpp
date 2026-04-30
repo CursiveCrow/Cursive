@@ -219,9 +219,6 @@ std::optional<std::string_view> CodeForCollectDiag(std::string_view diag_id) {
   if (diag_id == "Collect-Dup" || diag_id == "Names-Step-Dup") {
     return "E-MOD-1302";
   }
-  if (diag_id == "Main-Multiple") {
-    return "E-MOD-2430";
-  }
   if (diag_id == "Access-Err") {
     return "E-MOD-1207";
   }
@@ -405,6 +402,9 @@ std::vector<ast::Identifier> PatNames(const ast::Pattern& pat) {
           return {node.name};
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
           SPEC_RULE("Pat-Typed");
+          if (node.name == "_") {
+            return {};
+          }
           return {node.name};
         } else if constexpr (std::is_same_v<T, ast::WildcardPattern>) {
           SPEC_RULE("Pat-Wild");
@@ -720,7 +720,7 @@ CollectNamesResult CollectNames(const ScopeContext& ctx,
       if (is_main_procedure(item) &&
           names.find(IdKeyOf("main")) != names.end()) {
         SPEC_RULE("Main-Multiple");
-        return {false, "Main-Multiple", SpanOfItem(item), {}};
+        return {false, "E-MOD-2430", SpanOfItem(item), {}};
       }
       if (UsingImportConflict(bindings.bindings, names)) {
         SPEC_RULE("Collect-Using-Import-Dup");
@@ -811,7 +811,7 @@ NamesState NamesStep(const ScopeContext& ctx,
     next.kind = NamesState::Kind::Error;
     if (duplicate_main_procedure) {
       SPEC_RULE("Main-Multiple");
-      next.diag_id = "Main-Multiple";
+      next.diag_id = "E-MOD-2430";
     } else if (UsingImportConflict(bindings.bindings, state.names)) {
       SPEC_RULE("Names-Step-Using-Import-Dup");
       next.diag_id = "Import-Using-Name-Conflict";

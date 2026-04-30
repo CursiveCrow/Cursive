@@ -151,7 +151,7 @@ ExprTypeResult TypeCallTypeArgsExprImpl(const ScopeContext& ctx,
   const auto subst_opt = BuildCallTypeArgsSubst(ctx, expr.callee, expr.type_args);
   if (!subst_opt.has_value()) {
     // Keep emitted diagnostic mapped to a concrete error code.
-    result.diag_id = "Call-ArgType-Err";
+    result.diag_id = "E-SEM-2533";
     return result;
   }
 

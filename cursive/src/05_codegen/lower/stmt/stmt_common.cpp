@@ -113,6 +113,9 @@ void CollectPatternNames(const ast::Pattern& pattern,
         if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
           out.push_back(pat.name);
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
+          if (pat.name == "_") {
+            return;
+          }
           out.push_back(pat.name);
         } else if constexpr (std::is_same_v<T, ast::TuplePattern>) {
           for (const auto& elem : pat.elements) {

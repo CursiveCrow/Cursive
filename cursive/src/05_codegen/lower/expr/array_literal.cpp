@@ -10,7 +10,7 @@
 //
 // SOURCE FILE: cursive-bootstrap/src/04_codegen/lower/lower_expr_core.cpp
 //   - ArrayExpr visitor lowers each segment in order via LowerExpr
-//   - Legacy ArrayRepeatExpr support is normalized onto ArraySegments
+//   - ArrayRepeatExpr support is normalized onto ArraySegments
 //   - Creates DerivedValueInfo of kind ArraySegments
 //
 // DEPENDENCIES:
@@ -97,7 +97,7 @@ LowerResult LowerArrayLiteral(const ast::ArrayExpr& expr, LowerCtx& ctx) {
 }
 
 // =============================================================================
-// LowerArrayRepeat - Lower a legacy array repeat expression to IR
+// LowerArrayRepeat - Lower an array repeat expression to IR
 // =============================================================================
 
 LowerResult LowerArrayRepeat(const ast::ArrayRepeatExpr& expr, LowerCtx& ctx) {
@@ -110,8 +110,8 @@ LowerResult LowerArrayRepeat(const ast::ArrayRepeatExpr& expr, LowerCtx& ctx) {
     // Create a synthetic value to represent the array
     IRValue array_value = ctx.FreshTempValue("array_repeat");
 
-    // Normalize the legacy repeat form onto the segmented-array path so all
-    // array aggregate materialization follows one implementation.
+    // Normalize the repeat form onto the segmented-array path so all array
+    // aggregate materialization follows one implementation.
     DerivedValueInfo info;
     info.kind = DerivedValueInfo::Kind::ArraySegments;
     DerivedArraySegment derived_segment;

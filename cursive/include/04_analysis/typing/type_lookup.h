@@ -16,6 +16,11 @@
 
 namespace cursive::analysis {
 
+// Resolve and look up a nominal type declaration by TypePath.
+const TypeDecl* LookupTypeDecl(const ScopeContext& ctx,
+                               const TypePath& path,
+                               TypePath* resolved_path = nullptr);
+
 // Record lookup by TypePath
 const ast::RecordDecl* LookupRecordDecl(const ScopeContext& ctx,
                                         const TypePath& path);

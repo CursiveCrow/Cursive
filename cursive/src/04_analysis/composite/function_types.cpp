@@ -299,7 +299,7 @@ static ModuleStaticLookupResult LookupModuleStaticInModule(
       }
     } else if (const auto* typed =
                    std::get_if<ast::TypedPattern>(&pat.node)) {
-      if (IdEq(typed->name, name)) {
+      if (!IdEq(typed->name, "_") && IdEq(typed->name, name)) {
         const auto lowered = LowerTypeLocal(ctx, ann_type);
         if (!lowered.ok) {
           return {false, lowered.diag_id, {}, false};

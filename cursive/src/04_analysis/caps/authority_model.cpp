@@ -161,6 +161,9 @@ void BindPatternLocals(const ast::Pattern& pattern, AmbientAuthorityContext& ctx
         if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
           BindLocalName(ctx, node.name);
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
+          if (node.name == "_") {
+            return;
+          }
           BindLocalName(ctx, node.name);
         } else if constexpr (std::is_same_v<T, ast::TuplePattern>) {
           for (const auto& element : node.elements) {

@@ -16,6 +16,31 @@
 
 namespace cursive::codegen {
 
+namespace {
+
+analysis::TypeRef EnumLiteralLoweredType(const ast::Expr& source_expr,
+                                         const LowerCtx& ctx) {
+    if (!ctx.expr_type) {
+        return nullptr;
+    }
+    analysis::TypeRef type = ctx.expr_type(source_expr);
+    if (type && ctx.active_generic_type_subst.has_value() &&
+        !ctx.active_generic_type_subst->empty()) {
+        type = analysis::InstantiateType(type, *ctx.active_generic_type_subst);
+    }
+    return type;
+}
+
+void RegisterEnumLiteralLoweredType(const ast::Expr& source_expr,
+                                    const IRValue& value,
+                                    LowerCtx& ctx) {
+    if (analysis::TypeRef type = EnumLiteralLoweredType(source_expr, ctx)) {
+        ctx.RegisterValueType(value, type);
+    }
+}
+
+}  // namespace
+
 // =============================================================================
 // LowerEnumLiteral - Lower an enum literal expression to IR
 // =============================================================================
@@ -39,7 +64,9 @@ namespace cursive::codegen {
 // - Payload elements (for tuple variants) or fields (for record variants)
 // =============================================================================
 
-LowerResult LowerEnumLiteral(const ast::EnumLiteralExpr& expr, LowerCtx& ctx) {
+LowerResult LowerEnumLiteral(const ast::Expr& source_expr,
+                             const ast::EnumLiteralExpr& expr,
+                             LowerCtx& ctx) {
     // Extract variant name from path
     std::string variant_name = expr.path.empty() ? std::string() : expr.path.back();
     std::vector<std::string> enum_path;
@@ -57,13 +84,14 @@ LowerResult LowerEnumLiteral(const ast::EnumLiteralExpr& expr, LowerCtx& ctx) {
         info.variant = variant_name;
         info.static_path = enum_path;
         ctx.RegisterDerivedValue(enum_value, info);
+        RegisterEnumLiteralLoweredType(source_expr, enum_value, ctx);
 
         return LowerResult{EmptyIR(), enum_value};
     }
 
     // Tuple or record variant
     return std::visit(
-        [&ctx, &variant_name, &enum_path](const auto& payload) -> LowerResult {
+        [&ctx, &source_expr, &variant_name, &enum_path](const auto& payload) -> LowerResult {
             using T = std::decay_t<decltype(payload)>;
 
             if constexpr (std::is_same_v<T, ast::EnumPayloadParen>) {
@@ -79,6 +107,7 @@ LowerResult LowerEnumLiteral(const ast::EnumLiteralExpr& expr, LowerCtx& ctx) {
                 info.static_path = enum_path;
                 info.payload_elems = values;
                 ctx.RegisterDerivedValue(enum_value, info);
+                RegisterEnumLiteralLoweredType(source_expr, enum_value, ctx);
 
                 return LowerResult{ir, enum_value};
             } else {
@@ -94,6 +123,7 @@ LowerResult LowerEnumLiteral(const ast::EnumLiteralExpr& expr, LowerCtx& ctx) {
                 info.static_path = enum_path;
                 info.payload_fields = field_values;
                 ctx.RegisterDerivedValue(enum_value, info);
+                RegisterEnumLiteralLoweredType(source_expr, enum_value, ctx);
 
                 return LowerResult{ir, enum_value};
             }

@@ -176,6 +176,22 @@ IRInlineMode InlineModeFor(const AttributeList& attrs) {
   return IRInlineMode::Default;
 }
 
+analysis::ScopeContext ScopeForModule(const ModulePath& module_path,
+                                      const LowerCtx& ctx) {
+  analysis::ScopeContext scope;
+  if (!ctx.sigma) {
+    return scope;
+  }
+  scope.sigma = *ctx.sigma;
+  scope.sigma_source = ctx.sigma;
+  scope.current_module = module_path;
+  scope.target_profile = ctx.target_profile;
+  scope.expr_types = ctx.expr_types;
+  scope.dynamic_refine_checks = ctx.dynamic_refine_checks;
+  scope.generic_call_substs = ctx.generic_call_substs;
+  return scope;
+}
+
 bool IsContractParamSnapshotType(const analysis::TypeRef& type) {
   analysis::TypeRef stripped = type;
   while (stripped) {
@@ -1026,6 +1042,7 @@ ProcIR LowerProc(const ProcedureDecl& decl,
 
   // Mangle symbol name
   ir.symbol = InternalProcSymbol(module_path, decl);
+  ir.defining_module_path = module_path;
   ir.inline_mode = InlineModeFor(decl.attrs);
   ir.cold = analysis::HasAttribute(decl.attrs, analysis::attrs::kCold);
   ctx.module_path = module_path;
@@ -1435,6 +1452,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
     std::unordered_map<const ast::EntryExpr*, IRValue> contract_entry_values;
     std::unordered_map<std::string, IRValue> contract_param_entry_values;
     bool lowering_contract_postcondition = false;
+    std::optional<analysis::TypeSubst> active_generic_type_subst;
 
     explicit InstantiationCtxSnapshot(const LowerCtx& source)
         : module_path(source.module_path),
@@ -1459,7 +1477,8 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
           contract_result_value(source.contract_result_value),
           contract_entry_values(source.contract_entry_values),
           contract_param_entry_values(source.contract_param_entry_values),
-          lowering_contract_postcondition(source.lowering_contract_postcondition) {}
+          lowering_contract_postcondition(source.lowering_contract_postcondition),
+          active_generic_type_subst(source.active_generic_type_subst) {}
 
     void Restore(LowerCtx& target) const {
       target.module_path = module_path;
@@ -1493,6 +1512,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
       target.contract_entry_values = contract_entry_values;
       target.contract_param_entry_values = contract_param_entry_values;
       target.lowering_contract_postcondition = lowering_contract_postcondition;
+      target.active_generic_type_subst = active_generic_type_subst;
     }
   };
 
@@ -1522,6 +1542,7 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
   ctx.contract_entry_values.clear();
   ctx.contract_param_entry_values.clear();
   ctx.lowering_contract_postcondition = false;
+  ctx.active_generic_type_subst = type_subst;
 
   std::vector<std::string> inserted_value_type_keys;
   auto* prev_value_type_insert_sink = ctx.values.value_type_insert_sink;
@@ -1537,11 +1558,12 @@ ProcIR LowerProcInstantiated(const ast::ProcedureDecl& decl,
   }
 
   ir.symbol = symbol_override;
+  ir.defining_module_path = module_path;
   if (HasExportAttr(decl.attrs)) {
     ctx.RegisterExportUnwindMode(ir.symbol, ExportUnwindModeFor(decl.attrs));
   }
 
-  const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+  const analysis::ScopeContext scope = ScopeForModule(module_path, ctx);
 
   const auto instantiate = [&](const analysis::TypeRef& type) -> analysis::TypeRef {
     return InstantiateTypeRef(type, type_subst);

@@ -88,14 +88,14 @@ EnumDiscResult EnumDiscriminants(const ast::EnumDecl& decl) {
       const auto parsed = core::ParseUnsignedIntLiteral(tok.lexeme);
       if (!parsed.has_value()) {
         SPEC_RULE("Enum-Disc-Invalid");
-        result.diag_id = "Enum-Disc-Invalid";
+        result.diag_id = "E-TYP-1921";
         result.span = tok.span;
         return result;
       }
       disc = *parsed;
       if (disc == max_u64 && i + 1 < decl.variants.size()) {
         SPEC_RULE("Enum-Disc-Invalid");
-        result.diag_id = "Enum-Disc-Invalid";
+        result.diag_id = "E-TYP-1921";
         result.span = tok.span;
         return result;
       }
@@ -104,7 +104,7 @@ EnumDiscResult EnumDiscriminants(const ast::EnumDecl& decl) {
       disc = next;
       if (disc == max_u64 && i + 1 < decl.variants.size()) {
         SPEC_RULE("Enum-Disc-Invalid");
-        result.diag_id = "Enum-Disc-Invalid";
+        result.diag_id = "E-TYP-1921";
         result.span = decl.span;
         return result;
       }
@@ -112,7 +112,7 @@ EnumDiscResult EnumDiscriminants(const ast::EnumDecl& decl) {
     }
     if (!seen.insert(disc).second) {
       SPEC_RULE("Enum-Disc-Dup");
-      result.diag_id = "Enum-Disc-Dup";
+      result.diag_id = "E-TYP-1923";
       result.span = variant.span;
       return result;
     }

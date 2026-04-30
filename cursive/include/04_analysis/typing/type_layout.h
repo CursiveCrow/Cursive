@@ -1,6 +1,6 @@
 #pragma once
 
-// Legacy include surface for analysis callers. The canonical layout
+// Compatibility include surface for analysis callers. The canonical layout
 // implementation lives in 04_analysis/layout and is shared with lowering,
 // ABI, and backend code.
 

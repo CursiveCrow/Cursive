@@ -1,0 +1,77 @@
+import core::Reporting
+import oracle::Compare
+import spec::Obligations
+
+public record CoverageLedger {
+    public ledger_id: string@View
+    public report_path: string@View
+    public total_obligation_count: i32
+    public required_obligation_count: i32
+    public uncovered_count: i32
+    public parsed_only_count: i32
+    public modeled_count: i32
+    public reference_covered_count: i32
+    public generated_count: i32
+    public executed_pass_count: i32
+    public executed_fail_count: i32
+    public blocked_by_current_compiler_count: i32
+    public blocked_by_oracle_language_support_count: i32
+    public unsupported_by_reference_count: i32
+    public outside_conformance_count: i32
+    public informative_only_count: i32
+    public status: i32
+}
+
+public record CoverageRunResult {
+    public ctx: Reporting::OutputContext
+    public status: i32
+    public ledger: CoverageLedger
+}
+
+public procedure coverageLedgerStatus(value: CoverageLedger) -> Reporting::ReportStatus {
+    if (value.status == 0) {
+        return Reporting::ReportStatus::ExecutedPass
+    }
+    return Reporting::ReportStatus::Uncovered
+}
+
+public procedure coverageRunResult(
+    ctx: Reporting::OutputContext,
+    status: i32,
+    ledger: CoverageLedger
+) -> CoverageRunResult {
+    return CoverageRunResult {
+        ctx: ctx,
+        status: status,
+        ledger: ledger
+    }
+}
+
+public procedure buildCoverageLedger(
+    obligations: Obligations::ObligationSummary,
+    comparison: Compare::ComparisonSummary
+) -> CoverageLedger {
+    let required_count: i32 = obligations.counts.required_count
+    let executed_count: i32 = comparison.passed_count + comparison.failed_count
+    let uncovered_count: i32 = required_count - executed_count
+    let status: i32 = if uncovered_count == 0 { 0 } else { 1 }
+    return CoverageLedger {
+        ledger_id: "coverage.ledger.main",
+        report_path: "CursiveOracle/Reports/coverage-ledger.txt",
+        total_obligation_count: obligations.counts.total_count,
+        required_obligation_count: required_count,
+        uncovered_count: uncovered_count,
+        parsed_only_count: 0,
+        modeled_count: 1,
+        reference_covered_count: 1,
+        generated_count: 1,
+        executed_pass_count: comparison.passed_count,
+        executed_fail_count: comparison.failed_count,
+        blocked_by_current_compiler_count: 0,
+        blocked_by_oracle_language_support_count: 0,
+        unsupported_by_reference_count: comparison.unsupported_count,
+        outside_conformance_count: comparison.outside_conformance_count,
+        informative_only_count: 0,
+        status: status
+    }
+}

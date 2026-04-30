@@ -741,7 +741,7 @@ AddrOfOkResult AddrOfOk(const ScopeContext& ctx,
             stripped ? std::get_if<TypePathType>(&stripped->node) : nullptr) {
       if (IsPackedRecord(ctx, path->path) &&
           !IsInUnsafeSpan(ctx, expr->span)) {
-        return {false, "Packed-Field-Unsafe-Err"};
+        return {false, "E-TYP-2105"};
       }
     }
   }
@@ -911,7 +911,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
   const auto& params = *params_ptr;
   if (params.size() != args.size()) {
     SPEC_RULE("Call-ArgCount-Err");
-    result.diag_id = "Call-ArgCount-Err";
+    result.diag_id = "E-SEM-2532";
     result.diag_detail = "expected " + std::to_string(params.size()) +
                          " args, found " + std::to_string(args.size());
     return result;
@@ -920,7 +920,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (MissingRequiredMoveForConsumingLocal(params[i].mode, args[i])) {
       SPEC_RULE("Call-Move-Missing");
-      result.diag_id = "Call-Move-Missing";
+      result.diag_id = "E-SEM-2534";
       return result;
     }
   }
@@ -928,7 +928,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (!params[i].mode.has_value() && args[i].moved) {
       SPEC_RULE("Call-Move-Unexpected");
-      result.diag_id = "Call-Move-Unexpected";
+      result.diag_id = "E-SEM-2535";
       return result;
     }
   }
@@ -941,7 +941,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
       const bool has_source_prov = HasSourceProvenanceLocal(arg.value);
       if (has_source_prov && !IsPlaceExprForCallLocal(arg.value)) {
         SPEC_RULE("Call-Arg-NotPlace");
-        result.diag_id = "Call-Arg-NotPlace";
+        result.diag_id = "E-TYP-1603";
         return result;
       }
       if (has_source_prov && type_place) {
@@ -1000,7 +1000,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
     }
     if (!sub.subtype) {
       SPEC_RULE("Call-ArgType-Err");
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       result.diag_detail = "expected type " + TypeToString(params[i].type) +
                            ", found " + TypeToString(arg_types[i]);
       return result;
@@ -1012,7 +1012,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
         HasSourceProvenanceLocal(args[i].value) &&
         !IsPlaceExprForCallLocal(args[i].value)) {
       SPEC_RULE("Call-Arg-NotPlace");
-      result.diag_id = "Call-Arg-NotPlace";
+      result.diag_id = "E-TYP-1603";
       return result;
     }
   }
@@ -1035,7 +1035,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
         }
         if (!sub.subtype) {
           SPEC_RULE("Call-ArgType-Err");
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           result.diag_detail = "expected type " + TypeToString(params[i].type) +
                                ", found " + TypeToString(moved_type.type);
           return result;
@@ -1047,7 +1047,7 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
         const auto addr_ok = AddrOfOk(ctx, args[i].value, type_expr);
         if (!addr_ok.ok) {
           if (addr_ok.diag_id ==
-              std::optional<std::string_view>("Packed-Field-Unsafe-Err")) {
+              std::optional<std::string_view>("E-TYP-2105")) {
             SPEC_RULE("Call-Arg-Packed-Unsafe-Err");
           }
           result.diag_id = addr_ok.diag_id;
@@ -1107,7 +1107,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
   const auto& params = func->params;
   if (params.size() != args.size()) {
     SPEC_RULE("Call-ArgCount-Err");
-    result.diag_id = "Call-ArgCount-Err";
+    result.diag_id = "E-SEM-2532";
     result.diag_detail = "expected " + std::to_string(params.size()) +
                          " args, found " + std::to_string(args.size());
     return result;
@@ -1117,7 +1117,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (MissingRequiredMoveForConsumingLocal(params[i].mode, args[i])) {
       SPEC_RULE("Call-Move-Missing");
-      result.diag_id = "Call-Move-Missing";
+      result.diag_id = "E-SEM-2534";
       return result;
     }
   }
@@ -1125,7 +1125,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (!params[i].mode.has_value() && args[i].moved) {
       SPEC_RULE("Call-Move-Unexpected");
-      result.diag_id = "Call-Move-Unexpected";
+      result.diag_id = "E-SEM-2535";
       return result;
     }
   }
@@ -1140,7 +1140,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
       const bool has_source_prov = HasSourceProvenanceLocal(arg.value);
       if (has_source_prov && !IsPlaceExprForCallLocal(arg.value)) {
         SPEC_RULE("Call-Arg-NotPlace");
-        result.diag_id = "Call-Arg-NotPlace";
+        result.diag_id = "E-TYP-1603";
         return result;
       }
       if (has_source_prov && type_place) {
@@ -1202,7 +1202,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
     }
     if (!sub.subtype) {
       SPEC_RULE("Call-ArgType-Err");
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       result.diag_detail = "expected type " + TypeToString(subst_param_type) +
                            ", found " + TypeToString(arg_types[i]);
       return result;
@@ -1214,7 +1214,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
         HasSourceProvenanceLocal(args[i].value) &&
         !IsPlaceExprForCallLocal(args[i].value)) {
       SPEC_RULE("Call-Arg-NotPlace");
-      result.diag_id = "Call-Arg-NotPlace";
+      result.diag_id = "E-TYP-1603";
       return result;
     }
   }
@@ -1239,7 +1239,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
         }
         if (!sub.subtype) {
           SPEC_RULE("Call-ArgType-Err");
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           result.diag_detail = "expected type " + TypeToString(subst_param_type) +
                                ", found " + TypeToString(moved_type.type);
           return result;
@@ -1251,7 +1251,7 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
         const auto addr_ok = AddrOfOk(ctx, args[i].value, type_expr);
         if (!addr_ok.ok) {
           if (addr_ok.diag_id ==
-              std::optional<std::string_view>("Packed-Field-Unsafe-Err")) {
+              std::optional<std::string_view>("E-TYP-2105")) {
             SPEC_RULE("Call-Arg-Packed-Unsafe-Err");
           }
           result.diag_id = addr_ok.diag_id;

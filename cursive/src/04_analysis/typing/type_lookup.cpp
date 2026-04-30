@@ -19,6 +19,7 @@
 #include "04_analysis/generics/generic_params.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/resolve/scopes.h"
+#include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/type_lower.h"
 
 namespace cursive::analysis {
@@ -41,6 +42,99 @@ struct RecordFieldIndex {
 
 std::mutex g_record_field_index_mu;
 std::unordered_map<const ast::RecordDecl*, RecordFieldIndex> g_record_field_index;
+
+TypePath EntityQualifiedPath(const Entity& entity,
+                             std::string_view written_name,
+                             const TypePath& suffix) {
+  TypePath path;
+  if (entity.origin_opt.has_value()) {
+    path.insert(path.end(), entity.origin_opt->begin(), entity.origin_opt->end());
+  }
+  path.push_back(entity.target_opt.value_or(std::string(written_name)));
+  path.insert(path.end(), suffix.begin(), suffix.end());
+  return path;
+}
+
+const TypeDecl* LookupTypeDeclAt(const ScopeContext& ctx,
+                                 const TypePath& path,
+                                 TypePath* resolved_path) {
+  ast::TypePath syntax_path;
+  syntax_path.reserve(path.size());
+  for (const auto& comp : path) {
+    syntax_path.push_back(comp);
+  }
+
+  const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
+  if (it == ctx.sigma.types.end()) {
+    return nullptr;
+  }
+  if (resolved_path) {
+    *resolved_path = path;
+  }
+  return &it->second;
+}
+
+const TypeDecl* LookupScopedTypeDecl(const ScopeContext& ctx,
+                                     const TypePath& path,
+                                     TypePath* resolved_path) {
+  if (path.empty()) {
+    return nullptr;
+  }
+
+  if (path.size() == 1) {
+    const auto entity = ResolveTypeName(ctx, path.front());
+    if (!entity.has_value()) {
+      return nullptr;
+    }
+    TypePath resolved;
+    if (entity->origin_opt.has_value()) {
+      resolved = EntityQualifiedPath(*entity, path.front(), {});
+    } else {
+      resolved.push_back(entity->target_opt.value_or(path.front()));
+    }
+    return LookupTypeDeclAt(ctx, resolved, resolved_path);
+  }
+
+  const auto module_entity = ResolveModuleName(ctx, path.front());
+  if (!module_entity.has_value() || !module_entity->origin_opt.has_value()) {
+    return nullptr;
+  }
+
+  TypePath suffix(path.begin() + 1, path.end());
+  TypePath resolved = *module_entity->origin_opt;
+  resolved.insert(resolved.end(), suffix.begin(), suffix.end());
+  return LookupTypeDeclAt(ctx, resolved, resolved_path);
+}
+
+const TypeDecl* LookupModuleRelativeTypeDecl(const ScopeContext& ctx,
+                                             const TypePath& path,
+                                             TypePath* resolved_path) {
+  if (path.empty() || ctx.current_module.empty()) {
+    return nullptr;
+  }
+
+  TypePath current_qualified = ctx.current_module;
+  current_qualified.insert(current_qualified.end(), path.begin(), path.end());
+  if (const TypeDecl* decl =
+          LookupTypeDeclAt(ctx, current_qualified, resolved_path)) {
+    return decl;
+  }
+
+  if (path.size() >= 2) {
+    TypePath assembly_qualified;
+    assembly_qualified.push_back(ctx.current_module.front());
+    assembly_qualified.insert(
+        assembly_qualified.end(),
+        path.begin(),
+        path.end());
+    if (const TypeDecl* decl =
+            LookupTypeDeclAt(ctx, assembly_qualified, resolved_path)) {
+      return decl;
+    }
+  }
+
+  return nullptr;
+}
 
 const ast::FieldDecl* LookupFieldDeclImpl(const ast::RecordDecl& record,
                                           std::string_view field_name) {
@@ -78,46 +172,44 @@ ScopeContext BindRecordFieldTypeScope(const ScopeContext& ctx,
 
 }  // namespace
 
+const TypeDecl* LookupTypeDecl(const ScopeContext& ctx,
+                               const TypePath& path,
+                               TypePath* resolved_path) {
+  SpecDefsTypeLookup();
+  if (const TypeDecl* decl = LookupTypeDeclAt(ctx, path, resolved_path)) {
+    return decl;
+  }
+  if (const TypeDecl* decl = LookupScopedTypeDecl(ctx, path, resolved_path)) {
+    return decl;
+  }
+  return LookupModuleRelativeTypeDecl(ctx, path, resolved_path);
+}
+
 const ast::RecordDecl* LookupRecordDecl(const ScopeContext& ctx,
                                         const TypePath& path) {
   SpecDefsTypeLookup();
-  ast::Path syntax_path;
-  syntax_path.reserve(path.size());
-  for (const auto& comp : path) {
-    syntax_path.push_back(comp);
-  }
-  const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
-  if (it == ctx.sigma.types.end()) {
+  const TypeDecl* decl = LookupTypeDecl(ctx, path);
+  if (!decl) {
     return nullptr;
   }
-  return std::get_if<ast::RecordDecl>(&it->second);
+  return std::get_if<ast::RecordDecl>(decl);
 }
 
 const ast::EnumDecl* LookupEnumDecl(const ScopeContext& ctx,
                                     const TypePath& path) {
   SpecDefsTypeLookup();
-  ast::Path syntax_path;
-  syntax_path.reserve(path.size());
-  for (const auto& comp : path) {
-    syntax_path.push_back(comp);
-  }
-  const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
-  if (it == ctx.sigma.types.end()) {
+  const TypeDecl* decl = LookupTypeDecl(ctx, path);
+  if (!decl) {
     return nullptr;
   }
-  return std::get_if<ast::EnumDecl>(&it->second);
+  return std::get_if<ast::EnumDecl>(decl);
 }
 
 const std::optional<ast::GenericParams>* TypeParamsOf(const ScopeContext& ctx,
                                                       const TypePath& path) {
   SpecDefsTypeLookup();
-  ast::Path syntax_path;
-  syntax_path.reserve(path.size());
-  for (const auto& comp : path) {
-    syntax_path.push_back(comp);
-  }
-  const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
-  if (it == ctx.sigma.types.end()) {
+  const TypeDecl* decl = LookupTypeDecl(ctx, path);
+  if (!decl) {
     return nullptr;
   }
 
@@ -125,20 +217,15 @@ const std::optional<ast::GenericParams>* TypeParamsOf(const ScopeContext& ctx,
       [](const auto& decl) -> const std::optional<ast::GenericParams>* {
         return &decl.generic_params;
       },
-      it->second);
+      *decl);
 }
 
 const std::optional<ast::PredicateClause>* TypePredicateClauseOf(
     const ScopeContext& ctx,
     const TypePath& path) {
   SpecDefsTypeLookup();
-  ast::Path syntax_path;
-  syntax_path.reserve(path.size());
-  for (const auto& comp : path) {
-    syntax_path.push_back(comp);
-  }
-  const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
-  if (it == ctx.sigma.types.end()) {
+  const TypeDecl* decl = LookupTypeDecl(ctx, path);
+  if (!decl) {
     return nullptr;
   }
 
@@ -146,7 +233,7 @@ const std::optional<ast::PredicateClause>* TypePredicateClauseOf(
       [](const auto& decl) -> const std::optional<ast::PredicateClause>* {
         return &decl.predicate_clause_opt;
       },
-      it->second);
+      *decl);
 }
 
 bool FieldExists(const ast::RecordDecl& record, std::string_view field_name) {

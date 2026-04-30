@@ -91,6 +91,7 @@ void IRInstructionVisitor::operator()(const IRIf &node) const
     return;
   }
 
+  analysis::TypeRef result_type = LookupValueType(node.result);
   llvm::Type *result_ty = ExpectedLLVMType(node.result);
   if (!result_ty)
   {
@@ -177,7 +178,17 @@ void IRInstructionVisitor::operator()(const IRIf &node) const
         llvm::Value *candidate =
             entry.value ? entry.value : llvm::Constant::getNullValue(result_ty);
         llvm::IRBuilder<> pred_builder(entry.pred->getTerminator());
-        llvm::Value *coerced = CoerceTo(&pred_builder, candidate, result_ty);
+        llvm::Value *coerced = CoerceToTyped(
+            emitter,
+            &pred_builder,
+            candidate,
+            result_ty,
+            nullptr,
+            result_type);
+        if (!coerced)
+        {
+          coerced = CoerceTo(&pred_builder, candidate, result_ty);
+        }
         if (!coerced)
         {
           coerced = llvm::Constant::getNullValue(result_ty);
@@ -205,10 +216,30 @@ void IRInstructionVisitor::operator()(const IRIf &node) const
     if (pred && pred->getTerminator())
     {
       llvm::IRBuilder<> pred_builder(pred->getTerminator());
-      llvm::Value *coerced = CoerceTo(&pred_builder, candidate, result_ty);
+      llvm::Value *coerced = CoerceToTyped(
+          emitter,
+          &pred_builder,
+          candidate,
+          result_ty,
+          nullptr,
+          result_type);
+      if (!coerced)
+      {
+        coerced = CoerceTo(&pred_builder, candidate, result_ty);
+      }
       return coerced ? coerced : llvm::Constant::getNullValue(result_ty);
     }
-    llvm::Value *coerced = CoerceTo(&builder, candidate, result_ty);
+    llvm::Value *coerced = CoerceToTyped(
+        emitter,
+        &builder,
+        candidate,
+        result_ty,
+        nullptr,
+        result_type);
+    if (!coerced)
+    {
+      coerced = CoerceTo(&builder, candidate, result_ty);
+    }
     return coerced ? coerced : llvm::Constant::getNullValue(result_ty);
   };
   if (incoming.size() == 1)

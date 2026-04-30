@@ -243,7 +243,7 @@ static bool BuildClassAssociatedTypeBindings(
       binding_type = &assoc->default_type;
     } else {
       SPEC_RULE("Impl-AssocType-Missing");
-      diag_id = "Impl-AssocType-Missing";
+      diag_id = "E-TYP-2503";
       return false;
     }
 
@@ -768,7 +768,7 @@ RecordDeclResult TypeRecordDecl(
         if (!impl_method) {
           SPEC_RULE("Impl-Missing-Method");
           result.ok = false;
-          result.diag_id = "Impl-Missing-Method";
+          result.diag_id = "E-TYP-2503";
           return result;
         }
         if (impl_method->override_flag) {
@@ -810,7 +810,7 @@ RecordDeclResult TypeRecordDecl(
         if (!equiv.ok || !equiv.equiv) {
           SPEC_RULE("Impl-Sig-Err");
           result.ok = false;
-          result.diag_id = "Impl-Sig-Err";
+          result.diag_id = "E-TYP-2503";
           return result;
         }
 
@@ -880,7 +880,7 @@ RecordDeclResult TypeRecordDecl(
     if (HasReservedSelfParam(method->params)) {
       SPEC_RULE("Method-Context-Err");
       result.ok = false;
-      result.diag_id = "Method-Context-Err";
+      result.diag_id = "E-SEM-3011";
       return result;
     }
 
@@ -1102,7 +1102,7 @@ RecordDeclResult TypeRecordDeclSignature(
     if (HasReservedSelfParam(method->params)) {
       SPEC_RULE("Method-Context-Err");
       result.ok = false;
-      result.diag_id = "Method-Context-Err";
+      result.diag_id = "E-SEM-3011";
       return result;
     }
 

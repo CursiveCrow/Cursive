@@ -12,6 +12,7 @@
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostics.h"
 #include "01_project/project.h"
+#include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
 
@@ -22,6 +23,7 @@ using PathKey = std::vector<IdKey>;
 using ExprTypeMap = std::unordered_map<const ast::Expr*, TypeRef>;
 using DynamicRefineExprMap =
     std::unordered_map<const ast::Expr*, std::vector<TypeRef>>;
+using GenericCallSubstMap = std::unordered_map<const ast::CallExpr*, TypeSubst>;
 
 
 enum class EntityKind {
@@ -43,6 +45,8 @@ struct Entity {
   std::optional<ast::ModulePath> origin_opt;
   std::optional<ast::Identifier> target_opt;
   EntitySource source;
+  std::optional<core::Span> declaration_span;
+  std::string language_symbol_id;
 };
 
 using TypeDecl = std::variant<ast::RecordDecl,
@@ -72,6 +76,7 @@ struct ScopeContext {
   mutable core::DiagnosticStream* diagnostics = nullptr;
   ExprTypeMap* expr_types = nullptr;
   DynamicRefineExprMap* dynamic_refine_checks = nullptr;
+  GenericCallSubstMap* generic_call_substs = nullptr;
   ast::ModulePath current_module;
   ScopeList scopes;
 };

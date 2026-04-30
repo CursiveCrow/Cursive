@@ -83,23 +83,23 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
                               analysis::TypePath *out_path) -> const ast::EnumDecl *
   {
     type = normalize_match_type(type);
-    const auto *path = type ? std::get_if<analysis::TypePathType>(&type->node) : nullptr;
+    const auto *path = type ? analysis::AppliedTypePath(*type) : nullptr;
     if (!path)
     {
       return nullptr;
     }
     if (out_path)
     {
-      *out_path = path->path;
+      *out_path = *path;
     }
-    if (const ast::EnumDecl* decl = analysis::LookupEnumDecl(scope, path->path))
+    if (const ast::EnumDecl* decl = analysis::LookupEnumDecl(scope, *path))
     {
       return decl;
     }
-    if (!scope.current_module.empty() && path->path.size() == 1u)
+    if (!scope.current_module.empty() && path->size() == 1u)
     {
       analysis::TypePath qualified = scope.current_module;
-      qualified.insert(qualified.end(), path->path.begin(), path->path.end());
+      qualified.insert(qualified.end(), path->begin(), path->end());
       if (out_path)
       {
         *out_path = qualified;
@@ -107,6 +107,22 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
       return analysis::LookupEnumDecl(scope, qualified);
     }
     return nullptr;
+  };
+
+  auto enum_generic_args_for_type = [&](analysis::TypeRef type)
+      -> std::vector<analysis::TypeRef>
+  {
+    type = normalize_match_type(type);
+    if (!type)
+    {
+      return {};
+    }
+    const auto *args = analysis::AppliedTypeArgs(*type);
+    if (!args)
+    {
+      return {};
+    }
+    return *args;
   };
 
   auto find_variant = [](const ast::EnumDecl &decl,
@@ -151,101 +167,49 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
 
   auto payload_member_by_index = [&](const ast::EnumDecl &enum_decl,
                                      const ast::VariantDecl &variant,
+                                     const std::vector<analysis::TypeRef> &generic_args,
                                      std::size_t index) -> EnumPayloadMemberInfo
   {
     EnumPayloadMemberInfo out;
-    const auto enum_layout =
-        ::cursive::analysis::layout::EnumLayoutOf(scope, enum_decl, ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl.attrs));
-    if (!enum_layout.has_value())
+    const auto member = ::cursive::analysis::layout::EnumTuplePayloadMemberLayout(
+        scope,
+        enum_decl,
+        variant,
+        generic_args,
+        index);
+    if (!member.has_value())
     {
       return out;
     }
-    if (!variant.payload_opt.has_value())
-    {
-      return out;
-    }
-    const auto *payload =
-        std::get_if<ast::VariantPayloadTuple>(&*variant.payload_opt);
-    if (!payload || index >= payload->elements.size())
-    {
-      return out;
-    }
-    std::vector<analysis::TypeRef> field_types;
-    field_types.reserve(payload->elements.size());
-    for (const auto &elem_ty : payload->elements)
-    {
-      const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, elem_ty);
-      if (!lowered.has_value())
-      {
-        return out;
-      }
-      field_types.push_back(*lowered);
-    }
-    const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
-    if (!layout.has_value() || index >= layout->offsets.size())
-    {
-      return out;
-    }
-    out.type = field_types[index];
-    out.offset = layout->offsets[index];
-    out.payload_size = enum_layout->payload_size;
-    out.payload_align = enum_layout->payload_align;
+    out.type = member->type;
+    out.offset = member->offset;
+    out.payload_size = member->payload_size;
+    out.payload_align = member->payload_align;
     out.ok = true;
     return out;
   };
 
   auto payload_member_by_field = [&](const ast::EnumDecl &enum_decl,
                                      const ast::VariantDecl &variant,
+                                     const std::vector<analysis::TypeRef> &generic_args,
                                      std::string_view field_name) -> EnumPayloadMemberInfo
   {
     EnumPayloadMemberInfo out;
-    const auto enum_layout =
-        ::cursive::analysis::layout::EnumLayoutOf(scope, enum_decl, ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl.attrs));
-    if (!enum_layout.has_value())
+    const auto member = ::cursive::analysis::layout::EnumRecordPayloadMemberLayout(
+        scope,
+        enum_decl,
+        variant,
+        generic_args,
+        field_name);
+    if (!member.has_value())
     {
       return out;
     }
-    if (!variant.payload_opt.has_value())
-    {
-      return out;
-    }
-    const auto *payload =
-        std::get_if<ast::VariantPayloadRecord>(&*variant.payload_opt);
-    if (!payload)
-    {
-      return out;
-    }
-    std::vector<analysis::TypeRef> field_types;
-    std::vector<std::string> field_names;
-    field_types.reserve(payload->fields.size());
-    field_names.reserve(payload->fields.size());
-    for (const auto &field : payload->fields)
-    {
-      const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field.type);
-      if (!lowered.has_value())
-      {
-        return out;
-      }
-      field_types.push_back(*lowered);
-      field_names.push_back(field.name);
-    }
-    const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
-    if (!layout.has_value())
-    {
-      return out;
-    }
-    for (std::size_t i = 0; i < field_names.size() && i < layout->offsets.size(); ++i)
-    {
-      if (analysis::IdEq(field_names[i], std::string(field_name)))
-      {
-        out.type = field_types[i];
-        out.offset = layout->offsets[i];
-        out.payload_size = enum_layout->payload_size;
-        out.payload_align = enum_layout->payload_align;
-        out.ok = true;
-        break;
-      }
-    }
+    out.type = member->type;
+    out.offset = member->offset;
+    out.payload_size = member->payload_size;
+    out.payload_align = member->payload_align;
+    out.ok = true;
     return out;
   };
 
@@ -1019,6 +983,8 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
             {
               return llvm::ConstantInt::getFalse(emitter.GetContext());
             }
+            const std::vector<analysis::TypeRef> subject_enum_args =
+                enum_generic_args_for_type(subject_type);
             const auto expected_disc = variant_disc(*enum_decl, pat.name);
             llvm::Value *actual_disc = enum_disc_value(subject);
             if (!expected_disc.has_value() || !actual_disc)
@@ -1061,7 +1027,11 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
                   {
                     for (std::size_t i = 0; i < payload_pattern.elements.size(); ++i)
                     {
-                      const auto member = payload_member_by_index(*enum_decl, *variant, i);
+                      const auto member = payload_member_by_index(
+                          *enum_decl,
+                          *variant,
+                          subject_enum_args,
+                          i);
                       llvm::Value *member_val = load_enum_payload_member(subject, member);
                       llvm::Value *member_ok = emit_pattern_cond_for_value(
                           payload_pattern.elements[i],
@@ -1081,7 +1051,11 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
                         continue;
                       }
                       const auto member =
-                          payload_member_by_field(*enum_decl, *variant, field.name);
+                          payload_member_by_field(
+                              *enum_decl,
+                              *variant,
+                              subject_enum_args,
+                              field.name);
                       llvm::Value *member_val = load_enum_payload_member(subject, member);
                       llvm::Value *member_ok = emit_pattern_cond_for_value(
                           field.pattern,
@@ -1276,6 +1250,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
 
   builder.SetInsertPoint(merge_bb);
   emitter.RestoreFlowState(branch_state);
+  analysis::TypeRef result_type = LookupValueType(if_case.result);
   llvm::Type *result_ty = ExpectedLLVMType(if_case.result);
   if (!result_ty)
   {
@@ -1372,7 +1347,17 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
         llvm::IRBuilder<> pred_builder(entry.pred->getTerminator());
         llvm::Value *candidate =
             entry.value ? entry.value : llvm::Constant::getNullValue(result_ty);
-        llvm::Value *coerced = CoerceTo(&pred_builder, candidate, result_ty);
+        llvm::Value *coerced = CoerceToTyped(
+            emitter,
+            &pred_builder,
+            candidate,
+            result_ty,
+            nullptr,
+            result_type);
+        if (!coerced)
+        {
+          coerced = CoerceTo(&pred_builder, candidate, result_ty);
+        }
         if (!coerced)
         {
           coerced = llvm::Constant::getNullValue(result_ty);
@@ -1400,10 +1385,30 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     if (pred && pred->getTerminator())
     {
       llvm::IRBuilder<> pred_builder(pred->getTerminator());
-      llvm::Value *coerced = CoerceTo(&pred_builder, candidate, result_ty);
+      llvm::Value *coerced = CoerceToTyped(
+          emitter,
+          &pred_builder,
+          candidate,
+          result_ty,
+          nullptr,
+          result_type);
+      if (!coerced)
+      {
+        coerced = CoerceTo(&pred_builder, candidate, result_ty);
+      }
       return coerced ? coerced : llvm::Constant::getNullValue(result_ty);
     }
-    llvm::Value *coerced = CoerceTo(&builder, candidate, result_ty);
+    llvm::Value *coerced = CoerceToTyped(
+        emitter,
+        &builder,
+        candidate,
+        result_ty,
+        nullptr,
+        result_type);
+    if (!coerced)
+    {
+      coerced = CoerceTo(&builder, candidate, result_ty);
+    }
     return coerced ? coerced : llvm::Constant::getNullValue(result_ty);
   };
 

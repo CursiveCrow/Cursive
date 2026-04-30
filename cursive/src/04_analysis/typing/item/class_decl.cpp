@@ -353,7 +353,7 @@ ClassDeclResult TypeClassDecl(
       SPEC_RULE("WF-Class-Method");
       SPEC_RULE("Method-Context-Err");
       result.ok = false;
-      result.diag_id = "Method-Context-Err";
+      result.diag_id = "E-SEM-3011";
       return result;
     }
 
@@ -592,7 +592,7 @@ ClassDeclResult TypeClassDecl(
   const auto method_table = ClassMethodTable(ctx, self_class_path);
   if (!method_table.ok) {
     if (method_table.diag_id.has_value() &&
-        *method_table.diag_id == "Superclass-Cycle") {
+        *method_table.diag_id == "E-TYP-2508") {
       SPEC_RULE("Superclass-Cycle");
     }
     result.ok = false;
@@ -603,7 +603,7 @@ ClassDeclResult TypeClassDecl(
   const auto field_table = ClassFieldTable(ctx, self_class_path);
   if (!field_table.ok) {
     if (field_table.diag_id.has_value() &&
-        *field_table.diag_id == "Superclass-Cycle") {
+        *field_table.diag_id == "E-TYP-2508") {
       SPEC_RULE("Superclass-Cycle");
     }
     result.ok = false;
@@ -692,7 +692,7 @@ ClassDeclResult TypeClassDeclSignature(
       SPEC_RULE("WF-Class-Method");
       SPEC_RULE("Method-Context-Err");
       result.ok = false;
-      result.diag_id = "Method-Context-Err";
+      result.diag_id = "E-SEM-3011";
       return result;
     }
 

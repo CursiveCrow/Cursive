@@ -170,7 +170,9 @@ void CollectPatternNames(const ast::Pattern& pat,
         if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
           out.push_back(node.name);
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
-          // TypedPattern has a name and type, the name is the binding
+          if (node.name == "_") {
+            return;
+          }
           out.push_back(node.name);
         } else if constexpr (std::is_same_v<T, ast::TuplePattern>) {
           for (const auto& elem : node.elements) {

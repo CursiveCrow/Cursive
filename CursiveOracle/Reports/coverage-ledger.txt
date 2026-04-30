@@ -1,0 +1,3 @@
+coverage_ledger=coverage.ledger.main
+source=docs/CursiveSpecification.md
+state=incomplete_required_obligations

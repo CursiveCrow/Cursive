@@ -108,9 +108,6 @@ std::optional<std::string_view> CodeForResolveDiag(
   if (diag_id == "Protected-TopLevel-Err") {
     return "E-MOD-2440";
   }
-  if (diag_id == "Export-Vis-Err") {
-    return "E-SYS-3353";
-  }
   if (diag_id == "Intro-Reserved-Gen-Err" ||
       diag_id == "Shadow-Reserved-Gen-Err") {
     return "E-CNF-0406";
@@ -119,8 +116,8 @@ std::optional<std::string_view> CodeForResolveDiag(
       diag_id == "Shadow-Reserved-Cursive-Err") {
     return "E-CNF-0402";
   }
-  if (diag_id == "Intro-Shadow-Required") {
-    return "E-MOD-1303";
+  if (diag_id == "Intro-Outer-Err") {
+    return "E-MOD-1304";
   }
   if (diag_id == "Collect-Dup" || diag_id == "Names-Step-Dup") {
     return "E-MOD-1302";
@@ -130,9 +127,6 @@ std::optional<std::string_view> CodeForResolveDiag(
   }
   if (diag_id == "Shadow-Unnecessary") {
     return "E-MOD-1306";
-  }
-  if (diag_id == "Main-Multiple") {
-    return "E-MOD-2430";
   }
   if (diag_id == "Pat-Dup-Err") {
     return "E-SEM-2713";
@@ -157,6 +151,20 @@ core::DiagnosticStream EmitResolveDiag(
     const std::vector<core::SubDiagnostic>& children = {}) {
   const auto code = CodeForResolveDiag(diag_id);
   if (!code.has_value()) {
+    core::Diagnostic diag;
+    diag.severity = core::Severity::Error;
+    diag.span = span;
+    diag.message =
+        "Internal error: resolver failed with unmapped diagnostic id `" +
+        std::string(diag_id) + "`.";
+    if (!detail.empty()) {
+      core::SubDiagnostic note;
+      note.kind = core::SubDiagnosticKind::Note;
+      note.message = detail;
+      diag.children.push_back(std::move(note));
+    }
+    diag.children.insert(diag.children.end(), children.begin(), children.end());
+    core::Emit(diags, diag);
     return diags;
   }
   if (auto diag = core::MakeDiagnosticById(*code, span)) {
@@ -169,7 +177,34 @@ core::DiagnosticStream EmitResolveDiag(
     diag->children.insert(diag->children.end(), children.begin(),
                           children.end());
     core::Emit(diags, *diag);
+    return diags;
   }
+  core::Diagnostic diag;
+  diag.severity = core::Severity::Error;
+  diag.span = span;
+  diag.message =
+      "Internal error: resolver diagnostic id `" + std::string(diag_id) +
+      "` mapped to unregistered diagnostic code `" + std::string(*code) + "`.";
+  if (!detail.empty()) {
+    core::SubDiagnostic note;
+    note.kind = core::SubDiagnosticKind::Note;
+    note.message = detail;
+    diag.children.push_back(std::move(note));
+  }
+  diag.children.insert(diag.children.end(), children.begin(), children.end());
+  core::Emit(diags, diag);
+  return diags;
+}
+
+core::DiagnosticStream EmitInternalResolveFailure(
+    core::DiagnosticStream diags,
+    std::string message,
+    const std::optional<core::Span>& span = std::nullopt) {
+  core::Diagnostic diag;
+  diag.severity = core::Severity::Error;
+  diag.span = span;
+  diag.message = std::move(message);
+  core::Emit(diags, diag);
   return diags;
 }
 
@@ -598,9 +633,18 @@ ResolveModulesResult ResolveModules(ResolveContext& ctx) {
     if (ctx.parse_diags != nullptr) {
       result.diags = *ctx.parse_diags;
     }
+    if (!core::HasError(result.diags)) {
+      result.diags = EmitInternalResolveFailure(
+          std::move(result.diags),
+          "Internal error: resolver was asked to continue after parse failure "
+          "without a parse diagnostic.");
+    }
     return result;
   }
   if (!ctx.ctx) {
+    result.diags = EmitInternalResolveFailure(
+        std::move(result.diags),
+        "Internal error: resolver failed without a scope context.");
     return result;
   }
   result.ok = true;

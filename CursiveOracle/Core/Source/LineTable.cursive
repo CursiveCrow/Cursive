@@ -1,0 +1,317 @@
+import core::Data
+import core::Text
+
+public record LineTable {
+    public file_path: string@View
+    public text: bytes@View
+    public byte_length: i32
+    public line_count: i32
+    public utf8_valid: bool
+}
+
+public record SourceExcerpt {
+    public span: SourceSpan
+    public line_number: i32
+    public line_bytes: bytes@View
+    public marker_start_col: i32
+    public marker_end_col: i32
+}
+
+procedure byteAtOrZero(view: bytes@View, index: i32) -> u8 {
+    return if Text::byteAt(view, index) is {
+        Data::LookupValue::Present(byte) { byte }
+        Data::LookupValue::Absent { 0 }
+    }
+}
+
+procedure lineBreakWidthAt(view: bytes@View, index: i32, length: i32) -> i32 {
+    if (index >= length) {
+        return 0
+    }
+
+    let byte: u8 = byteAtOrZero(view, index)
+    if (byte == 13) {
+        if (((index + 1) < length) && (byteAtOrZero(view, index + 1) == 10)) {
+            return 2
+        }
+        return 1
+    }
+    if (byte == 10) {
+        return 1
+    }
+    return 0
+}
+
+procedure lineCountIn(view: bytes@View, length: i32) -> i32 {
+    var index: i32 = 0
+    var count: i32 = 1
+    loop {
+        if (index >= length) {
+            break
+        }
+        let width: i32 = lineBreakWidthAt(view, index, length)
+        if (width > 0) {
+            count = count + 1
+            index = index + width
+        } else {
+            index = index + 1
+        }
+    }
+    return count
+}
+
+public procedure lineTableFromBytes(file_path: string@View, text: bytes@View) -> LineTable {
+    let length: i32 = Text::byteLength(text)
+    let validation: Text::Utf8Validation = Text::utf8Validate(text)
+    return LineTable {
+        file_path: file_path,
+        text: text,
+        byte_length: length,
+        line_count: lineCountIn(text, length),
+        utf8_valid: Text::utf8ValidationIsValid(validation)
+    }
+}
+
+public procedure lineTableFromText(file_path: string@View, text: string@View) -> LineTable {
+    return lineTableFromBytes(file_path, Text::textAsBytes(text))
+}
+
+procedure clampStartOffset(table: LineTable, offset: i32) -> i32 {
+    if (offset < 0) {
+        return 0
+    }
+    if (offset > table.byte_length) {
+        return table.byte_length
+    }
+    return offset
+}
+
+procedure clampEndOffset(table: LineTable, start_offset: i32, end_offset: i32) -> i32 {
+    if (end_offset < start_offset) {
+        return start_offset
+    }
+    if (end_offset > table.byte_length) {
+        return table.byte_length
+    }
+    return end_offset
+}
+
+public procedure lineTableLocate(table: LineTable, offset: i32) -> SourceLocation {
+    let target_offset: i32 = clampStartOffset(table, offset)
+    var index: i32 = 0
+    var line: i32 = 1
+    var line_start: i32 = 0
+    loop {
+        if ((index >= table.byte_length) || (index >= target_offset)) {
+            break
+        }
+        let width: i32 = lineBreakWidthAt(table.text, index, table.byte_length)
+        if (width > 0) {
+            let next_start: i32 = index + width
+            if (next_start > target_offset) {
+                break
+            }
+            line = line + 1
+            line_start = next_start
+            index = next_start
+        } else {
+            index = index + 1
+        }
+    }
+    return sourceLocation(
+        table.file_path,
+        target_offset,
+        line,
+        (target_offset - line_start) + 1
+    )
+}
+
+procedure lineStartOffset(table: LineTable, target_line: i32) -> i32 {
+    if (target_line == 1) {
+        return 0
+    }
+    var index: i32 = 0
+    var current_line: i32 = 1
+    loop {
+        if (index >= table.byte_length) {
+            break
+        }
+        let width: i32 = lineBreakWidthAt(table.text, index, table.byte_length)
+        if (width > 0) {
+            let next_start: i32 = index + width
+            current_line = current_line + 1
+            if (current_line == target_line) {
+                return next_start
+            }
+            index = next_start
+        } else {
+            index = index + 1
+        }
+    }
+    return table.byte_length
+}
+
+public procedure lineTableLineStartOffset(
+    table: LineTable,
+    line: i32
+) -> Data::OperationOutcome<i32, string@View> {
+    if ((line < 1) || (line > table.line_count)) {
+        return Data::OperationOutcome::Rejected("line out of range")
+    }
+    return Data::OperationOutcome::Completed(lineStartOffset(table, line))
+}
+
+procedure lineEndOffsetFrom(table: LineTable, start_index: i32) -> i32 {
+    var index: i32 = start_index
+    loop {
+        if (index >= table.byte_length) {
+            break
+        }
+        let width: i32 = lineBreakWidthAt(table.text, index, table.byte_length)
+        if (width > 0) {
+            return index
+        }
+        index = index + 1
+    }
+    return table.byte_length
+}
+
+public procedure lineTableLineEndOffset(
+    table: LineTable,
+    line: i32
+) -> Data::OperationOutcome<i32, string@View> {
+    return if lineTableLineStartOffset(table, line) is {
+        Data::OperationOutcome::Completed(start_offset) {
+            Data::OperationOutcome::Completed(lineEndOffsetFrom(table, start_offset))
+        }
+        Data::OperationOutcome::Rejected(message) {
+            Data::OperationOutcome::Rejected(message)
+        }
+    }
+}
+
+public procedure lineTableLineColumnToByteOffset(
+    table: LineTable,
+    position: LineColumn
+) -> Data::OperationOutcome<i32, string@View> {
+    if (position.column < 1) {
+        return Data::OperationOutcome::Rejected("column out of range")
+    }
+
+    return if lineTableLineStartOffset(table, position.line) is {
+        Data::OperationOutcome::Completed(start_offset) {
+            if lineTableLineEndOffset(table, position.line) is {
+                Data::OperationOutcome::Completed(end_offset) {
+                    let offset: i32 = start_offset + position.column - 1
+                    if (offset > end_offset) {
+                        return Data::OperationOutcome::Rejected("column out of range")
+                    }
+                    Data::OperationOutcome::Completed(offset)
+                }
+                Data::OperationOutcome::Rejected(message) {
+                    Data::OperationOutcome::Rejected(message)
+                }
+            }
+        }
+        Data::OperationOutcome::Rejected(message) {
+            Data::OperationOutcome::Rejected(message)
+        }
+    }
+}
+
+public procedure lineTableLineBytes(
+    table: LineTable,
+    line: i32
+) -> Data::OperationOutcome<bytes@View, string@View> {
+    return if lineTableLineStartOffset(table, line) is {
+        Data::OperationOutcome::Completed(start_offset) {
+            if lineTableLineEndOffset(table, line) is {
+                Data::OperationOutcome::Completed(end_offset) {
+                    Text::byteSlice(table.text, start_offset, end_offset - start_offset)
+                }
+                Data::OperationOutcome::Rejected(message) {
+                    Data::OperationOutcome::Rejected(message)
+                }
+            }
+        }
+        Data::OperationOutcome::Rejected(message) {
+            Data::OperationOutcome::Rejected(message)
+        }
+    }
+}
+
+public procedure lineTableSpanOf(
+    table: LineTable,
+    start_offset: i32,
+    end_offset: i32
+) -> SourceSpan {
+    let clamped_start: i32 = clampStartOffset(table, start_offset)
+    let clamped_end: i32 = clampEndOffset(table, clamped_start, end_offset)
+    return sourceSpanFromLocations(
+        lineTableLocate(table, clamped_start),
+        lineTableLocate(table, clamped_end)
+    )
+}
+
+procedure clampExcerptColumn(column: i32, line_byte_length: i32) -> i32 {
+    let max_column: i32 = line_byte_length + 1
+    if (column < 1) {
+        return 1
+    }
+    if (column > max_column) {
+        return max_column
+    }
+    return column
+}
+
+procedure excerptMarkerEndColumn(
+    span: SourceSpan,
+    line_byte_length: i32,
+    marker_start_col: i32
+) -> i32 {
+    let raw_end_col: i32 = if (span.end_line == span.start_line) {
+        span.end_col
+    } else {
+        line_byte_length + 1
+    }
+
+    let clamped_end_col: i32 = clampExcerptColumn(raw_end_col, line_byte_length)
+    if (clamped_end_col <= marker_start_col) {
+        return clampExcerptColumn(marker_start_col + 1, line_byte_length)
+    }
+    return clamped_end_col
+}
+
+public procedure lineTableExcerpt(
+    table: LineTable,
+    span: SourceSpan
+) -> Data::OperationOutcome<SourceExcerpt, string@View> {
+    if (Text::textEqualsExact(table.file_path, span.file_path) == false) {
+        return Data::OperationOutcome::Rejected("span file mismatch")
+    }
+    if ((span.start_line < 1) || (span.start_line > table.line_count)) {
+        return Data::OperationOutcome::Rejected("span line out of range")
+    }
+
+    return if lineTableLineBytes(table, span.start_line) is {
+        Data::OperationOutcome::Completed(excerpt_line_bytes) {
+            let line_byte_length: i32 = Text::byteLength(excerpt_line_bytes)
+            let marker_start_col: i32 =
+                clampExcerptColumn(span.start_col, line_byte_length)
+            let marker_end_col: i32 =
+                excerptMarkerEndColumn(span, line_byte_length, marker_start_col)
+            Data::OperationOutcome::Completed(
+                SourceExcerpt {
+                    span: span,
+                    line_number: span.start_line,
+                    line_bytes: excerpt_line_bytes,
+                    marker_start_col: marker_start_col,
+                    marker_end_col: marker_end_col
+                }
+            )
+        }
+        Data::OperationOutcome::Rejected(message) {
+            Data::OperationOutcome::Rejected(message)
+        }
+    }
+}

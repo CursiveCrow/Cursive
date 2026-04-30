@@ -435,7 +435,7 @@ StmtTypeResult TypeReturnStmt(const ScopeContext& ctx,
     if (!check.ok) {
       if (!check.diag_id.has_value()) {
         SPEC_RULE("Return-Type-Err");
-        return {false, "Return-Type-Err", {}, {}};
+        return {false, "E-SEM-3161", {}, {}};
       }
       return {false, check.diag_id, {}, {}};
     }
@@ -459,7 +459,7 @@ StmtTypeResult TypeReturnStmt(const ScopeContext& ctx,
   // Return without value - procedure must have () return type
   if (!IsPrimType(type_ctx.return_type, "()")) {
     SPEC_RULE("Return-Unit-Err");
-    return {false, "Return-Type-Err", {}, {}};
+    return {false, "E-SEM-3161", {}, {}};
   }
   if (const auto diag = verify_post(ret_value); diag.has_value()) {
     return {false, *diag, {}, {}};

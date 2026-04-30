@@ -85,6 +85,7 @@
 #include "04_analysis/generics/generic_params.h"
 #include "04_analysis/modal/modal.h"
 #include "04_analysis/resolve/scopes.h"
+#include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_infer.h"
@@ -135,6 +136,30 @@ static bool IsBuiltinCapClassPath(const TypePath& path) {
 
 static bool IsAsyncPathType(const TypePath& path) {
   return IsAsyncModalPath(path);
+}
+
+static bool IsKnownTypePath(const ScopeContext& ctx, const TypePath& path) {
+  ast::TypePath ast_path;
+  ast_path.reserve(path.size());
+  for (const auto& comp : path) {
+    ast_path.push_back(comp);
+  }
+  if (ctx.sigma.types.find(PathKeyOf(ast_path)) != ctx.sigma.types.end()) {
+    return true;
+  }
+  if (path.size() != 1) {
+    return false;
+  }
+  const auto ent = ResolveTypeName(ctx, path.front());
+  if (!ent.has_value()) {
+    return false;
+  }
+  if (!ent->origin_opt.has_value()) {
+    return ent->target_opt.has_value() && IdEq(*ent->target_opt, path.front());
+  }
+  ast::TypePath resolved = *ent->origin_opt;
+  resolved.push_back(ent->target_opt.value_or(path.front()));
+  return ctx.sigma.types.find(PathKeyOf(resolved)) != ctx.sigma.types.end();
 }
 
 // Forward declaration for primitive type name checking - defined below at line 321
@@ -258,8 +283,8 @@ static TypeWfResult TypeWFImpl(const ScopeContext& ctx, const TypeRef& type) {
           }
           SPEC_RULE("WF-Func");
           return {true, std::nullopt};
-          } else if constexpr (std::is_same_v<T, TypePathType>) {
-            if (IsAsyncPathType(node.path)) {
+        } else if constexpr (std::is_same_v<T, TypePathType>) {
+          if (IsAsyncPathType(node.path)) {
             if (node.generic_args.size() != 4) {
               SPEC_RULE("WF-Async-ArgCount-Err");
               return {false, "WF-Async-ArgCount-Err"};
@@ -282,44 +307,34 @@ static TypeWfResult TypeWFImpl(const ScopeContext& ctx, const TypeRef& type) {
             SPEC_RULE("WF-Path");
             return {true, std::nullopt};
           }
-          ast::TypePath ast_path;
-          ast_path.reserve(node.path.size());
-          for (const auto& comp : node.path) {
-            ast_path.push_back(comp);
-          }
-          if (ctx.sigma.types.find(PathKeyOf(ast_path)) == ctx.sigma.types.end()) {
+          if (!IsKnownTypePath(ctx, node.path)) {
             return {};
+          }
+          SPEC_RULE("WF-Path");
+          return {true, std::nullopt};
+        } else if constexpr (std::is_same_v<T, TypeApply>) {
+          if (IsAsyncPathType(node.path)) {
+            if (node.args.size() != 4) {
+              SPEC_RULE("WF-Async-ArgCount-Err");
+              return {false, "WF-Async-ArgCount-Err"};
             }
-            SPEC_RULE("WF-Path");
-            return {true, std::nullopt};
-          } else if constexpr (std::is_same_v<T, TypeApply>) {
-            if (IsAsyncPathType(node.path)) {
-              if (node.args.size() != 4) {
-                SPEC_RULE("WF-Async-ArgCount-Err");
-                return {false, "WF-Async-ArgCount-Err"};
+          }
+          for (const auto& arg : node.args) {
+            const auto wf = TypeWFImpl(ctx, arg);
+            if (!wf.ok) {
+              if (IsAsyncPathType(node.path)) {
+                SPEC_RULE("WF-Async-Arg-WF-Err");
+                return {false, "WF-Async-Arg-WF-Err"};
               }
+              return wf;
             }
-            for (const auto& arg : node.args) {
-              const auto wf = TypeWFImpl(ctx, arg);
-              if (!wf.ok) {
-                if (IsAsyncPathType(node.path)) {
-                  SPEC_RULE("WF-Async-Arg-WF-Err");
-                  return {false, "WF-Async-Arg-WF-Err"};
-                }
-                return wf;
-              }
-            }
-            ast::TypePath ast_path;
-            ast_path.reserve(node.path.size());
-            for (const auto& comp : node.path) {
-              ast_path.push_back(comp);
-            }
-            if (ctx.sigma.types.find(PathKeyOf(ast_path)) == ctx.sigma.types.end()) {
-              return {};
-            }
-            SPEC_RULE("WF-Apply");
-            return {true, std::nullopt};
-          } else if constexpr (std::is_same_v<T, TypeDynamic>) {
+          }
+          if (!IsKnownTypePath(ctx, node.path)) {
+            return {};
+          }
+          SPEC_RULE("WF-Apply");
+          return {true, std::nullopt};
+        } else if constexpr (std::is_same_v<T, TypeDynamic>) {
           if (IsBuiltinCapClassPath(node.path)) {
             SPEC_RULE("WF-Dynamic");
             return {true, std::nullopt};

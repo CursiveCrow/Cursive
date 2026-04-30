@@ -19,6 +19,7 @@
 #include <type_traits>
 
 #include "00_core/assert_spec.h"
+#include "04_analysis/language_service/facts.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/resolve/scopes_intro.h"
 #include "04_analysis/resolve/scopes_lookup.h"
@@ -74,6 +75,26 @@ Scope BuildDeriveTargetCapabilityScope() {
   add("introspect");
   add("diagnostics");
   return scope;
+}
+
+Entity LocalLanguageEntity(ResolveContext& ctx,
+                           std::string_view name,
+                           const core::Span& span,
+                           LanguageSymbolKind kind,
+                           std::string detail) {
+  if (ctx.ctx == nullptr) {
+    return Entity{EntityKind::Value, std::nullopt, std::nullopt,
+                  EntitySource::Decl};
+  }
+  return MakeLanguageServiceLocalEntity(ctx.language_service, *ctx.ctx, name,
+                                        span, kind, std::move(detail));
+}
+
+void AddParamToScope(ResolveContext& ctx, Scope& scope, const ast::Param& param) {
+  scope.emplace(IdKeyOf(param.name),
+                LocalLanguageEntity(ctx, param.name, param.span,
+                                    LanguageSymbolKind::Parameter,
+                                    "parameter"));
 }
 
 std::optional<core::Span> SpanOfItem(const ast::ASTItem& item) {
@@ -315,14 +336,12 @@ ResolveResult<std::vector<ast::RecordMember>> ResolveRecordMemberList(
             auto out = node;
             Scope proc_scope;
             for (const auto& param : node.params) {
-              proc_scope.emplace(IdKeyOf(param.name),
-                                 Entity{EntityKind::Value, std::nullopt,
-                                        std::nullopt, EntitySource::Decl});
+              AddParamToScope(ctx, proc_scope, param);
             }
             proc_scope.emplace(
                 IdKeyOf("self"),
-                Entity{EntityKind::Value, std::nullopt, std::nullopt,
-                       EntitySource::Decl});
+                LocalLanguageEntity(ctx, "self", node.span,
+                                    LanguageSymbolKind::Variable, "receiver"));
             proc_scope.emplace(
                 IdKeyOf("Self"),
                 Entity{EntityKind::Type, ctx.ctx->current_module, record.name,
@@ -448,14 +467,12 @@ ResolveResult<std::vector<ast::ClassItem>> ResolveClassItemList(
               }
             }
             for (const auto& param : node.params) {
-              proc_scope.emplace(IdKeyOf(param.name),
-                                 Entity{EntityKind::Value, std::nullopt,
-                                        std::nullopt, EntitySource::Decl});
+              AddParamToScope(ctx, proc_scope, param);
             }
             proc_scope.emplace(
                 IdKeyOf("self"),
-                Entity{EntityKind::Value, std::nullopt, std::nullopt,
-                       EntitySource::Decl});
+                LocalLanguageEntity(ctx, "self", node.span,
+                                    LanguageSymbolKind::Variable, "receiver"));
             proc_scope.emplace(
                 IdKeyOf("Self"),
                 Entity{EntityKind::Type, std::nullopt, std::nullopt,
@@ -532,14 +549,12 @@ ResolveResult<std::vector<ast::StateMember>> ResolveStateMemberList(
             auto out = node;
             Scope proc_scope;
             for (const auto& param : node.params) {
-              proc_scope.emplace(IdKeyOf(param.name),
-                                 Entity{EntityKind::Value, std::nullopt,
-                                        std::nullopt, EntitySource::Decl});
+              AddParamToScope(ctx, proc_scope, param);
             }
             proc_scope.emplace(
                 IdKeyOf("self"),
-                Entity{EntityKind::Value, std::nullopt, std::nullopt,
-                       EntitySource::Decl});
+                LocalLanguageEntity(ctx, "self", node.span,
+                                    LanguageSymbolKind::Variable, "receiver"));
             ScopedScopesOverride proc_scopes(
                 *ctx.ctx, MakeProcLikeScopes(*ctx.ctx, std::move(proc_scope)));
             ResolveContext method_ctx = ctx;
@@ -568,14 +583,12 @@ ResolveResult<std::vector<ast::StateMember>> ResolveStateMemberList(
             auto out = node;
             Scope proc_scope;
             for (const auto& param : node.params) {
-              proc_scope.emplace(IdKeyOf(param.name),
-                                 Entity{EntityKind::Value, std::nullopt,
-                                        std::nullopt, EntitySource::Decl});
+              AddParamToScope(ctx, proc_scope, param);
             }
             proc_scope.emplace(
                 IdKeyOf("self"),
-                Entity{EntityKind::Value, std::nullopt, std::nullopt,
-                       EntitySource::Decl});
+                LocalLanguageEntity(ctx, "self", node.span,
+                                    LanguageSymbolKind::Variable, "receiver"));
             ScopedScopesOverride proc_scopes(
                 *ctx.ctx, MakeProcLikeScopes(*ctx.ctx, std::move(proc_scope)));
             ResolveContext method_ctx = ctx;
@@ -666,9 +679,7 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
           auto out = node;
           Scope proc_scope;
           for (const auto& param : node.params) {
-            proc_scope.emplace(IdKeyOf(param.name),
-                               Entity{EntityKind::Value, std::nullopt,
-                                      std::nullopt, EntitySource::Decl});
+            AddParamToScope(ctx, proc_scope, param);
           }
           ScopedScopesOverride proc_scopes(
               *ctx.ctx, MakeProcLikeScopes(*ctx.ctx, std::move(proc_scope)));
@@ -711,9 +722,7 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
           auto out = node;
           Scope proc_scope;
           for (const auto& param : node.params) {
-            proc_scope.emplace(IdKeyOf(param.name),
-                               Entity{EntityKind::Value, std::nullopt,
-                                      std::nullopt, EntitySource::Decl});
+            AddParamToScope(ctx, proc_scope, param);
           }
           ScopedScopesOverride proc_scopes(
               *ctx.ctx, MakeProcLikeScopes(*ctx.ctx, std::move(proc_scope)));
@@ -949,9 +958,7 @@ ResolveResult<ast::ASTItem> ResolveItem(ResolveContext& ctx,
                     auto proc_out = ext;
                     Scope proc_scope;
                     for (const auto& param : ext.params) {
-                      proc_scope.emplace(IdKeyOf(param.name),
-                                         Entity{EntityKind::Value, std::nullopt,
-                                                std::nullopt, EntitySource::Decl});
+                      AddParamToScope(ctx, proc_scope, param);
                     }
                     ScopedScopesOverride proc_scopes(
                         *ctx.ctx,

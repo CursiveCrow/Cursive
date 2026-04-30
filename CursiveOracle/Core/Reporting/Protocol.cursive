@@ -1,0 +1,953 @@
+public enum ReportSeverity {
+    Info
+    Warning
+    Error
+    Fatal
+}
+
+public enum ReportEventKind {
+    PhaseBegin
+    PhaseEnd
+    Checkpoint
+    Progress
+    Evidence
+    Warning
+    Failure
+    FinalSummary
+}
+
+public enum ReportFailureKind {
+    Absent
+    OracleInternal
+    SpecParseError
+    ReferenceModelGap
+    BlockedByCurrentCompiler
+    BlockedByOracleLanguageSupport
+    CompilerInvocation
+    RuntimeInvocation
+    DiagnosticMismatch
+    RuntimeMismatch
+    CoverageIncomplete
+    ReportWriteFailure
+}
+
+public enum ReportEvidenceKind {
+    Absent
+    SpecPath
+    SpecSpan
+    ObligationId
+    CaseId
+    CheckId
+    CommandText
+    CompilerStatus
+    RuntimeStatus
+    DiagnosticJsonPath
+    StdoutPath
+    StderrPath
+    TracePath
+    EmittedArtifactPath
+    ComparisonResultId
+    CoverageLedgerPath
+}
+
+public enum ReportPhase {
+    Startup
+    FoundationSelftest
+    SpecIngestion
+    SpecModeling
+    ObligationExtraction
+    ReferenceModeling
+    CaseGeneration
+    CompilerRun
+    RuntimeRun
+    Comparison
+    Coverage
+    ReportWrite
+    Shutdown
+}
+
+public enum ReportSubjectKind {
+    OracleRun
+    Phase
+    Selftest
+    SelftestGroup
+    SelftestCheck
+    SpecDocument
+    SpecSection
+    SpecUnit
+    Obligation
+    ReferenceRule
+    GeneratedCase
+    ImplementationResult
+    Command
+    Artifact
+    ComparisonResult
+    CoverageLedger
+    Report
+    OutputRegression
+}
+
+public enum ReportStatus {
+    Started
+    Running
+    Completed
+    Passed
+    Failed
+    Blocked
+    Skipped
+    Rendered
+    Utf8Valid
+    Utf8Invalid
+    Parsed
+    ParseError
+    Modeled
+    Unmodeled
+    Generated
+    UnsupportedByReference
+    OutsideConformance
+    Uncovered
+    ParsedOnly
+    ReferenceCovered
+    ExecutedPass
+    ExecutedFail
+    BlockedByCurrentCompiler
+    BlockedByOracleLanguageSupport
+    InformativeOnly
+    ReportWriteFailed
+}
+
+public enum ReportMetricKind {
+    Absent
+    ByteLength
+    LineCount
+    SectionCount
+    ParsedUnitCount
+    ObligationCount
+    ModeledObligationCount
+    GeneratedCaseCount
+    SelftestCheckCount
+    PassedCount
+    FailedCount
+    BlockedCount
+    UnsupportedCount
+    OutsideConformanceCount
+    UncoveredCount
+    ParsedOnlyCount
+    ReferenceCoveredCount
+    ExecutedPassCount
+    ExecutedFailCount
+    TotalObligationCount
+    RequiredObligationCount
+    InformativeObligationCount
+    ReportWriteFailureCount
+    EventCount
+}
+
+public procedure renderSeverity(value: ReportSeverity) -> string@View {
+    return if value is {
+        ReportSeverity::Info { "info" }
+        ReportSeverity::Warning { "warning" }
+        ReportSeverity::Error { "error" }
+        ReportSeverity::Fatal { "fatal" }
+    }
+}
+
+public procedure renderEventKind(value: ReportEventKind) -> string@View {
+    return if value is {
+        ReportEventKind::PhaseBegin { "phase_begin" }
+        ReportEventKind::PhaseEnd { "phase_end" }
+        ReportEventKind::Checkpoint { "checkpoint" }
+        ReportEventKind::Progress { "progress" }
+        ReportEventKind::Evidence { "evidence" }
+        ReportEventKind::Warning { "warning" }
+        ReportEventKind::Failure { "failure" }
+        ReportEventKind::FinalSummary { "final_summary" }
+    }
+}
+
+public procedure renderFailureKind(value: ReportFailureKind) -> string@View {
+    return if value is {
+        ReportFailureKind::Absent { "-" }
+        ReportFailureKind::OracleInternal { "oracle_internal" }
+        ReportFailureKind::SpecParseError { "spec_parse_error" }
+        ReportFailureKind::ReferenceModelGap { "reference_model_gap" }
+        ReportFailureKind::BlockedByCurrentCompiler { "blocked_by_current_compiler" }
+        ReportFailureKind::BlockedByOracleLanguageSupport { "blocked_by_oracle_language_support" }
+        ReportFailureKind::CompilerInvocation { "compiler_invocation" }
+        ReportFailureKind::RuntimeInvocation { "runtime_invocation" }
+        ReportFailureKind::DiagnosticMismatch { "diagnostic_mismatch" }
+        ReportFailureKind::RuntimeMismatch { "runtime_mismatch" }
+        ReportFailureKind::CoverageIncomplete { "coverage_incomplete" }
+        ReportFailureKind::ReportWriteFailure { "report_write_failure" }
+    }
+}
+
+public procedure renderEvidenceKind(value: ReportEvidenceKind) -> string@View {
+    return if value is {
+        ReportEvidenceKind::Absent { "-" }
+        ReportEvidenceKind::SpecPath { "spec_path" }
+        ReportEvidenceKind::SpecSpan { "spec_span" }
+        ReportEvidenceKind::ObligationId { "obligation_id" }
+        ReportEvidenceKind::CaseId { "case_id" }
+        ReportEvidenceKind::CheckId { "check_id" }
+        ReportEvidenceKind::CommandText { "command_text" }
+        ReportEvidenceKind::CompilerStatus { "compiler_status" }
+        ReportEvidenceKind::RuntimeStatus { "runtime_status" }
+        ReportEvidenceKind::DiagnosticJsonPath { "diagnostic_json_path" }
+        ReportEvidenceKind::StdoutPath { "stdout_path" }
+        ReportEvidenceKind::StderrPath { "stderr_path" }
+        ReportEvidenceKind::TracePath { "trace_path" }
+        ReportEvidenceKind::EmittedArtifactPath { "emitted_artifact_path" }
+        ReportEvidenceKind::ComparisonResultId { "comparison_result_id" }
+        ReportEvidenceKind::CoverageLedgerPath { "coverage_ledger_path" }
+    }
+}
+
+public procedure renderPhase(value: ReportPhase) -> string@View {
+    return if value is {
+        ReportPhase::Startup { "startup" }
+        ReportPhase::FoundationSelftest { "foundation_selftest" }
+        ReportPhase::SpecIngestion { "spec_ingestion" }
+        ReportPhase::SpecModeling { "spec_modeling" }
+        ReportPhase::ObligationExtraction { "obligation_extraction" }
+        ReportPhase::ReferenceModeling { "reference_modeling" }
+        ReportPhase::CaseGeneration { "case_generation" }
+        ReportPhase::CompilerRun { "compiler_run" }
+        ReportPhase::RuntimeRun { "runtime_run" }
+        ReportPhase::Comparison { "comparison" }
+        ReportPhase::Coverage { "coverage" }
+        ReportPhase::ReportWrite { "report_write" }
+        ReportPhase::Shutdown { "shutdown" }
+    }
+}
+
+public procedure renderSubjectKind(value: ReportSubjectKind) -> string@View {
+    return if value is {
+        ReportSubjectKind::OracleRun { "oracle_run" }
+        ReportSubjectKind::Phase { "phase" }
+        ReportSubjectKind::Selftest { "selftest" }
+        ReportSubjectKind::SelftestGroup { "selftest_group" }
+        ReportSubjectKind::SelftestCheck { "selftest_check" }
+        ReportSubjectKind::SpecDocument { "spec_document" }
+        ReportSubjectKind::SpecSection { "spec_section" }
+        ReportSubjectKind::SpecUnit { "spec_unit" }
+        ReportSubjectKind::Obligation { "obligation" }
+        ReportSubjectKind::ReferenceRule { "reference_rule" }
+        ReportSubjectKind::GeneratedCase { "generated_case" }
+        ReportSubjectKind::ImplementationResult { "implementation_result" }
+        ReportSubjectKind::Command { "command" }
+        ReportSubjectKind::Artifact { "artifact" }
+        ReportSubjectKind::ComparisonResult { "comparison_result" }
+        ReportSubjectKind::CoverageLedger { "coverage_ledger" }
+        ReportSubjectKind::Report { "report" }
+        ReportSubjectKind::OutputRegression { "output_regression" }
+    }
+}
+
+public procedure renderStatus(value: ReportStatus) -> string@View {
+    return if value is {
+        ReportStatus::Started { "started" }
+        ReportStatus::Running { "running" }
+        ReportStatus::Completed { "completed" }
+        ReportStatus::Passed { "passed" }
+        ReportStatus::Failed { "failed" }
+        ReportStatus::Blocked { "blocked" }
+        ReportStatus::Skipped { "skipped" }
+        ReportStatus::Rendered { "rendered" }
+        ReportStatus::Utf8Valid { "utf8_valid" }
+        ReportStatus::Utf8Invalid { "utf8_invalid" }
+        ReportStatus::Parsed { "parsed" }
+        ReportStatus::ParseError { "parse_error" }
+        ReportStatus::Modeled { "modeled" }
+        ReportStatus::Unmodeled { "unmodeled" }
+        ReportStatus::Generated { "generated" }
+        ReportStatus::UnsupportedByReference { "unsupported_by_reference" }
+        ReportStatus::OutsideConformance { "outside_conformance" }
+        ReportStatus::Uncovered { "uncovered" }
+        ReportStatus::ParsedOnly { "parsed_only" }
+        ReportStatus::ReferenceCovered { "reference_covered" }
+        ReportStatus::ExecutedPass { "executed_pass" }
+        ReportStatus::ExecutedFail { "executed_fail" }
+        ReportStatus::BlockedByCurrentCompiler { "blocked_by_current_compiler" }
+        ReportStatus::BlockedByOracleLanguageSupport { "blocked_by_oracle_language_support" }
+        ReportStatus::InformativeOnly { "informative_only" }
+        ReportStatus::ReportWriteFailed { "report_write_failed" }
+    }
+}
+
+public procedure renderMetricKind(value: ReportMetricKind) -> string@View {
+    return if value is {
+        ReportMetricKind::Absent { "-" }
+        ReportMetricKind::ByteLength { "byte_length" }
+        ReportMetricKind::LineCount { "line_count" }
+        ReportMetricKind::SectionCount { "section_count" }
+        ReportMetricKind::ParsedUnitCount { "parsed_unit_count" }
+        ReportMetricKind::ObligationCount { "obligation_count" }
+        ReportMetricKind::ModeledObligationCount { "modeled_obligation_count" }
+        ReportMetricKind::GeneratedCaseCount { "generated_case_count" }
+        ReportMetricKind::SelftestCheckCount { "selftest_check_count" }
+        ReportMetricKind::PassedCount { "passed_count" }
+        ReportMetricKind::FailedCount { "failed_count" }
+        ReportMetricKind::BlockedCount { "blocked_count" }
+        ReportMetricKind::UnsupportedCount { "unsupported_count" }
+        ReportMetricKind::OutsideConformanceCount { "outside_conformance_count" }
+        ReportMetricKind::UncoveredCount { "uncovered_count" }
+        ReportMetricKind::ParsedOnlyCount { "parsed_only_count" }
+        ReportMetricKind::ReferenceCoveredCount { "reference_covered_count" }
+        ReportMetricKind::ExecutedPassCount { "executed_pass_count" }
+        ReportMetricKind::ExecutedFailCount { "executed_fail_count" }
+        ReportMetricKind::TotalObligationCount { "total_obligation_count" }
+        ReportMetricKind::RequiredObligationCount { "required_obligation_count" }
+        ReportMetricKind::InformativeObligationCount { "informative_obligation_count" }
+        ReportMetricKind::ReportWriteFailureCount { "report_write_failure_count" }
+        ReportMetricKind::EventCount { "event_count" }
+    }
+}
+
+public procedure renderSmallInteger(value: i32) -> string@View {
+    if (value == 0) { return "0" }
+    if (value == 1) { return "1" }
+    if (value == 2) { return "2" }
+    if (value == 3) { return "3" }
+    if (value == 4) { return "4" }
+    if (value == 5) { return "5" }
+    if (value == 6) { return "6" }
+    if (value == 7) { return "7" }
+    if (value == 8) { return "8" }
+    if (value == 9) { return "9" }
+    if (value == 10) { return "10" }
+    if (value == 11) { return "11" }
+    if (value == 12) { return "12" }
+    if (value == 13) { return "13" }
+    if (value == 14) { return "14" }
+    if (value == 15) { return "15" }
+    if (value == 16) { return "16" }
+    if (value == 17) { return "17" }
+    if (value == 18) { return "18" }
+    if (value == 19) { return "19" }
+    if (value == 20) { return "20" }
+    if (value == 21) { return "21" }
+    if (value == 22) { return "22" }
+    if (value == 23) { return "23" }
+    if (value == 24) { return "24" }
+    if (value == 25) { return "25" }
+    if (value == 26) { return "26" }
+    if (value == 27) { return "27" }
+    if (value == 28) { return "28" }
+    if (value == 29) { return "29" }
+    if (value == 30) { return "30" }
+    if (value == 31) { return "31" }
+    if (value == 32) { return "32" }
+    if (value == 33) { return "33" }
+    if (value == 34) { return "34" }
+    if (value == 35) { return "35" }
+    if (value == 36) { return "36" }
+    if (value == 37) { return "37" }
+    if (value == 38) { return "38" }
+    if (value == 39) { return "39" }
+    if (value == 40) { return "40" }
+    if (value == 41) { return "41" }
+    if (value == 42) { return "42" }
+    if (value == 43) { return "43" }
+    if (value == 44) { return "44" }
+    if (value == 45) { return "45" }
+    if (value == 46) { return "46" }
+    if (value == 47) { return "47" }
+    if (value == 48) { return "48" }
+    if (value == 49) { return "49" }
+    if (value == 50) { return "50" }
+    if (value == 51) { return "51" }
+    if (value == 52) { return "52" }
+    if (value == 53) { return "53" }
+    if (value == 54) { return "54" }
+    if (value == 55) { return "55" }
+    if (value == 56) { return "56" }
+    if (value == 57) { return "57" }
+    if (value == 58) { return "58" }
+    if (value == 59) { return "59" }
+    if (value == 60) { return "60" }
+    if (value == 61) { return "61" }
+    if (value == 62) { return "62" }
+    if (value == 63) { return "63" }
+    if (value == 64) { return "64" }
+    if (value == 65) { return "65" }
+    if (value == 66) { return "66" }
+    if (value == 67) { return "67" }
+    if (value == 68) { return "68" }
+    if (value == 69) { return "69" }
+    if (value == 70) { return "70" }
+    if (value == 71) { return "71" }
+    if (value == 72) { return "72" }
+    if (value == 73) { return "73" }
+    if (value == 74) { return "74" }
+    if (value == 75) { return "75" }
+    if (value == 76) { return "76" }
+    if (value == 77) { return "77" }
+    if (value == 78) { return "78" }
+    if (value == 79) { return "79" }
+    if (value == 80) { return "80" }
+    return "many"
+}
+
+procedure textByteLength(text: string@View) -> i32 {
+    return string::length(text) as i32
+}
+
+procedure textByteAt(text: string@View, index: i32) -> u8 {
+    let view: bytes@View = bytes::view_string(text)
+    let slice: const [u8] = bytes::as_slice(view)
+    return slice[index as usize]
+}
+
+procedure textStartsWithAtFrom(
+    text: string@View,
+    prefix: string@View,
+    text_index: i32,
+    prefix_index: i32
+) -> bool {
+    let prefix_length: i32 = textByteLength(prefix)
+    if (prefix_index >= prefix_length) {
+        return true
+    }
+    if ((text_index + prefix_index) >= textByteLength(text)) {
+        return false
+    }
+    if (textByteAt(text, text_index + prefix_index) != textByteAt(prefix, prefix_index)) {
+        return false
+    }
+    return textStartsWithAtFrom(text, prefix, text_index, prefix_index + 1)
+}
+
+procedure textStartsWithAt(text: string@View, prefix: string@View, index: i32) -> bool {
+    if (index < 0) {
+        return false
+    }
+    return textStartsWithAtFrom(text, prefix, index, 0)
+}
+
+procedure textFindFrom(text: string@View, needle: string@View, index: i32) -> i32 {
+    if (index >= textByteLength(text)) {
+        return -1
+    }
+    if (textStartsWithAt(text, needle, index) == true) {
+        return index
+    }
+    return textFindFrom(text, needle, index + 1)
+}
+
+procedure textRequiresEscapingFrom(text: string@View, index: i32, length: i32) -> bool {
+    if (index >= length) {
+        return false
+    }
+    let byte: u8 = textByteAt(text, index)
+    if (byte == 9) { return true }
+    if (byte == 10) { return true }
+    if (byte == 13) { return true }
+    if (byte == 32) { return true }
+    if (byte == 37) { return true }
+    if (byte == 44) { return true }
+    if (byte == 61) { return true }
+    if (byte == 91) { return true }
+    if (byte == 92) { return true }
+    if (byte == 93) { return true }
+    if (byte == 124) { return true }
+    return textRequiresEscapingFrom(text, index + 1, length)
+}
+
+public procedure textRequiresEscaping(text: string@View) -> bool {
+    return textRequiresEscapingFrom(text, 0, textByteLength(text))
+}
+
+public procedure renderReservedEscape(byte: u8) -> string@View {
+    if (byte == 9) { return "%09" }
+    if (byte == 10) { return "%0A" }
+    if (byte == 13) { return "%0D" }
+    if (byte == 32) { return "%20" }
+    if (byte == 37) { return "%25" }
+    if (byte == 44) { return "%2C" }
+    if (byte == 61) { return "%3D" }
+    if (byte == 91) { return "%5B" }
+    if (byte == 92) { return "%5C" }
+    if (byte == 93) { return "%5D" }
+    if (byte == 124) { return "%7C" }
+    return ""
+}
+
+public procedure renderHexDigit(nibble: u8) -> string@View {
+    if (nibble == 0) { return "0" }
+    if (nibble == 1) { return "1" }
+    if (nibble == 2) { return "2" }
+    if (nibble == 3) { return "3" }
+    if (nibble == 4) { return "4" }
+    if (nibble == 5) { return "5" }
+    if (nibble == 6) { return "6" }
+    if (nibble == 7) { return "7" }
+    if (nibble == 8) { return "8" }
+    if (nibble == 9) { return "9" }
+    if (nibble == 10) { return "A" }
+    if (nibble == 11) { return "B" }
+    if (nibble == 12) { return "C" }
+    if (nibble == 13) { return "D" }
+    if (nibble == 14) { return "E" }
+    if (nibble == 15) { return "F" }
+    return ""
+}
+
+public procedure renderAsciiOutputByte(byte: u8) -> string@View {
+    if (byte == 33) { return "!" }
+    if (byte == 34) { return "\"" }
+    if (byte == 35) { return "#" }
+    if (byte == 36) { return "$" }
+    if (byte == 38) { return "&" }
+    if (byte == 39) { return "'" }
+    if (byte == 40) { return "(" }
+    if (byte == 41) { return ")" }
+    if (byte == 42) { return "*" }
+    if (byte == 43) { return "+" }
+    if (byte == 45) { return "-" }
+    if (byte == 46) { return "." }
+    if (byte == 47) { return "/" }
+    if (byte == 48) { return "0" }
+    if (byte == 49) { return "1" }
+    if (byte == 50) { return "2" }
+    if (byte == 51) { return "3" }
+    if (byte == 52) { return "4" }
+    if (byte == 53) { return "5" }
+    if (byte == 54) { return "6" }
+    if (byte == 55) { return "7" }
+    if (byte == 56) { return "8" }
+    if (byte == 57) { return "9" }
+    if (byte == 58) { return ":" }
+    if (byte == 65) { return "A" }
+    if (byte == 66) { return "B" }
+    if (byte == 67) { return "C" }
+    if (byte == 68) { return "D" }
+    if (byte == 69) { return "E" }
+    if (byte == 70) { return "F" }
+    if (byte == 71) { return "G" }
+    if (byte == 72) { return "H" }
+    if (byte == 73) { return "I" }
+    if (byte == 74) { return "J" }
+    if (byte == 75) { return "K" }
+    if (byte == 76) { return "L" }
+    if (byte == 77) { return "M" }
+    if (byte == 78) { return "N" }
+    if (byte == 79) { return "O" }
+    if (byte == 80) { return "P" }
+    if (byte == 81) { return "Q" }
+    if (byte == 82) { return "R" }
+    if (byte == 83) { return "S" }
+    if (byte == 84) { return "T" }
+    if (byte == 85) { return "U" }
+    if (byte == 86) { return "V" }
+    if (byte == 87) { return "W" }
+    if (byte == 88) { return "X" }
+    if (byte == 89) { return "Y" }
+    if (byte == 90) { return "Z" }
+    if (byte == 94) { return "^" }
+    if (byte == 95) { return "_" }
+    if (byte == 96) { return "`" }
+    if (byte == 97) { return "a" }
+    if (byte == 98) { return "b" }
+    if (byte == 99) { return "c" }
+    if (byte == 100) { return "d" }
+    if (byte == 101) { return "e" }
+    if (byte == 102) { return "f" }
+    if (byte == 103) { return "g" }
+    if (byte == 104) { return "h" }
+    if (byte == 105) { return "i" }
+    if (byte == 106) { return "j" }
+    if (byte == 107) { return "k" }
+    if (byte == 108) { return "l" }
+    if (byte == 109) { return "m" }
+    if (byte == 110) { return "n" }
+    if (byte == 111) { return "o" }
+    if (byte == 112) { return "p" }
+    if (byte == 113) { return "q" }
+    if (byte == 114) { return "r" }
+    if (byte == 115) { return "s" }
+    if (byte == 116) { return "t" }
+    if (byte == 117) { return "u" }
+    if (byte == 118) { return "v" }
+    if (byte == 119) { return "w" }
+    if (byte == 120) { return "x" }
+    if (byte == 121) { return "y" }
+    if (byte == 122) { return "z" }
+    if (byte == 123) { return "{" }
+    if (byte == 125) { return "}" }
+    if (byte == 126) { return "~" }
+    return ""
+}
+
+procedure linePayloadEnd(line: string@View) -> i32 {
+    let length: i32 = textByteLength(line)
+    if (length == 0) {
+        return 0
+    }
+    if (textByteAt(line, length - 1) == 10) {
+        return length - 1
+    }
+    return length
+}
+
+procedure byteIsRawReservedValueByte(byte: u8) -> bool {
+    if (byte == 9) { return true }
+    if (byte == 10) { return true }
+    if (byte == 13) { return true }
+    if (byte == 32) { return true }
+    if (byte == 44) { return true }
+    if (byte == 61) { return true }
+    if (byte == 91) { return true }
+    if (byte == 92) { return true }
+    if (byte == 93) { return true }
+    if (byte == 124) { return true }
+    return false
+}
+
+procedure byteIsUpperHex(byte: u8) -> bool {
+    return ((byte >= 48) && (byte <= 57)) || ((byte >= 65) && (byte <= 70))
+}
+
+procedure isAllowedEscapePair(first: u8, second: u8) -> bool {
+    return byteIsUpperHex(first) && byteIsUpperHex(second)
+}
+
+procedure validateScalarValueSpanFrom(line: string@View, index: i32, end_index: i32) -> bool {
+    if (index >= end_index) {
+        return true
+    }
+    let byte: u8 = textByteAt(line, index)
+    if (byte == 37) {
+        if ((index + 2) >= end_index) {
+            return false
+        }
+        if (isAllowedEscapePair(textByteAt(line, index + 1), textByteAt(line, index + 2)) == false) {
+            return false
+        }
+        return validateScalarValueSpanFrom(line, index + 3, end_index)
+    }
+    if (byteIsRawReservedValueByte(byte) == true) {
+        return false
+    }
+    return validateScalarValueSpanFrom(line, index + 1, end_index)
+}
+
+procedure validateScalarValueSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    if (start_index >= end_index) {
+        return false
+    }
+    return validateScalarValueSpanFrom(line, start_index, end_index)
+}
+
+procedure findRawListComma(line: string@View, index: i32, end_index: i32) -> i32 {
+    if (index >= end_index) {
+        return -1
+    }
+    let byte: u8 = textByteAt(line, index)
+    if (byte == 37) {
+        return findRawListComma(line, index + 3, end_index)
+    }
+    if (byte == 44) {
+        return index
+    }
+    return findRawListComma(line, index + 1, end_index)
+}
+
+procedure validateListValueSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    if ((end_index - start_index) < 2) {
+        return false
+    }
+    if (textByteAt(line, start_index) != 91) {
+        return false
+    }
+    if (textByteAt(line, end_index - 1) != 93) {
+        return false
+    }
+    if ((end_index - start_index) == 2) {
+        return true
+    }
+    let inner_start: i32 = start_index + 1
+    let inner_end: i32 = end_index - 1
+    let comma_index: i32 = findRawListComma(line, inner_start, inner_end)
+    if (comma_index < 0) {
+        return validateScalarValueSpan(line, inner_start, inner_end)
+    }
+    if ((comma_index == inner_start) || ((comma_index + 1) >= inner_end)) {
+        return false
+    }
+    if (findRawListComma(line, comma_index + 1, inner_end) >= 0) {
+        return false
+    }
+    return validateScalarValueSpan(line, inner_start, comma_index) &&
+        validateScalarValueSpan(line, comma_index + 1, inner_end)
+}
+
+procedure validateValueSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    if (start_index >= end_index) {
+        return false
+    }
+    if (textByteAt(line, start_index) == 91) {
+        return validateListValueSpan(line, start_index, end_index)
+    }
+    return validateScalarValueSpan(line, start_index, end_index)
+}
+
+procedure valueSpanEquals(
+    line: string@View,
+    start_index: i32,
+    end_index: i32,
+    value: string@View
+) -> bool {
+    if ((end_index - start_index) != textByteLength(value)) {
+        return false
+    }
+    return textStartsWithAt(line, value, start_index)
+}
+
+procedure validateEventKindSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    return valueSpanEquals(line, start_index, end_index, "phase_begin") ||
+        valueSpanEquals(line, start_index, end_index, "phase_end") ||
+        valueSpanEquals(line, start_index, end_index, "checkpoint") ||
+        valueSpanEquals(line, start_index, end_index, "progress") ||
+        valueSpanEquals(line, start_index, end_index, "evidence") ||
+        valueSpanEquals(line, start_index, end_index, "warning") ||
+        valueSpanEquals(line, start_index, end_index, "failure") ||
+        valueSpanEquals(line, start_index, end_index, "final_summary")
+}
+
+procedure validateSeveritySpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    return valueSpanEquals(line, start_index, end_index, "info") ||
+        valueSpanEquals(line, start_index, end_index, "warning") ||
+        valueSpanEquals(line, start_index, end_index, "error") ||
+        valueSpanEquals(line, start_index, end_index, "fatal")
+}
+
+procedure validatePhaseSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    return valueSpanEquals(line, start_index, end_index, "startup") ||
+        valueSpanEquals(line, start_index, end_index, "foundation_selftest") ||
+        valueSpanEquals(line, start_index, end_index, "spec_ingestion") ||
+        valueSpanEquals(line, start_index, end_index, "spec_modeling") ||
+        valueSpanEquals(line, start_index, end_index, "obligation_extraction") ||
+        valueSpanEquals(line, start_index, end_index, "reference_modeling") ||
+        valueSpanEquals(line, start_index, end_index, "case_generation") ||
+        valueSpanEquals(line, start_index, end_index, "compiler_run") ||
+        valueSpanEquals(line, start_index, end_index, "runtime_run") ||
+        valueSpanEquals(line, start_index, end_index, "comparison") ||
+        valueSpanEquals(line, start_index, end_index, "coverage") ||
+        valueSpanEquals(line, start_index, end_index, "report_write") ||
+        valueSpanEquals(line, start_index, end_index, "shutdown")
+}
+
+procedure validateSubjectKindSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    return valueSpanEquals(line, start_index, end_index, "oracle_run") ||
+        valueSpanEquals(line, start_index, end_index, "phase") ||
+        valueSpanEquals(line, start_index, end_index, "selftest") ||
+        valueSpanEquals(line, start_index, end_index, "selftest_group") ||
+        valueSpanEquals(line, start_index, end_index, "selftest_check") ||
+        valueSpanEquals(line, start_index, end_index, "spec_document") ||
+        valueSpanEquals(line, start_index, end_index, "spec_section") ||
+        valueSpanEquals(line, start_index, end_index, "spec_unit") ||
+        valueSpanEquals(line, start_index, end_index, "obligation") ||
+        valueSpanEquals(line, start_index, end_index, "reference_rule") ||
+        valueSpanEquals(line, start_index, end_index, "generated_case") ||
+        valueSpanEquals(line, start_index, end_index, "implementation_result") ||
+        valueSpanEquals(line, start_index, end_index, "command") ||
+        valueSpanEquals(line, start_index, end_index, "artifact") ||
+        valueSpanEquals(line, start_index, end_index, "comparison_result") ||
+        valueSpanEquals(line, start_index, end_index, "coverage_ledger") ||
+        valueSpanEquals(line, start_index, end_index, "report") ||
+        valueSpanEquals(line, start_index, end_index, "output_regression")
+}
+
+procedure validateFailureKindSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    return valueSpanEquals(line, start_index, end_index, "-") ||
+        valueSpanEquals(line, start_index, end_index, "oracle_internal") ||
+        valueSpanEquals(line, start_index, end_index, "spec_parse_error") ||
+        valueSpanEquals(line, start_index, end_index, "reference_model_gap") ||
+        valueSpanEquals(line, start_index, end_index, "blocked_by_current_compiler") ||
+        valueSpanEquals(line, start_index, end_index, "blocked_by_oracle_language_support") ||
+        valueSpanEquals(line, start_index, end_index, "compiler_invocation") ||
+        valueSpanEquals(line, start_index, end_index, "runtime_invocation") ||
+        valueSpanEquals(line, start_index, end_index, "diagnostic_mismatch") ||
+        valueSpanEquals(line, start_index, end_index, "runtime_mismatch") ||
+        valueSpanEquals(line, start_index, end_index, "coverage_incomplete") ||
+        valueSpanEquals(line, start_index, end_index, "report_write_failure")
+}
+
+procedure validateEvidenceKindSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    return valueSpanEquals(line, start_index, end_index, "-") ||
+        valueSpanEquals(line, start_index, end_index, "spec_path") ||
+        valueSpanEquals(line, start_index, end_index, "spec_span") ||
+        valueSpanEquals(line, start_index, end_index, "obligation_id") ||
+        valueSpanEquals(line, start_index, end_index, "case_id") ||
+        valueSpanEquals(line, start_index, end_index, "check_id") ||
+        valueSpanEquals(line, start_index, end_index, "command_text") ||
+        valueSpanEquals(line, start_index, end_index, "compiler_status") ||
+        valueSpanEquals(line, start_index, end_index, "runtime_status") ||
+        valueSpanEquals(line, start_index, end_index, "diagnostic_json_path") ||
+        valueSpanEquals(line, start_index, end_index, "stdout_path") ||
+        valueSpanEquals(line, start_index, end_index, "stderr_path") ||
+        valueSpanEquals(line, start_index, end_index, "trace_path") ||
+        valueSpanEquals(line, start_index, end_index, "emitted_artifact_path") ||
+        valueSpanEquals(line, start_index, end_index, "comparison_result_id") ||
+        valueSpanEquals(line, start_index, end_index, "coverage_ledger_path")
+}
+
+procedure validateStatusSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    return valueSpanEquals(line, start_index, end_index, "started") ||
+        valueSpanEquals(line, start_index, end_index, "running") ||
+        valueSpanEquals(line, start_index, end_index, "completed") ||
+        valueSpanEquals(line, start_index, end_index, "passed") ||
+        valueSpanEquals(line, start_index, end_index, "failed") ||
+        valueSpanEquals(line, start_index, end_index, "blocked") ||
+        valueSpanEquals(line, start_index, end_index, "skipped") ||
+        valueSpanEquals(line, start_index, end_index, "rendered") ||
+        valueSpanEquals(line, start_index, end_index, "utf8_valid") ||
+        valueSpanEquals(line, start_index, end_index, "utf8_invalid") ||
+        valueSpanEquals(line, start_index, end_index, "parsed") ||
+        valueSpanEquals(line, start_index, end_index, "parse_error") ||
+        valueSpanEquals(line, start_index, end_index, "modeled") ||
+        valueSpanEquals(line, start_index, end_index, "unmodeled") ||
+        valueSpanEquals(line, start_index, end_index, "generated") ||
+        valueSpanEquals(line, start_index, end_index, "unsupported_by_reference") ||
+        valueSpanEquals(line, start_index, end_index, "outside_conformance") ||
+        valueSpanEquals(line, start_index, end_index, "uncovered") ||
+        valueSpanEquals(line, start_index, end_index, "parsed_only") ||
+        valueSpanEquals(line, start_index, end_index, "reference_covered") ||
+        valueSpanEquals(line, start_index, end_index, "executed_pass") ||
+        valueSpanEquals(line, start_index, end_index, "executed_fail") ||
+        valueSpanEquals(line, start_index, end_index, "blocked_by_current_compiler") ||
+        valueSpanEquals(line, start_index, end_index, "blocked_by_oracle_language_support") ||
+        valueSpanEquals(line, start_index, end_index, "informative_only") ||
+        valueSpanEquals(line, start_index, end_index, "report_write_failed")
+}
+
+procedure validateMetricKindSpan(line: string@View, start_index: i32, end_index: i32) -> bool {
+    return valueSpanEquals(line, start_index, end_index, "-") ||
+        valueSpanEquals(line, start_index, end_index, "byte_length") ||
+        valueSpanEquals(line, start_index, end_index, "line_count") ||
+        valueSpanEquals(line, start_index, end_index, "section_count") ||
+        valueSpanEquals(line, start_index, end_index, "parsed_unit_count") ||
+        valueSpanEquals(line, start_index, end_index, "obligation_count") ||
+        valueSpanEquals(line, start_index, end_index, "modeled_obligation_count") ||
+        valueSpanEquals(line, start_index, end_index, "generated_case_count") ||
+        valueSpanEquals(line, start_index, end_index, "selftest_check_count") ||
+        valueSpanEquals(line, start_index, end_index, "passed_count") ||
+        valueSpanEquals(line, start_index, end_index, "failed_count") ||
+        valueSpanEquals(line, start_index, end_index, "blocked_count") ||
+        valueSpanEquals(line, start_index, end_index, "unsupported_count") ||
+        valueSpanEquals(line, start_index, end_index, "outside_conformance_count") ||
+        valueSpanEquals(line, start_index, end_index, "uncovered_count") ||
+        valueSpanEquals(line, start_index, end_index, "parsed_only_count") ||
+        valueSpanEquals(line, start_index, end_index, "reference_covered_count") ||
+        valueSpanEquals(line, start_index, end_index, "executed_pass_count") ||
+        valueSpanEquals(line, start_index, end_index, "executed_fail_count") ||
+        valueSpanEquals(line, start_index, end_index, "total_obligation_count") ||
+        valueSpanEquals(line, start_index, end_index, "required_obligation_count") ||
+        valueSpanEquals(line, start_index, end_index, "informative_obligation_count") ||
+        valueSpanEquals(line, start_index, end_index, "report_write_failure_count") ||
+        valueSpanEquals(line, start_index, end_index, "event_count")
+}
+
+public procedure validateEventLineShape(line: string@View) -> bool {
+    if (textStartsWithAt(line, "protocol=cursive-oracle-event-v1 ", 0) == false) {
+        return false
+    }
+    let run_scope: i32 = textFindFrom(line, "run_scope=", 0)
+    let event_index: i32 = textFindFrom(line, " event_index=", 0)
+    let event_kind: i32 = textFindFrom(line, " event_kind=", 0)
+    let severity: i32 = textFindFrom(line, " severity=", 0)
+    let phase: i32 = textFindFrom(line, " phase=", 0)
+    let subject_kind: i32 = textFindFrom(line, " subject_kind=", 0)
+    let subject_id: i32 = textFindFrom(line, " subject_id=", 0)
+    let owner: i32 = textFindFrom(line, " owner=", 0)
+    let status: i32 = textFindFrom(line, " status=", 0)
+    let failure_kind: i32 = textFindFrom(line, " failure_kind=", 0)
+    let evidence_kind: i32 = textFindFrom(line, " evidence_kind=", 0)
+    let expected: i32 = textFindFrom(line, " expected=", 0)
+    let observed: i32 = textFindFrom(line, " observed=", 0)
+    let evidence_path: i32 = textFindFrom(line, " evidence_path=", 0)
+    let source_start: i32 = textFindFrom(line, " source_start=", 0)
+    let source_end: i32 = textFindFrom(line, " source_end=", 0)
+    let source_line: i32 = textFindFrom(line, " source_line=", 0)
+    let source_column: i32 = textFindFrom(line, " source_column=", 0)
+    let content_identity: i32 = textFindFrom(line, " content_identity=", 0)
+    let metric_kind: i32 = textFindFrom(line, " metric_kind=", 0)
+    let metric_value: i32 = textFindFrom(line, " metric_value=", 0)
+    let message: i32 = textFindFrom(line, " message=", 0)
+    let payload_end: i32 = linePayloadEnd(line)
+    if ((run_scope < 0) || (event_index <= run_scope) || (event_kind <= event_index)) {
+        return false
+    }
+    if ((severity <= event_kind) || (phase <= severity) || (subject_kind <= phase)) {
+        return false
+    }
+    if ((subject_id <= subject_kind) || (owner <= subject_id) || (status <= owner)) {
+        return false
+    }
+    if ((failure_kind <= status) || (evidence_kind <= failure_kind) || (expected <= evidence_kind)) {
+        return false
+    }
+    if ((observed <= expected) || (evidence_path <= observed) || (source_start <= evidence_path)) {
+        return false
+    }
+    if ((source_end <= source_start) || (source_line <= source_end)) {
+        return false
+    }
+    if ((source_column <= source_line) || (content_identity <= source_column)) {
+        return false
+    }
+    if ((metric_kind <= content_identity) || (metric_value <= metric_kind) || (message <= metric_value)) {
+        return false
+    }
+    if (validateEventKindSpan(line, event_kind + 12, severity) == false) {
+        return false
+    }
+    if (validateSeveritySpan(line, severity + 10, phase) == false) {
+        return false
+    }
+    if (validatePhaseSpan(line, phase + 7, subject_kind) == false) {
+        return false
+    }
+    if (validateSubjectKindSpan(line, subject_kind + 14, subject_id) == false) {
+        return false
+    }
+    if (validateStatusSpan(line, status + 8, failure_kind) == false) {
+        return false
+    }
+    if (validateFailureKindSpan(line, failure_kind + 14, evidence_kind) == false) {
+        return false
+    }
+    if (validateEvidenceKindSpan(line, evidence_kind + 15, expected) == false) {
+        return false
+    }
+    if (validateMetricKindSpan(line, metric_kind + 13, metric_value) == false) {
+        return false
+    }
+    return validateValueSpan(line, run_scope + 10, event_index) &&
+        validateValueSpan(line, subject_id + 12, owner) &&
+        validateValueSpan(line, owner + 7, status) &&
+        validateValueSpan(line, expected + 10, observed) &&
+        validateValueSpan(line, observed + 10, evidence_path) &&
+        validateValueSpan(line, evidence_path + 15, source_start) &&
+        validateValueSpan(line, source_start + 14, source_end) &&
+        validateValueSpan(line, source_end + 12, source_line) &&
+        validateValueSpan(line, source_line + 13, source_column) &&
+        validateValueSpan(line, source_column + 15, content_identity) &&
+        validateValueSpan(line, content_identity + 18, metric_kind) &&
+        validateValueSpan(line, metric_value + 14, message) &&
+        validateValueSpan(line, message + 9, payload_end)
+}
+
+public procedure validateFailureLine(line: string@View, failure_text: string@View) -> bool {
+    if (validateEventLineShape(line) == false) {
+        return false
+    }
+    if (textFindFrom(line, " event_kind=failure ", 0) < 0) {
+        return false
+    }
+    if (textFindFrom(line, failure_text, 0) < 0) {
+        return false
+    }
+    return true
+}

@@ -17,9 +17,10 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"
+#include "04_analysis/language_service/facts.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
-#include "04_analysis/resolve/scopes.h"
 #include "04_analysis/memory/string_bytes.h"
+#include "04_analysis/resolve/scopes.h"
 
 namespace cursive::analysis {
 
@@ -126,6 +127,35 @@ std::optional<VariantKind> VariantPayloadKind(const ast::VariantDecl& variant) {
   return std::nullopt;
 }
 
+void RecordQualifiedValueReference(const ResolveQualContext& ctx,
+                                   const ast::Expr& expr,
+                                   std::string_view fallback_name,
+                                   const Entity& entity) {
+  if (ctx.ctx == nullptr) {
+    return;
+  }
+  RecordLanguageServiceReference(ctx.language_service, *ctx.ctx, fallback_name,
+                                 expr.span, entity);
+}
+
+void RecordQualifiedTypeReference(const ResolveQualContext& ctx,
+                                  const ast::Expr& expr,
+                                  const ast::TypePath& path) {
+  if (ctx.ctx == nullptr) {
+    return;
+  }
+  RecordLanguageServiceTypePathReference(ctx.language_service, *ctx.ctx, path,
+                                         expr.span);
+}
+
+void RecordQualifiedMemberReference(const ResolveQualContext& ctx,
+                                    const ast::Expr& expr,
+                                    const ast::TypePath& owner_path,
+                                    std::string_view member_name) {
+  RecordLanguageServiceMemberReference(ctx.language_service, owner_path,
+                                       member_name, expr.span);
+}
+
 }  // namespace
 
 ResolveArgsResult ResolveArgs(const ResolveQualContext& ctx,
@@ -143,7 +173,7 @@ ResolveArgsResult ResolveArgs(const ResolveQualContext& ctx,
   for (const auto& arg : args) {
     const auto resolved =
         ctx.resolve_expr(*ctx.ctx, *ctx.name_maps, *ctx.module_names,
-                         arg.value);
+                         ctx.language_service, arg.value);
     if (!resolved.ok) {
       return {false, resolved.diag_id, {}};
     }
@@ -171,7 +201,7 @@ ResolveFieldInitsResult ResolveFieldInits(
   for (const auto& field : fields) {
     const auto resolved =
         ctx.resolve_expr(*ctx.ctx, *ctx.name_maps, *ctx.module_names,
-                         field.value);
+                         ctx.language_service, field.value);
     if (!resolved.ok) {
       return {false, resolved.diag_id, {}};
     }
@@ -338,6 +368,7 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
               EntityKind::Value, ctx.can_access);
           if (value.ok && value.entity && value.entity->origin_opt) {
             const auto& ent = *value.entity;
+            RecordQualifiedValueReference(ctx, expr, node.name, ent);
             const ast::Identifier name =
                 ent.target_opt ? *ent.target_opt
                                : ast::Identifier(node.name);
@@ -349,6 +380,7 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
           }
           const auto record = ResolveRecordPath(ctx, node.path, node.name);
           if (record.ok) {
+            RecordQualifiedTypeReference(ctx, expr, record.path);
             const auto split = SplitLast(record.path);
             if (!split) {
               return {false, std::nullopt, {}};
@@ -361,6 +393,7 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
           }
           const auto unit = ResolveEnumUnit(ctx, node.path, node.name);
           if (unit.ok) {
+            RecordQualifiedMemberReference(ctx, expr, unit.path, node.name);
             ast::EnumLiteralExpr literal;
             literal.path = FullPath(unit.path, node.name);
             literal.payload_opt = std::nullopt;
@@ -426,6 +459,7 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
                 node.name, EntityKind::Value, ctx.can_access);
             if (value.ok && value.entity && value.entity->origin_opt) {
               const auto& ent = *value.entity;
+              RecordQualifiedValueReference(ctx, expr, node.name, ent);
               const ast::Identifier name =
                   ent.target_opt ? *ent.target_opt
                                  : ast::Identifier(node.name);
@@ -440,6 +474,7 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
             }
             const auto record = ResolveRecordPath(ctx, node.path, node.name);
             if (record.ok) {
+              RecordQualifiedTypeReference(ctx, expr, record.path);
               const auto split = SplitLast(record.path);
               if (!split) {
                 return {false, std::nullopt, {}};
@@ -455,6 +490,7 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
             }
             const auto tuple = ResolveEnumTuple(ctx, node.path, node.name);
             if (tuple.ok) {
+              RecordQualifiedMemberReference(ctx, expr, tuple.path, node.name);
               ast::EnumLiteralExpr literal;
               literal.path = FullPath(tuple.path, node.name);
               ast::EnumPayloadParen payload;
@@ -474,6 +510,7 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
             }
             const auto record = ResolveRecordPath(ctx, node.path, node.name);
             if (record.ok) {
+              RecordQualifiedTypeReference(ctx, expr, record.path);
               ast::RecordExpr rec;
               rec.target = record.path;
               rec.fields = resolved_fields.fields;
@@ -482,6 +519,8 @@ ResolveQualifiedFormResult ResolveQualifiedForm(const ResolveQualContext& ctx,
             }
             const auto record_enum = ResolveEnumRecord(ctx, node.path, node.name);
             if (record_enum.ok) {
+              RecordQualifiedMemberReference(ctx, expr, record_enum.path,
+                                             node.name);
               ast::EnumLiteralExpr literal;
               literal.path = FullPath(record_enum.path, node.name);
               ast::EnumPayloadBrace payload;

@@ -609,13 +609,71 @@ struct Dumper {
     oss << "loop";
     switch (l.kind) {
       case IRLoopKind::Infinite:
-        oss << " infinite";
+        oss << " infinite {\n";
+        indent_level++;
+        Indent();
+        oss << "body ";
+        Dump(l.body_ir);
+        oss << "\n";
+        Indent();
+        oss << "value ";
+        Dump(l.body_value);
+        oss << "\n";
+        indent_level--;
+        Indent();
+        oss << "}";
         break;
       case IRLoopKind::Conditional:
-        oss << " while";
+        oss << " while {\n";
+        indent_level++;
+        Indent();
+        oss << "cond_ir ";
+        Dump(l.cond_ir);
+        oss << "\n";
+        if (l.cond_value.has_value()) {
+          Indent();
+          oss << "cond_value ";
+          Dump(*l.cond_value);
+          oss << "\n";
+        }
+        Indent();
+        oss << "body ";
+        Dump(l.body_ir);
+        oss << "\n";
+        Indent();
+        oss << "body_value ";
+        Dump(l.body_value);
+        oss << "\n";
+        indent_level--;
+        Indent();
+        oss << "}";
         break;
       case IRLoopKind::Iter:
-        oss << " iter";
+        oss << " iter {\n";
+        indent_level++;
+        if (l.iter_ir) {
+          Indent();
+          oss << "iter_ir ";
+          Dump(l.iter_ir);
+          oss << "\n";
+        }
+        if (l.iter_value.has_value()) {
+          Indent();
+          oss << "iter_value ";
+          Dump(*l.iter_value);
+          oss << "\n";
+        }
+        Indent();
+        oss << "body ";
+        Dump(l.body_ir);
+        oss << "\n";
+        Indent();
+        oss << "body_value ";
+        Dump(l.body_value);
+        oss << "\n";
+        indent_level--;
+        Indent();
+        oss << "}";
         break;
     }
   }

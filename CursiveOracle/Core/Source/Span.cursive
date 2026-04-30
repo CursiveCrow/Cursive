@@ -1,0 +1,72 @@
+public record LineColumn {
+    public line: i32
+    public column: i32
+}
+
+public record SourceLocation {
+    public file_path: string@View
+    public offset: i32
+    public line: i32
+    public column: i32
+}
+
+public record SourceSpan {
+    public file_path: string@View
+    public start_offset: i32
+    public end_offset: i32
+    public start_line: i32
+    public start_col: i32
+    public end_line: i32
+    public end_col: i32
+}
+
+public procedure lineColumn(line: i32, column: i32) -> LineColumn {
+    return LineColumn { line: line, column: column }
+}
+
+public procedure sourceLocation(
+    file_path: string@View,
+    offset: i32,
+    line: i32,
+    column: i32
+) -> SourceLocation {
+    return SourceLocation {
+        file_path: file_path,
+        offset: offset,
+        line: line,
+        column: column
+    }
+}
+
+public procedure sourceSpan(
+    file_path: string@View,
+    start_offset: i32,
+    end_offset: i32,
+    start: LineColumn,
+    end: LineColumn
+) -> SourceSpan {
+    return SourceSpan {
+        file_path: file_path,
+        start_offset: start_offset,
+        end_offset: end_offset,
+        start_line: start.line,
+        start_col: start.column,
+        end_line: end.line,
+        end_col: end.column
+    }
+}
+
+public procedure sourceSpanFromLocations(
+    start: SourceLocation,
+    end: SourceLocation
+) -> SourceSpan {
+    return SourceSpan {
+        file_path: start.file_path,
+        start_offset: start.offset,
+        end_offset: end.offset,
+        start_line: start.line,
+        start_col: start.column,
+        end_line: end.line,
+        end_col: end.column
+    }
+}

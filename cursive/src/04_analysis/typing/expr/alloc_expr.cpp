@@ -52,7 +52,7 @@ ExprTypeResult TypeAllocExprImpl(const ScopeContext& ctx,
     }
     if (!RegionActiveType(binding->type)) {
       SPEC_RULE("Alloc-Region-NotFound-Err");
-      result.diag_id = "Alloc-Region-NotFound-Err";
+      result.diag_id = "E-MEM-1206";
       return result;
     }
     const auto inner = TypeExpr(ctx, type_ctx, expr.value, env);
@@ -70,7 +70,7 @@ ExprTypeResult TypeAllocExprImpl(const ScopeContext& ctx,
   const auto region = InnermostActiveRegion(env);
   if (!region.has_value()) {
     SPEC_RULE("Alloc-Implicit-NoRegion-Err");
-    result.diag_id = "Alloc-Implicit-NoRegion-Err";
+    result.diag_id = "E-MEM-3021";
     return result;
   }
 

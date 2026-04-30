@@ -23,6 +23,7 @@
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"
 #include "04_analysis/caps/cap_system.h"
+#include "04_analysis/language_service/facts.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/resolve/visibility.h"
@@ -76,15 +77,18 @@ ResolveQualContext BuildResolveQualContext(ResolveContext& ctx) {
   qual_ctx.name_maps = ctx.name_maps;
   qual_ctx.module_names = ctx.module_names;
   qual_ctx.can_access = ctx.can_access;
+  qual_ctx.language_service = ctx.language_service;
   qual_ctx.resolve_expr = [](const ScopeContext& qctx,
                              const NameMapTable& name_maps,
                              const source::ModuleNames& module_names,
+                             LanguageServiceIndex* language_service,
                              const ast::ExprPtr& expr) {
     ResolveContext local_ctx;
     local_ctx.ctx = const_cast<ScopeContext*>(&qctx);
     local_ctx.name_maps = &name_maps;
     local_ctx.module_names = &module_names;
     local_ctx.can_access = CanAccess;
+    local_ctx.language_service = language_service;
     const auto resolved = ResolveExpr(local_ctx, expr);
     return ResolveExprResult{resolved.ok, resolved.diag_id, resolved.value};
   };

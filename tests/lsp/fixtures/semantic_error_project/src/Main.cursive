@@ -1,0 +1,4 @@
+procedure main(ctx: Context) -> i32 {
+    let value: MissingType = 1
+    return value
+}

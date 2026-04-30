@@ -779,9 +779,13 @@ using namespace emit_detail;
         }
       }
     }
-    else if (const auto *path = std::get_if<analysis::TypePathType>(&type->node))
+    else if (const auto *nominal_path = analysis::AppliedTypePath(*type))
     {
-      if (IsRuntimeHandleModalPath(path->path))
+      const auto *nominal_args = analysis::AppliedTypeArgs(*type);
+      const std::vector<analysis::TypeRef> empty_args;
+      const auto &generic_args = nominal_args ? *nominal_args : empty_args;
+
+      if (IsRuntimeHandleModalPath(*nominal_path))
       {
         ll_ty = GetOpaquePtr();
       }
@@ -801,19 +805,20 @@ using namespace emit_detail;
             ll_ty = BuildAsyncLLVMType(*this, async_args);
           }
         }
-        if (const ast::RecordDecl *record = analysis::LookupRecordDecl(scope, path->path))
+        if (const ast::RecordDecl *record =
+                analysis::LookupRecordDecl(scope, *nominal_path))
         {
           SPEC_RULE("LLVMTy-Tuple");
           analysis::TypeSubst record_subst;
           if (record->generic_params && !record->generic_params->params.empty())
           {
-            if (path->generic_args.size() > record->generic_params->params.size())
+            if (generic_args.size() > record->generic_params->params.size())
             {
               return nullptr;
             }
             record_subst = analysis::BuildSubstitution(
                 record->generic_params->params,
-                path->generic_args);
+                generic_args);
           }
           std::vector<analysis::TypeRef> fields;
           for (const auto &member : record->members)
@@ -856,12 +861,14 @@ using namespace emit_detail;
         }
         if (!ll_ty)
         {
-          if (const ast::EnumDecl *enum_decl = analysis::LookupEnumDecl(scope, path->path))
+          if (const ast::EnumDecl *enum_decl =
+                  analysis::LookupEnumDecl(scope, *nominal_path))
           {
             SPEC_RULE("LLVMTy-Enum");
             if (const auto layout = ::cursive::analysis::layout::EnumLayoutOf(
                     scope,
                     *enum_decl,
+                    generic_args,
                     ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs)))
             {
               analysis::TypeRef disc_type = analysis::MakeTypePrim(layout->disc_type);
@@ -879,16 +886,9 @@ using namespace emit_detail;
         }
         if (!ll_ty)
         {
-          ast::TypePath syntax_path;
-          syntax_path.reserve(path->path.size());
-          for (const auto &seg : path->path)
+          if (const auto *decl = analysis::LookupTypeDecl(scope, *nominal_path))
           {
-            syntax_path.push_back(seg);
-          }
-          const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
-          if (it != scope.sigma.types.end())
-          {
-            if (const auto *alias = std::get_if<ast::TypeAliasDecl>(&it->second))
+            if (const auto *alias = std::get_if<ast::TypeAliasDecl>(decl))
             {
               if (const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, alias->type))
               {
@@ -896,13 +896,13 @@ using namespace emit_detail;
                 if (alias->generic_params &&
                     !alias->generic_params->params.empty())
                 {
-                  if (path->generic_args.size() > alias->generic_params->params.size())
+                  if (generic_args.size() > alias->generic_params->params.size())
                   {
                     return nullptr;
                   }
                   analysis::TypeSubst subst =
                       analysis::BuildSubstitution(alias->generic_params->params,
-                                                  path->generic_args);
+                                                  generic_args);
                   inst = analysis::InstantiateType(inst, subst);
                 }
                 ll_ty = GetLLVMType(inst);
@@ -913,7 +913,7 @@ using namespace emit_detail;
         if (!ll_ty)
         {
           if (const auto builtin_layout =
-                  analysis::LookupBuiltinModalLayout(path->path))
+                  analysis::LookupBuiltinModalLayout(*nominal_path))
           {
             ll_ty = CreateTaggedStructType(
                 *this,
@@ -925,19 +925,13 @@ using namespace emit_detail;
         }
         if (!ll_ty)
         {
-          ast::TypePath syntax_path;
-          syntax_path.reserve(path->path.size());
-          for (const auto &seg : path->path)
+          if (const auto *decl = analysis::LookupTypeDecl(scope, *nominal_path))
           {
-            syntax_path.push_back(seg);
-          }
-          const auto it = scope.sigma.types.find(analysis::PathKeyOf(syntax_path));
-          if (it != scope.sigma.types.end())
-          {
-            if (const auto *modal = std::get_if<ast::ModalDecl>(&it->second))
+            if (const auto *modal = std::get_if<ast::ModalDecl>(decl))
             {
               SPEC_RULE("LLVMTy-Tuple");
-              if (const auto layout = ::cursive::analysis::layout::ModalLayoutOf(scope, *modal, path->generic_args))
+              if (const auto layout = ::cursive::analysis::layout::ModalLayoutOf(
+                      scope, *modal, generic_args))
               {
                 if (layout->disc_type.has_value())
                 {

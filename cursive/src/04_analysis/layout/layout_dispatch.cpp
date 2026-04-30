@@ -59,6 +59,7 @@
 #include "04_analysis/modal/modal_widen.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_equiv.h"
+#include "04_analysis/typing/type_lookup.h"
 
 namespace cursive::analysis::layout {
 namespace {
@@ -931,11 +932,11 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
               cursive::analysis::LookupBuiltinModalLayout(*path)) {
         return Layout{builtin_layout->size, builtin_layout->align};
       }
-      const auto it = ctx.sigma.types.find(*path);
-      if (it == ctx.sigma.types.end()) {
+      const auto* decl = cursive::analysis::LookupTypeDecl(ctx, *path);
+      if (!decl) {
         return std::nullopt;
       }
-      if (const auto* record = std::get_if<cursive::ast::RecordDecl>(&it->second)) {
+      if (const auto* record = std::get_if<cursive::ast::RecordDecl>(decl)) {
         const auto subst = BuildDeclSubstitution(record->generic_params, args);
       if (!subst.has_value()) {
         return std::nullopt;
@@ -959,16 +960,16 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
       SPEC_RULE("Layout-Record");
       return layout->layout;
     }
-    if (const auto* enum_decl = std::get_if<cursive::ast::EnumDecl>(&it->second)) {
+    if (const auto* enum_decl = std::get_if<cursive::ast::EnumDecl>(decl)) {
       const auto layout =
-          EnumLayoutOf(ctx, *enum_decl, ResolveEnumLayoutOptions(enum_decl->attrs));
+          EnumLayoutOf(ctx, *enum_decl, args, ResolveEnumLayoutOptions(enum_decl->attrs));
       if (!layout.has_value()) {
         return std::nullopt;
       }
       SPEC_RULE("Layout-Enum");
       return layout->layout;
       }
-      if (const auto* modal_decl = std::get_if<cursive::ast::ModalDecl>(&it->second)) {
+      if (const auto* modal_decl = std::get_if<cursive::ast::ModalDecl>(decl)) {
         const auto layout = ModalLayoutOf(ctx, *modal_decl, args);
       if (!layout.has_value()) {
         return std::nullopt;
@@ -976,7 +977,7 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
       SPEC_RULE("Layout-Modal");
       return layout->layout;
     }
-      if (const auto* alias = std::get_if<cursive::ast::TypeAliasDecl>(&it->second)) {
+      if (const auto* alias = std::get_if<cursive::ast::TypeAliasDecl>(decl)) {
       const auto lowered = LowerTypeForLayout(ctx, alias->type);
       if (!lowered.has_value()) {
         return std::nullopt;
@@ -1146,11 +1147,11 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
     if (IsRuntimeHandleModalPath(*path)) {
       return ptr_size;
     }
-    const auto it = ctx.sigma.types.find(*path);
-    if (it == ctx.sigma.types.end()) {
+    const auto* decl = cursive::analysis::LookupTypeDecl(ctx, *path);
+    if (!decl) {
       return std::nullopt;
     }
-    if (std::holds_alternative<cursive::ast::RecordDecl>(it->second)) {
+    if (std::holds_alternative<cursive::ast::RecordDecl>(*decl)) {
       SPEC_RULE("Size-Record");
       const auto layout = LayoutOf(ctx, type);
       if (!layout.has_value()) {
@@ -1158,7 +1159,7 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
       }
       return layout->size;
     }
-    if (std::holds_alternative<cursive::ast::EnumDecl>(it->second)) {
+    if (std::holds_alternative<cursive::ast::EnumDecl>(*decl)) {
       SPEC_RULE("Size-Enum");
       const auto layout = LayoutOf(ctx, type);
       if (!layout.has_value()) {
@@ -1166,7 +1167,7 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
       }
       return layout->size;
     }
-    if (std::holds_alternative<cursive::ast::ModalDecl>(it->second)) {
+    if (std::holds_alternative<cursive::ast::ModalDecl>(*decl)) {
       SPEC_RULE("Size-Modal");
       const auto layout = LayoutOf(ctx, type);
       if (!layout.has_value()) {
@@ -1174,7 +1175,7 @@ std::optional<std::uint64_t> SizeOf(const cursive::analysis::ScopeContext& ctx,
       }
       return layout->size;
     }
-    if (const auto* alias = std::get_if<cursive::ast::TypeAliasDecl>(&it->second)) {
+    if (const auto* alias = std::get_if<cursive::ast::TypeAliasDecl>(decl)) {
       SPEC_RULE("Size-Alias");
       const auto lowered = LowerTypeForLayout(ctx, alias->type);
       if (!lowered.has_value()) {
@@ -1339,11 +1340,11 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
     if (IsRuntimeHandleModalPath(*path)) {
       return ptr_align;
     }
-    const auto it = ctx.sigma.types.find(*path);
-    if (it == ctx.sigma.types.end()) {
+    const auto* decl = cursive::analysis::LookupTypeDecl(ctx, *path);
+    if (!decl) {
       return std::nullopt;
     }
-    if (std::holds_alternative<cursive::ast::RecordDecl>(it->second)) {
+    if (std::holds_alternative<cursive::ast::RecordDecl>(*decl)) {
       SPEC_RULE("Align-Record");
       const auto layout = LayoutOf(ctx, type);
       if (!layout.has_value()) {
@@ -1351,7 +1352,7 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
       }
       return layout->align;
     }
-    if (std::holds_alternative<cursive::ast::EnumDecl>(it->second)) {
+    if (std::holds_alternative<cursive::ast::EnumDecl>(*decl)) {
       SPEC_RULE("Align-Enum");
       const auto layout = LayoutOf(ctx, type);
       if (!layout.has_value()) {
@@ -1359,7 +1360,7 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
       }
       return layout->align;
     }
-    if (std::holds_alternative<cursive::ast::ModalDecl>(it->second)) {
+    if (std::holds_alternative<cursive::ast::ModalDecl>(*decl)) {
       SPEC_RULE("Align-Modal");
       const auto layout = LayoutOf(ctx, type);
       if (!layout.has_value()) {
@@ -1367,7 +1368,7 @@ std::optional<std::uint64_t> AlignOf(const cursive::analysis::ScopeContext& ctx,
       }
       return layout->align;
     }
-    if (const auto* alias = std::get_if<cursive::ast::TypeAliasDecl>(&it->second)) {
+    if (const auto* alias = std::get_if<cursive::ast::TypeAliasDecl>(decl)) {
       SPEC_RULE("Align-Alias");
       const auto lowered = LowerTypeForLayout(ctx, alias->type);
       if (!lowered.has_value()) {

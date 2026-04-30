@@ -23,6 +23,7 @@
 #include "00_core/assert_spec.h"
 #include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/caps/cap_system.h"
+#include "04_analysis/language_service/facts.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 #include "04_analysis/resolve/resolve_items.h"
 #include "04_analysis/resolve/resolve_qual.h"
@@ -205,15 +206,18 @@ ResolveQualContext BuildResolveQualContext(ResolveContext& ctx) {
   qual_ctx.name_maps = ctx.name_maps;
   qual_ctx.module_names = ctx.module_names;
   qual_ctx.can_access = ctx.can_access;
+  qual_ctx.language_service = ctx.language_service;
   qual_ctx.resolve_expr = [](const ScopeContext& qctx,
                              const NameMapTable& name_maps,
                              const source::ModuleNames& module_names,
+                             LanguageServiceIndex* language_service,
                              const ast::ExprPtr& expr) {
     ResolveContext local_ctx;
     local_ctx.ctx = const_cast<ScopeContext*>(&qctx);
     local_ctx.name_maps = &name_maps;
     local_ctx.module_names = &module_names;
     local_ctx.can_access = CanAccess;
+    local_ctx.language_service = language_service;
     const auto resolved = ResolveExpr(local_ctx, expr);
     return ResolveExprResult{resolved.ok, resolved.diag_id, resolved.value};
   };
@@ -245,9 +249,14 @@ BindNamesResult BindNames(ResolveContext& ctx,
     return {false, std::nullopt, span};
   }
   for (const auto& name : names) {
-    const auto res = Intro(*ctx.ctx, name,
-                           Entity{EntityKind::Value, std::nullopt, std::nullopt,
-                                  EntitySource::Decl});
+    Entity entity{EntityKind::Value, std::nullopt, std::nullopt,
+                  EntitySource::Decl};
+    if (span.has_value()) {
+      entity = MakeLanguageServiceLocalEntity(
+          ctx.language_service, *ctx.ctx, name, *span,
+          LanguageSymbolKind::Variable, "local binding");
+    }
+    const auto res = Intro(*ctx.ctx, name, entity);
     if (!res.ok) {
       return {false, res.diag_id, span};
     }
@@ -515,6 +524,8 @@ ResolveResult<ast::KeyPathExpr> ResolveKeyPathExpr(ResolveContext& ctx,
     return MakeUnresolvedValueNameResult<ast::KeyPathExpr>(*ctx.ctx, path.root,
                                                            path.span);
   }
+  RecordLanguageServiceReference(ctx.language_service, *ctx.ctx, path.root,
+                                 path.span, *ent);
 
   const auto resolved_segs = ResolveKeySegs(ctx, path.segs);
   if (!resolved_segs.ok) {
@@ -795,6 +806,8 @@ ResExprResult ResolveCallee(ResolveContext& ctx,
         if constexpr (std::is_same_v<T, ast::IdentifierExpr>) {
           const auto ent = ResolveValueName(*ctx.ctx, node.name);
           if (ent.has_value()) {
+            RecordLanguageServiceReference(ctx.language_service, *ctx.ctx,
+                                           node.name, callee->span, *ent);
             SPEC_RULE("ResolveCallee-Ident-Value");
             return {true, std::nullopt, std::nullopt, callee};
           }
@@ -836,6 +849,11 @@ ResExprResult ResolveCallee(ResolveContext& ctx,
               *ctx.ctx, *ctx.name_maps, *ctx.module_names, node.path, node.name,
               EntityKind::Value, ctx.can_access);
           if (value.ok) {
+            if (value.entity.has_value()) {
+              RecordLanguageServiceReference(ctx.language_service, *ctx.ctx,
+                                             node.name, callee->span,
+                                             *value.entity);
+            }
             SPEC_RULE("ResolveCallee-Path-Value");
             return {true, std::nullopt, std::nullopt, callee};
           }
@@ -940,6 +958,8 @@ ResExprResult ResolveExpr(ResolveContext& ctx,
                                                                node.name,
                                                                expr->span);
           }
+          RecordLanguageServiceReference(ctx.language_service, *ctx.ctx,
+                                         node.name, expr->span, *ent);
           SPEC_RULE("ResolveExpr-Ident");
           return {true, std::nullopt, std::nullopt, expr};
         } else if constexpr (std::is_same_v<T, ast::QualifiedNameExpr> ||
@@ -1968,6 +1988,8 @@ ResolveStmtResult ResolveStmt(ResolveContext& ctx,
           if (!ent.has_value()) {
             return {false, "ResolveExpr-Ident-Err", node.span, {}};
           }
+          RecordLanguageServiceReference(ctx.language_service, *ctx.ctx,
+                                         node.source, node.span, *ent);
           const auto res = Intro(*ctx.ctx, node.alias, *ent);
           if (!res.ok) {
             return {false, res.diag_id, node.span, {}};
@@ -1994,6 +2016,8 @@ ResolveStmtResult ResolveStmt(ResolveContext& ctx,
               return {false, "ResolveExpr-Ident-Err", node.span, {},
                       "unresolved name '" + *node.target_opt + "'"};
             }
+            RecordLanguageServiceReference(ctx.language_service, *ctx.ctx,
+                                           *node.target_opt, node.span, *ent);
             SPEC_RULE("ResolveStmt-Frame-Explicit");
           } else {
             SPEC_RULE("ResolveStmt-Frame-Implicit");
@@ -2022,10 +2046,11 @@ ResolveStmtResult ResolveStmt(ResolveContext& ctx,
                       "unresolved name '" + *node.alias_opt + "'"};
             }
             saved_scope = ctx.ctx->scopes.front();
-            const auto res = Intro(*ctx.ctx, *node.alias_opt,
-                                   Entity{EntityKind::Value, std::nullopt,
-                                          std::nullopt,
-                                          EntitySource::RegionAlias});
+            Entity alias_entity = MakeLanguageServiceLocalEntity(
+                ctx.language_service, *ctx.ctx, *node.alias_opt, node.span,
+                LanguageSymbolKind::Variable, "region alias");
+            alias_entity.source = EntitySource::RegionAlias;
+            const auto res = Intro(*ctx.ctx, *node.alias_opt, alias_entity);
             if (!res.ok) {
               return {false, res.diag_id, node.span, {}};
             }

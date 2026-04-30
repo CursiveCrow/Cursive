@@ -401,7 +401,7 @@ std::unique_ptr<llvm::TargetMachine> CreateTargetMachine(
 bool EmitObjectCode(llvm::Module& module,
                     llvm::TargetMachine& target,
                     llvm::raw_pwrite_stream& output) {
-  // Code generation still uses legacy pass manager in LLVM 21
+  // LLVM 21 object emission is exposed through this pass-manager API.
   llvm::legacy::PassManager pm;
 
   if (target.addPassesToEmitFile(pm, output, nullptr,
@@ -416,7 +416,7 @@ bool EmitObjectCode(llvm::Module& module,
 bool EmitAssembly(llvm::Module& module,
                   llvm::TargetMachine& target,
                   llvm::raw_pwrite_stream& output) {
-  // Code generation still uses legacy pass manager in LLVM 21
+  // LLVM 21 assembly emission is exposed through this pass-manager API.
   llvm::legacy::PassManager pm;
 
   if (target.addPassesToEmitFile(pm, output, nullptr,

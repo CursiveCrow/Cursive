@@ -55,6 +55,9 @@ std::string PatternName(const ast::PatternPtr& pat) {
     return ident->name;
   }
   if (const auto* typed = std::get_if<ast::TypedPattern>(&pat->node)) {
+    if (typed->name == "_") {
+      return {};
+    }
     return typed->name;
   }
   return {};

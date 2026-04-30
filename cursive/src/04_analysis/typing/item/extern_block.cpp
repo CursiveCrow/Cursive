@@ -349,7 +349,7 @@ static bool BuildExternProcInfo(const ScopeContext& ctx,
 
   if (!ast::TypeParamsOpt(proc.generic_params).empty()) {
     SPEC_RULE("ExternProc-Generic-Err");
-    diag_id = "ExternProc-Generic-Err";
+    diag_id = "E-TYP-2306";
     return false;
   }
 
@@ -472,7 +472,7 @@ ExternBlockResult TypeExternBlock(
   if (!IsValidABI(result.abi)) {
     SPEC_RULE("ExternAbi-Unknown-Err");
     result.ok = false;
-    result.diag_id = "ExternAbi-Unknown-Err";
+    result.diag_id = "E-SYS-3352";
     return result;
   }
   const auto profile = RequireExternTargetProfile(ctx, result.diag_id);
@@ -560,7 +560,7 @@ ExternBlockResult TypeExternBlockSignature(
   if (!IsValidABI(result.abi)) {
     SPEC_RULE("ExternAbi-Unknown-Err");
     result.ok = false;
-    result.diag_id = "ExternAbi-Unknown-Err";
+    result.diag_id = "E-SYS-3352";
     return result;
   }
   const auto profile = RequireExternTargetProfile(ctx, result.diag_id);
@@ -571,7 +571,7 @@ ExternBlockResult TypeExternBlockSignature(
   if (!IsSupportedABIForProfile(result.abi, *profile)) {
     SPEC_RULE("ExternAbi-Unknown-Err");
     result.ok = false;
-    result.diag_id = "ExternAbi-Unknown-Err";
+    result.diag_id = "E-SYS-3352";
     return result;
   }
 

@@ -548,9 +548,9 @@ static IntroResult IntroBinding(const TypeEnv& env,
     return {false, std::nullopt, env};
   }
   if (InOuter(env, key)) {
-    SPEC_RULE("Intro-Shadow-Required");
+    SPEC_RULE("Intro-Outer-Err");
     if (core::IsDebugEnabled("shadow")) {
-      std::cerr << "[cursive] shadow required for pattern `" << name << "`";
+      std::cerr << "[cursive] outer name reuse rejected for pattern `" << name << "`";
       for (std::size_t i = 1; i < env.scopes.size(); ++i) {
         if (env.scopes[i].count(key)) {
           std::cerr << " (outer scope " << i << ")";
@@ -559,7 +559,7 @@ static IntroResult IntroBinding(const TypeEnv& env,
       }
       std::cerr << "\n";
     }
-    return {false, "Intro-Shadow-Required", env};
+    return {false, "Intro-Outer-Err", env};
   }
 
   TypeEnv out = env;

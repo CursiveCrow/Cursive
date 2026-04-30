@@ -40,6 +40,11 @@ GenericCallSubstResult InferGenericCallSubst(
     const ExprTypeFn& type_expr,
     const PlaceTypeFn* type_place = nullptr);
 
+// Persist the analysis-elaborated generic call substitution for codegen.
+void RecordGenericCallSubst(const ScopeContext& ctx,
+                            const ast::CallExpr& call,
+                            const TypeSubst& subst);
+
 // Type check a call expression
 ExprTypeResult TypeCallExprImpl(const ScopeContext& ctx,
                                 const StmtTypeContext& type_ctx,

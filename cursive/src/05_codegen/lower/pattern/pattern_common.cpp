@@ -60,6 +60,46 @@ analysis::TypeRef LowerSyntaxType(const std::shared_ptr<ast::Type>& type,
   return nullptr;
 }
 
+analysis::TypeRef StripPermAndRefine(const analysis::TypeRef& type) {
+  analysis::TypeRef stripped = type;
+  while (stripped) {
+    if (const auto* perm = std::get_if<analysis::TypePerm>(&stripped->node)) {
+      stripped = perm->base;
+      continue;
+    }
+    if (const auto* refine =
+            std::get_if<analysis::TypeRefine>(&stripped->node)) {
+      stripped = refine->base;
+      continue;
+    }
+    break;
+  }
+  return stripped;
+}
+
+std::vector<analysis::TypeRef> GenericArgsFromType(
+    const analysis::TypeRef& type) {
+  const analysis::TypeRef stripped = StripPermAndRefine(type);
+  if (!stripped) {
+    return {};
+  }
+  const std::vector<analysis::TypeRef>* args =
+      analysis::AppliedTypeArgs(*stripped);
+  if (!args) {
+    return {};
+  }
+  return *args;
+}
+
+analysis::TypeRef InstantiateActiveGenericType(const analysis::TypeRef& type,
+                                               const LowerCtx& ctx) {
+  if (!type || !ctx.active_generic_type_subst.has_value() ||
+      ctx.active_generic_type_subst->empty()) {
+    return type;
+  }
+  return analysis::InstantiateType(type, *ctx.active_generic_type_subst);
+}
+
 bool TypeEquivForUnionMatch(analysis::TypeRef lhs, analysis::TypeRef rhs) {
   lhs = analysis::StripPerm(lhs);
   rhs = analysis::StripPerm(rhs);
@@ -135,32 +175,30 @@ const ast::VariantDecl* FindVariant(const ast::EnumDecl& decl,
   return nullptr;
 }
 
-analysis::TypeRef EnumPayloadFieldType(const ast::VariantDecl& variant,
+analysis::TypeRef EnumPayloadFieldType(const ast::EnumDecl& decl,
+                                       const ast::VariantDecl& variant,
+                                       const std::vector<analysis::TypeRef>& generic_args,
                                        std::string_view name,
                                        LowerCtx& ctx) {
-  if (!variant.payload_opt.has_value()) {
-    return nullptr;
-  }
-  if (const auto* record = std::get_if<ast::VariantPayloadRecord>(&*variant.payload_opt)) {
-    for (const auto& field : record->fields) {
-      if (analysis::IdEq(field.name, name)) {
-        return LowerSyntaxType(field.type, ctx);
-      }
-    }
+  const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+  const auto member = analysis::layout::EnumRecordPayloadMemberLayout(
+      scope, decl, variant, generic_args, name);
+  if (member.has_value()) {
+    return member->type;
   }
   return nullptr;
 }
 
-analysis::TypeRef EnumPayloadTupleType(const ast::VariantDecl& variant,
+analysis::TypeRef EnumPayloadTupleType(const ast::EnumDecl& decl,
+                                       const ast::VariantDecl& variant,
+                                       const std::vector<analysis::TypeRef>& generic_args,
                                        std::size_t index,
                                        LowerCtx& ctx) {
-  if (!variant.payload_opt.has_value()) {
-    return nullptr;
-  }
-  if (const auto* tuple = std::get_if<ast::VariantPayloadTuple>(&*variant.payload_opt)) {
-    if (index < tuple->elements.size()) {
-      return LowerSyntaxType(tuple->elements[index], ctx);
-    }
+  const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+  const auto member = analysis::layout::EnumTuplePayloadMemberLayout(
+      scope, decl, variant, generic_args, index);
+  if (member.has_value()) {
+    return member->type;
   }
   return nullptr;
 }
@@ -369,8 +407,13 @@ IRPtr EmitOrderedPatternBindings(const std::vector<OrderedPatternBinding>& bindi
     bind.stable_name = ctx.StableBindingName(binding_desc.name);
     bind.value = binding_desc.value;
     bind.type = LookupBindType(ctx, binding_desc.name);
+    bind.type = InstantiateActiveGenericType(bind.type, ctx);
     if (!bind.type) {
-      bind.type = binding_desc.type_hint;
+      bind.type = InstantiateActiveGenericType(binding_desc.type_hint, ctx);
+    }
+    if (!bind.type) {
+      bind.type = InstantiateActiveGenericType(
+          ctx.LookupValueType(binding_desc.value), ctx);
     }
     bind.prov = LookupBindProv(ctx, binding_desc.name);
     bind.prov_region = LookupBindRegion(ctx, binding_desc.name);
@@ -403,10 +446,14 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
         } else if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
           bindings.push_back({pat.name, value, nullptr});
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
+          if (pat.name == "_") {
+            return;
+          }
           IRValue bind_value = value;
           analysis::TypeRef type_hint = nullptr;
           if (ctx.sigma) {
-            type_hint = LowerSyntaxType(pat.type, ctx);
+            type_hint =
+                InstantiateActiveGenericType(LowerSyntaxType(pat.type, ctx), ctx);
             const auto base_type = ctx.LookupValueType(value);
             if (type_hint && base_type) {
               analysis::TypeRef stripped = base_type;
@@ -473,13 +520,20 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
           const ast::EnumDecl* enum_decl = LookupEnumDecl(pat.path, ctx);
           const ast::VariantDecl* variant =
               enum_decl ? FindVariant(*enum_decl, pat.name) : nullptr;
+          const std::vector<analysis::TypeRef> enum_generic_args =
+              GenericArgsFromType(
+                  InstantiateActiveGenericType(ctx.LookupValueType(value), ctx));
           std::visit(
-              [&value, &ctx, &bindings, &pat, variant](const auto& payload) {
+              [&value, &ctx, &bindings, &pat, enum_decl, variant,
+               &enum_generic_args](const auto& payload) {
                 using P = std::decay_t<decltype(payload)>;
                 if constexpr (std::is_same_v<P, ast::TuplePayloadPattern>) {
                   for (std::size_t i = 0; i < payload.elements.size(); ++i) {
-                    analysis::TypeRef elem_type =
-                        variant ? EnumPayloadTupleType(*variant, i, ctx) : nullptr;
+                    analysis::TypeRef elem_type = nullptr;
+                    if (enum_decl && variant) {
+                      elem_type = EnumPayloadTupleType(
+                          *enum_decl, *variant, enum_generic_args, i, ctx);
+                    }
                     IRValue elem = ctx.FreshTempValue("pat_enum_payload_elem");
                     DerivedValueInfo info;
                     info.kind = DerivedValueInfo::Kind::EnumPayloadIndex;
@@ -495,8 +549,11 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
                   }
                 } else {
                   for (const auto& field : payload.fields) {
-                    analysis::TypeRef field_type =
-                        variant ? EnumPayloadFieldType(*variant, field.name, ctx) : nullptr;
+                    analysis::TypeRef field_type = nullptr;
+                    if (enum_decl && variant) {
+                      field_type = EnumPayloadFieldType(
+                          *enum_decl, *variant, enum_generic_args, field.name, ctx);
+                    }
                     IRValue field_val = ctx.FreshTempValue("pat_enum_payload_field");
                     DerivedValueInfo info;
                     info.kind = DerivedValueInfo::Kind::EnumPayloadField;

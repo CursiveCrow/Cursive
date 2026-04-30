@@ -39,7 +39,7 @@ bool DirExists(const std::filesystem::path& path) {
   return std::filesystem::is_directory(path, ec) && !ec;
 }
 
-bool IsLegacySupportRootCandidate(const std::filesystem::path& candidate) {
+bool IsBuildTreeSupportRootCandidate(const std::filesystem::path& candidate) {
   if (candidate.empty()) {
     return false;
   }
@@ -74,12 +74,12 @@ SupportLayout ResolveSupportLayout() {
   if (IsPackagedSupportRootCandidate(executable_dir)) {
     return {CompilerSupportLayoutKind::PackagedOut, executable_dir};
   }
-  if (IsLegacySupportRootCandidate(executable_dir)) {
-    return {CompilerSupportLayoutKind::LegacyBuildTree, executable_dir};
+  if (IsBuildTreeSupportRootCandidate(executable_dir)) {
+    return {CompilerSupportLayoutKind::BuildTree, executable_dir};
   }
   const auto parent = executable_dir.parent_path();
-  if (IsLegacySupportRootCandidate(parent)) {
-    return {CompilerSupportLayoutKind::LegacyBuildTree, parent};
+  if (IsBuildTreeSupportRootCandidate(parent)) {
+    return {CompilerSupportLayoutKind::BuildTree, parent};
   }
   if (is_packaged_compiler_name(executable_name)) {
     return {CompilerSupportLayoutKind::PackagedOut, executable_dir};
@@ -174,7 +174,7 @@ std::optional<std::filesystem::path> HostCompilerSidecarBinDirPath() {
 
 std::optional<std::filesystem::path> CompilerSupportAssetPath(
     const std::filesystem::path& packaged_relative_path,
-    const std::filesystem::path& legacy_relative_path) {
+    const std::filesystem::path& build_tree_relative_path) {
   const auto support_root = CompilerSupportRootPath();
   if (!support_root.has_value()) {
     return std::nullopt;
@@ -199,22 +199,22 @@ std::optional<std::filesystem::path> CompilerSupportAssetPath(
         packaged.has_value()) {
       return packaged;
     }
-    return try_relative_path(legacy_relative_path);
+    return std::nullopt;
   }
 
-  if (layout == CompilerSupportLayoutKind::LegacyBuildTree) {
-    if (const auto legacy = try_relative_path(legacy_relative_path);
-        legacy.has_value()) {
-      return legacy;
+  if (layout == CompilerSupportLayoutKind::BuildTree) {
+    if (const auto build_tree = try_relative_path(build_tree_relative_path);
+        build_tree.has_value()) {
+      return build_tree;
     }
-    return try_relative_path(packaged_relative_path);
+    return std::nullopt;
   }
 
   if (const auto packaged = try_relative_path(packaged_relative_path);
       packaged.has_value()) {
     return packaged;
   }
-  return try_relative_path(legacy_relative_path);
+  return try_relative_path(build_tree_relative_path);
 }
 
 }  // namespace cursive::core

@@ -18,11 +18,14 @@ namespace cursive::codegen {
 // Implements the (Lower-Expr-EnumLiteral) rule from the spec.
 //
 // Parameters:
-//   expr - The enum literal expression node
-//   ctx  - Lowering context
+//   source_expr - The enclosing expression node used for analysis type lookup
+//   expr        - The enum literal expression node
+//   ctx         - Lowering context
 //
 // Returns:
 //   LowerResult with IR for payload evaluation and an enum value.
-LowerResult LowerEnumLiteral(const ast::EnumLiteralExpr& expr, LowerCtx& ctx);
+LowerResult LowerEnumLiteral(const ast::Expr& source_expr,
+                             const ast::EnumLiteralExpr& expr,
+                             LowerCtx& ctx);
 
 }  // namespace cursive::codegen

@@ -10,6 +10,8 @@
 
 namespace cursive::analysis {
 
+class LanguageServiceIndex;
+
 struct ResolveExprResult {
   bool ok = false;
   std::optional<std::string_view> diag_id;
@@ -56,6 +58,7 @@ using ResolveExprFn =
     ResolveExprResult (*)(const ScopeContext& ctx,
                           const NameMapTable& name_maps,
                           const source::ModuleNames& module_names,
+                          LanguageServiceIndex* language_service,
                           const ast::ExprPtr& expr);
 
 using ResolveTypePathFn =
@@ -71,6 +74,7 @@ struct ResolveQualContext {
   ResolveExprFn resolve_expr = nullptr;
   ResolveTypePathFn resolve_type_path = nullptr;
   CanAccessFn can_access = nullptr;
+  LanguageServiceIndex* language_service = nullptr;
 };
 
 ResolveArgsResult ResolveArgs(const ResolveQualContext& ctx,

@@ -312,6 +312,10 @@ namespace cursive::codegen::emit_detail {
                           llvm::Value *value,
                           llvm::Type *target_ty);
 
+    llvm::Value *CoerceBoolTo(llvm::IRBuilder<> *builder,
+                              llvm::Value *value,
+                              llvm::Type *target_ty);
+
     llvm::Value *CoerceToTyped(LLVMEmitter &emitter,
                                llvm::IRBuilder<> *builder,
                                llvm::Value *value,
@@ -440,6 +444,11 @@ namespace cursive::codegen::emit_detail {
     llvm::Value *CoerceTo(llvm::IRBuilder<> *builder,
                           llvm::Value *value,
                           llvm::Type *target_ty)
+    ;
+
+    llvm::Value *CoerceBoolTo(llvm::IRBuilder<> *builder,
+                              llvm::Value *value,
+                              llvm::Type *target_ty)
     ;
 
     analysis::TypeRef StripPermType(const analysis::TypeRef &type)

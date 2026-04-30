@@ -482,7 +482,7 @@ ModalDeclResult TypeModalDecl(
   if (!DistinctStateNames(decl.states)) {
     SPEC_RULE("Modal-DupState-Err");
     result.ok = false;
-    result.diag_id = "Modal-DupState-Err";
+    result.diag_id = "E-TYP-2051";
     return result;
   }
 
@@ -490,7 +490,7 @@ ModalDeclResult TypeModalDecl(
     if (state.name == decl.name) {
       SPEC_RULE("Modal-StateName-Err");
       result.ok = false;
-      result.diag_id = "Modal-StateName-Err";
+      result.diag_id = "E-TYP-2054";
       return result;
     }
   }
@@ -499,7 +499,7 @@ ModalDeclResult TypeModalDecl(
   if (decl.states.empty()) {
     SPEC_RULE("Modal-NoStates-Err");
     result.ok = false;
-    result.diag_id = "Modal-NoStates-Err";
+    result.diag_id = "E-TYP-2050";
     return result;
   }
 
@@ -526,7 +526,7 @@ ModalDeclResult TypeModalDecl(
     if (!DistinctStateFieldNames(state_fields)) {
       SPEC_RULE("Modal-Payload-DupField");
       result.ok = false;
-      result.diag_id = "Modal-Payload-DupField";
+      result.diag_id = "E-TYP-2058";
       return result;
     }
 
@@ -576,7 +576,7 @@ ModalDeclResult TypeModalDecl(
       if (HasReservedSelfParam(method.params)) {
         SPEC_RULE("Method-Context-Err");
         result.ok = false;
-        result.diag_id = "Method-Context-Err";
+        result.diag_id = "E-SEM-3011";
         return result;
       }
 
@@ -676,7 +676,7 @@ ModalDeclResult TypeModalDecl(
       if (HasReservedSelfParam(transition.params)) {
         SPEC_RULE("Method-Context-Err");
         result.ok = false;
-        result.diag_id = "Method-Context-Err";
+        result.diag_id = "E-SEM-3011";
         return result;
       }
 
@@ -684,7 +684,7 @@ ModalDeclResult TypeModalDecl(
       if (state_names.find(transition.target_state) == state_names.end()) {
         SPEC_RULE("Transition-Target-Err");
         result.ok = false;
-        result.diag_id = "Transition-Target-Err";
+        result.diag_id = "E-TYP-2059";
         return result;
       }
 
@@ -741,7 +741,7 @@ ModalDeclResult TypeModalDecl(
         if (!sub.ok || !sub.subtype) {
           SPEC_RULE("Transition-Body-Err");
           result.ok = false;
-          result.diag_id = "Transition-Body-Err";
+          result.diag_id = "E-TYP-2055";
           return result;
         }
         SPEC_RULE("T-Modal-Transition-Body");
@@ -945,7 +945,7 @@ ModalDeclResult TypeModalDeclSignature(
   if (!DistinctStateNames(decl.states)) {
     SPEC_RULE("Modal-DupState-Err");
     result.ok = false;
-    result.diag_id = "Modal-DupState-Err";
+    result.diag_id = "E-TYP-2051";
     return result;
   }
 
@@ -953,7 +953,7 @@ ModalDeclResult TypeModalDeclSignature(
     if (state.name == decl.name) {
       SPEC_RULE("Modal-StateName-Err");
       result.ok = false;
-      result.diag_id = "Modal-StateName-Err";
+      result.diag_id = "E-TYP-2054";
       return result;
     }
   }
@@ -1014,7 +1014,7 @@ ModalDeclResult TypeModalDeclSignature(
       if (HasReservedSelfParam(method.params)) {
         SPEC_RULE("Method-Context-Err");
         result.ok = false;
-        result.diag_id = "Method-Context-Err";
+        result.diag_id = "E-SEM-3011";
         return result;
       }
 
@@ -1042,13 +1042,13 @@ ModalDeclResult TypeModalDeclSignature(
       if (HasReservedSelfParam(transition.params)) {
         SPEC_RULE("Method-Context-Err");
         result.ok = false;
-        result.diag_id = "Method-Context-Err";
+        result.diag_id = "E-SEM-3011";
         return result;
       }
       if (state_names.find(transition.target_state) == state_names.end()) {
         SPEC_RULE("Transition-Target-Err");
         result.ok = false;
-        result.diag_id = "Transition-Target-Err";
+        result.diag_id = "E-TYP-2059";
         return result;
       }
 

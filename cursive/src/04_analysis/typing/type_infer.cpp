@@ -1607,7 +1607,7 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
         if (recv_dyn && IsHeapAllocatorClassPath(recv_dyn->path)) {
           if (!IsInUnsafeSpan(ctx, expr->span)) {
             SPEC_RULE("AllocRaw-Unsafe-Err");
-            result.diag_id = "AllocRaw-Unsafe-Err";
+            result.diag_id = "E-MEM-3030";
             return result;
           }
           const auto required =
@@ -1619,7 +1619,7 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
           }
           if (!recv_sub.subtype) {
             SPEC_RULE("MethodCall-RecvPerm-Err");
-            result.diag_id = "MethodCall-RecvPerm-Err";
+            result.diag_id = "E-TYP-1605";
             return result;
           }
           const auto recv_arg =
@@ -1630,18 +1630,18 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
           }
           if (method->args.size() != 1) {
             SPEC_RULE("Call-ArgCount-Err");
-            result.diag_id = "Call-ArgCount-Err";
+            result.diag_id = "E-SEM-2532";
             return result;
           }
           const auto& arg = method->args[0];
           if (arg.moved) {
             SPEC_RULE("Call-Move-Unexpected");
-            result.diag_id = "Call-Move-Unexpected";
+            result.diag_id = "E-SEM-2535";
             return result;
           }
           if (HasSourceProvenance(arg.value) && !IsPlaceExprForCall(arg.value)) {
             SPEC_RULE("Call-Arg-NotPlace");
-            result.diag_id = "Call-Arg-NotPlace";
+            result.diag_id = "E-TYP-1603";
             return result;
           }
           const auto arg_type = type_expr(arg.value);
@@ -1657,7 +1657,7 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
           }
           if (!count_sub.subtype) {
             SPEC_RULE("Call-ArgType-Err");
-            result.diag_id = "Call-ArgType-Err";
+            result.diag_id = "E-SEM-2533";
             return result;
           }
           SPEC_RULE("Chk-Subsumption");
@@ -1680,6 +1680,8 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
         result.diag_id = typed_call.diag_id;
         return result;
       }
+      ::cursive::analysis::expr::RecordGenericCallSubst(
+          ctx, *call, inferred_subst.subst);
       ExprTypeResult call_result;
       call_result.ok = true;
       call_result.type = typed_call.type;

@@ -13,7 +13,7 @@ namespace cursive::codegen {
 // synthetic array value tracked via DerivedValueInfo.
 LowerResult LowerArrayLiteral(const ast::ArrayExpr& expr, LowerCtx& ctx);
 
-// Legacy compatibility helper for internal ArrayRepeatExpr producers.
+// Helper for internal ArrayRepeatExpr producers.
 LowerResult LowerArrayRepeat(const ast::ArrayRepeatExpr& expr, LowerCtx& ctx);
 
 }  // namespace cursive::codegen

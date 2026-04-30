@@ -15,6 +15,7 @@
 #include "04_analysis/typing/typecheck.h"
 
 #include <iostream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -243,10 +244,58 @@ static void EmitTypecheckDiag(core::DiagnosticStream& diags,
   EmitResolvedTypecheckDiagnostic(diags, diag_id, span, detail);
 }
 
+static bool IsContextTypeSyntax(const ast::Type& type) {
+  if (const auto* path_type = std::get_if<ast::TypePathType>(&type.node)) {
+    return path_type->generic_args.empty() && IsContextTypePath(path_type->path);
+  }
+  if (const auto* prim_type = std::get_if<ast::TypePrim>(&type.node)) {
+    return IdEq(prim_type->name, "Context");
+  }
+  return false;
+}
+
+static bool IsI32TypeSyntax(const ast::Type& type) {
+  const auto* prim_type = std::get_if<ast::TypePrim>(&type.node);
+  return prim_type != nullptr && IdEq(prim_type->name, "i32");
+}
+
+static std::vector<core::SubDiagnostic> MainSignatureFixIts(
+    const ast::ProcedureDecl& decl) {
+  if (!IdEq(decl.name, "main") || !decl.attrs.empty() ||
+      !ast::TypeParamsOpt(decl.generic_params).empty() ||
+      decl.params.size() != 1 || !decl.params[0].type ||
+      !decl.return_type_opt) {
+    return {};
+  }
+
+  const ast::Param& param = decl.params[0];
+  if (!IsContextTypeSyntax(*param.type) ||
+      !IsI32TypeSyntax(*decl.return_type_opt)) {
+    return {};
+  }
+
+  core::Span replacement_span = decl.span;
+  replacement_span.end_offset = param.type->span.end_offset;
+  replacement_span.end_line = param.type->span.end_line;
+  replacement_span.end_col = param.type->span.end_col;
+  if (replacement_span.end_offset <= replacement_span.start_offset) {
+    return {};
+  }
+
+  core::SubDiagnostic fix;
+  fix.kind = core::SubDiagnosticKind::FixIt;
+  fix.message = "Fix main signature";
+  fix.span = replacement_span;
+  fix.fix_text =
+      "public procedure main(move " + param.name + ": Context)";
+  return {std::move(fix)};
+}
+
 static void EmitDeclDiag(core::DiagnosticStream& diags,
                          const std::optional<std::string_view>& diag_id,
                          const std::optional<core::Span>& span,
-                         const std::string& detail = {}) {
+                         const std::string& detail = {},
+                         std::vector<core::SubDiagnostic> children = {}) {
   if (!diag_id.has_value()) {
     return;
   }
@@ -262,6 +311,9 @@ static void EmitDeclDiag(core::DiagnosticStream& diags,
       note.message = d;
       diag->children.push_back(std::move(note));
     }
+    diag->children.insert(diag->children.end(),
+                          std::make_move_iterator(children.begin()),
+                          std::make_move_iterator(children.end()));
     core::Emit(diags, *diag);
     return true;
   };
@@ -274,8 +326,8 @@ static void EmitDeclDiag(core::DiagnosticStream& diags,
     return;
   }
 
-  if (*diag_id == "Call-Move-Missing" || *diag_id == "E-SEM-2534") {
-    emit_from_id("B-ArgPass-Move-Missing", {});
+  if (*diag_id == "E-SEM-2534") {
+    emit_from_id("E-MOD-2411", {});
   }
 }
 
@@ -496,9 +548,14 @@ DeclTypingResult DeclTypingModules(ScopeContext& ctx,
                     res.diag_span.has_value()
                         ? res.diag_span
                         : std::optional<core::Span>(node.span);
+                std::vector<core::SubDiagnostic> children;
+                if (res.diag_id.has_value() && *res.diag_id == "E-MOD-2431") {
+                  children = MainSignatureFixIts(node);
+                }
                 EmitDeclDiag(result.diags, res.diag_id,
                              diag_span,
-                             res.diag_detail);
+                             res.diag_detail,
+                             std::move(children));
               }
             } else if constexpr (std::is_same_v<T, ast::ComptimeProcedureDecl>) {
               if (const auto precheck =
@@ -665,14 +722,14 @@ DeclTypingResult MainCheckProject(ScopeContext& ctx,
 
   if (mains.empty()) {
     SPEC_RULE("Main-Missing");
-    EmitTypecheckDiag(result.diags, "Main-Missing", std::nullopt);
+    EmitTypecheckDiag(result.diags, "E-MOD-2434", std::nullopt);
     result.ok = false;
     return result;
   }
 
   if (mains.size() > 1) {
     SPEC_RULE("Main-Multiple");
-    EmitTypecheckDiag(result.diags, "Main-Multiple", mains.front()->span);
+    EmitTypecheckDiag(result.diags, "E-MOD-2430", mains.front()->span);
     result.ok = false;
     return result;
   }
@@ -681,14 +738,24 @@ DeclTypingResult MainCheckProject(ScopeContext& ctx,
 
   if (MainGeneric(*main_decl)) {
     SPEC_RULE("Main-Generic-Err");
-    EmitTypecheckDiag(result.diags, "Main-Generic-Err", main_decl->span);
+    EmitTypecheckDiag(result.diags, "E-MOD-2432", main_decl->span);
     result.ok = false;
     return result;
   }
 
   if (!MainSigOk(*main_decl)) {
     SPEC_RULE("Main-Signature-Err");
-    EmitTypecheckDiag(result.diags, "Main-Signature-Err", main_decl->span);
+    auto diag =
+        BuildResolvedTypecheckDiagnostic("E-MOD-2431", main_decl->span);
+    if (diag.has_value()) {
+      auto fixes = MainSignatureFixIts(*main_decl);
+      diag->children.insert(diag->children.end(),
+                            std::make_move_iterator(fixes.begin()),
+                            std::make_move_iterator(fixes.end()));
+      core::Emit(result.diags, *diag);
+    } else {
+      EmitTypecheckDiag(result.diags, "E-MOD-2431", main_decl->span);
+    }
     result.ok = false;
     return result;
   }
@@ -731,17 +798,24 @@ TypecheckResult TypecheckModules(
 
   ExprTypeMap* prev_expr_types = ctx.expr_types;
   DynamicRefineExprMap* prev_dynamic_refine_checks = ctx.dynamic_refine_checks;
+  GenericCallSubstMap* prev_generic_call_substs = ctx.generic_call_substs;
   ctx.expr_types = &result.expr_types;
   ctx.dynamic_refine_checks = &result.dynamic_refine_checks;
+  ctx.generic_call_substs = &result.generic_call_substs;
   struct ExprTypesReset {
     ScopeContext& ctx;
     ExprTypeMap* prev;
     DynamicRefineExprMap* prev_dynamic_refine_checks;
+    GenericCallSubstMap* prev_generic_call_substs;
     ~ExprTypesReset() {
       ctx.expr_types = prev;
       ctx.dynamic_refine_checks = prev_dynamic_refine_checks;
+      ctx.generic_call_substs = prev_generic_call_substs;
     }
-  } expr_types_reset{ctx, prev_expr_types, prev_dynamic_refine_checks};
+  } expr_types_reset{ctx,
+                     prev_expr_types,
+                     prev_dynamic_refine_checks,
+                     prev_generic_call_substs};
 
   const auto decls = DeclTypingModules(ctx, modules, *name_maps);
   if (!decls.diags.empty()) {

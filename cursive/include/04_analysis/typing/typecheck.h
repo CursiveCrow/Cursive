@@ -17,6 +17,7 @@ struct TypecheckResult {
   core::DiagnosticStream diags;
   ExprTypeMap expr_types;
   DynamicRefineExprMap dynamic_refine_checks;
+  GenericCallSubstMap generic_call_substs;
   std::optional<InitPlan> init_plan;
 };
 

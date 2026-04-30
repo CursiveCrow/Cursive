@@ -1631,13 +1631,13 @@ ExprTypeResult TypeDispatchExprImpl(const ScopeContext& ctx,
   // Check range is a range family type.
   const auto stripped_range = StripPerm(range_result.type);
   if (!::cursive::analysis::IsRangeType(stripped_range)) {
-    result.diag_id = "Assign-Type-Err";
+    result.diag_id = "E-SEM-3133";
     return result;
   }
   if (stripped_range &&
       std::holds_alternative<TypeRangeFull>(stripped_range->node)) {
     // Unbounded dispatch ranges are not finite iteration domains.
-    result.diag_id = "Assign-Type-Err";
+    result.diag_id = "E-SEM-3133";
     return result;
   }
 
@@ -1738,7 +1738,7 @@ ExprTypeResult TypeDispatchExprImpl(const ScopeContext& ctx,
         return result;
       }
       if (!IsUsizeType(chunk_typed.type)) {
-        result.diag_id = "Assign-Type-Err";
+        result.diag_id = "E-SEM-3133";
         return result;
       }
       continue;

@@ -36,6 +36,7 @@ const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
     const analysis::Sigma* sigma = nullptr;
     analysis::ExprTypeMap* expr_types = nullptr;
     analysis::DynamicRefineExprMap* dynamic_refine_checks = nullptr;
+    analysis::GenericCallSubstMap* generic_call_substs = nullptr;
     std::vector<std::string> module_path;
     std::optional<project::TargetProfile> target_profile;
     analysis::ScopeContext scope;
@@ -48,11 +49,13 @@ const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
 
   if (cache.sigma != ctx.sigma || cache.expr_types != ctx.expr_types ||
       cache.dynamic_refine_checks != ctx.dynamic_refine_checks ||
+      cache.generic_call_substs != ctx.generic_call_substs ||
       cache.module_path != ctx.module_path ||
       cache.target_profile != ctx.target_profile) {
     cache.sigma = ctx.sigma;
     cache.expr_types = ctx.expr_types;
     cache.dynamic_refine_checks = ctx.dynamic_refine_checks;
+    cache.generic_call_substs = ctx.generic_call_substs;
     cache.module_path = ctx.module_path;
     cache.target_profile = ctx.target_profile;
     cache.scope = analysis::ScopeContext{};
@@ -62,6 +65,7 @@ const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
     cache.scope.target_profile = ctx.target_profile;
     cache.scope.expr_types = ctx.expr_types;
     cache.scope.dynamic_refine_checks = ctx.dynamic_refine_checks;
+    cache.scope.generic_call_substs = ctx.generic_call_substs;
   }
 
   return cache.scope;
@@ -1141,12 +1145,16 @@ const std::vector<std::string>* LowerCtx::LookupProcModule(const std::string& sy
 void LowerCtx::QueueExtraProc(ProcIR proc,
                               std::optional<LinkageKind> linkage,
                               const ast::ModulePath* module_path) {
+  if (proc.defining_module_path.empty()) {
+    proc.defining_module_path =
+        module_path != nullptr ? *module_path : this->module_path;
+  }
   RegisterProcSig(proc);
   if (linkage.has_value()) {
     RegisterProcLinkage(proc.symbol, *linkage);
   }
-  if (module_path != nullptr) {
-    RegisterProcModule(proc.symbol, *module_path);
+  if (!proc.defining_module_path.empty()) {
+    RegisterProcModule(proc.symbol, proc.defining_module_path);
   }
   extra_procs.push_back(std::move(proc));
 }

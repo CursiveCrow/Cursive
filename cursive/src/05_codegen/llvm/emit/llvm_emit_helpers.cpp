@@ -1506,6 +1506,31 @@ namespace cursive::codegen::emit_detail {
       return CoerceValue(builder, value, target_ty);
     }
 
+    llvm::Value *CoerceBoolTo(llvm::IRBuilder<> *builder,
+                              llvm::Value *value,
+                              llvm::Type *target_ty)
+    {
+      if (!builder || !value || !target_ty)
+      {
+        return value;
+      }
+
+      llvm::Value *predicate = AsBool(builder, value);
+      if (!predicate)
+      {
+        return value;
+      }
+      if (target_ty->isIntegerTy(1))
+      {
+        return predicate;
+      }
+      if (target_ty->isIntegerTy())
+      {
+        return builder->CreateZExtOrTrunc(predicate, target_ty);
+      }
+      return CoerceTo(builder, predicate, target_ty);
+    }
+
     analysis::TypeRef StripPermType(const analysis::TypeRef &type)
     {
       if (!type)
@@ -1956,6 +1981,10 @@ namespace cursive::codegen::emit_detail {
       };
       analysis::TypeRef stripped_source = ResolveAliasType(ctx, source_type);
       analysis::TypeRef stripped_target = ResolveAliasType(ctx, target_type);
+      if (IsBoolType(stripped_target))
+      {
+        return CoerceBoolTo(builder, value, target_ty);
+      }
 
       const auto *source_array =
           stripped_source ? std::get_if<analysis::TypeArray>(&stripped_source->node) : nullptr;

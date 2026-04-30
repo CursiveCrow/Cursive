@@ -321,7 +321,7 @@ static bool CheckBuiltinMethodArgs(const ScopeContext& ctx,
                                    const TypeEnv& env,
                                    ExprTypeResult& result) {
   if (args.size() != params.size()) {
-    result.diag_id = "Call-ArgCount-Err";
+    result.diag_id = "E-SEM-2532";
     return false;
   }
   const auto arg_ctx_for = [&](const TypeRef& expected) {
@@ -340,12 +340,12 @@ static bool CheckBuiltinMethodArgs(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     const auto& expected = params[i];
     if (args[i].moved && !expected.mode.has_value()) {
-      result.diag_id = "Call-Move-Unexpected";
+      result.diag_id = "E-SEM-2535";
       return false;
     }
     if (!args[i].moved && expected.mode.has_value() &&
         *expected.mode == ParamMode::Move) {
-      result.diag_id = "Call-Move-Required";
+      result.diag_id = "E-SEM-2534";
       return false;
     }
     const auto checked = CheckExprAgainst(
@@ -616,7 +616,7 @@ static std::optional<std::string_view> CollectArgTypes(
     const LowerTypeFn& lower_type,
     std::vector<TypeRef>& out_types) {
   if (params.size() != args.size()) {
-    return "Call-ArgCount-Err";
+    return "E-SEM-2532";
   }
 
   std::vector<TypeFuncParam> lowered_params;
@@ -632,13 +632,13 @@ static std::optional<std::string_view> CollectArgTypes(
 
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (MissingRequiredMoveForConsuming(lowered_params[i].mode, args[i])) {
-      return "Call-Move-Missing";
+      return "E-SEM-2534";
     }
   }
 
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (!lowered_params[i].mode.has_value() && args[i].moved) {
-      return "Call-Move-Unexpected";
+      return "E-SEM-2535";
     }
   }
 
@@ -649,7 +649,7 @@ static std::optional<std::string_view> CollectArgTypes(
         if (!lowered_params[i].mode.has_value()) {
       const bool has_source_prov = HasSourceProvenance(arg.value);
       if (has_source_prov && !IsPlaceExprForCall(arg.value)) {
-        return "Call-Arg-NotPlace";
+        return "E-TYP-1603";
       }
       if (has_source_prov && type_place) {
         const auto place_type = (*type_place)(arg.value);
@@ -715,7 +715,7 @@ static InferMethodSubstResult InferMethodSubst(
                           i < actual_arg_types.size(); ++i) {
     if (!BindTypeParams(ctx, params, expected_param_types[i],
                         actual_arg_types[i], bindings)) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
   }
@@ -919,16 +919,16 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
     if (!PermSubLocal(caller_perm, Permission::Shared)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
-      result.diag_id = "MethodCall-RecvPerm-Err";
+      result.diag_id = "E-TYP-1605";
       return result;
     }
 
     if (expr.args.size() != 2) {
-      result.diag_id = "Call-ArgCount-Err";
+      result.diag_id = "E-SEM-2532";
       return result;
     }
     if (expr.args[0].moved || expr.args[1].moved) {
-      result.diag_id = "Call-Move-Unexpected";
+      result.diag_id = "E-SEM-2535";
       return result;
     }
 
@@ -946,15 +946,15 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     const auto pred_sig = CallableSigOf(pred_typed.type);
     const auto action_sig = CallableSigOf(action_typed.type);
     if (!pred_sig.has_value() || !action_sig.has_value()) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
     if (pred_sig->params.size() != 1 || action_sig->params.size() != 1) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
     if (pred_sig->params[0].mode.has_value() || action_sig->params[0].mode.has_value()) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
 
@@ -970,7 +970,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       return result;
     }
     if (!pred_param_eq.equiv) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
 
@@ -981,7 +981,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       return result;
     }
     if (!action_param_eq.equiv) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
 
@@ -991,7 +991,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       return result;
     }
     if (!pred_ret_eq.equiv) {
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
 
@@ -1016,7 +1016,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       if (async_combinator.has_value()) {
         if (!PermSubLocal(caller_perm, Permission::Const)) {
           SPEC_RULE("MethodCall-RecvPerm-Err");
-          result.diag_id = "MethodCall-RecvPerm-Err";
+          result.diag_id = "E-TYP-1605";
           return result;
         }
 
@@ -1025,11 +1025,11 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
         if (*async_combinator == BuiltinAsyncCombinatorKind::Map) {
         if (expr.args.size() != 1 || !expr.args[0].value) {
-          result.diag_id = "Call-ArgCount-Err";
+          result.diag_id = "E-SEM-2532";
           return result;
         }
         if (expr.args[0].moved) {
-          result.diag_id = "Call-Move-Unexpected";
+          result.diag_id = "E-SEM-2535";
           return result;
         }
 
@@ -1042,7 +1042,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         if (!fn_sig.has_value() ||
             fn_sig->params.size() != 1 ||
             fn_sig->params[0].mode.has_value()) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1052,7 +1052,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!param_sub.subtype) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1067,11 +1067,11 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
         if (*async_combinator == BuiltinAsyncCombinatorKind::Filter) {
         if (expr.args.size() != 1 || !expr.args[0].value) {
-          result.diag_id = "Call-ArgCount-Err";
+          result.diag_id = "E-SEM-2532";
           return result;
         }
         if (expr.args[0].moved) {
-          result.diag_id = "Call-Move-Unexpected";
+          result.diag_id = "E-SEM-2535";
           return result;
         }
 
@@ -1086,7 +1086,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!in_is_unit.equiv || !result_is_unit.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1099,7 +1099,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         if (!pred_sig.has_value() ||
             pred_sig->params.size() != 1 ||
             pred_sig->params[0].mode.has_value()) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1111,7 +1111,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!pred_param_eq.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1121,7 +1121,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!pred_ret_eq.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1132,11 +1132,11 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
         if (*async_combinator == BuiltinAsyncCombinatorKind::Take) {
         if (expr.args.size() != 1 || !expr.args[0].value) {
-          result.diag_id = "Call-ArgCount-Err";
+          result.diag_id = "E-SEM-2532";
           return result;
         }
         if (expr.args[0].moved) {
-          result.diag_id = "Call-Move-Unexpected";
+          result.diag_id = "E-SEM-2535";
           return result;
         }
 
@@ -1151,7 +1151,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!in_is_unit.equiv || !result_is_unit.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1167,7 +1167,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!n_sub.subtype) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1178,11 +1178,11 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
         if (*async_combinator == BuiltinAsyncCombinatorKind::Fold) {
         if (expr.args.size() != 2 || !expr.args[0].value || !expr.args[1].value) {
-          result.diag_id = "Call-ArgCount-Err";
+          result.diag_id = "E-SEM-2532";
           return result;
         }
         if (expr.args[0].moved || expr.args[1].moved) {
-          result.diag_id = "Call-Move-Unexpected";
+          result.diag_id = "E-SEM-2535";
           return result;
         }
 
@@ -1197,7 +1197,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!in_is_unit.equiv || !result_is_unit.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1216,7 +1216,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
             fn_sig->params.size() != 2 ||
             fn_sig->params[0].mode.has_value() ||
             fn_sig->params[1].mode.has_value()) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1226,7 +1226,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!p0_eq.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1236,7 +1236,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!p1_eq.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1246,7 +1246,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!ret_eq.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1261,11 +1261,11 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
         if (*async_combinator == BuiltinAsyncCombinatorKind::Chain) {
         if (expr.args.size() != 1 || !expr.args[0].value) {
-          result.diag_id = "Call-ArgCount-Err";
+          result.diag_id = "E-SEM-2532";
           return result;
         }
         if (expr.args[0].moved) {
-          result.diag_id = "Call-Move-Unexpected";
+          result.diag_id = "E-SEM-2535";
           return result;
         }
 
@@ -1280,7 +1280,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!out_is_unit.equiv || !in_is_unit.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1293,7 +1293,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         if (!fn_sig.has_value() ||
             fn_sig->params.size() != 1 ||
             fn_sig->params[0].mode.has_value()) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1303,13 +1303,13 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!input_sub.subtype) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
         const auto chained_sig = GetAsyncSig(fn_sig->ret);
         if (!chained_sig.has_value()) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1329,7 +1329,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         if (!chained_out_is_unit.equiv || !chained_in_is_unit.equiv || !err_eq.equiv) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1345,7 +1345,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           LookupStringBytesBuiltinMethodSig(lookup_base, expr.name)) {
     if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
-      result.diag_id = "MethodCall-RecvPerm-Err";
+      result.diag_id = "E-TYP-1605";
       return result;
     }
     if (!check_shared_receiver_access(builtin_sig->recv_perm)) {
@@ -1377,7 +1377,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           LookupFoundationalBuiltinMethodSig(lookup_base, expr.name)) {
     if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
-      result.diag_id = "MethodCall-RecvPerm-Err";
+      result.diag_id = "E-TYP-1605";
       return result;
     }
     if (!check_shared_receiver_access(builtin_sig->recv_perm)) {
@@ -1430,7 +1430,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
                                const TypeRef& ret) -> bool {
     if (!PermSubLocal(caller_perm, recv_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
-      result.diag_id = "MethodCall-RecvPerm-Err";
+      result.diag_id = "E-TYP-1605";
       return true;
     }
     if (!check_shared_receiver_access(recv_perm)) {
@@ -1454,7 +1454,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
             LookupBuiltinModalMemberSig(modal->path, modal->state, expr.name)) {
       if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
         SPEC_RULE("MethodCall-RecvPerm-Err");
-        result.diag_id = "MethodCall-RecvPerm-Err";
+        result.diag_id = "E-TYP-1605";
         return result;
       }
       if (!check_shared_receiver_access(builtin_sig->recv_perm)) {
@@ -1467,7 +1467,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       }
       if (expr.args.size() != builtin_sig->params.size()) {
         SPEC_RULE("Call-ArgCount-Err");
-        result.diag_id = "Call-ArgCount-Err";
+        result.diag_id = "E-SEM-2532";
         return result;
       }
 
@@ -1475,14 +1475,14 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         if (MissingRequiredMoveForConsuming(
                 builtin_sig->params[i].mode, expr.args[i])) {
           SPEC_RULE("Call-Move-Missing");
-          result.diag_id = "Call-Move-Missing";
+          result.diag_id = "E-SEM-2534";
           return result;
         }
       }
       for (std::size_t i = 0; i < expr.args.size(); ++i) {
         if (!builtin_sig->params[i].mode.has_value() && expr.args[i].moved) {
           SPEC_RULE("Call-Move-Unexpected");
-          result.diag_id = "Call-Move-Unexpected";
+          result.diag_id = "E-SEM-2535";
           return result;
         }
       }
@@ -1492,7 +1492,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       for (std::size_t i = 0; i < expr.args.size(); ++i) {
         const auto& arg = expr.args[i];
         if (!arg.value) {
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
 
@@ -1501,7 +1501,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           const bool has_source_prov = HasSourceProvenance(arg.value);
           if (has_source_prov && !IsPlaceExprForCall(arg.value)) {
             SPEC_RULE("Call-Arg-NotPlace");
-            result.diag_id = "Call-Arg-NotPlace";
+            result.diag_id = "E-TYP-1603";
             return result;
           }
           if (param.type && !has_source_prov) {
@@ -1561,7 +1561,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           }
           if (!sub.subtype) {
             SPEC_RULE("Call-ArgType-Err");
-            result.diag_id = "Call-ArgType-Err";
+            result.diag_id = "E-SEM-2533";
             return result;
           }
         }
@@ -1571,7 +1571,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       if (builtin_sig->ret_from_first_arg) {
         if (arg_types.empty()) {
           SPEC_RULE("Call-ArgCount-Err");
-          result.diag_id = "Call-ArgCount-Err";
+          result.diag_id = "E-SEM-2532";
           return result;
         }
         ret_type = arg_types.front();
@@ -1615,7 +1615,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     if (modal_member.transition) {
       if (!PermSubLocal(caller_perm, Permission::Unique)) {
         SPEC_RULE("Transition-Source-Err");
-        result.diag_id = "Transition-Source-Err";
+        result.diag_id = "E-TYP-2056";
         return result;
       }
       if (!check_shared_receiver_access(Permission::Unique)) {
@@ -1623,7 +1623,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       }
       if (!StateMemberVisible(ctx, modal->path, modal_member.transition->vis)) {
         SPEC_RULE("Transition-NotVisible");
-        result.diag_id = "Transition-NotVisible";
+        result.diag_id = "E-TYP-2064";
         return result;
       }
       const auto args_ok = ArgsOk(ctx, modal_member.transition->params, expr.args,
@@ -1642,7 +1642,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     if (modal_member.method) {
       if (!StateMemberVisible(ctx, modal->path, modal_member.method->vis)) {
         SPEC_RULE("Modal-Method-NotVisible");
-        result.diag_id = "Modal-Method-NotVisible";
+        result.diag_id = "E-TYP-2064";
         return result;
       }
 
@@ -1655,7 +1655,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       const auto method_perm = PermOfType(recv_type.type);
       if (!PermSubLocal(caller_perm, method_perm)) {
         SPEC_RULE("MethodCall-RecvPerm-Err");
-        result.diag_id = "MethodCall-RecvPerm-Err";
+        result.diag_id = "E-TYP-1605";
         return result;
       }
       if (!check_shared_receiver_access(method_perm)) {
@@ -1686,17 +1686,17 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     }
     if (modal_member.transition_in_other_state) {
       SPEC_RULE("Transition-Source-Err");
-      result.diag_id = "Transition-Source-Err";
+      result.diag_id = "E-TYP-2056";
       return result;
     }
     if (modal_member.method_in_other_state) {
       SPEC_RULE("Modal-Method-NotFound");
-      result.diag_id = "Modal-Method-NotFound";
+      result.diag_id = "E-TYP-2053";
       return result;
     }
 
     SPEC_RULE("Modal-Method-NotFound");
-    result.diag_id = "Modal-Method-NotFound";
+    result.diag_id = "E-TYP-2053";
     return result;
   }
 
@@ -1718,10 +1718,10 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         if (raw_heap_method && !IsInUnsafeSpan(ctx, span)) {
           if (sig->kind == HeapAllocatorMethodKind::AllocRaw) {
             SPEC_RULE("AllocRaw-Unsafe-Err");
-            result.diag_id = "AllocRaw-Unsafe-Err";
+            result.diag_id = "E-MEM-3030";
           } else {
             SPEC_RULE("DeallocRaw-Unsafe-Err");
-            result.diag_id = "DeallocRaw-Unsafe-Err";
+            result.diag_id = "E-MEM-3030";
           }
           return result;
         }
@@ -1762,7 +1762,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         const auto method_perm = PermOfType(recv_type.type);
         if (!PermSubLocal(caller_perm, method_perm)) {
           SPEC_RULE("MethodCall-RecvPerm-Err");
-          result.diag_id = "MethodCall-RecvPerm-Err";
+          result.diag_id = "E-TYP-1605";
           return result;
         }
         if (!check_shared_receiver_access(method_perm)) {
@@ -1840,7 +1840,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         const auto method_perm = PermOfType(recv_type.type);
         if (!PermSubLocal(caller_perm, method_perm)) {
           SPEC_RULE("MethodCall-RecvPerm-Err");
-          result.diag_id = "MethodCall-RecvPerm-Err";
+          result.diag_id = "E-TYP-1605";
           return result;
         }
         if (!check_shared_receiver_access(method_perm)) {
@@ -1940,7 +1940,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     const auto method_perm = PermOfType(recv_type.type);
     if (!PermSubLocal(caller_perm, method_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
-      result.diag_id = "MethodCall-RecvPerm-Err";
+      result.diag_id = "E-TYP-1605";
       return result;
     }
     if (!check_shared_receiver_access(method_perm)) {
@@ -2187,7 +2187,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   const auto method_perm = PermOfType(recv_type.type);
   if (!PermSubLocal(caller_perm, method_perm)) {
     SPEC_RULE("MethodCall-RecvPerm-Err");
-    result.diag_id = "MethodCall-RecvPerm-Err";
+    result.diag_id = "E-TYP-1605";
     return result;
   }
   if (!check_shared_receiver_access(method_perm)) {

@@ -341,6 +341,7 @@ LowerResult LowerCallWithTypeArgs(const ast::CallExpr& expr, LowerCtx& ctx) {
 
     // Extract parameter modes from callee type if available
     ParamModeList param_modes;
+    ParamTypeList param_types;
     if (ctx.expr_type) {
       auto callee_type = ctx.expr_type(*expr.callee);
       if (callee_type) {
@@ -349,8 +350,10 @@ LowerResult LowerCallWithTypeArgs(const ast::CallExpr& expr, LowerCtx& ctx) {
           if (const auto* func =
                   std::get_if<analysis::TypeFunc>(&stripped->node)) {
             param_modes.reserve(func->params.size());
+            param_types.reserve(func->params.size());
             for (const auto& param : func->params) {
               param_modes.push_back(param.mode);
+              param_types.push_back(param.type);
             }
           }
         }
@@ -358,7 +361,11 @@ LowerResult LowerCallWithTypeArgs(const ast::CallExpr& expr, LowerCtx& ctx) {
     }
 
     // Lower arguments
-    auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
+    auto [args_ir, arg_values] =
+        LowerArgs(param_modes,
+                  expr.args,
+                  ctx,
+                  param_types.empty() ? nullptr : &param_types);
 
     IRValue result_value = ctx.FreshTempValue("call_generic");
 
@@ -391,6 +398,7 @@ LowerResult LowerCallWithTypeArgs(const ast::CallExpr& expr, LowerCtx& ctx) {
 
   // 4. Lower arguments
   ParamModeList param_modes;
+  ParamTypeList param_types;
   if (ctx.expr_type) {
     auto callee_type = ctx.expr_type(*expr.callee);
     if (callee_type) {
@@ -399,15 +407,21 @@ LowerResult LowerCallWithTypeArgs(const ast::CallExpr& expr, LowerCtx& ctx) {
         if (const auto* func =
                 std::get_if<analysis::TypeFunc>(&stripped->node)) {
           param_modes.reserve(func->params.size());
+          param_types.reserve(func->params.size());
           for (const auto& param : func->params) {
             param_modes.push_back(param.mode);
+            param_types.push_back(param.type);
           }
         }
       }
     }
   }
 
-  auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
+  auto [args_ir, arg_values] =
+      LowerArgs(param_modes,
+                expr.args,
+                ctx,
+                param_types.empty() ? nullptr : &param_types);
 
   // 5. Create IRCall with the monomorphized symbol
   IRValue result_value = ctx.FreshTempValue("call_generic");

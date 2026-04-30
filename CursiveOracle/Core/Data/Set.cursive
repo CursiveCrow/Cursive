@@ -1,0 +1,82 @@
+public record TextSet {
+    public count: i32
+    public value0: string@View
+    public value1: string@View
+    public value2: string@View
+    public value3: string@View
+}
+
+public procedure textSetEmpty() -> TextSet {
+    return TextSet { count: 0, value0: "", value1: "", value2: "", value3: "" }
+}
+
+public procedure textSetCount(set: TextSet) -> i32 {
+    return set.count
+}
+
+public procedure textSetContains(set: TextSet, value: string@View) -> bool {
+    if ((set.count > 0) && (set.value0 == value)) {
+        return true
+    }
+    if ((set.count > 1) && (set.value1 == value)) {
+        return true
+    }
+    if ((set.count > 2) && (set.value2 == value)) {
+        return true
+    }
+    if ((set.count > 3) && (set.value3 == value)) {
+        return true
+    }
+    return false
+}
+
+public procedure textSetAdd(set: TextSet, value: string@View) -> OperationOutcome<TextSet, string@View> {
+    if (textSetContains(set, value) == true) {
+        return OperationOutcome::Completed(set)
+    }
+    if (set.count == 0) {
+        return OperationOutcome::Completed(
+            TextSet {
+                count: 1,
+                value0: value,
+                value1: set.value1,
+                value2: set.value2,
+                value3: set.value3
+            }
+        )
+    }
+    if (set.count == 1) {
+        return OperationOutcome::Completed(
+            TextSet {
+                count: 2,
+                value0: set.value0,
+                value1: value,
+                value2: set.value2,
+                value3: set.value3
+            }
+        )
+    }
+    if (set.count == 2) {
+        return OperationOutcome::Completed(
+            TextSet {
+                count: 3,
+                value0: set.value0,
+                value1: set.value1,
+                value2: value,
+                value3: set.value3
+            }
+        )
+    }
+    if (set.count == 3) {
+        return OperationOutcome::Completed(
+            TextSet {
+                count: 4,
+                value0: set.value0,
+                value1: set.value1,
+                value2: set.value2,
+                value3: value
+            }
+        )
+    }
+    return OperationOutcome::Rejected("TextSet capacity exceeded")
+}

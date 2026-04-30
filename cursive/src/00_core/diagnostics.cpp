@@ -42,7 +42,6 @@
 //   1. Emit now has two variants:
 //      - void Emit(stream&, diag) - in-place, O(1) amortized (preferred)
 //      - DiagnosticStream EmitCopy(stream, diag) - functional style, O(n) copy
-//      - Legacy Emit(const stream&, diag) -> stream is deprecated
 //   2. Spec defines Severity as {Error, Warning} but implementation
 //      extends with {Info, Panic} for practical use
 //   3. HasError checks both Error AND Panic severities
@@ -126,18 +125,6 @@ DiagnosticStream EmitCopy(const DiagnosticStream& stream,
   Emit(out, diag);
   return out;
 }
-
-// Legacy overload - kept for compatibility, prefer in-place Emit
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-DiagnosticStream Emit(const DiagnosticStream& stream, const Diagnostic& diag) {
-  return EmitCopy(stream, diag);
-}
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
 bool HasError(const DiagnosticStream& stream) {
   SPEC_DEF("HasError", "2.3");

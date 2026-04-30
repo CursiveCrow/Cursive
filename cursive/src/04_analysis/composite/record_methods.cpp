@@ -259,7 +259,7 @@ RecvBaseTypeResult RecvBaseType(const ast::ExprPtr& base,
   if (!mode.has_value()) {
     if (HasSourceProvenance(base)) {
       if (!IsPlaceExprForCall(base)) {
-        result.diag_id = "Call-Arg-NotPlace";
+        result.diag_id = "E-TYP-1603";
         return result;
       }
       const auto place = type_place(base);
@@ -304,7 +304,7 @@ RecvArgOkResult RecvArgOk(const ast::ExprPtr& base,
   }
   if (!mode.has_value()) {
     if (HasSourceProvenance(base) && !IsPlaceExprForCall(base)) {
-      result.diag_id = "Call-Arg-NotPlace";
+      result.diag_id = "E-TYP-1603";
       return result;
     }
     if (HasSourceProvenance(base)) {
@@ -336,7 +336,7 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
 
   if (params.size() != args.size()) {
     SPEC_RULE("Call-ArgCount-Err");
-    result.diag_id = "Call-ArgCount-Err";
+    result.diag_id = "E-SEM-2532";
     return result;
   }
 
@@ -355,7 +355,7 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (MissingRequiredMoveForConsuming(lowered_params[i].mode, args[i])) {
       SPEC_RULE("Call-Move-Missing");
-      result.diag_id = "Call-Move-Missing";
+      result.diag_id = "E-SEM-2534";
       return result;
     }
   }
@@ -363,7 +363,7 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (!lowered_params[i].mode.has_value() && args[i].moved) {
       SPEC_RULE("Call-Move-Unexpected");
-      result.diag_id = "Call-Move-Unexpected";
+      result.diag_id = "E-SEM-2535";
       return result;
     }
   }
@@ -376,7 +376,7 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
       const bool has_source_prov = HasSourceProvenance(arg.value);
       if (has_source_prov && !IsPlaceExprForCall(arg.value)) {
         SPEC_RULE("Call-Arg-NotPlace");
-        result.diag_id = "Call-Arg-NotPlace";
+        result.diag_id = "E-TYP-1603";
         return result;
       }
       if (has_source_prov && type_place) {
@@ -435,7 +435,7 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
     }
     if (!sub.subtype) {
       SPEC_RULE("Call-ArgType-Err");
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
   }
@@ -445,7 +445,7 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
         HasSourceProvenance(args[i].value) &&
         !IsPlaceExprForCall(args[i].value)) {
       SPEC_RULE("Call-Arg-NotPlace");
-      result.diag_id = "Call-Arg-NotPlace";
+      result.diag_id = "E-TYP-1603";
       return result;
     }
   }
@@ -468,7 +468,7 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
         }
         if (!sub.subtype) {
           SPEC_RULE("Call-ArgType-Err");
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
         SPEC_RULE("Args-Cons");
@@ -502,7 +502,7 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
 
   if (params.size() != args.size()) {
     SPEC_RULE("Call-ArgCount-Err");
-    result.diag_id = "Call-ArgCount-Err";
+    result.diag_id = "E-SEM-2532";
     return result;
   }
 
@@ -525,7 +525,7 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (MissingRequiredMoveForConsuming(lowered_params[i].mode, args[i])) {
       SPEC_RULE("Call-Move-Missing");
-      result.diag_id = "Call-Move-Missing";
+      result.diag_id = "E-SEM-2534";
       return result;
     }
   }
@@ -533,7 +533,7 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (!lowered_params[i].mode.has_value() && args[i].moved) {
       SPEC_RULE("Call-Move-Unexpected");
-      result.diag_id = "Call-Move-Unexpected";
+      result.diag_id = "E-SEM-2535";
       return result;
     }
   }
@@ -546,7 +546,7 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
       const bool has_source_prov = HasSourceProvenance(arg.value);
       if (has_source_prov && !IsPlaceExprForCall(arg.value)) {
         SPEC_RULE("Call-Arg-NotPlace");
-        result.diag_id = "Call-Arg-NotPlace";
+        result.diag_id = "E-TYP-1603";
         return result;
       }
       if (has_source_prov && type_place) {
@@ -605,7 +605,7 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
     }
     if (!sub.subtype) {
       SPEC_RULE("Call-ArgType-Err");
-      result.diag_id = "Call-ArgType-Err";
+      result.diag_id = "E-SEM-2533";
       return result;
     }
   }
@@ -615,7 +615,7 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
         HasSourceProvenance(args[i].value) &&
         !IsPlaceExprForCall(args[i].value)) {
       SPEC_RULE("Call-Arg-NotPlace");
-      result.diag_id = "Call-Arg-NotPlace";
+      result.diag_id = "E-TYP-1603";
       return result;
     }
   }
@@ -638,7 +638,7 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
         }
         if (!sub.subtype) {
           SPEC_RULE("Call-ArgType-Err");
-          result.diag_id = "Call-ArgType-Err";
+          result.diag_id = "E-SEM-2533";
           return result;
         }
         SPEC_RULE("Args-Cons");

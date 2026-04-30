@@ -53,13 +53,9 @@ enum class CompileStatusResult {
 void Emit(DiagnosticStream& stream, const Diagnostic& diag);
 bool EmitList(DiagnosticStream& stream, const DiagnosticStream& diags);
 
-// Functional-style emission (returns new stream - O(n) copy, kept for compatibility)
+// Functional-style emission (returns new stream - O(n) copy)
 [[nodiscard]] DiagnosticStream EmitCopy(const DiagnosticStream& stream,
                                         const Diagnostic& diag);
-
-// Legacy alias - prefer Emit(stream, diag) for in-place mutation
-[[deprecated("Use Emit(stream, diag) for in-place mutation instead")]]
-DiagnosticStream Emit(const DiagnosticStream& stream, const Diagnostic& diag);
 
 bool HasError(const DiagnosticStream& stream);
 

@@ -1,0 +1,29 @@
+public record GeneratedCaseSummary {
+    public case_id: string@View
+    public obligation_id: string@View
+    public command_mode: Contract::ReferenceCommandMode
+    public target_profile: string@View
+    public project_path: string@View
+    public generated_count: i32
+    public status: i32
+}
+
+public procedure generatedCaseSummary(
+    case_id: string@View,
+    obligation_id: string@View,
+    command_mode: Contract::ReferenceCommandMode,
+    target_profile: string@View,
+    project_path: string@View,
+    generated_count: i32,
+    status: i32
+) -> GeneratedCaseSummary {
+    return GeneratedCaseSummary {
+        case_id: case_id,
+        obligation_id: obligation_id,
+        command_mode: command_mode,
+        target_profile: target_profile,
+        project_path: project_path,
+        generated_count: generated_count,
+        status: status
+    }
+}

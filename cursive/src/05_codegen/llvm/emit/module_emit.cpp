@@ -207,6 +207,8 @@ using namespace emit_detail;
     {
       if (auto *proc = std::get_if<ProcIR>(&decl))
       {
+        ProcModuleContextScope proc_module_scope(
+            current_ctx_, proc->defining_module_path);
         ++pass1_proc_count;
         ABICallResult abi = ComputeProcABI(*this, proc->symbol, proc->params, proc->ret);
         llvm::GlobalValue::LinkageTypes linkage =

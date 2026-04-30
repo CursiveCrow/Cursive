@@ -27,6 +27,7 @@
 #include "04_analysis/caps/cap_filesystem.h"
 #include "04_analysis/caps/cap_heap.h"
 #include "04_analysis/caps/cap_network.h"
+#include "04_analysis/language_service/facts.h"
 
 namespace cursive::analysis {
 
@@ -185,6 +186,8 @@ ResTypeResult ResolveType(ResolveContext& ctx,
           if (!resolved.ok) {
             return {false, resolved.diag_id, std::nullopt, {}};
           }
+          RecordLanguageServiceTypePathReference(
+              ctx.language_service, *ctx.ctx, resolved.value, type->span);
           auto out = *type;
           auto& out_node = std::get<ast::TypePathType>(out.node);
           out_node.path = resolved.value;
@@ -204,6 +207,8 @@ ResTypeResult ResolveType(ResolveContext& ctx,
           if (!resolved.ok) {
             return {false, resolved.diag_id, std::nullopt, {}};
           }
+          RecordLanguageServiceTypePathReference(
+              ctx.language_service, *ctx.ctx, resolved.value, type->span);
           std::vector<std::shared_ptr<ast::Type>> resolved_args;
           resolved_args.reserve(node.args.size());
           for (const auto& arg : node.args) {
@@ -228,6 +233,15 @@ ResTypeResult ResolveType(ResolveContext& ctx,
           if (!resolved.ok) {
             return {false, resolved.diag_id, std::nullopt, {}};
           }
+          if (!resolved.value.empty()) {
+            Entity entity{EntityKind::Class,
+                          ast::ModulePath(resolved.value.begin(),
+                                          resolved.value.end() - 1),
+                          resolved.value.back(), EntitySource::Decl};
+            RecordLanguageServiceReference(ctx.language_service, *ctx.ctx,
+                                           resolved.value.back(), type->span,
+                                           entity);
+          }
           auto out = *type;
           auto& out_node = std::get<ast::TypeDynamic>(out.node);
           out_node.path = resolved.value;
@@ -239,6 +253,8 @@ ResTypeResult ResolveType(ResolveContext& ctx,
           if (!resolved.ok) {
             return {false, resolved.diag_id, std::nullopt, {}};
           }
+          RecordLanguageServiceTypePathReference(
+              ctx.language_service, *ctx.ctx, resolved.value, type->span);
           auto out = *type;
           auto& out_node = std::get<ast::TypeModalState>(out.node);
           out_node.path = resolved.value;
@@ -425,6 +441,15 @@ ResTypeResult ResolveType(ResolveContext& ctx,
           const auto resolved = ResolveClassPath(ctx, node.path);
           if (!resolved.ok) {
             return {false, resolved.diag_id, std::nullopt, {}};
+          }
+          if (!resolved.value.empty()) {
+            Entity entity{EntityKind::Class,
+                          ast::ModulePath(resolved.value.begin(),
+                                          resolved.value.end() - 1),
+                          resolved.value.back(), EntitySource::Decl};
+            RecordLanguageServiceReference(ctx.language_service, *ctx.ctx,
+                                           resolved.value.back(), type->span,
+                                           entity);
           }
           auto out = *type;
           auto& out_node = std::get<ast::TypeOpaque>(out.node);

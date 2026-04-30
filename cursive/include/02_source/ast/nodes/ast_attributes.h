@@ -78,7 +78,7 @@ struct AttrName {
   std::optional<VendorPrefix> vendor_prefix_opt;
   Identifier leaf_name;
 
-  // Cached canonical spelling used by legacy string-based attribute lookup.
+  // Cached canonical spelling used by string-based attribute lookup.
   Identifier full_name;
 
   std::size_t rfind(std::string_view needle,

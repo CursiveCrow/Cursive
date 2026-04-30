@@ -295,7 +295,7 @@ static bool SubtypeReturn(const ScopeContext& ctx,
   }
   if (!sub.subtype) {
     SPEC_RULE("Return-Type-Err");
-    EmitTypecheckDiag(diags, "Return-Type-Err", span);
+    EmitTypecheckDiag(diags, "E-SEM-3161", span);
     return false;
   }
   return true;

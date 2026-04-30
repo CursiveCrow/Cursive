@@ -1913,7 +1913,7 @@ static ArgPassResult ArgPass(const ScopeContext& ctx,
   if (param.mode.has_value() && !arg.moved && IsMoveMissing(arg.value) &&
       HasSourceProvenance(arg.value)) {
     SPEC_RULE("B-ArgPass-Move-Missing");
-    return ArgError("B-ArgPass-Move-Missing", arg.span);
+    return ArgError("E-MOD-2411", arg.span);
   }
 
   ast::ExprPtr eval_expr = arg.value;
@@ -1932,7 +1932,7 @@ static ArgPassResult ArgPass(const ScopeContext& ctx,
   if (!param.mode.has_value()) {
     if (HasSourceProvenance(arg.value) && !IsPlaceExprForCall(arg.value)) {
       SPEC_RULE("Call-Arg-NotPlace");
-      return ArgError("Call-Arg-NotPlace", arg.span);
+      return ArgError("E-TYP-1603", arg.span);
     }
     if (!HasSourceProvenance(arg.value)) {
       return ArgPass(ctx, params, args, eval.state, idx + 1);
@@ -1969,7 +1969,7 @@ static BindResult BindMoveExpr(const ScopeContext& ctx,
       PermOfType(*place_type) == Permission::Unique &&
       !AccessPathOk(in.perms, place)) {
     SPEC_RULE("B-Move-Unique-Err");
-    return ErrorResult(std::string_view("B-Place-Unique-Err"), std::optional<core::Span>(place->span));
+    return ErrorResult(std::string_view("E-TYP-1602"), std::optional<core::Span>(place->span));
   }
 
   const auto root = PlaceRoot(place);
@@ -1985,16 +1985,16 @@ static BindResult BindMoveExpr(const ScopeContext& ctx,
   if (info->mov == Movability::Immov) {
     if (head.has_value()) {
       SPEC_RULE("B-Move-Field-Immovable-Err");
-      return ErrorResult(std::string_view("B-Move-Field-Immovable-Err"), std::optional<core::Span>(place->span));
+      return ErrorResult(std::string_view("E-MEM-3006"), std::optional<core::Span>(place->span));
     }
     SPEC_RULE("B-Move-Whole-Immovable-Err");
-    return ErrorResult(std::string_view("B-Move-Whole-Immovable-Err"), std::optional<core::Span>(place->span));
+    return ErrorResult(std::string_view("E-MEM-3006"), std::optional<core::Span>(place->span));
   }
 
   if (!head.has_value()) {
     if (info->state.kind != BindStateKind::Valid) {
       SPEC_RULE("B-Move-Whole-Moved-Err");
-      return ErrorResult(std::string_view("B-Move-Whole-Moved-Err"), std::optional<core::Span>(place->span));
+      return ErrorResult(std::string_view("E-MEM-3001"), std::optional<core::Span>(place->span));
     }
     BindInfo updated = *info;
     updated.state = BindState{BindStateKind::Moved, {}};
@@ -2008,13 +2008,13 @@ static BindResult BindMoveExpr(const ScopeContext& ctx,
                                                  : Permission::Const;
   if (place_perm != Permission::Unique) {
     SPEC_RULE("B-Move-Field-NonUnique-Err");
-    return ErrorResult(std::string_view("B-Move-Field-NonUnique-Err"), std::optional<core::Span>(place->span));
+    return ErrorResult(std::string_view("E-MEM-3004"), std::optional<core::Span>(place->span));
   }
   if (info->state.kind == BindStateKind::Moved ||
       (info->state.kind == BindStateKind::PartiallyMoved &&
        info->state.fields.find(*head) != info->state.fields.end())) {
     SPEC_RULE("B-Move-Field-Moved-Err");
-    return ErrorResult(std::string_view("B-Move-Field-Moved-Err"), std::optional<core::Span>(place->span));
+    return ErrorResult(std::string_view("E-MEM-3001"), std::optional<core::Span>(place->span));
   }
 
   BindInfo updated = *info;
@@ -2038,7 +2038,7 @@ static BindResult BindPlaceExpr(const ScopeContext& ctx,
       PermOfType(*place_type) == Permission::Unique &&
       !AccessPathOk(in.perms, expr)) {
     SPEC_RULE("B-Place-Unique-Err");
-    return ErrorResult(std::string_view("B-Place-Unique-Err"), std::optional<core::Span>(expr->span));
+    return ErrorResult(std::string_view("E-TYP-1602"), std::optional<core::Span>(expr->span));
   }
 
   const auto root = PlaceRoot(expr);
@@ -2051,7 +2051,7 @@ static BindResult BindPlaceExpr(const ScopeContext& ctx,
   }
   if (BindingMovedErrCond(*info, expr)) {
     SPEC_RULE("B-Place-Moved-Err");
-    return ErrorResult(std::string_view("B-Place-Moved-Err"), std::optional<core::Span>(expr->span));
+    return ErrorResult(std::string_view("E-MEM-3001"), std::optional<core::Span>(expr->span));
   }
 
   return ErrorResult(std::nullopt, expr->span);
@@ -2495,13 +2495,13 @@ static BindResult BindMethodCallExpr(const ScopeContext& ctx,
   if (recv_mode.has_value() && !is_transition && IsMoveMissing(call.receiver) &&
       HasSourceProvenance(call.receiver)) {
     SPEC_RULE("B-ArgPass-Move-Missing");
-    return ErrorResult(std::string_view("B-ArgPass-Move-Missing"), std::optional<core::Span>(call.receiver->span));
+    return ErrorResult(std::string_view("E-MOD-2411"), std::optional<core::Span>(call.receiver->span));
   }
 
   if (!recv_mode.has_value() && HasSourceProvenance(call.receiver) &&
       !IsPlaceExprForCall(call.receiver)) {
     SPEC_RULE("Call-Arg-NotPlace");
-    return ErrorResult(std::string_view("Call-Arg-NotPlace"), std::optional<core::Span>(call.receiver->span));
+    return ErrorResult(std::string_view("E-TYP-1603"), std::optional<core::Span>(call.receiver->span));
   }
 
   auto recv_res = BindExpr(ctx, call.receiver, in);
@@ -3171,7 +3171,7 @@ static BindResult BindStmt(const ScopeContext& ctx,
           if (PermOfType(*bind_type) == Permission::Unique &&
               IsPlaceExpr(binding.init) && !IsMoveExpr(binding.init)) {
             SPEC_RULE("B-LetVar-UniqueNonMove-Err");
-            return ErrorResult(std::string_view("B-LetVar-UniqueNonMove-Err"), std::optional<core::Span>(binding.init->span));
+            return ErrorResult(std::string_view("E-MEM-3007"), std::optional<core::Span>(binding.init->span));
           }
 
           auto init_res = BindExpr(ctx, binding.init, in);
@@ -3217,7 +3217,7 @@ static BindResult BindStmt(const ScopeContext& ctx,
           if (IsPlaceExpr(place)) {
             if (PlaceConstPerm(ctx, in.env, place)) {
               SPEC_RULE("B-Assign-Const-Err");
-              return ErrorResult(std::string_view("B-Assign-Const-Err"), std::optional<core::Span>(node.span));
+              return ErrorResult(std::string_view("E-SEM-3132"), std::optional<core::Span>(node.span));
             }
             const auto root = PlaceRoot(place);
             if (root.has_value()) {
@@ -3226,7 +3226,7 @@ static BindResult BindStmt(const ScopeContext& ctx,
                   info->mut == ast::Mutability::Let &&
                   !PlaceSharedWriteWithKey(ctx, in, place)) {
                 SPEC_RULE("B-Assign-Immutable-Err");
-                return ErrorResult(std::string_view("B-Assign-Immutable-Err"), std::optional<core::Span>(node.span));
+                return ErrorResult(std::string_view("E-MOD-2401"), std::optional<core::Span>(node.span));
               }
             }
           }

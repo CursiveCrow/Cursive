@@ -1,0 +1,450 @@
+public record OutputContext {
+    public fs: $FileSystem
+    public run_scope: string@View
+    public next_event_index: i32
+    public report_write_failure_count: i32
+}
+
+public enum ReportTextValue {
+    Omitted
+    Integer(i32)
+    Bytes(bytes@View)
+    Text(string@View)
+    ListEmpty
+    ListOne(string@View)
+    ListTwo(string@View, string@View)
+}
+
+public record OutputEvent {
+    public event_kind: ReportEventKind
+    public severity: ReportSeverity
+    public phase: ReportPhase
+    public subject_kind: ReportSubjectKind
+    public subject_id: ReportTextValue
+    public owner: ReportTextValue
+    public status: ReportStatus
+    public failure_kind: ReportFailureKind
+    public evidence_kind: ReportEvidenceKind
+    public expected: ReportTextValue
+    public observed: ReportTextValue
+    public evidence_path: ReportTextValue
+    public source_start: ReportTextValue
+    public source_end: ReportTextValue
+    public source_line: ReportTextValue
+    public source_column: ReportTextValue
+    public content_identity: ReportTextValue
+    public metric_kind: ReportMetricKind
+    public metric_value: ReportTextValue
+    public message: ReportTextValue
+}
+
+public procedure omittedText() -> ReportTextValue {
+    return ReportTextValue::Omitted
+}
+
+public procedure textValue(value: string@View) -> ReportTextValue {
+    return ReportTextValue::Text(value)
+}
+
+public procedure integerValue(value: i32) -> ReportTextValue {
+    return ReportTextValue::Integer(value)
+}
+
+public procedure bytesValue(value: bytes@View) -> ReportTextValue {
+    return ReportTextValue::Bytes(value)
+}
+
+public procedure outputContext(
+    fs: $FileSystem,
+    run_scope: string@View
+) -> OutputContext {
+    return OutputContext {
+        fs: fs,
+        run_scope: run_scope,
+        next_event_index: 0,
+        report_write_failure_count: 0
+    }
+}
+
+public procedure eventBase(
+    kind: ReportEventKind,
+    severity: ReportSeverity,
+    phase: ReportPhase,
+    subject_kind: ReportSubjectKind,
+    subject_id: string@View,
+    owner: string@View,
+    status: ReportStatus,
+    message: string@View
+) -> OutputEvent {
+    return OutputEvent {
+        event_kind: kind,
+        severity: severity,
+        phase: phase,
+        subject_kind: subject_kind,
+        subject_id: ReportTextValue::Text(subject_id),
+        owner: ReportTextValue::Text(owner),
+        status: status,
+        failure_kind: ReportFailureKind::Absent,
+        evidence_kind: ReportEvidenceKind::Absent,
+        expected: ReportTextValue::Omitted,
+        observed: ReportTextValue::Omitted,
+        evidence_path: ReportTextValue::Omitted,
+        source_start: ReportTextValue::Omitted,
+        source_end: ReportTextValue::Omitted,
+        source_line: ReportTextValue::Omitted,
+        source_column: ReportTextValue::Omitted,
+        content_identity: ReportTextValue::Omitted,
+        metric_kind: ReportMetricKind::Absent,
+        metric_value: ReportTextValue::Omitted,
+        message: ReportTextValue::Text(message)
+    }
+}
+
+public procedure eventWithEvidence(
+    event: OutputEvent,
+    evidence_kind: ReportEvidenceKind,
+    evidence_path: string@View
+) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: event.subject_id,
+        owner: event.owner,
+        status: event.status,
+        failure_kind: event.failure_kind,
+        evidence_kind: evidence_kind,
+        expected: event.expected,
+        observed: event.observed,
+        evidence_path: ReportTextValue::Text(evidence_path),
+        source_start: event.source_start,
+        source_end: event.source_end,
+        source_line: event.source_line,
+        source_column: event.source_column,
+        content_identity: event.content_identity,
+        metric_kind: event.metric_kind,
+        metric_value: event.metric_value,
+        message: event.message
+    }
+}
+
+public procedure eventWithExpectedObserved(
+    event: OutputEvent,
+    expected: string@View,
+    observed: string@View
+) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: event.subject_id,
+        owner: event.owner,
+        status: event.status,
+        failure_kind: event.failure_kind,
+        evidence_kind: event.evidence_kind,
+        expected: ReportTextValue::Text(expected),
+        observed: ReportTextValue::Text(observed),
+        evidence_path: event.evidence_path,
+        source_start: event.source_start,
+        source_end: event.source_end,
+        source_line: event.source_line,
+        source_column: event.source_column,
+        content_identity: event.content_identity,
+        metric_kind: event.metric_kind,
+        metric_value: event.metric_value,
+        message: event.message
+    }
+}
+
+public procedure eventWithSubjectInteger(event: OutputEvent, subject_id: i32) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: ReportTextValue::Integer(subject_id),
+        owner: event.owner,
+        status: event.status,
+        failure_kind: event.failure_kind,
+        evidence_kind: event.evidence_kind,
+        expected: event.expected,
+        observed: event.observed,
+        evidence_path: event.evidence_path,
+        source_start: event.source_start,
+        source_end: event.source_end,
+        source_line: event.source_line,
+        source_column: event.source_column,
+        content_identity: event.content_identity,
+        metric_kind: event.metric_kind,
+        metric_value: event.metric_value,
+        message: event.message
+    }
+}
+
+public procedure eventWithSourceContext(
+    event: OutputEvent,
+    start_offset: i32,
+    end_offset: i32,
+    line: i32,
+    column: i32,
+    identity: i32
+) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: event.subject_id,
+        owner: event.owner,
+        status: event.status,
+        failure_kind: event.failure_kind,
+        evidence_kind: event.evidence_kind,
+        expected: event.expected,
+        observed: event.observed,
+        evidence_path: event.evidence_path,
+        source_start: ReportTextValue::Integer(start_offset),
+        source_end: ReportTextValue::Integer(end_offset),
+        source_line: ReportTextValue::Integer(line),
+        source_column: ReportTextValue::Integer(column),
+        content_identity: ReportTextValue::Integer(identity),
+        metric_kind: event.metric_kind,
+        metric_value: event.metric_value,
+        message: event.message
+    }
+}
+
+public procedure eventWithMetricText(
+    event: OutputEvent,
+    metric_kind: ReportMetricKind,
+    metric_value: string@View
+) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: event.subject_id,
+        owner: event.owner,
+        status: event.status,
+        failure_kind: event.failure_kind,
+        evidence_kind: event.evidence_kind,
+        expected: event.expected,
+        observed: event.observed,
+        evidence_path: event.evidence_path,
+        source_start: event.source_start,
+        source_end: event.source_end,
+        source_line: event.source_line,
+        source_column: event.source_column,
+        content_identity: event.content_identity,
+        metric_kind: metric_kind,
+        metric_value: ReportTextValue::Text(metric_value),
+        message: event.message
+    }
+}
+
+public procedure eventWithMetricInteger(
+    event: OutputEvent,
+    metric_kind: ReportMetricKind,
+    metric_value: i32
+) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: event.subject_id,
+        owner: event.owner,
+        status: event.status,
+        failure_kind: event.failure_kind,
+        evidence_kind: event.evidence_kind,
+        expected: event.expected,
+        observed: event.observed,
+        evidence_path: event.evidence_path,
+        source_start: event.source_start,
+        source_end: event.source_end,
+        source_line: event.source_line,
+        source_column: event.source_column,
+        content_identity: event.content_identity,
+        metric_kind: metric_kind,
+        metric_value: ReportTextValue::Integer(metric_value),
+        message: event.message
+    }
+}
+
+public procedure eventWithStatus(event: OutputEvent, status: ReportStatus) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: event.subject_id,
+        owner: event.owner,
+        status: status,
+        failure_kind: event.failure_kind,
+        evidence_kind: event.evidence_kind,
+        expected: event.expected,
+        observed: event.observed,
+        evidence_path: event.evidence_path,
+        source_start: event.source_start,
+        source_end: event.source_end,
+        source_line: event.source_line,
+        source_column: event.source_column,
+        content_identity: event.content_identity,
+        metric_kind: event.metric_kind,
+        metric_value: event.metric_value,
+        message: event.message
+    }
+}
+
+public procedure eventWithMessageBytes(event: OutputEvent, message: bytes@View) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: event.subject_id,
+        owner: event.owner,
+        status: event.status,
+        failure_kind: event.failure_kind,
+        evidence_kind: event.evidence_kind,
+        expected: event.expected,
+        observed: event.observed,
+        evidence_path: event.evidence_path,
+        source_start: event.source_start,
+        source_end: event.source_end,
+        source_line: event.source_line,
+        source_column: event.source_column,
+        content_identity: event.content_identity,
+        metric_kind: event.metric_kind,
+        metric_value: event.metric_value,
+        message: ReportTextValue::Bytes(message)
+    }
+}
+
+public procedure metricEvent(
+    phase: ReportPhase,
+    subject_kind: ReportSubjectKind,
+    subject_id: string@View,
+    owner: string@View,
+    status: ReportStatus,
+    metric_kind: ReportMetricKind,
+    metric_value: string@View,
+    message: string@View
+) -> OutputEvent {
+    return eventWithMetricText(
+        eventBase(
+            ReportEventKind::Progress,
+            ReportSeverity::Info,
+            phase,
+            subject_kind,
+            subject_id,
+            owner,
+            status,
+            message
+        ),
+        metric_kind,
+        metric_value
+    )
+}
+
+public procedure metricIntegerEvent(
+    phase: ReportPhase,
+    subject_kind: ReportSubjectKind,
+    subject_id: string@View,
+    owner: string@View,
+    status: ReportStatus,
+    metric_kind: ReportMetricKind,
+    metric_value: i32,
+    message: string@View
+) -> OutputEvent {
+    return eventWithMetricInteger(
+        eventBase(
+            ReportEventKind::Progress,
+            ReportSeverity::Info,
+            phase,
+            subject_kind,
+            subject_id,
+            owner,
+            status,
+            message
+        ),
+        metric_kind,
+        metric_value
+    )
+}
+
+public procedure evidenceEvent(
+    phase: ReportPhase,
+    subject_kind: ReportSubjectKind,
+    subject_id: string@View,
+    owner: string@View,
+    status: ReportStatus,
+    evidence_kind: ReportEvidenceKind,
+    evidence_path: string@View,
+    message: string@View
+) -> OutputEvent {
+    return eventWithEvidence(
+        eventBase(
+            ReportEventKind::Evidence,
+            ReportSeverity::Info,
+            phase,
+            subject_kind,
+            subject_id,
+            owner,
+            status,
+            message
+        ),
+        evidence_kind,
+        evidence_path
+    )
+}
+
+public procedure failureEvent(
+    phase: ReportPhase,
+    subject_kind: ReportSubjectKind,
+    subject_id: string@View,
+    owner: string@View,
+    failure_kind: ReportFailureKind,
+    expected: string@View,
+    observed: string@View,
+    message: string@View
+) -> OutputEvent {
+    let event: OutputEvent = eventBase(
+        ReportEventKind::Failure,
+        ReportSeverity::Error,
+        phase,
+        subject_kind,
+        subject_id,
+        owner,
+        ReportStatus::Failed,
+        message
+    )
+    return eventWithExpectedObserved(
+        OutputEvent {
+            event_kind: event.event_kind,
+            severity: event.severity,
+            phase: event.phase,
+            subject_kind: event.subject_kind,
+            subject_id: event.subject_id,
+            owner: event.owner,
+            status: event.status,
+            failure_kind: failure_kind,
+            evidence_kind: event.evidence_kind,
+            expected: event.expected,
+            observed: event.observed,
+            evidence_path: event.evidence_path,
+            source_start: event.source_start,
+            source_end: event.source_end,
+            source_line: event.source_line,
+            source_column: event.source_column,
+            content_identity: event.content_identity,
+            metric_kind: event.metric_kind,
+            metric_value: event.metric_value,
+            message: event.message
+        },
+        expected,
+        observed
+    )
+}

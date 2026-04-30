@@ -1,0 +1,80 @@
+import core::Reporting
+
+public record SpecDocumentSummary {
+    public path: string@View
+    public byte_length: i32
+    public line_count: i32
+    public utf8_valid: bool
+    public section_count: i32
+    public unit_count: i32
+}
+
+public procedure specDocumentSummary(
+    path: string@View,
+    byte_length: i32,
+    line_count: i32,
+    utf8_valid: bool,
+    section_count: i32,
+    unit_count: i32
+) -> SpecDocumentSummary {
+    return SpecDocumentSummary {
+        path: path,
+        byte_length: byte_length,
+        line_count: line_count,
+        utf8_valid: utf8_valid,
+        section_count: section_count,
+        unit_count: unit_count
+    }
+}
+
+public procedure documentParseStatus(summary: SpecDocumentSummary) -> Reporting::ReportStatus {
+    if (summary.utf8_valid == true) {
+        return Reporting::ReportStatus::Parsed
+    }
+    return Reporting::ReportStatus::Utf8Invalid
+}
+
+public procedure emitDocumentModelSummary(
+    ctx: Reporting::OutputContext,
+    summary: SpecDocumentSummary
+) -> Reporting::OutputContext {
+    var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
+        ctx,
+        Reporting::ReportPhase::SpecModeling,
+        "spec_document_model",
+        "Spec::Model::Document"
+    )
+    output = Reporting::emitEvent(
+        output,
+        Reporting::metricIntegerEvent(
+            Reporting::ReportPhase::SpecModeling,
+            Reporting::ReportSubjectKind::SpecDocument,
+            summary.path,
+            "Spec::Model::Document",
+            Reporting::ReportStatus::Modeled,
+            Reporting::ReportMetricKind::SectionCount,
+            summary.section_count,
+            "document_section_count"
+        )
+    )
+    output = Reporting::emitEvent(
+        output,
+        Reporting::metricIntegerEvent(
+            Reporting::ReportPhase::SpecModeling,
+            Reporting::ReportSubjectKind::SpecDocument,
+            summary.path,
+            "Spec::Model::Document",
+            Reporting::ReportStatus::Modeled,
+            Reporting::ReportMetricKind::ParsedUnitCount,
+            summary.unit_count,
+            "document_spec_unit_count"
+        )
+    )
+    return Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::SpecModeling,
+        "spec_document_model",
+        "Spec::Model::Document",
+        Reporting::ReportStatus::Modeled
+    )
+}

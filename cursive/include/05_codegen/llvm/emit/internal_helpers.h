@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "00_core/process_config.h"
@@ -127,6 +128,35 @@ inline bool IsHostedInternalBodySymbol(const LowerCtx* ctx, std::string_view sym
   }
   return false;
 }
+
+class ProcModuleContextScope {
+ public:
+  ProcModuleContextScope(LowerCtx* ctx,
+                         const std::vector<std::string>& defining_module_path)
+      : ctx_(ctx) {
+    if (ctx_ == nullptr || defining_module_path.empty() ||
+        ctx_->module_path == defining_module_path) {
+      return;
+    }
+    saved_module_path_ = ctx_->module_path;
+    ctx_->module_path = defining_module_path;
+    active_ = true;
+  }
+
+  ProcModuleContextScope(const ProcModuleContextScope&) = delete;
+  ProcModuleContextScope& operator=(const ProcModuleContextScope&) = delete;
+
+  ~ProcModuleContextScope() {
+    if (active_ && ctx_ != nullptr) {
+      ctx_->module_path = std::move(saved_module_path_);
+    }
+  }
+
+ private:
+  LowerCtx* ctx_ = nullptr;
+  std::vector<std::string> saved_module_path_;
+  bool active_ = false;
+};
 
 inline llvm::GlobalValue::LinkageTypes ProcLLVMLinkageFor(const LowerCtx* ctx,
                                                           std::string_view symbol) {

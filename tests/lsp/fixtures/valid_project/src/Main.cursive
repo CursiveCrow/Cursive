@@ -1,0 +1,8 @@
+procedure helper(value: i32) -> i32 {
+    return value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let value: i32 = helper(1)
+    return value
+}

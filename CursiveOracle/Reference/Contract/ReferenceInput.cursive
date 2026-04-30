@@ -1,0 +1,31 @@
+import spec::Obligations
+
+public enum ReferenceCommandMode {
+    CheckOnly
+    BuildAndRun
+}
+
+public record ReferenceInput {
+    public obligation: Obligations::SpecObligation
+    public command_mode: ReferenceCommandMode
+    public target_profile: string@View
+}
+
+public procedure referenceInput(
+    obligation: Obligations::SpecObligation,
+    command_mode: ReferenceCommandMode,
+    target_profile: string@View
+) -> ReferenceInput {
+    return ReferenceInput {
+        obligation: obligation,
+        command_mode: command_mode,
+        target_profile: target_profile
+    }
+}
+
+public procedure renderReferenceCommandMode(value: ReferenceCommandMode) -> string@View {
+    return if value is {
+        ReferenceCommandMode::CheckOnly { "check_only" }
+        ReferenceCommandMode::BuildAndRun { "build_and_run" }
+    }
+}

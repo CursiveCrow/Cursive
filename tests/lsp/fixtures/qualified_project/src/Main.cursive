@@ -1,0 +1,22 @@
+public enum Choice {
+    Some(i32)
+    None
+}
+
+procedure pick(value: Choice) -> i32 {
+    let result: i32 = if value is {
+        Choice::Some(found) {
+            found
+        }
+        Choice::None {
+            0
+        }
+    }
+    return result
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let value: Choice = Choice::Some(7)
+    return pick(value)
+}

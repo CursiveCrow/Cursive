@@ -41,7 +41,6 @@
 #include "05_codegen/symbols/linkage.h"
 #include "04_analysis/caps/cap_system.h"
 #include "04_analysis/composite/classes.h"
-#include "04_analysis/typing/expr/call.h"
 #include "04_analysis/memory/calls.h"
 #include "04_analysis/typing/type_lower.h"
 #include "05_codegen/intrinsics/builtins.h"
@@ -784,61 +783,43 @@ std::optional<GenericProcInfo> ResolveGenericProcedure(const ast::CallExpr& expr
   return std::nullopt;
 }
 
-std::optional<analysis::TypeSubst> InferGenericSubstForCall(const ast::CallExpr& expr,
-                                                             const GenericProcInfo& info,
-                                                             LowerCtx& ctx) {
-  if (!ctx.sigma || !info.decl || !info.decl->generic_params.has_value()) {
+analysis::TypeRef InstantiateActiveGenericType(const analysis::TypeRef& type,
+                                               const LowerCtx& ctx) {
+  if (!type || !ctx.active_generic_type_subst.has_value() ||
+      ctx.active_generic_type_subst->empty()) {
+    return type;
+  }
+  return analysis::InstantiateType(type, *ctx.active_generic_type_subst);
+}
+
+std::optional<analysis::TypeSubst> LookupGenericSubstForCall(
+    const ast::CallExpr& expr,
+    const GenericProcInfo& info,
+    LowerCtx& ctx) {
+  if (!info.decl || !info.decl->generic_params.has_value() ||
+      !ctx.generic_call_substs) {
     return std::nullopt;
   }
-
-  analysis::ScopeContext scope;
-  scope.sigma = *ctx.sigma;
-  scope.sigma_source = ctx.sigma;
-  scope.current_module = ctx.module_path;
 
   const auto& type_params = info.decl->generic_params->params;
-
-  if (!expr.generic_args.empty()) {
-    // Prefer the analysis-side generic-call substitution when available.
-    auto subst = analysis::expr::BuildGenericCallSubst(scope, expr.callee, expr.generic_args);
-    if (!subst.has_value()) {
-      return std::nullopt;
-    }
-    for (const auto& param : type_params) {
-      const auto it = subst->find(param.name);
-      if (it == subst->end() || !it->second) {
-        return std::nullopt;
-      }
-    }
-    return subst;
-  }
-  analysis::ExprTypeFn type_expr = [&](const ast::ExprPtr& arg_expr) {
-    analysis::ExprTypeResult result;
-    if (!arg_expr || !ctx.expr_type) {
-      result.diag_id = "Call-ArgType-Err";
-      return result;
-    }
-    result.type = ctx.expr_type(*arg_expr);
-    if (!result.type) {
-      result.diag_id = "Call-ArgType-Err";
-      return result;
-    }
-    result.ok = true;
-    return result;
-  };
-
-  const auto inferred = analysis::expr::InferGenericCallSubst(
-      scope, expr.callee, expr.args, std::nullopt, type_expr, nullptr);
-  if (!inferred.ok) {
+  auto it = ctx.generic_call_substs->find(&expr);
+  if (it == ctx.generic_call_substs->end()) {
     return std::nullopt;
   }
+
+  analysis::TypeSubst subst = it->second;
+  for (auto& entry : subst) {
+    entry.second = InstantiateActiveGenericType(entry.second, ctx);
+  }
+
   for (const auto& param : type_params) {
-    const auto it = inferred.subst.find(param.name);
-    if (it == inferred.subst.end() || !it->second) {
+    const auto subst_it = subst.find(param.name);
+    if (subst_it == subst.end() || !subst_it->second) {
       return std::nullopt;
     }
   }
-  return inferred.subst;
+
+  return subst;
 }
 
 std::string MonomorphizedProcSymbol(const GenericProcInfo& info,
@@ -934,12 +915,14 @@ LowerResult LowerRefArgExprWithTemp(const ast::ExprPtr& expr,
   auto value_result = LowerExpr(*expr, ctx);
   std::string temp_name = ctx.FreshTempValue(temp_prefix).name;
 
-  analysis::TypeRef temp_type = ctx.LookupValueType(value_result.value);
-  if (!temp_type && ctx.expr_type) {
-    temp_type = ctx.expr_type(*expr);
-  }
-  if (!temp_type && expected_type) {
-    temp_type = expected_type;
+  analysis::TypeRef temp_type =
+      InstantiateActiveGenericType(expected_type, ctx);
+  if (!temp_type) {
+    temp_type = ctx.LookupValueType(value_result.value);
+    if (!temp_type && ctx.expr_type) {
+      temp_type = ctx.expr_type(*expr);
+    }
+    temp_type = InstantiateActiveGenericType(temp_type, ctx);
   }
   if (!temp_type) {
     temp_type = analysis::MakeTypePrim("()");
@@ -981,12 +964,14 @@ LowerResult LowerMoveArgExprWithTemp(const ast::Arg& arg,
   auto value_result = LowerExpr(*arg.value, ctx);
   std::string temp_name = ctx.FreshTempValue(temp_prefix).name;
 
-  analysis::TypeRef temp_type = ctx.LookupValueType(value_result.value);
-  if (!temp_type && ctx.expr_type) {
-    temp_type = ctx.expr_type(*arg.value);
-  }
-  if (!temp_type && expected_type) {
-    temp_type = expected_type;
+  analysis::TypeRef temp_type =
+      InstantiateActiveGenericType(expected_type, ctx);
+  if (!temp_type) {
+    temp_type = ctx.LookupValueType(value_result.value);
+    if (!temp_type && ctx.expr_type) {
+      temp_type = ctx.expr_type(*arg.value);
+    }
+    temp_type = InstantiateActiveGenericType(temp_type, ctx);
   }
   if (!temp_type) {
     temp_type = analysis::MakeTypePrim("()");
@@ -1044,7 +1029,12 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
   std::vector<IRPtr> ir_parts;
   std::vector<IRValue> values;
 
-  const bool use_params = params.size() == args.size() && !params.empty();
+  const bool use_params = params.size() == args.size();
+  const bool use_types =
+      param_types && param_types->size() == args.size();
+  if (!use_params || (param_types && !use_types)) {
+    ctx.ReportCodegenFailure();
+  }
 
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (!args[i].value) {
@@ -1052,7 +1042,7 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
     }
 
     analysis::TypeRef expected_type = nullptr;
-    if (param_types && i < param_types->size()) {
+    if (use_types && i < param_types->size()) {
       expected_type = (*param_types)[i];
     }
     IRPtr key_ir = EmptyIR();
@@ -1061,23 +1051,6 @@ std::pair<IRPtr, std::vector<IRValue>> LowerArgs(
     }
 
     if (!use_params) {
-      // Fallback path when typed parameter modes are unavailable:
-      // honor explicit move syntax first; otherwise preserve place/reference
-      // behavior for local reasoning and ABI consistency.
-      if (args[i].moved) {
-        auto moved_expr = analysis::MovedArgExpr(args[i]);
-        auto result = LowerExpr(*moved_expr, ctx);
-        ir_parts.push_back(SeqIR({key_ir, result.ir}));
-        values.push_back(result.value);
-      } else if (analysis::IsPlaceExprForCall(args[i].value)) {
-        auto result = LowerAddrOf(*args[i].value, ctx);
-        ir_parts.push_back(SeqIR({key_ir, result.ir}));
-        values.push_back(result.value);
-      } else {
-        auto result = LowerExpr(*args[i].value, ctx);
-        ir_parts.push_back(SeqIR({key_ir, result.ir}));
-        values.push_back(result.value);
-      }
       continue;
     }
 
@@ -1214,9 +1187,9 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
   log_call_stage("resolve-generic-start");
   if (auto generic_info = ResolveGenericProcedure(expr, ctx)) {
     log_call_stage("resolve-generic-found");
-    log_call_stage("infer-generic-start");
-    if (auto subst = InferGenericSubstForCall(expr, *generic_info, ctx)) {
-      log_call_stage("infer-generic-finish");
+    log_call_stage("lookup-generic-subst-start");
+    if (auto subst = LookupGenericSubstForCall(expr, *generic_info, ctx)) {
+      log_call_stage("lookup-generic-subst-finish");
       const std::string inst_symbol = MonomorphizedProcSymbol(*generic_info, *subst);
       auto log_generic = [&](std::string_view stage) {
         if (!debug_call) {
@@ -1342,7 +1315,9 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
       parts.push_back(MakeIR(std::move(call)));
       return LowerResult{SeqIR(std::move(parts)), result_value};
     }
-    log_call_stage("infer-generic-miss");
+    log_call_stage("lookup-generic-subst-miss");
+    ctx.ReportCodegenFailure();
+    return LowerResult{EmptyIR(), ctx.FreshTempValue("generic_call_subst_err")};
   }
   log_call_stage("resolve-generic-miss");
 
@@ -1359,6 +1334,8 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
   analysis::TypeRef contextual_result_type;
   if (ctx.expr_type) {
     contextual_result_type = ctx.expr_type(expr_wrapper);
+    contextual_result_type =
+        InstantiateActiveGenericType(contextual_result_type, ctx);
   }
   analysis::TypeRef result_type;
 
@@ -1372,6 +1349,7 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
   if (!callee_type) {
     callee_type = ctx.LookupValueType(callee_result.value);
   }
+  callee_type = InstantiateActiveGenericType(callee_type, ctx);
   if (callee_type) {
     auto stripped = analysis::StripPerm(callee_type);
     if (stripped) {

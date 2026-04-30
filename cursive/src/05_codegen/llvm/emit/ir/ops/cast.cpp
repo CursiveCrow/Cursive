@@ -32,11 +32,20 @@ void IRInstructionVisitor::operator()(const IRCast &cast) const
 
   const bool signed_src = is_signed_type(LookupValueType(cast.value));
   const bool signed_dst = is_signed_type(cast.target);
+  const LowerCtx *active_ctx = emitter.GetCurrentCtx();
+  const bool source_is_bool =
+      IsBoolType(ResolveAliasType(active_ctx, LookupValueType(cast.value)));
+  const bool target_is_bool =
+      IsBoolType(ResolveAliasType(active_ctx, cast.target));
 
   llvm::Value *out = nullptr;
   llvm::Type *src_ty = src->getType();
 
-  if (src_ty == target_ty)
+  if (target_is_bool || (source_is_bool && target_ty->isIntegerTy()))
+  {
+    out = CoerceBoolTo(&builder, src, target_ty);
+  }
+  else if (src_ty == target_ty)
   {
     out = src;
   }

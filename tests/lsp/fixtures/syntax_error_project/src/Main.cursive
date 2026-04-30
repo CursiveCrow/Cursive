@@ -1,0 +1,4 @@
+procedure main(ctx: Context) -> i32 {
+    let value: i32 =
+    return value
+}

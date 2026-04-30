@@ -1,0 +1,125 @@
+import core::Reporting
+import generators::Cases
+import oracle::Compare
+import oracle::Coverage
+import reference::Contract
+import reference::Modeling
+import runner::Compiler
+import runner::Contract as RunnerContract
+import runner::Runtime
+import spec::Obligations
+import spec::Source
+import suites::SelfTest
+
+public procedure main(move ctx: Context) -> i32 {
+    var output: Reporting::OutputContext =
+        Reporting::outputContext(ctx.fs, "main.default")
+    output = Reporting::emitPhaseBegin(
+        output,
+        Reporting::ReportPhase::Startup,
+        "startup",
+        "CursiveOracle::Main"
+    )
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::Startup,
+        "startup",
+        "CursiveOracle::Main",
+        Reporting::ReportStatus::Completed
+    )
+    output = Reporting::emitPhaseBegin(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        "foundation_selftest",
+        "Suites::SelfTest"
+    )
+    let result: Reporting::PhaseRunResult = SelfTest::run(output)
+    output = result.ctx
+
+    let phase_status: Reporting::ReportStatus = Reporting::statusFromCode(result.status)
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        "foundation_selftest",
+        "Suites::SelfTest",
+        phase_status
+    )
+
+    let spec_result: Source::SpecIngestionResult = Source::runSpecIngestion(output, ctx.heap)
+    output = spec_result.ctx
+    let obligation_result: Obligations::ObligationSummary =
+        Obligations::runObligationExtraction(output, spec_result, ctx.heap)
+    output = obligation_result.ctx
+    let reference_result: Contract::ReferenceModelSummary =
+        Modeling::runReferenceModeling(output, obligation_result)
+    output = reference_result.ctx
+    let case_result: Reporting::PhaseRunResult =
+        Cases::runCaseGeneration(output, reference_result)
+    output = case_result.ctx
+    let compiler_run: RunnerContract::CompilerRunResult =
+        Compiler::runCompilerCheck(output, ctx.sys)
+    output = compiler_run.ctx
+    let runtime_result: Reporting::PhaseRunResult =
+        Runtime::recordRuntimeSkipped(output, compiler_run.result)
+    output = runtime_result.ctx
+    let comparison_result: Compare::ComparisonSummary =
+        Compare::runComparison(
+            output,
+            reference_result,
+            compiler_run.result,
+            obligation_result
+        )
+    output = comparison_result.ctx
+    let coverage_result: Coverage::CoverageRunResult =
+        Coverage::runCoverage(
+            output,
+            obligation_result,
+            comparison_result
+        )
+    output = coverage_result.ctx
+
+    let run_status: i32 = if (result.status != 0) {
+        result.status
+    } else {
+        if (spec_result.status != 0) {
+            spec_result.status
+        } else {
+            if (obligation_result.status != 0) {
+                obligation_result.status
+            } else {
+                if (reference_result.status != 0) {
+                    reference_result.status
+                } else {
+                    if (case_result.status != 0) {
+                        case_result.status
+                    } else {
+                        if (runtime_result.status != 0) {
+                            runtime_result.status
+                        } else {
+                            if (comparison_result.status != 0) {
+                                comparison_result.status
+                            } else {
+                                coverage_result.status
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let final_phase_status: Reporting::ReportStatus = Reporting::statusFromCode(run_status)
+
+    output = Reporting::emitFinalSummary(
+        output,
+        final_phase_status,
+        output.next_event_index
+    )
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::Shutdown,
+        "shutdown",
+        "CursiveOracle::Main",
+        final_phase_status
+    )
+    return Reporting::finalStatus(output, run_status)
+}

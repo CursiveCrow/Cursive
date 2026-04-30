@@ -1,0 +1,1 @@
+assembly = { name = "InvalidMainProject", kind = "executable", root = "src" }

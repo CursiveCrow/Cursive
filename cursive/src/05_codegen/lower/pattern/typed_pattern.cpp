@@ -132,6 +132,10 @@ void RegisterTypedPatternBindings(const ast::TypedPattern& pattern,
                                    analysis::ProvenanceKind prov,
                                    std::optional<std::string> prov_region,
                                    std::optional<std::string> prov_region_tag) {
+  if (pattern.name == "_") {
+    return;
+  }
+
   // Lower the explicit type annotation
   analysis::TypeRef typed = LowerSyntaxType(pattern.type, ctx);
   if (!typed) {
@@ -152,6 +156,10 @@ void RegisterTypedPatternBindings(const ast::TypedPattern& pattern,
 IRPtr LowerTypedPatternBindings(const ast::TypedPattern& pattern,
                                  const IRValue& value,
                                  LowerCtx& ctx) {
+  if (pattern.name == "_") {
+    return EmptyIR();
+  }
+
   // Look up binding info from context
   auto lookup_bind_type = [&ctx](const std::string& name) -> analysis::TypeRef {
     if (const auto* state = ctx.GetBindingState(name)) {

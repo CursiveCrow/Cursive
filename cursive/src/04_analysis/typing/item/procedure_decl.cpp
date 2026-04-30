@@ -55,6 +55,10 @@
 
 namespace cursive::analysis {
 
+ScopeList BindTypeParams(
+    const ScopeContext& ctx,
+    const std::optional<ast::GenericParams>& params_opt);
+
 namespace {
 
 constexpr std::string_view kMissingTargetProfileDiag =
@@ -253,9 +257,7 @@ static void EmitSupplementalBorrowDiag(
     return;
   }
   auto primary_is_call_move_missing = [&]() {
-    if (primary_diag_id.has_value() &&
-        (*primary_diag_id == "Call-Move-Missing" ||
-         *primary_diag_id == "E-SEM-2534")) {
+    if (primary_diag_id.has_value() && *primary_diag_id == "E-SEM-2534") {
       return true;
     }
     if (!diags.empty() && diags.back().code == "E-SEM-2534") {
@@ -271,7 +273,7 @@ static void EmitSupplementalBorrowDiag(
     return;
   }
   if (primary_is_call_move_missing()) {
-    EmitTypecheckDiag(diags, "B-ArgPass-Move-Missing", std::nullopt);
+    EmitTypecheckDiag(diags, "E-MOD-2411", std::nullopt);
   }
 }
 
@@ -288,7 +290,7 @@ static void EmitBorrowMoveMissingFromRecentDiags(
     }
   }
   if (saw_call_move_missing && !saw_borrow_move_missing) {
-    EmitTypecheckDiag(diags, "B-ArgPass-Move-Missing", std::nullopt);
+    EmitTypecheckDiag(diags, "E-MOD-2411", std::nullopt);
   }
 }
 
@@ -1624,7 +1626,7 @@ static std::optional<std::string_view> ValidateProcedureFfiAttributes(
 
   if (has_foreign_export && decl.vis != ast::Visibility::Public) {
     SPEC_RULE("Export-Vis-Err");
-    return "Export-Vis-Err";
+    return "E-SYS-3353";
   }
 
   if (has_foreign_export) {
@@ -1790,7 +1792,7 @@ ProcedureDeclResult TypeProcedureDecl(
   if (HasReservedSelfParam(decl.params)) {
     SPEC_RULE("Method-Context-Err");
     result.ok = false;
-    result.diag_id = "Method-Context-Err";
+    result.diag_id = "E-SEM-3011";
     return result;
   }
 
@@ -1816,13 +1818,13 @@ ProcedureDeclResult TypeProcedureDecl(
     if (MainGeneric(decl)) {
       SPEC_RULE("MainGeneric-Err");
       result.ok = false;
-      result.diag_id = "Main-Generic-Err";
+      result.diag_id = "E-MOD-2432";
       return result;
     }
     if (!MainSigOk(ctx, decl)) {
       SPEC_RULE("MainSigOk-Err");
       result.ok = false;
-      result.diag_id = "Main-Signature-Err";
+      result.diag_id = "E-MOD-2431";
       return result;
     }
   }
@@ -1834,6 +1836,8 @@ ProcedureDeclResult TypeProcedureDecl(
     result.diag_id = gen_params.diag_id;
     return result;
   }
+  ScopeContext proc_ctx = ctx;
+  proc_ctx.scopes = BindTypeParams(ctx, decl.generic_params);
 
   // Process where clauses
   std::vector<std::string> type_param_names;
@@ -1842,7 +1846,7 @@ ProcedureDeclResult TypeProcedureDecl(
   }
   if (decl.predicate_clause_opt.has_value()) {
     const auto where_result = ProcessWhereClause(
-        ctx, *decl.predicate_clause_opt, type_param_names);
+        proc_ctx, *decl.predicate_clause_opt, type_param_names);
     if (!where_result.ok) {
       result.ok = false;
       result.diag_id = where_result.diag_id;
@@ -1851,7 +1855,8 @@ ProcedureDeclResult TypeProcedureDecl(
   }
 
   // Build procedure signature
-  const auto sig = BuildProcedureSignature(ctx, decl.params, decl.return_type_opt);
+  const auto sig =
+      BuildProcedureSignature(proc_ctx, decl.params, decl.return_type_opt);
   if (!sig.ok) {
     result.ok = false;
     result.diag_id = sig.diag_id;
@@ -1863,15 +1868,16 @@ ProcedureDeclResult TypeProcedureDecl(
   const bool has_export = HasAttribute(decl.attrs, attrs::kExport);
   const bool has_host_export = HasAttribute(decl.attrs, attrs::kHostExport);
   if (has_export || has_host_export) {
-    if (!FfiSafeType(ctx, sig.return_type)) {
+    if (!FfiSafeType(proc_ctx, sig.return_type)) {
       SPEC_RULE("FfiSafe-Return-Err");
       result.ok = false;
           result.diag_id =
-              FfiSafeDiagForType(ctx, module_path, sig.return_type)
+              FfiSafeDiagForType(proc_ctx, module_path, sig.return_type)
                   .value_or("E-TYP-2623");
       return result;
     }
-    if (!InferCapabilitiesFromType(ctx, module_path, sig.return_type).IsEmpty()) {
+    if (!InferCapabilitiesFromType(proc_ctx, module_path, sig.return_type)
+             .IsEmpty()) {
       SPEC_RULE("FfiSafe-Prohibited-Err");
       result.ok = false;
       result.diag_id = "E-TYP-2623";
@@ -1882,15 +1888,16 @@ ProcedureDeclResult TypeProcedureDecl(
     if (const auto* fn = std::get_if<TypeFunc>(&sig.func_type->node)) {
       for (std::size_t i = visible_param_begin; i < fn->params.size(); ++i) {
         const auto& param = fn->params[i];
-        if (!FfiSafeType(ctx, param.type)) {
+        if (!FfiSafeType(proc_ctx, param.type)) {
           SPEC_RULE("FfiSafe-Param-Err");
           result.ok = false;
           result.diag_id =
-              FfiSafeDiagForType(ctx, module_path, param.type)
+              FfiSafeDiagForType(proc_ctx, module_path, param.type)
                   .value_or("E-TYP-2623");
           return result;
         }
-        if (!InferCapabilitiesFromType(ctx, module_path, param.type).IsEmpty()) {
+        if (!InferCapabilitiesFromType(proc_ctx, module_path, param.type)
+                 .IsEmpty()) {
           SPEC_RULE("FfiSafe-Prohibited-Err");
           result.ok = false;
           result.diag_id = "E-TYP-2623";
@@ -1903,11 +1910,11 @@ ProcedureDeclResult TypeProcedureDecl(
       return result;
     }
 
-    bool by_value_ok = FfiByValueOk(ctx, sig.return_type);
+    bool by_value_ok = FfiByValueOk(proc_ctx, sig.return_type);
     if (const auto* fn = std::get_if<TypeFunc>(&sig.func_type->node)) {
       for (std::size_t i = visible_param_begin; i < fn->params.size(); ++i) {
         const auto& param = fn->params[i];
-        if (!FfiByValueOk(ctx, param.type)) {
+        if (!FfiByValueOk(proc_ctx, param.type)) {
           by_value_ok = false;
           break;
         }
@@ -1923,7 +1930,7 @@ ProcedureDeclResult TypeProcedureDecl(
       return result;
     }
 
-    if (IsCatchUnwind(decl.attrs) && !ZeroableType(ctx, sig.return_type)) {
+    if (IsCatchUnwind(decl.attrs) && !ZeroableType(proc_ctx, sig.return_type)) {
       SPEC_RULE("Export-Return-NotZeroable-Err");
       result.ok = false;
       result.diag_id =
@@ -1958,7 +1965,7 @@ ProcedureDeclResult TypeProcedureDecl(
 
     // Build contract context
     ContractContext contract_ctx;
-    contract_ctx.scope_ctx = &ctx;
+    contract_ctx.scope_ctx = &proc_ctx;
     for (const auto& binding : sig.bindings) {
       contract_ctx.params[binding.first] = binding.second;
     }
@@ -2005,7 +2012,7 @@ ProcedureDeclResult TypeProcedureDecl(
     type_ctx.ffi_export_boundary =
         HasAttribute(decl.attrs, attrs::kExport) ||
         HasAttribute(decl.attrs, attrs::kHostExport);
-    ctx.diagnostics = &diags;
+    proc_ctx.diagnostics = &diags;
     type_ctx.diags = &diags;
     type_ctx.env_ref = &env;
     const std::array<DynamicScopeAncestor, 1> ancestors{
@@ -2027,13 +2034,14 @@ ProcedureDeclResult TypeProcedureDecl(
     }
 
     ExprTypeFn type_expr = [&](const ast::ExprPtr& inner) {
-      return TypeExpr(ctx, type_ctx, inner, env);
+      return TypeExpr(proc_ctx, type_ctx, inner, env);
     };
     IdentTypeFn type_ident = [&](std::string_view name) -> ExprTypeResult {
-      return expr::TypeIdentifierExprImpl(ctx, ast::IdentifierExpr{std::string(name)}, env);
+      return expr::TypeIdentifierExprImpl(
+          proc_ctx, ast::IdentifierExpr{std::string(name)}, env);
     };
     PlaceTypeFn type_place = [&](const ast::ExprPtr& inner) {
-      return TypePlace(ctx, type_ctx, inner, env);
+      return TypePlace(proc_ctx, type_ctx, inner, env);
     };
 
     const auto diag_count_before_body = diags.size();
@@ -2058,7 +2066,7 @@ ProcedureDeclResult TypeProcedureDecl(
                      body_result.diag_detail.empty() ? "<none>"
                                                      : body_result.diag_detail.c_str());
       }
-      EmitSupplementalBorrowDiag(ctx, module_path, decl.params, decl.body,
+      EmitSupplementalBorrowDiag(proc_ctx, module_path, decl.params, decl.body,
                                  diags, diag_id);
       result.ok = false;
       result.diag_id = diag_id;
@@ -2084,7 +2092,7 @@ ProcedureDeclResult TypeProcedureDecl(
     // Check body type matches return type.
     // Opaque returns are validated at return sites (T-Opaque-Return).
     if (body_result.type && type_ctx.opaque_return == nullptr) {
-      const auto sub = Subtyping(ctx, body_result.type, sig.return_type);
+      const auto sub = Subtyping(proc_ctx, body_result.type, sig.return_type);
       if (!sub.ok) {
         result.ok = false;
         result.diag_id = sub.diag_id;
@@ -2093,7 +2101,7 @@ ProcedureDeclResult TypeProcedureDecl(
       if (!sub.subtype) {
         SPEC_RULE("Return-Type-Err");
         result.ok = false;
-        result.diag_id = "Return-Type-Err";
+        result.diag_id = "E-SEM-3161";
         return result;
       }
     }
@@ -2104,7 +2112,7 @@ ProcedureDeclResult TypeProcedureDecl(
     }
     const auto bind_result = [&]() {
       ScopedPerfTimer bind_timer(perf_on ? &perf_stats.bind_ms : nullptr);
-      return BindCheckBody(ctx, module_path, decl.params, decl.body,
+      return BindCheckBody(proc_ctx, module_path, decl.params, decl.body,
                            std::nullopt);
     }();
     if (!bind_result.ok) {
@@ -2119,7 +2127,7 @@ ProcedureDeclResult TypeProcedureDecl(
     }
     const auto prov_result = [&]() {
       ScopedPerfTimer prov_timer(perf_on ? &perf_stats.prov_ms : nullptr);
-      return ProvBindCheck(ctx, module_path, decl.params, decl.body,
+      return ProvBindCheck(proc_ctx, module_path, decl.params, decl.body,
                            std::nullopt);
     }();
     if (!prov_result.ok) {
@@ -2174,7 +2182,7 @@ ProcedureDeclResult TypeProcedureDeclSignature(
   if (HasReservedSelfParam(decl.params)) {
     SPEC_RULE("Method-Context-Err");
     result.ok = false;
-    result.diag_id = "Method-Context-Err";
+    result.diag_id = "E-SEM-3011";
     return result;
   }
 
@@ -2203,9 +2211,12 @@ ProcedureDeclResult TypeProcedureDeclSignature(
     result.diag_id = gen_params.diag_id;
     return result;
   }
+  ScopeContext proc_ctx = ctx;
+  proc_ctx.scopes = BindTypeParams(ctx, decl.generic_params);
 
   // Build signature
-  const auto sig = BuildProcedureSignature(ctx, decl.params, decl.return_type_opt);
+  const auto sig =
+      BuildProcedureSignature(proc_ctx, decl.params, decl.return_type_opt);
   if (!sig.ok) {
     result.ok = false;
     result.diag_id = sig.diag_id;
@@ -2241,11 +2252,14 @@ ProcedureDeclResult TypeProcedureDeclBody(
     return result;
   }
 
+  ScopeContext proc_ctx = ctx;
+  proc_ctx.scopes = BindTypeParams(ctx, decl.generic_params);
+
   // Rebuild parameter environment
   TypeEnv env;
   env.scopes.emplace_back();
   for (const auto& param : decl.params) {
-    const auto lowered = LowerTypeWithWF(ctx, param.type);
+    const auto lowered = LowerTypeWithWF(proc_ctx, param.type);
     if (!lowered.ok) {
       result.ok = false;
       result.diag_id = lowered.diag_id;
@@ -2274,7 +2288,7 @@ ProcedureDeclResult TypeProcedureDeclBody(
   type_ctx.ffi_export_boundary =
       HasAttribute(decl.attrs, attrs::kExport) ||
       HasAttribute(decl.attrs, attrs::kHostExport);
-  ctx.diagnostics = &diags;
+  proc_ctx.diagnostics = &diags;
   type_ctx.diags = &diags;
   type_ctx.env_ref = &env;
   const std::array<DynamicScopeAncestor, 1> ancestors{
@@ -2295,13 +2309,14 @@ ProcedureDeclResult TypeProcedureDeclBody(
   }
 
   ExprTypeFn type_expr = [&](const ast::ExprPtr& inner) {
-    return TypeExpr(ctx, type_ctx, inner, env);
+    return TypeExpr(proc_ctx, type_ctx, inner, env);
   };
   IdentTypeFn type_ident = [&](std::string_view name) -> ExprTypeResult {
-    return expr::TypeIdentifierExprImpl(ctx, ast::IdentifierExpr{std::string(name)}, env);
+    return expr::TypeIdentifierExprImpl(
+        proc_ctx, ast::IdentifierExpr{std::string(name)}, env);
   };
   PlaceTypeFn type_place = [&](const ast::ExprPtr& inner) {
-    return TypePlace(ctx, type_ctx, inner, env);
+    return TypePlace(proc_ctx, type_ctx, inner, env);
   };
 
   const auto diag_count_before_body = diags.size();
@@ -2326,7 +2341,7 @@ ProcedureDeclResult TypeProcedureDeclBody(
                    body_result.diag_detail.empty() ? "<none>"
                                                    : body_result.diag_detail.c_str());
     }
-    EmitSupplementalBorrowDiag(ctx, module_path, decl.params, decl.body,
+    EmitSupplementalBorrowDiag(proc_ctx, module_path, decl.params, decl.body,
                                diags, diag_id);
     result.ok = false;
     result.diag_id = diag_id;
@@ -2352,11 +2367,11 @@ ProcedureDeclResult TypeProcedureDeclBody(
   // Check body type.
   // Opaque returns are validated at return sites (T-Opaque-Return).
   if (body_result.type && type_ctx.opaque_return == nullptr) {
-    const auto sub = Subtyping(ctx, body_result.type, return_type);
+    const auto sub = Subtyping(proc_ctx, body_result.type, return_type);
     if (!sub.ok || !sub.subtype) {
       SPEC_RULE("Return-Type-Err");
       result.ok = false;
-      result.diag_id = "Return-Type-Err";
+      result.diag_id = "E-SEM-3161";
       return result;
     }
   }
@@ -2367,7 +2382,7 @@ ProcedureDeclResult TypeProcedureDeclBody(
   }
   const auto bind_result = [&]() {
     ScopedPerfTimer bind_timer(perf_on ? &perf_stats.bind_ms : nullptr);
-    return BindCheckBody(ctx, module_path, decl.params, decl.body,
+    return BindCheckBody(proc_ctx, module_path, decl.params, decl.body,
                          std::nullopt);
   }();
   if (!bind_result.ok) {
@@ -2382,7 +2397,7 @@ ProcedureDeclResult TypeProcedureDeclBody(
   }
   const auto prov_result = [&]() {
     ScopedPerfTimer prov_timer(perf_on ? &perf_stats.prov_ms : nullptr);
-    return ProvBindCheck(ctx, module_path, decl.params, decl.body,
+    return ProvBindCheck(proc_ctx, module_path, decl.params, decl.body,
                          std::nullopt);
   }();
   if (!prov_result.ok) {

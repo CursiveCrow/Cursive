@@ -67,6 +67,7 @@
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/type_equiv.h"
+#include "04_analysis/typing/type_lower.h"
 #include "00_core/spec_trace.h"
 #include "00_core/assert_spec.h"
 
@@ -235,7 +236,9 @@ LowerCtx BuildABILowerCtx(const analysis::ScopeContext& scope_ctx) {
   return lower_ctx;
 }
 
-LowerResult LowerRefValueWithTemp(const ast::ExprPtr& expr, LowerCtx& ctx) {
+LowerResult LowerRefValueWithTemp(const ast::ExprPtr& expr,
+                                  const analysis::TypeRef& expected_type,
+                                  LowerCtx& ctx) {
   if (!expr) {
     return {EmptyIR(), IRValue{}};
   }
@@ -247,9 +250,12 @@ LowerResult LowerRefValueWithTemp(const ast::ExprPtr& expr, LowerCtx& ctx) {
   auto value_result = LowerExpr(*expr, ctx);
   std::string temp_name = ctx.FreshTempValue("abi_ref_tmp").name;
 
-  analysis::TypeRef temp_type = ctx.LookupValueType(value_result.value);
-  if (!temp_type && ctx.expr_type) {
-    temp_type = ctx.expr_type(*expr);
+  analysis::TypeRef temp_type = expected_type;
+  if (!temp_type) {
+    temp_type = ctx.LookupValueType(value_result.value);
+    if (!temp_type && ctx.expr_type) {
+      temp_type = ctx.expr_type(*expr);
+    }
   }
   if (!temp_type) {
     temp_type = analysis::MakeTypePrim("()");
@@ -470,16 +476,30 @@ std::optional<LowerArgsResult> LowerArgs(
     const std::vector<ast::Arg>& args) {
   LowerCtx lower_ctx = BuildABILowerCtx(ctx);
   ParamModeList param_modes;
+  ParamTypeList param_types;
   param_modes.reserve(params.size());
+  param_types.reserve(params.size());
   for (const auto& param : params) {
     if (param.mode.has_value()) {
       param_modes.push_back(analysis::ParamMode::Move);
     } else {
       param_modes.push_back(std::nullopt);
     }
+    analysis::TypeRef param_type = nullptr;
+    if (param.type) {
+      const auto lowered = analysis::LowerType(ctx, param.type);
+      if (lowered.ok) {
+        param_type = lowered.type;
+      }
+    }
+    param_types.push_back(param_type);
   }
 
-  auto [ir, values] = codegen::LowerArgs(param_modes, args, lower_ctx);
+  auto [ir, values] =
+      codegen::LowerArgs(param_modes,
+                         args,
+                         lower_ctx,
+                         param_types.empty() ? nullptr : &param_types);
   if (lower_ctx.resolve_failed || lower_ctx.codegen_failed) {
     return std::nullopt;
   }
@@ -510,7 +530,11 @@ std::optional<LowerCallResult> LowerRecvArg(
     lowered = LowerExpr(*base, lower_ctx);
   } else {
     SPEC_RULE("Lower-RecvArg-Ref");
-    lowered = LowerRefValueWithTemp(base, lower_ctx);
+    analysis::TypeRef expected_type = nullptr;
+    if (lower_ctx.expr_type) {
+      expected_type = lower_ctx.expr_type(*base);
+    }
+    lowered = LowerRefValueWithTemp(base, expected_type, lower_ctx);
   }
 
   if (lower_ctx.resolve_failed || lower_ctx.codegen_failed) {

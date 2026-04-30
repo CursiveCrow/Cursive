@@ -1,0 +1,168 @@
+import core::Reporting
+import reference::Contract
+
+procedure ensureGeneratedCaseDirectories(fs: $FileSystem) -> bool {
+    return if fs~>ensure_dir("CursiveOracle/build") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("CursiveOracle/build/main") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("CursiveOracle/build/main/generated-cases") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("CursiveOracle/build/main/generated-cases/case_obligation_0001") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("CursiveOracle/build/main/generated-cases/case_obligation_0001/src") is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure writeTextFile(fs: $FileSystem, path: string@View, text: string@View) -> bool {
+    return if fs~>write_file(path, bytes::view_string(text)) is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure writeGeneratedCaseProject(fs: $FileSystem) -> bool {
+    if (ensureGeneratedCaseDirectories(fs) == false) {
+        return false
+    }
+    let manifest_ok: bool = writeTextFile(
+        fs,
+        "CursiveOracle/build/main/generated-cases/case_obligation_0001/Cursive.toml",
+        "assembly = { name = \"case_obligation_0001\", kind = \"executable\", root = \"src\" }\n"
+    )
+    let source_ok: bool = writeTextFile(
+        fs,
+        "CursiveOracle/build/main/generated-cases/case_obligation_0001/src/Main.cursive",
+        "public procedure main(move ctx: Context) -> i32 {\n    let _ = ctx\n    return 0\n"
+    )
+    return manifest_ok && source_ok
+}
+
+procedure emitGeneratedCaseEvent(
+    ctx: Reporting::OutputContext,
+    summary: GeneratedCaseSummary
+) -> Reporting::OutputContext {
+    let event: Reporting::OutputEvent = Reporting::eventWithEvidence(
+        Reporting::eventWithExpectedObserved(
+            Reporting::eventBase(
+                Reporting::ReportEventKind::Evidence,
+                Reporting::ReportSeverity::Info,
+                Reporting::ReportPhase::CaseGeneration,
+                Reporting::ReportSubjectKind::GeneratedCase,
+                summary.case_id,
+                "Generators",
+                Reporting::ReportStatus::Generated,
+                "command_mode%3Dcheck_only%2Ctarget_profile%3Dx86_64-win64"
+            ),
+            summary.obligation_id,
+            Contract::renderReferenceCommandMode(summary.command_mode)
+        ),
+        Reporting::ReportEvidenceKind::CaseId,
+        summary.project_path
+    )
+    return Reporting::emitEvent(ctx, event)
+}
+
+procedure emitGeneratedCasePathEvidence(
+    ctx: Reporting::OutputContext,
+    summary: GeneratedCaseSummary
+) -> Reporting::OutputContext {
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::evidenceEvent(
+            Reporting::ReportPhase::CaseGeneration,
+            Reporting::ReportSubjectKind::Artifact,
+            summary.case_id,
+            "Generators",
+            Reporting::ReportStatus::Generated,
+            Reporting::ReportEvidenceKind::EmittedArtifactPath,
+            summary.project_path,
+            "generated_project_path"
+        )
+    )
+}
+
+procedure emitGeneratedCaseMetric(
+    ctx: Reporting::OutputContext,
+    value: i32
+) -> Reporting::OutputContext {
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::metricIntegerEvent(
+            Reporting::ReportPhase::CaseGeneration,
+            Reporting::ReportSubjectKind::GeneratedCase,
+            "case_obligation_0001",
+            "Generators",
+            Reporting::ReportStatus::Generated,
+            Reporting::ReportMetricKind::GeneratedCaseCount,
+            value,
+            "generated_case_count"
+        )
+    )
+}
+
+procedure emitGenerationFailure(ctx: Reporting::OutputContext) -> Reporting::OutputContext {
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::failureEvent(
+            Reporting::ReportPhase::CaseGeneration,
+            Reporting::ReportSubjectKind::GeneratedCase,
+            "case_obligation_0001",
+            "Generators",
+            Reporting::ReportFailureKind::OracleInternal,
+            "generated_project_written",
+            "write_failed",
+            "generated_case_write_failed"
+        )
+    )
+}
+
+public procedure runCaseGeneration(
+    ctx: Reporting::OutputContext,
+    reference_summary: Contract::ReferenceModelSummary
+) -> Reporting::PhaseRunResult {
+    var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
+        ctx,
+        Reporting::ReportPhase::CaseGeneration,
+        "case_generation",
+        "Generators"
+    )
+    let summary: GeneratedCaseSummary = generatedCaseSummary(
+        "case_obligation_0001",
+        reference_summary.result.obligation_id,
+        Contract::ReferenceCommandMode::CheckOnly,
+        "x86_64-win64",
+        "CursiveOracle/build/main/generated-cases/case_obligation_0001",
+        1,
+        0
+    )
+    let generated_ok: bool = writeGeneratedCaseProject(output.fs)
+    if (generated_ok == false) {
+        output = emitGenerationFailure(output)
+        output = Reporting::emitPhaseEnd(
+            output,
+            Reporting::ReportPhase::CaseGeneration,
+            "case_generation",
+            "Generators",
+            Reporting::ReportStatus::Failed
+        )
+        return Reporting::phaseRunResult(output, 74, 0, 1)
+    }
+    output = emitGeneratedCaseEvent(output, summary)
+    output = emitGeneratedCasePathEvidence(output, summary)
+    output = emitGeneratedCaseMetric(output, summary.generated_count)
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::CaseGeneration,
+        "case_generation",
+        "Generators",
+        Reporting::ReportStatus::Generated
+    )
+    return Reporting::phaseRunResult(output, 0, 1, 0)
+}

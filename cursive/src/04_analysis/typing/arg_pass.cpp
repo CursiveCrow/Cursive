@@ -171,7 +171,7 @@ ArgModeCheckResult CheckArgModeMatch(const ast::Arg& arg,
   if (param_mode.has_value() && *param_mode == ParamMode::Move) {
     if (!arg.moved && HasSourceProvenance(arg.value)) {
       SPEC_RULE("Call-Move-Missing");
-      return {false, "Call-Move-Missing"};
+      return {false, "E-SEM-2534"};
     }
     return {true, std::nullopt};
   }
@@ -180,13 +180,13 @@ ArgModeCheckResult CheckArgModeMatch(const ast::Arg& arg,
   if (!param_mode.has_value()) {
     if (arg.moved) {
       SPEC_RULE("Call-Move-Unexpected");
-      return {false, "Call-Move-Unexpected"};
+      return {false, "E-SEM-2535"};
     }
 
     // Additionally, reference parameters require a place expression
     if (HasSourceProvenance(arg.value) && !IsPlaceExprInternal(arg.value)) {
       SPEC_RULE("Call-Arg-NotPlace");
-      return {false, "Call-Arg-NotPlace"};
+      return {false, "E-TYP-1603"};
     }
 
     return {true, std::nullopt};

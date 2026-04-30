@@ -50,6 +50,13 @@ struct EnumLayout {
   std::uint64_t payload_align = 1;
 };
 
+struct EnumPayloadMemberLayout {
+  cursive::analysis::TypeRef type;
+  std::uint64_t offset = 0;
+  std::uint64_t payload_size = 0;
+  std::uint64_t payload_align = 1;
+};
+
 struct EnumLayoutOptions {
   std::optional<std::string> disc_type;
   std::optional<std::uint64_t> min_align;
@@ -147,6 +154,24 @@ std::optional<EnumLayout> EnumLayoutOf(
     const cursive::analysis::ScopeContext& ctx,
     const cursive::ast::EnumDecl& decl,
     const EnumLayoutOptions& options = {});
+std::optional<EnumLayout> EnumLayoutOf(
+    const cursive::analysis::ScopeContext& ctx,
+    const cursive::ast::EnumDecl& decl,
+    const std::vector<cursive::analysis::TypeRef>& generic_args,
+    const EnumLayoutOptions& options = {});
+
+std::optional<EnumPayloadMemberLayout> EnumTuplePayloadMemberLayout(
+    const cursive::analysis::ScopeContext& ctx,
+    const cursive::ast::EnumDecl& decl,
+    const cursive::ast::VariantDecl& variant,
+    const std::vector<cursive::analysis::TypeRef>& generic_args,
+    std::size_t index);
+std::optional<EnumPayloadMemberLayout> EnumRecordPayloadMemberLayout(
+    const cursive::analysis::ScopeContext& ctx,
+    const cursive::ast::EnumDecl& decl,
+    const cursive::ast::VariantDecl& variant,
+    const std::vector<cursive::analysis::TypeRef>& generic_args,
+    std::string_view field_name);
 
 RecordLayoutOptions ResolveRecordLayoutOptions(
     const cursive::ast::AttributeList& attrs);

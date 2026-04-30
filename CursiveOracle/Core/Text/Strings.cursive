@@ -1,0 +1,33 @@
+public record LineEndingSummary {
+    public has_lf: bool
+    public has_cr: bool
+    public has_crlf: bool
+}
+
+public procedure textAsBytes(text: string@View) -> bytes@View {
+    return byteViewFromString(text)
+}
+
+public procedure textByteLength(text: string@View) -> i32 {
+    return string::length(text) as i32
+}
+
+public procedure textIsEmpty(text: string@View) -> bool {
+    return string::is_empty(text)
+}
+
+public procedure textEqualsExact(left: string@View, right: string@View) -> bool {
+    return byteEquals(textAsBytes(left), textAsBytes(right))
+}
+
+public procedure lineEndingSummaryFromBytes(view: bytes@View) -> LineEndingSummary {
+    return LineEndingSummary {
+        has_lf: byteContains(view, 10),
+        has_cr: byteContains(view, 13),
+        has_crlf: bytePairContains(view, 13, 10)
+    }
+}
+
+public procedure lineEndingSummary(text: string@View) -> LineEndingSummary {
+    return lineEndingSummaryFromBytes(textAsBytes(text))
+}

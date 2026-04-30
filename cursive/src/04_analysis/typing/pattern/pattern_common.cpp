@@ -23,6 +23,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/int128.h"
+#include "04_analysis/generics/generic_params.h"
 #include "04_analysis/modal/modal.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/resolve/resolve_items.h"
@@ -237,7 +238,8 @@ static std::optional<core::UInt128> ConstPatInt(const ast::PatternPtr& pattern) 
 static std::optional<TypeRef> EnumFieldType(
     const ast::VariantPayloadRecord& payload,
     const ScopeContext& ctx,
-    std::string_view name) {
+    std::string_view name,
+    const TypeSubst& subst) {
   for (const auto& field : payload.fields) {
     if (IdKeyOf(field.name) != IdKeyOf(name)) {
       continue;
@@ -246,9 +248,54 @@ static std::optional<TypeRef> EnumFieldType(
     if (!lowered.ok) {
       return std::nullopt;
     }
-    return lowered.type;
+    return InstantiateType(lowered.type, subst);
   }
   return std::nullopt;
+}
+
+static bool TypePathEqLocal(const TypePath& lhs, const TypePath& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < lhs.size(); ++i) {
+    if (IdKeyOf(lhs[i]) != IdKeyOf(rhs[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+struct EnumPatternGenericContext {
+  bool ok = true;
+  std::optional<std::string_view> diag_id;
+  ScopeContext payload_ctx;
+  TypeSubst subst;
+};
+
+static EnumPatternGenericContext BuildEnumPatternGenericContext(
+    const ScopeContext& ctx,
+    const ast::EnumDecl& decl,
+    const std::vector<TypeRef>& generic_args) {
+  EnumPatternGenericContext result;
+  result.payload_ctx = ctx;
+  result.payload_ctx.scopes = BindTypeParams(ctx, decl.generic_params);
+
+  if (decl.generic_params.has_value()) {
+    const auto provided = generic_args.size();
+    const auto required = RequiredParamCount(decl.generic_params);
+    const auto total = TotalParamCount(decl.generic_params);
+    if (provided < required || provided > total) {
+      result.ok = false;
+      result.diag_id = "E-TYP-2303";
+      return result;
+    }
+    result.subst = BuildSubstitution(decl.generic_params->params, generic_args);
+  } else if (!generic_args.empty()) {
+    result.ok = false;
+    result.diag_id = "E-TYP-2303";
+  }
+
+  return result;
 }
 
 static std::optional<TypeRef> ModalFieldType(const ast::ModalDecl& decl,
@@ -302,6 +349,19 @@ static bool DistinctPatNames(const std::vector<ast::Identifier>& names) {
     }
   }
   return true;
+}
+
+static bool IsDiscardPatternName(std::string_view name) {
+  return name == "_";
+}
+
+static std::vector<std::pair<std::string, TypeRef>> TypedPatternBindings(
+    std::string_view name,
+    const TypeRef& type) {
+  if (IsDiscardPatternName(name)) {
+    return {};
+  }
+  return {{std::string(name), type}};
 }
 
 // -----------------------------------------------------------------------------
@@ -373,7 +433,8 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
             }
             if (equiv.equiv) {
               SPEC_RULE("Pat-Typed-Exact-R");
-              return {true, std::nullopt, {{std::string(node.name), lowered.type}}};
+              return {true, std::nullopt,
+                      TypedPatternBindings(node.name, lowered.type)};
             }
 
             // Modal-state typed patterns can refine a general modal reference:
@@ -402,7 +463,7 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
                   if (args_ok) {
                     SPEC_RULE("Pat-Typed-Exact-R");
                     return {true, std::nullopt,
-                            {{std::string(node.name), lowered.type}}};
+                            TypedPatternBindings(node.name, lowered.type)};
                   }
                 }
               }
@@ -425,7 +486,8 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
             return {false, std::nullopt, {}};
           }
           SPEC_RULE("Pat-Typed-Union-R");
-          return {true, std::nullopt, {{std::string(node.name), lowered.type}}};
+          return {true, std::nullopt,
+                  TypedPatternBindings(node.name, lowered.type)};
         }
 
         // Tuple Pattern
@@ -500,13 +562,20 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
 
         // Enum Pattern
         else if constexpr (std::is_same_v<T, ast::EnumPattern>) {
-          const auto* path_type = std::get_if<TypePathType>(&expected->node);
-          if (!path_type || path_type->path != node.path) {
+          const auto* expected_path = AppliedTypePath(*expected);
+          const auto* expected_args = AppliedTypeArgs(*expected);
+          if (!expected_path || !expected_args ||
+              !TypePathEqLocal(*expected_path, node.path)) {
             return {false, std::nullopt, {}};
           }
-          const auto* decl = LookupEnumDecl(ctx, node.path);
+          const auto* decl = LookupEnumDecl(ctx, *expected_path);
           if (!decl) {
             return {false, std::nullopt, {}};
+          }
+          const auto generic_ctx =
+              BuildEnumPatternGenericContext(ctx, *decl, *expected_args);
+          if (!generic_ctx.ok) {
+            return {false, generic_ctx.diag_id, {}};
           }
           const ast::VariantDecl* variant = nullptr;
           for (const auto& v : decl->variants) {
@@ -543,12 +612,15 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
             }
             std::vector<std::pair<std::string, TypeRef>> binds;
             for (std::size_t i = 0; i < tuple.elements.size(); ++i) {
-              const auto lowered = LowerType(ctx, tuple_payload.elements[i]);
+              const auto lowered =
+                  LowerType(generic_ctx.payload_ctx, tuple_payload.elements[i]);
               if (!lowered.ok) {
                 return {false, lowered.diag_id, {}};
               }
+              const TypeRef elem_type =
+                  InstantiateType(lowered.type, generic_ctx.subst);
               const auto sub = TypePatternAgainstTypeImpl(ctx, tuple.elements[i],
-                                                    lowered.type);
+                                                    elem_type);
               if (!sub.ok) {
                 return sub;
               }
@@ -567,7 +639,10 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
               std::get<ast::RecordPayloadPattern>(*node.payload_opt);
           std::vector<std::pair<std::string, TypeRef>> binds;
           for (const auto& field : record.fields) {
-            const auto field_type = EnumFieldType(record_payload, ctx, field.name);
+            const auto field_type = EnumFieldType(record_payload,
+                                                  generic_ctx.payload_ctx,
+                                                  field.name,
+                                                  generic_ctx.subst);
             if (!field_type.has_value()) {
               return {false, std::nullopt, {}};
             }

@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "04_analysis/generics/monomorphize.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/symbols/linkage.h"
 #include "04_analysis/keys/key_context.h"
@@ -157,8 +158,8 @@ struct DerivedValueInfo {
     TupleLit,
     ArrayLit,
     ArraySegments,
-    // Legacy compatibility only. Lowering should normalize repeat arrays onto
-    // ArraySegments so aggregate materialization uses one implementation path.
+    // Repeat arrays normalize onto ArraySegments so aggregate materialization
+    // uses one implementation path.
     ArrayRepeat,
     RecordLit,
     DynLit,
@@ -261,6 +262,7 @@ struct LowerCtx {
   std::function<analysis::TypeRef(const ast::Expr&)> expr_type;
   analysis::ExprTypeMap* expr_types = nullptr;
   analysis::DynamicRefineExprMap* dynamic_refine_checks = nullptr;
+  analysis::GenericCallSubstMap* generic_call_substs = nullptr;
 
   // Name resolution lookup
   std::function<std::optional<std::vector<std::string>>(const std::string&)> resolve_name;
@@ -505,6 +507,12 @@ struct LowerCtx {
   // Generic instantiation recursion guard (Section 9.3.4 / E-TYP-2307).
   std::vector<std::string> generic_instantiation_stack;
   std::unordered_set<std::string> generic_instantiation_in_progress;
+
+  // Active source-level generic substitution while lowering a monomorphized
+  // procedure body. Analysis maps remain keyed to the generic source body, so
+  // lowering must substitute queried expression types before using them for
+  // nested generic calls and ABI-sensitive argument lowering.
+  std::optional<analysis::TypeSubst> active_generic_type_subst;
   
   // Push a new scope
   void PushScope(bool is_loop = false, bool is_region = false);

@@ -132,12 +132,19 @@ def main() -> int:
             map_by_diag_id[diag_id] = code
 
     explicit_map = {
+        "Index-Array-NonConst-Err": "E-UNS-0102",
+        "Index-Array-NonUsize": "E-TYP-1812",
+        "Index-Array-OOB-Err": "E-UNS-0103",
+        "Index-NonIndexable": "E-SEM-2527",
+        "Index-Slice-NonUsize": "E-TYP-1820",
         "If-Branch-Mismatch": "E-MOD-2402",
         "IfCase-Branch-Mismatch": "E-MOD-2402",
         "IfCase-Enum-NonExhaustive": "E-SEM-2741",
         "IfCase-Modal-NonExhaustive": "E-TYP-2060",
         "IfCase-NonExhaustive": "E-SEM-2741",
         "IfCase-Unreachable": "E-SEM-2751",
+        "TupleAccess-NotTuple": "E-SEM-2524",
+        "TupleIndex-OOB": "E-TYP-1801",
         "T-Cast-Invalid": "E-SEM-2528",
         "IfCase-Union-NonExhaustive": "E-SEM-2705",
     }
@@ -150,7 +157,13 @@ def main() -> int:
         if code not in rows_by_code:
             print(f"Explicit diagnostic mapping references unknown code: {diag_id} -> {code}", file=sys.stderr)
             return 1
-        if diag_id in spec_diag_ids or diag_id.startswith("If") or diag_id == "T-Cast-Invalid":
+        if (
+            diag_id in spec_diag_ids
+            or diag_id.startswith("If")
+            or diag_id.startswith("Index-")
+            or diag_id.startswith("Tuple")
+            or diag_id == "T-Cast-Invalid"
+        ):
             map_by_diag_id[diag_id] = code
 
     for removed_diag_id in removed_diag_ids:

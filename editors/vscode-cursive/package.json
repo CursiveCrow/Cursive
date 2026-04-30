@@ -1,0 +1,69 @@
+{
+  "name": "cursive-vscode",
+  "displayName": "Cursive",
+  "description": "VS Code language support for Cursive.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:cursive"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "cursive",
+        "aliases": [
+          "Cursive",
+          "cursive"
+        ],
+        "extensions": [
+          ".cursive"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "title": "Cursive",
+      "properties": {
+        "cursive.lsp.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Cursive language server executable. Leave empty to use the repo-local debug build."
+        },
+        "cursive.lsp.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace communication with the Cursive language server."
+        },
+        "cursive.lsp.logFile": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path for Cursive language server lifecycle logs."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4.0"
+  }
+}

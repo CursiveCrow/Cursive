@@ -3934,6 +3934,24 @@ CheckResult CheckExprAgainst(const ScopeContext& ctx,
     }
   }
 
+  if (const auto* enum_literal = std::get_if<ast::EnumLiteralExpr>(&e->node)) {
+    const auto enum_check = expr::CheckEnumLiteralExprAgainstImpl(
+        ctx, type_ctx, *enum_literal, expected, env);
+    if (enum_check.ok) {
+      result.ok = true;
+      if (ctx.expr_types && e) {
+        (*ctx.expr_types)[e.get()] = expected;
+      }
+      return result;
+    }
+    if (enum_check.diag_id.has_value()) {
+      result.diag_id = enum_check.diag_id;
+      result.diag_detail = enum_check.diag_detail;
+      result.diag_span = enum_check.diag_span;
+      return result;
+    }
+  }
+
   expr::TypeExprFn type_expr_fn = [&](const ast::ExprPtr& inner) {
     return TypeExpr(ctx, type_ctx, inner, env);
   };

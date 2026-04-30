@@ -123,7 +123,7 @@ std::optional<BuiltinModalMemberSig> LookupRegionMemberSig(
     sig.recv_perm = Permission::Unique;
     sig.ret = TypeRegionState("Active");
     sig.requires_unsafe = true;
-    sig.unsafe_diag = "Region-Unchecked-Unsafe-Err";
+    sig.unsafe_diag = "E-MEM-3030";
     sig.runtime_symbol =
         core::PathSig({"cursive", "runtime", "region", "reset_unchecked"});
     sig.consumes_receiver = true;
@@ -154,7 +154,7 @@ std::optional<BuiltinModalMemberSig> LookupRegionMemberSig(
     sig.recv_perm = Permission::Unique;
     sig.ret = TypeRegionState("Freed");
     sig.requires_unsafe = true;
-    sig.unsafe_diag = "Region-Unchecked-Unsafe-Err";
+    sig.unsafe_diag = "E-MEM-3030";
     sig.runtime_symbol =
         core::PathSig({"cursive", "runtime", "region", "free_unchecked"});
     sig.consumes_receiver = true;

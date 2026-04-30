@@ -1,0 +1,38 @@
+public enum LookupValue<T> {
+    Present(T)
+    Absent
+}
+
+public enum OperationOutcome<T; E> {
+    Completed(T)
+    Rejected(E)
+}
+
+public procedure lookupValueIsPresent<T>(value: LookupValue<T>) -> bool {
+    return if value is {
+        LookupValue::Present(_) { true }
+        LookupValue::Absent { false }
+    }
+}
+
+public procedure lookupValueIsAbsent<T>(value: LookupValue<T>) -> bool {
+    return lookupValueIsPresent(value) == false
+}
+
+public procedure lookupValueOr<T>(value: LookupValue<T>, fallback_value: T) -> T {
+    return if value is {
+        LookupValue::Present(inner) { inner }
+        LookupValue::Absent { fallback_value }
+    }
+}
+
+public procedure operationOutcomeCompleted<T; E>(value: OperationOutcome<T, E>) -> bool {
+    return if value is {
+        OperationOutcome::Completed(_) { true }
+        OperationOutcome::Rejected(_) { false }
+    }
+}
+
+public procedure operationOutcomeRejected<T; E>(value: OperationOutcome<T, E>) -> bool {
+    return operationOutcomeCompleted(value) == false
+}

@@ -91,6 +91,9 @@ std::optional<std::string> SimplePatternBindingName(const ast::PatternPtr& pat) 
     return ident->name;
   }
   if (const auto* typed = std::get_if<ast::TypedPattern>(&pat->node)) {
+    if (typed->name == "_") {
+      return std::nullopt;
+    }
     return typed->name;
   }
   return std::nullopt;

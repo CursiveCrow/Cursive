@@ -1,0 +1,441 @@
+import core::Data
+import core::Reporting
+import core::Source
+import core::Text
+
+procedure selfTestLookupAndOutcome() -> i32 {
+    let some_value: Data::LookupValue<i32> = Data::LookupValue::Present(17)
+    if (Data::lookupValueIsPresent(some_value) == false) {
+        return 1
+    }
+
+    let none_value: Data::LookupValue<i32> = Data::LookupValue::Absent
+    if (Data::lookupValueIsAbsent(none_value) == false) {
+        return 2
+    }
+
+    let fallback_metric: i32 = Data::lookupValueOr(none_value, 31)
+    if (fallback_metric != 31) {
+        return 3
+    }
+
+    let ok_value: Data::OperationOutcome<i32, string@View> = Data::OperationOutcome::Completed(7)
+    if (Data::operationOutcomeCompleted(ok_value) == false) {
+        return 4
+    }
+
+    let err_value: Data::OperationOutcome<i32, string@View> =
+        Data::OperationOutcome::Rejected("expected failure")
+    if (Data::operationOutcomeRejected(err_value) == false) {
+        return 5
+    }
+
+    return 0
+}
+
+procedure selfTestIntList() -> i32 {
+    let empty_list: Data::IntList = Data::intListEmpty()
+    let first_result: Data::OperationOutcome<Data::IntList, string@View> =
+        Data::intListPush(empty_list, 11)
+    let first_count: i32 = if first_result is {
+        Data::OperationOutcome::Completed(list) { Data::intListCount(list) }
+        Data::OperationOutcome::Rejected(_) { -1 }
+    }
+    if (first_count != 1) {
+        return 10
+    }
+
+    let second_list: Data::IntList = if first_result is {
+        Data::OperationOutcome::Completed(list) { list }
+        Data::OperationOutcome::Rejected(_) { empty_list }
+    }
+    let second_result: Data::OperationOutcome<Data::IntList, string@View> =
+        Data::intListPush(second_list, 23)
+    let second_value: i32 = if second_result is {
+        Data::OperationOutcome::Completed(list) {
+            let found: Data::LookupValue<i32> = Data::intListGet(list, 1)
+            Data::lookupValueOr(found, -1)
+        }
+        Data::OperationOutcome::Rejected(_) { -1 }
+    }
+    if (second_value != 23) {
+        return 11
+    }
+
+    let contains_metric: bool = if second_result is {
+        Data::OperationOutcome::Completed(list) { Data::intListContains(list, 11) }
+        Data::OperationOutcome::Rejected(_) { false }
+    }
+    if (contains_metric == false) {
+        return 12
+    }
+
+    return 0
+}
+
+procedure selfTestTextIntMap() -> i32 {
+    let empty_map: Data::TextIntMap = Data::textIntMapEmpty()
+    let first_result: Data::OperationOutcome<Data::TextIntMap, string@View> =
+        Data::textIntMapPut(empty_map, "grammar", 3)
+    let first_value: i32 = if first_result is {
+        Data::OperationOutcome::Completed(map) {
+            Data::lookupValueOr(Data::textIntMapGet(map, "grammar"), -1)
+        }
+        Data::OperationOutcome::Rejected(_) { -1 }
+    }
+    if (first_value != 3) {
+        return 20
+    }
+
+    let first_map: Data::TextIntMap = if first_result is {
+        Data::OperationOutcome::Completed(map) { map }
+        Data::OperationOutcome::Rejected(_) { empty_map }
+    }
+    let updated_result: Data::OperationOutcome<Data::TextIntMap, string@View> =
+        Data::textIntMapPut(first_map, "grammar", 5)
+    let updated_value: i32 = if updated_result is {
+        Data::OperationOutcome::Completed(map) {
+            Data::lookupValueOr(Data::textIntMapGet(map, "grammar"), -1)
+        }
+        Data::OperationOutcome::Rejected(_) { -1 }
+    }
+    if (updated_value != 5) {
+        return 21
+    }
+
+    return 0
+}
+
+procedure selfTestTextSet() -> i32 {
+    let empty_set: Data::TextSet = Data::textSetEmpty()
+    let first_result: Data::OperationOutcome<Data::TextSet, string@View> =
+        Data::textSetAdd(empty_set, "diagnostic")
+    let first_count: i32 = if first_result is {
+        Data::OperationOutcome::Completed(set) { Data::textSetCount(set) }
+        Data::OperationOutcome::Rejected(_) { -1 }
+    }
+    if (first_count != 1) {
+        return 30
+    }
+
+    let first_set: Data::TextSet = if first_result is {
+        Data::OperationOutcome::Completed(set) { set }
+        Data::OperationOutcome::Rejected(_) { empty_set }
+    }
+    let duplicate_result: Data::OperationOutcome<Data::TextSet, string@View> =
+        Data::textSetAdd(first_set, "diagnostic")
+    let duplicate_count: i32 = if duplicate_result is {
+        Data::OperationOutcome::Completed(set) { Data::textSetCount(set) }
+        Data::OperationOutcome::Rejected(_) { -1 }
+    }
+    if (duplicate_count != 1) {
+        return 31
+    }
+
+    return 0
+}
+
+procedure selfTestTextCore() -> i32 {
+    let symbols: string@View = "Γ⊢⇔⇓∈∧⊥⟨⟩≤≠"
+    if (Text::textByteLength(symbols) != 32) {
+        return 40
+    }
+    let symbol_bytes: bytes@View = Text::textAsBytes(symbols)
+    let first_symbol_byte: i32 = Data::lookupValueOr(Text::byteAt(symbol_bytes, 0), 0u8) as i32
+    if (first_symbol_byte != 206) {
+        return 41
+    }
+
+    let symbol_validation: Text::Utf8Validation = Text::utf8Validate(symbol_bytes)
+    if (Text::utf8ValidationIsValid(symbol_validation) == false) {
+        return 42
+    }
+    if (symbol_validation.codepoint_count != 11) {
+        return 43
+    }
+
+    let symbol_slice_result: Data::OperationOutcome<bytes@View, string@View> =
+        Text::byteSlice(symbol_bytes, 2, 3)
+    let symbol_slice_valid: bool = if symbol_slice_result is {
+        Data::OperationOutcome::Completed(slice) {
+            let slice_validation: Text::Utf8Validation = Text::utf8Validate(slice)
+            Text::utf8ValidationIsValid(slice_validation) &&
+                (slice_validation.codepoint_count == 1)
+        }
+        Data::OperationOutcome::Rejected(_) { false }
+    }
+    if (symbol_slice_valid == false) {
+        return 44
+    }
+
+    let invalid_seed: [u8; 2] = [195, 40]
+    let invalid_view: bytes@View = Text::byteViewFromSlice(invalid_seed)
+    let invalid_validation: Text::Utf8Validation = Text::utf8Validate(invalid_view)
+    if (Text::utf8ValidationIsValid(invalid_validation) == true) {
+        return 45
+    }
+
+    let line_seed: [u8; 7] = [65, 13, 10, 66, 10, 67, 13]
+    let line_summary: Text::LineEndingSummary =
+        Text::lineEndingSummaryFromBytes(Text::byteViewFromSlice(line_seed))
+    if (
+        (line_summary.has_crlf == false) ||
+        (line_summary.has_lf == false) ||
+        (line_summary.has_cr == false)
+    ) {
+        return 46
+    }
+
+    if (Text::hashText(symbols) == Text::hashText("ascii")) {
+        return 47
+    }
+
+    return 0
+}
+
+procedure selfTestSourceLineTable() -> i32 {
+    let sample: [u8; 17] = [
+        97,
+        108,
+        112,
+        104,
+        97,
+        13,
+        10,
+        98,
+        101,
+        116,
+        97,
+        10,
+        103,
+        97,
+        109,
+        109,
+        97
+    ]
+    let table: Source::LineTable =
+        Source::lineTableFromBytes("sample.cursive", Text::byteViewFromSlice(sample))
+
+    if (table.utf8_valid == false) {
+        return 50
+    }
+    if (table.byte_length != 17) {
+        return 51
+    }
+    if (table.line_count != 3) {
+        return 52
+    }
+
+    let beta_start: i32 = if Source::lineTableLineStartOffset(table, 2) is {
+        Data::OperationOutcome::Completed(line_start_offset) { line_start_offset }
+        Data::OperationOutcome::Rejected(_) { -1 }
+    }
+    if (beta_start != 7) {
+        return 53
+    }
+
+    let gamma_location: Source::SourceLocation = Source::lineTableLocate(table, 12)
+    if ((gamma_location.line != 3) || (gamma_location.column != 1)) {
+        return 54
+    }
+
+    let beta_offset: i32 =
+        if Source::lineTableLineColumnToByteOffset(table, Source::lineColumn(2, 3)) is {
+            Data::OperationOutcome::Completed(mapped_offset) { mapped_offset }
+            Data::OperationOutcome::Rejected(_) { -1 }
+        }
+    if (beta_offset != 9) {
+        return 55
+    }
+
+    let beta_bytes_ok: bool = if Source::lineTableLineBytes(table, 2) is {
+        Data::OperationOutcome::Completed(beta_line_bytes) {
+            Text::byteEquals(beta_line_bytes, Text::textAsBytes("beta"))
+        }
+        Data::OperationOutcome::Rejected(_) { false }
+    }
+    if (beta_bytes_ok == false) {
+        return 56
+    }
+
+    let span: Source::SourceSpan = Source::lineTableSpanOf(table, 7, 11)
+    if (
+        (span.start_offset != 7) ||
+        (span.end_offset != 11) ||
+        (span.start_line != 2) ||
+        (span.start_col != 1) ||
+        (span.end_line != 2) ||
+        (span.end_col != 5)
+    ) {
+        return 57
+    }
+
+    let beta_excerpt_ok: bool = if Source::lineTableExcerpt(table, span) is {
+        Data::OperationOutcome::Completed(excerpt) {
+            (excerpt.line_number == 2) &&
+                (excerpt.marker_start_col == 1) &&
+                (excerpt.marker_end_col == 5) &&
+                Text::byteEquals(excerpt.line_bytes, Text::textAsBytes("beta"))
+        }
+        Data::OperationOutcome::Rejected(_) { false }
+    }
+    if (beta_excerpt_ok == false) {
+        return 58
+    }
+
+    let point_span: Source::SourceSpan = Source::lineTableSpanOf(table, 9, 9)
+    let point_excerpt_ok: bool = if Source::lineTableExcerpt(table, point_span) is {
+        Data::OperationOutcome::Completed(excerpt) {
+            (excerpt.marker_start_col == 3) && (excerpt.marker_end_col == 4)
+        }
+        Data::OperationOutcome::Rejected(_) { false }
+    }
+    if (point_excerpt_ok == false) {
+        return 59
+    }
+
+    let invalid_seed: [u8; 2] = [195, 40]
+    let invalid_table: Source::LineTable =
+        Source::lineTableFromBytes("bad.cursive", Text::byteViewFromSlice(invalid_seed))
+    if (invalid_table.utf8_valid == true) {
+        return 60
+    }
+
+    return 0
+}
+
+procedure selfTestFailed(
+    ctx: Reporting::OutputContext,
+    subject_id: string@View,
+    status: i32,
+    passed_count: i32
+) -> Reporting::PhaseRunResult {
+    let output: Reporting::OutputContext = Reporting::emitEvent(
+        ctx,
+        Reporting::failureEvent(
+            Reporting::ReportPhase::FoundationSelftest,
+            Reporting::ReportSubjectKind::SelftestGroup,
+            subject_id,
+            "Suites::SelfTest",
+            Reporting::ReportFailureKind::OracleInternal,
+            "0",
+            Reporting::renderSmallInteger(status),
+            "selftest_failed"
+        )
+    )
+    return Reporting::phaseRunResult(output, status, passed_count, 1)
+}
+
+public procedure run(ctx: Reporting::OutputContext) -> Reporting::PhaseRunResult {
+    var output: Reporting::OutputContext = ctx
+    var passed_count: i32 = 0
+
+    output = Reporting::emitCheckpoint(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        Reporting::ReportSubjectKind::SelftestGroup,
+        "lookup_and_outcome",
+        "Suites::SelfTest"
+    )
+    let option_status: i32 = selfTestLookupAndOutcome()
+    if (option_status != 0) {
+        return selfTestFailed(output, "lookup_and_outcome", option_status, passed_count)
+    }
+    passed_count = passed_count + 1
+
+    output = Reporting::emitCheckpoint(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        Reporting::ReportSubjectKind::SelftestGroup,
+        "int_list",
+        "Suites::SelfTest"
+    )
+    let list_status: i32 = selfTestIntList()
+    if (list_status != 0) {
+        return selfTestFailed(output, "int_list", list_status, passed_count)
+    }
+    passed_count = passed_count + 1
+
+    output = Reporting::emitCheckpoint(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        Reporting::ReportSubjectKind::SelftestGroup,
+        "text_int_map",
+        "Suites::SelfTest"
+    )
+    let map_status: i32 = selfTestTextIntMap()
+    if (map_status != 0) {
+        return selfTestFailed(output, "text_int_map", map_status, passed_count)
+    }
+    passed_count = passed_count + 1
+
+    output = Reporting::emitCheckpoint(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        Reporting::ReportSubjectKind::SelftestGroup,
+        "text_set",
+        "Suites::SelfTest"
+    )
+    let set_status: i32 = selfTestTextSet()
+    if (set_status != 0) {
+        return selfTestFailed(output, "text_set", set_status, passed_count)
+    }
+    passed_count = passed_count + 1
+
+    output = Reporting::emitCheckpoint(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        Reporting::ReportSubjectKind::SelftestGroup,
+        "text_core",
+        "Suites::SelfTest"
+    )
+    let text_status: i32 = selfTestTextCore()
+    if (text_status != 0) {
+        return selfTestFailed(output, "text_core", text_status, passed_count)
+    }
+    passed_count = passed_count + 1
+
+    output = Reporting::emitCheckpoint(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        Reporting::ReportSubjectKind::SelftestGroup,
+        "source_line_table",
+        "Suites::SelfTest"
+    )
+    let source_status: i32 = selfTestSourceLineTable()
+    if (source_status != 0) {
+        return selfTestFailed(output, "source_line_table", source_status, passed_count)
+    }
+    passed_count = passed_count + 1
+
+    output = Reporting::emitCheckpoint(
+        output,
+        Reporting::ReportPhase::FoundationSelftest,
+        Reporting::ReportSubjectKind::OutputRegression,
+        "output_regression",
+        "Core::Reporting"
+    )
+    let output_regression_result: Reporting::PhaseRunResult =
+        Reporting::runOutputRegressionChecks(output)
+    output = output_regression_result.ctx
+    if (output_regression_result.status != 0) {
+        return Reporting::phaseRunResult(output, output_regression_result.status, passed_count, 1)
+    }
+    passed_count = passed_count + 1
+
+    output = Reporting::emitEvent(
+        output,
+        Reporting::metricEvent(
+            Reporting::ReportPhase::FoundationSelftest,
+            Reporting::ReportSubjectKind::Selftest,
+            "foundation_selftest",
+            "Suites::SelfTest",
+            Reporting::ReportStatus::Passed,
+            Reporting::ReportMetricKind::SelftestCheckCount,
+            Reporting::renderSmallInteger(passed_count),
+            "selftest_summary"
+        )
+    )
+
+    return Reporting::phaseRunResult(output, 0, passed_count, 0)
+}

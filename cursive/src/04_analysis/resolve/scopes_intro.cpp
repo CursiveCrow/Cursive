@@ -82,8 +82,8 @@ IntroResult Intro(ScopeContext& ctx, std::string_view name, const Entity& ent) {
     return {false, "Intro-Dup"};
   }
   if (InOuter(ctx, name)) {
-    SPEC_RULE("Intro-Shadow-Required");
-    return {false, "Intro-Shadow-Required"};
+    SPEC_RULE("Intro-Outer-Err");
+    return {false, "Intro-Outer-Err"};
   }
 
   const auto key = IdKeyOf(name);

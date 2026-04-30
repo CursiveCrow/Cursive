@@ -1,0 +1,111 @@
+public record IntList {
+    public count: i32
+    public item0: i32
+    public item1: i32
+    public item2: i32
+    public item3: i32
+}
+
+public procedure intListCapacity() -> i32 {
+    return 4
+}
+
+public procedure intListEmpty() -> IntList {
+    return IntList { count: 0, item0: 0, item1: 0, item2: 0, item3: 0 }
+}
+
+public procedure intListCount(list: IntList) -> i32 {
+    return list.count
+}
+
+public procedure intListPush(list: IntList, value: i32) -> OperationOutcome<IntList, string@View> {
+    if (list.count == 0) {
+        return OperationOutcome::Completed(
+            IntList {
+                count: 1,
+                item0: value,
+                item1: list.item1,
+                item2: list.item2,
+                item3: list.item3
+            }
+        )
+    }
+    if (list.count == 1) {
+        return OperationOutcome::Completed(
+            IntList {
+                count: 2,
+                item0: list.item0,
+                item1: value,
+                item2: list.item2,
+                item3: list.item3
+            }
+        )
+    }
+    if (list.count == 2) {
+        return OperationOutcome::Completed(
+            IntList {
+                count: 3,
+                item0: list.item0,
+                item1: list.item1,
+                item2: value,
+                item3: list.item3
+            }
+        )
+    }
+    if (list.count == 3) {
+        return OperationOutcome::Completed(
+            IntList {
+                count: 4,
+                item0: list.item0,
+                item1: list.item1,
+                item2: list.item2,
+                item3: value
+            }
+        )
+    }
+    return OperationOutcome::Rejected("IntList capacity exceeded")
+}
+
+public procedure intListGet(list: IntList, index: i32) -> LookupValue<i32> {
+    if (index == 0) {
+        if (list.count > 0) {
+            return LookupValue::Present(list.item0)
+        }
+        return LookupValue::Absent
+    }
+    if (index == 1) {
+        if (list.count > 1) {
+            return LookupValue::Present(list.item1)
+        }
+        return LookupValue::Absent
+    }
+    if (index == 2) {
+        if (list.count > 2) {
+            return LookupValue::Present(list.item2)
+        }
+        return LookupValue::Absent
+    }
+    if (index == 3) {
+        if (list.count > 3) {
+            return LookupValue::Present(list.item3)
+        }
+        return LookupValue::Absent
+    }
+    return LookupValue::Absent
+}
+
+public procedure intListContains(list: IntList, value: i32) -> bool {
+    if ((list.count > 0) && (list.item0 == value)) {
+        return true
+    }
+    if ((list.count > 1) && (list.item1 == value)) {
+        return true
+    }
+    if ((list.count > 2) && (list.item2 == value)) {
+        return true
+    }
+    if ((list.count > 3) && (list.item3 == value)) {
+        return true
+    }
+    return false
+}

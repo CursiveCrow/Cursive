@@ -1,0 +1,105 @@
+{
+  "title": "Example JSON Charter",
+  "objective": [
+    "Implement the requested behavior at the source of truth and verify it through the repository's normal entry points."
+  ],
+  "successCriteria": [
+    "The canonical owner implements the requested behavior.",
+    "Regression coverage proves the behavior through a real entry point.",
+    "Each completed task records structured completion evidence."
+  ],
+  "sourceTree": [
+    "path: src/** owns production implementation owned by the active task",
+    "path: tests/** owns regression coverage for changed behavior",
+    "path: README.md owns setup and usage documentation"
+  ],
+  "technicalStack": [
+    "Use the repository's existing language, runtime, package manager, and test commands."
+  ],
+  "constraints": [
+    "Non-control writes must match the active task's typed allowedWrites entries.",
+    "Every allowedWrites entry includes non-empty path, role, permitted, and forbidden metadata.",
+    "Record completion only after the task is actually complete and verified."
+  ],
+  "nonGoals": [
+    "Do not perform unrelated refactors.",
+    "Do not rename public APIs or files unless the requested behavior requires it."
+  ],
+  "references": [
+    "Current user request",
+    "Repository specifications, design docs, or API contracts that define the requested behavior"
+  ],
+  "verificationStrategy": [
+    "Run the relevant build, test, typecheck, lint, or targeted inspection command."
+  ],
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Implement requested behavior at the owner",
+      "status": "pending",
+      "observedProblem": [
+        "Visible behavior is wrong or incomplete."
+      ],
+      "requiredBehavior": [
+        "The general behavior is correct through the canonical owner."
+      ],
+      "sourceOfTruth": [
+        "User request, specification, API contract, design doc, or canonical test."
+      ],
+      "canonicalOwner": [
+        "src/**"
+      ],
+      "whyThisIsOwner": [
+        "This path owns the behavior being changed."
+      ],
+      "downstreamConsumers": [
+        "Tests and docs consume the behavior but must not reimplement it."
+      ],
+      "forbiddenImplementationPaths": [
+        "Do not patch only the visible symptom."
+      ],
+      "rejectedShortcuts": [
+        "Move ownership to a downstream consumer | the owner must implement the requested behavior directly."
+      ],
+      "allowedWrites": [
+        {
+          "path": "src/**",
+          "role": "canonical-owner",
+          "permitted": [
+            "implement the requested behavior at the source of truth"
+          ],
+          "forbidden": [
+            "move ownership into a downstream consumer"
+          ]
+        },
+        {
+          "path": "tests/**",
+          "role": "test",
+          "permitted": [
+            "add or update tests that prove the owner behavior through real entry points"
+          ],
+          "forbidden": [
+            "weaken expected behavior to match an incomplete implementation"
+          ]
+        }
+      ],
+      "forbiddenAddedPatterns": [],
+      "allowedShortcutTerms": [],
+      "verification": [
+        "npm run check"
+      ],
+      "action": "Update the owner implementation and the relevant regression coverage.",
+      "dependsOn": [],
+      "contextRefs": [],
+      "directiveRefs": [
+        "write"
+      ],
+      "completion": {
+        "changed": [],
+        "verified": [],
+        "handoff": [],
+        "risks": []
+      }
+    }
+  ]
+}

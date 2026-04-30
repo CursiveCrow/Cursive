@@ -1,0 +1,23 @@
+public procedure runtimeSkippedIsExpected(
+    expected_compile_failure: bool,
+    implementation: RunnerContract::ImplementationResult
+) -> bool {
+    return expected_compile_failure &&
+        if implementation.command_mode is {
+            RunnerContract::RunnerCommandMode::RuntimeSkipped { true }
+            _ { false }
+        }
+}
+
+public procedure observedRuntimeSummary(
+    expected_compile_failure: bool,
+    implementation: RunnerContract::ImplementationResult
+) -> string@View {
+    if (runtimeSkippedIsExpected(expected_compile_failure, implementation) == true) {
+        return "runtime_not_applicable_after_expected_reject"
+    }
+    return if implementation.command_mode is {
+        RunnerContract::RunnerCommandMode::RuntimeSkipped { "runtime_skipped_no_executable" }
+        RunnerContract::RunnerCommandMode::CheckOnly { "runtime_not_requested" }
+    }
+}

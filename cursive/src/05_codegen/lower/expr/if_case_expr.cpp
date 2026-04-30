@@ -26,7 +26,6 @@
 #include "00_core/assert_spec.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/cleanup/unwind.h"
-#include "04_analysis/typing/type_equiv.h"
 #include "05_codegen/lower/lower_pat.h"
 #include "05_codegen/lower/pattern/ir_pattern.h"
 
@@ -73,7 +72,7 @@ bool EndsWithTerminator(const IRPtr& ir) {
           }
           return false;
         } else if constexpr (std::is_same_v<T, IRBlock>) {
-          return EndsWithTerminator(node.body);
+          return EndsWithTerminator(node.setup) || EndsWithTerminator(node.body);
         } else if constexpr (std::is_same_v<T, IRRegion>) {
           return EndsWithTerminator(node.body);
         } else if constexpr (std::is_same_v<T, IRFrame>) {
@@ -119,7 +118,13 @@ struct OwnedIfCaseScrutinee {
   std::optional<std::string> prov_region_tag;
 };
 
-LowerResult LowerIfCaseClauseImpl(
+struct LowerIfCaseClauseResult {
+  LowerResult result;
+  analysis::TypeRef value_type;
+  bool terminates = false;
+};
+
+LowerIfCaseClauseResult LowerIfCaseClauseImpl(
     const ast::IfCaseClause& arm,
     const IRValue& scrutinee,
     const analysis::TypeRef& scrutinee_type,
@@ -298,16 +303,26 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
   std::vector<LowerCtx> arm_ctxs;
   arm_ctxs.reserve(arms.size() + (else_expr || single_form ? 1 : 0));
 
+  analysis::TypeRef result_type;
+  auto merge_result_type = [&](analysis::TypeRef candidate) {
+    if (!candidate) {
+      return;
+    }
+    if (!result_type) {
+      result_type = candidate;
+    }
+  };
+
   for (const auto& arm : arms) {
     // Create a copy of the context for this clause to track clause-local state.
     LowerCtx arm_ctx = MakeBranchCtx(ctx);
 
     // Lower this case clause.
-    auto arm_result = LowerIfCaseClauseImpl(arm, scrutinee_result.value,
-                                            scrutinee_type, scrutinee_prov,
-                                            scrutinee_region, scrutinee_region_tag,
-                                            owned_scrutinee,
-                                            arm_ctx);
+    auto clause_result = LowerIfCaseClauseImpl(arm, scrutinee_result.value,
+                                               scrutinee_type, scrutinee_prov,
+                                               scrutinee_region, scrutinee_region_tag,
+                                               owned_scrutinee,
+                                               arm_ctx);
 
     // Merge arm context temps back to base context
     MergeLowerCtxTemps(ctx, arm_ctx);
@@ -318,8 +333,11 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     // Build the IR case clause.
     IRIfCaseClause ir_arm;
     ir_arm.pattern = LowerIRPattern(*arm.pattern, arm_ctx);
-    ir_arm.body = arm_result.ir;
-    ir_arm.value = arm_result.value;
+    ir_arm.body = clause_result.result.ir;
+    ir_arm.value = clause_result.result.value;
+    if (!clause_result.terminates) {
+      merge_result_type(clause_result.value_type);
+    }
     ir_arms.push_back(std::move(ir_arm));
     arm_ctxs.push_back(std::move(arm_ctx));
   }
@@ -333,6 +351,18 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     } else {
       ast::Block unit_block;
       else_result = LowerBlock(unit_block, else_ctx);
+    }
+
+    const bool else_terminates = EndsWithTerminator(else_result.ir);
+    if (!else_terminates) {
+      analysis::TypeRef else_type = else_ctx.LookupValueType(else_result.value);
+      if (!else_type && else_expr && ctx.expr_type) {
+        else_type = ctx.expr_type(*else_expr);
+      }
+      if (!else_type && !else_expr && single_form) {
+        else_type = analysis::MakeTypePrim("()");
+      }
+      merge_result_type(else_type);
     }
 
     MergeLowerCtxTemps(ctx, else_ctx);
@@ -370,48 +400,8 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
   IRValue result = ctx.FreshTempValue("ifcase");
   if_case.result = result;
 
-  // Determine the result type from arm body types.
-  // All branch types must be equivalent for a valid if-is expression.
-  if (ctx.expr_type) {
-    analysis::TypeRef result_type;
-    bool mismatch = false;
-    for (const auto& arm : arms) {
-      if (!arm.body) {
-        continue;
-      }
-      analysis::TypeRef arm_type = ctx.expr_type(*arm.body);
-      if (!arm_type) {
-        continue;
-      }
-      if (!result_type) {
-        result_type = arm_type;
-        continue;
-      }
-      const auto equiv = analysis::TypeEquiv(result_type, arm_type);
-      if (!equiv.ok || !equiv.equiv) {
-        mismatch = true;
-      }
-    }
-    if (else_expr) {
-      if (analysis::TypeRef else_type = ctx.expr_type(*else_expr)) {
-        if (!result_type) {
-          result_type = else_type;
-        } else {
-          const auto equiv = analysis::TypeEquiv(result_type, else_type);
-          if (!equiv.ok || !equiv.equiv) {
-            mismatch = true;
-          }
-        }
-      }
-    } else if (single_form) {
-      result_type = analysis::MakeTypePrim("()");
-    }
-    if (mismatch) {
-      ctx.ReportCodegenFailure();
-    }
-    if (result_type) {
-      ctx.RegisterValueType(result, result_type);
-    }
+  if (result_type) {
+    ctx.RegisterValueType(result, result_type);
   }
 
   return LowerResult{SeqIR({scrutinee_result.ir,
@@ -435,7 +425,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
 
 namespace {
 
-LowerResult LowerIfCaseClauseImpl(
+LowerIfCaseClauseResult LowerIfCaseClauseImpl(
     const ast::IfCaseClause& arm,
     const IRValue& scrutinee,
     const analysis::TypeRef& scrutinee_type,
@@ -509,12 +499,17 @@ LowerResult LowerIfCaseClauseImpl(
     // Empty body returns unit
     body_result.ir = EmptyIR();
     body_result.value = ctx.FreshTempValue("unit");
+    ctx.RegisterValueType(body_result.value, analysis::MakeTypePrim("()"));
   }
 
   IRValue arm_value = body_result.value;
   IRPtr capture_ir = EmptyIR();
-  if (arm.body && !EndsWithTerminator(body_result.ir)) {
-    analysis::TypeRef body_type = ctx.LookupValueType(body_result.value);
+  const bool body_terminates = EndsWithTerminator(body_result.ir);
+  analysis::TypeRef body_type = ctx.LookupValueType(body_result.value);
+  if (!body_type && !arm.body) {
+    body_type = analysis::MakeTypePrim("()");
+  }
+  if (arm.body && !body_terminates) {
     if (!body_type && ctx.expr_type) {
       body_type = ctx.expr_type(*arm.body);
     }
@@ -547,7 +542,7 @@ LowerResult LowerIfCaseClauseImpl(
   parts.push_back(scrutinee_bind_ir);
   parts.push_back(bind_ir);
   parts.push_back(body_result.ir);
-  if (!EndsWithTerminator(body_result.ir)) {
+  if (!body_terminates) {
     parts.push_back(capture_ir);
     parts.push_back(body_temp_cleanup);
     parts.push_back(cleanup_ir);
@@ -556,7 +551,11 @@ LowerResult LowerIfCaseClauseImpl(
   // Pop the clause scope.
   ctx.PopScope();
 
-  return LowerResult{SeqIR(std::move(parts)), arm_value};
+  LowerIfCaseClauseResult result;
+  result.result = LowerResult{SeqIR(std::move(parts)), arm_value};
+  result.value_type = body_terminates ? nullptr : body_type;
+  result.terminates = body_terminates;
+  return result;
 }
 
 }  // namespace
@@ -571,7 +570,7 @@ LowerResult LowerIfCaseClause(const ast::IfCaseClause& arm,
   return LowerIfCaseClauseImpl(arm, scrutinee, scrutinee_type, scrutinee_prov,
                                std::move(scrutinee_region),
                                std::move(scrutinee_region_tag),
-                               std::nullopt, ctx);
+                               std::nullopt, ctx).result;
 }
 
 }  // namespace cursive::codegen

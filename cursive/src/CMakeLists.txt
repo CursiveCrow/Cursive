@@ -486,6 +486,7 @@ add_library(cursive_analysis STATIC
   04_analysis/keys/key_capture.cpp
   04_analysis/keys/key_lifetimes.cpp
   04_analysis/keys/key_paths.cpp
+  04_analysis/language_service/facts.cpp
   04_analysis/memory/borrow_bind.cpp
   04_analysis/memory/calls.cpp
   04_analysis/memory/init_planner.cpp
@@ -811,7 +812,6 @@ add_library(cursive_codegen STATIC
   05_codegen/lower/lower_bind.cpp
   05_codegen/lower/lower_module.cpp
   05_codegen/lower/lower_proc.cpp
-  05_codegen/lower/pattern/enum_pattern.cpp
   05_codegen/lower/pattern/identifier_pattern.cpp
   05_codegen/lower/pattern/ir_pattern.cpp
   05_codegen/lower/pattern/literal_pattern.cpp
@@ -990,6 +990,50 @@ target_link_libraries(cursive_comptime PUBLIC cursive_core cursive_source)
 target_link_libraries(cursive_analysis PUBLIC cursive_core cursive_source cursive_project)
 target_link_libraries(cursive_codegen PUBLIC cursive_analysis)
 
+add_library(cursive_tooling STATIC
+  06_driver/tooling/analysis.cpp
+  06_driver/tooling/document_store.cpp
+  06_driver/tooling/line_index.cpp
+  06_driver/tooling/symbol_index.cpp
+  06_driver/tooling/uri.cpp
+)
+
+target_include_directories(cursive_tooling PUBLIC
+  ${CMAKE_SOURCE_DIR}/include
+  ${CURSIVE_REPO_ROOT}
+)
+
+target_compile_features(cursive_tooling PUBLIC cxx_std_20)
+target_link_libraries(cursive_tooling PUBLIC
+  cursive_core
+  cursive_project
+  cursive_source
+  cursive_comptime
+  cursive_analysis
+)
+
+add_library(cursive_lsp_core STATIC
+  06_driver/lsp/diagnostic_adapter.cpp
+  06_driver/lsp/json_rpc.cpp
+  06_driver/lsp/protocol.cpp
+  06_driver/lsp/semantic_tokens.cpp
+  06_driver/lsp/server.cpp
+)
+
+target_include_directories(cursive_lsp_core PUBLIC
+  ${CMAKE_SOURCE_DIR}/include
+  ${LLVM_INCLUDE_DIRS}
+)
+
+target_compile_features(cursive_lsp_core PUBLIC cxx_std_20)
+target_link_libraries(cursive_lsp_core PUBLIC cursive_tooling)
+
+if(LLVM_FOUND)
+  llvm_map_components_to_libnames(LLVM_SUPPORT_LIBS Support)
+  target_compile_definitions(cursive_lsp_core PRIVATE ${LLVM_DEFINITIONS})
+  target_link_libraries(cursive_lsp_core PRIVATE ${LLVM_SUPPORT_LIBS})
+endif()
+
 add_executable(cursive-debug
   06_driver/debugger_main.cpp
   06_driver/version.cpp
@@ -1034,13 +1078,37 @@ if(LLVM_FOUND)
   target_compile_definitions(cursive PRIVATE ${LLVM_DEFINITIONS})
 endif()
 
+add_executable(cursive-lsp
+  06_driver/lsp/main.cpp
+  06_driver/version.cpp
+)
+
+set_target_properties(cursive-lsp PROPERTIES OUTPUT_NAME "Cursive_LSP")
+
+target_link_libraries(cursive-lsp PRIVATE cursive_lsp_core)
+
+target_include_directories(cursive-lsp PRIVATE
+  ${CMAKE_SOURCE_DIR}/include
+  ${LLVM_INCLUDE_DIRS}
+)
+
+target_compile_features(cursive-lsp PRIVATE cxx_std_20)
+
+if(LLVM_FOUND)
+  target_compile_definitions(cursive-lsp PRIVATE ${LLVM_DEFINITIONS})
+endif()
+
 if(NOT WIN32)
   add_dependencies(cursive-debug cursive_linux_icu_sidecars)
   add_dependencies(cursive cursive_linux_icu_sidecars)
+  add_dependencies(cursive-lsp cursive_linux_icu_sidecars)
   target_link_options(cursive-debug PRIVATE
     "LINKER:--no-as-needed"
   )
   target_link_options(cursive PRIVATE
+    "LINKER:--no-as-needed"
+  )
+  target_link_options(cursive-lsp PRIVATE
     "LINKER:--no-as-needed"
   )
   set_target_properties(cursive-debug PROPERTIES
@@ -1048,6 +1116,10 @@ if(NOT WIN32)
     BUILD_RPATH "\$ORIGIN/lib;\$ORIGIN/linux/lib;\$ORIGIN/../lib"
   )
   set_target_properties(cursive PROPERTIES
+    BUILD_RPATH_USE_ORIGIN TRUE
+    BUILD_RPATH "\$ORIGIN/lib;\$ORIGIN/linux/lib;\$ORIGIN/../lib"
+  )
+  set_target_properties(cursive-lsp PROPERTIES
     BUILD_RPATH_USE_ORIGIN TRUE
     BUILD_RPATH "\$ORIGIN/lib;\$ORIGIN/linux/lib;\$ORIGIN/../lib"
   )
@@ -1059,9 +1131,16 @@ if(MSVC)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "${CURSIVE_MSVC_RUNTIME}" CACHE STRING "" FORCE)
   set_property(TARGET cursive PROPERTY
     MSVC_RUNTIME_LIBRARY "${CURSIVE_MSVC_RUNTIME}")
+  set_property(TARGET cursive-lsp PROPERTY
+    MSVC_RUNTIME_LIBRARY "${CURSIVE_MSVC_RUNTIME}")
 
   target_link_libraries(cursive PRIVATE delayimp)
+  target_link_libraries(cursive-lsp PRIVATE delayimp)
   target_link_options(cursive PRIVATE
+    "/DELAYLOAD:icuuc72.dll"
+    "/DELAYLOAD:icuin72.dll"
+  )
+  target_link_options(cursive-lsp PRIVATE
     "/DELAYLOAD:icuuc72.dll"
     "/DELAYLOAD:icuin72.dll"
   )

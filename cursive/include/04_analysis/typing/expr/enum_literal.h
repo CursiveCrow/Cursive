@@ -19,4 +19,13 @@ ExprTypeResult TypeEnumLiteralExprImpl(const ScopeContext& ctx,
                                        const ast::EnumLiteralExpr& expr,
                                        const TypeEnv& env);
 
+// Check an enum literal against an expected enum type. This is the contextual
+// typing path required for generic enum constructors such as
+// Option::Some(value) checked against Option<T>.
+CheckResult CheckEnumLiteralExprAgainstImpl(const ScopeContext& ctx,
+                                            const StmtTypeContext& type_ctx,
+                                            const ast::EnumLiteralExpr& expr,
+                                            const TypeRef& expected,
+                                            const TypeEnv& env);
+
 }  // namespace cursive::analysis::expr

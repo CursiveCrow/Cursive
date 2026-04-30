@@ -84,6 +84,9 @@ static std::optional<std::string> ExtractBindingName(const ast::Binding& binding
         if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
           return pat.name;
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
+          if (pat.name == "_") {
+            return std::nullopt;
+          }
           return pat.name;
         }
         return std::nullopt;

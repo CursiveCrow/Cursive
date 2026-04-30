@@ -84,6 +84,14 @@ void IRInstructionVisitor::operator()(const IRBinaryOp &bin) const
   {
     rhs_type = emitter.LookupLocalType(bin.rhs.name);
   }
+  if (IsBoolType(ResolveAliasType(type_ctx, lhs_type)))
+  {
+    lhs = CoerceBoolTo(&builder, lhs, lhs->getType());
+  }
+  if (IsBoolType(ResolveAliasType(type_ctx, rhs_type)))
+  {
+    rhs = CoerceBoolTo(&builder, rhs, rhs->getType());
+  }
   auto is_integer_type = [](const analysis::TypeRef &type) -> bool
   {
     analysis::TypeRef stripped = analysis::StripPerm(type);

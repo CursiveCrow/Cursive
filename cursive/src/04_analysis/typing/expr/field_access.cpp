@@ -42,7 +42,7 @@ static inline void SpecDefsFieldAccess() {
   SPEC_DEF("T-Field-Record-Perm", "5.2.12");
   SPEC_DEF("P-Field-Record", "5.2.12");
   SPEC_DEF("P-Field-Record-Perm", "5.2.12");
-  // Legacy anchors retained for compatibility with existing traces.
+  // Trace anchors retained for compatibility with existing trace data.
   SPEC_DEF("T-FieldAccess", "5.2.12");
   SPEC_DEF("T-FieldAccess-Perm", "5.2.12");
   SPEC_DEF("Union-DirectAccess-Err", "5.2.7");
@@ -313,7 +313,7 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
   const auto stripped_base = normalized.type;
 
   if (!stripped_base) {
-    result.diag_id = "FieldAccess-Unknown";
+    result.diag_id = "E-TYP-1904";
     return result;
   }
 
@@ -329,26 +329,26 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
       const auto* path_args = AppliedTypeArgs(*stripped_base);
       if (LookupEnumDeclByPath(ctx, *path) != nullptr) {
         SPEC_RULE("FieldAccess-Enum");
-        result.diag_id = "FieldAccess-Unknown";
+        result.diag_id = "E-TYP-1904";
         return result;
       }
       if (LookupModalDeclByPath(ctx, *path) != nullptr) {
         SPEC_RULE("Modal-Field-General-Err");
-        result.diag_id = "Modal-Field-General-Err";
+        result.diag_id = "E-TYP-2057";
         return result;
       }
 
       const auto* record = LookupRecordDecl(ctx, *path);
       if (!record) {
         SPEC_RULE("FieldAccess-Unknown");
-        result.diag_id = "FieldAccess-Unknown";
+        result.diag_id = "E-TYP-1904";
         return result;
       }
 
       const auto* field_decl = LookupFieldDecl(*record, expr.name);
       if (!field_decl) {
         SPEC_RULE("FieldAccess-Unknown");
-        result.diag_id = "FieldAccess-Unknown";
+        result.diag_id = "E-TYP-1904";
         return result;
       }
       const auto field_type =
@@ -356,7 +356,7 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
                                                        : std::vector<TypeRef>{});
       if (!field_type.has_value()) {
         SPEC_RULE("FieldAccess-Unknown");
-        result.diag_id = "FieldAccess-Unknown";
+        result.diag_id = "E-TYP-1904";
         return result;
       }
       if (!FieldVisible(ctx, *record, expr.name, *path)) {
@@ -390,12 +390,12 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
                                                modal->state, expr.name);
     if (!field_lookup.has_value()) {
       SPEC_RULE("Modal-Field-Missing");
-      result.diag_id = "Modal-Field-Missing";
+      result.diag_id = "E-TYP-2052";
       return result;
     }
     if (!ModalFieldVisible(ctx, modal->path)) {
       SPEC_RULE("Modal-Field-NotVisible");
-      result.diag_id = "Modal-Field-NotVisible";
+      result.diag_id = "E-TYP-2064";
       return result;
     }
     if (field_lookup->decl) {
@@ -426,7 +426,7 @@ ExprTypeResult TypeFieldAccessExprImpl(const ScopeContext& ctx,
     return result;
   }
 
-  result.diag_id = "FieldAccess-Unknown";
+  result.diag_id = "E-TYP-1904";
   return result;
 }
 

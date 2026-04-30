@@ -247,7 +247,7 @@ EnumDeclResult TypeEnumDecl(
   if (enum_discriminants.discs.size() != decl.variants.size()) {
     SPEC_RULE("Enum-Disc-Invalid");
     result.ok = false;
-    result.diag_id = "Enum-Disc-Invalid";
+    result.diag_id = "E-TYP-1921";
     return result;
   }
 
@@ -390,7 +390,7 @@ EnumDeclResult TypeEnumDecl(
       if (!entry.method->body_opt) {
         SPEC_RULE("Impl-Missing-Method");
         result.ok = false;
-        result.diag_id = "Impl-Missing-Method";
+        result.diag_id = "E-TYP-2503";
         return result;
       }
     }
@@ -465,7 +465,7 @@ EnumDeclResult TypeEnumDeclSignature(
   if (enum_discriminants.discs.size() != decl.variants.size()) {
     SPEC_RULE("Enum-Disc-Invalid");
     result.ok = false;
-    result.diag_id = "Enum-Disc-Invalid";
+    result.diag_id = "E-TYP-1921";
     return result;
   }
 

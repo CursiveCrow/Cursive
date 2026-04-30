@@ -334,7 +334,7 @@ namespace
     if (!IsPlaceExpr(node.place))
     {
       SPEC_RULE("Assign-NotPlace");
-      return {false, "Assign-NotPlace", {}, {}};
+      return {false, "E-SEM-3131", {}, {}};
     }
 
     // Type the place expression
@@ -350,7 +350,7 @@ namespace
       if (perm->perm == Permission::Const)
       {
         SPEC_RULE("Assign-Const-Err");
-        return {false, "Assign-Const-Err", {}, {}};
+        return {false, "E-SEM-3132", {}, {}};
       }
     }
 
@@ -405,7 +405,7 @@ namespace
           *root_mut.mut == ast::Mutability::Let)
       {
         SPEC_RULE("Assign-Immutable-Err");
-        return {false, "Assign-Immutable-Err", {}, {}};
+        return {false, "E-MOD-2401", {}, {}};
       }
     }
 
@@ -413,7 +413,7 @@ namespace
     if (!IsNumericType(assign_target_type))
     {
       SPEC_RULE("Assign-Type-Err");
-      return {false, "Assign-Type-Err", {}, {}};
+      return {false, "E-SEM-3133", {}, {}};
     }
 
     // Type the RHS expression
@@ -433,7 +433,7 @@ namespace
     if (!sub.subtype)
     {
       SPEC_RULE("Assign-Type-Err");
-      return {false, "Assign-Type-Err", {}, {}};
+      return {false, "E-SEM-3133", {}, {}};
     }
 
     if (shared_write_with_key && type_ctx.diags)

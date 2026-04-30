@@ -189,6 +189,9 @@ static bool IsValueItem(const Sigma& sigma,
                       }
                     } else if constexpr (std::is_same_v<P,
                                                         ast::TypedPattern>) {
+                      if (pat.name == "_") {
+                        return;
+                      }
                       if (pat.name == item_name) {
                         found = true;
                       }
@@ -346,6 +349,9 @@ static std::vector<UsingItemResult> ResolveGlobImport(
                 if constexpr (std::is_same_v<P, ast::IdentifierPattern>) {
                   name = pat.name;
                 } else if constexpr (std::is_same_v<P, ast::TypedPattern>) {
+                  if (pat.name == "_") {
+                    return;
+                  }
                   name = pat.name;
                 }
               }, node.binding.pat->node);
@@ -598,6 +604,9 @@ bool IsItemVisible(const ScopeContext& ctx,
                     using P = std::decay_t<decltype(pat)>;
                     if constexpr (std::is_same_v<P, ast::IdentifierPattern> ||
                                   std::is_same_v<P, ast::TypedPattern>) {
+                      if (pat.name == "_") {
+                        return;
+                      }
                       if (pat.name == item_name) {
                         found = true;
                         vis = node.vis;

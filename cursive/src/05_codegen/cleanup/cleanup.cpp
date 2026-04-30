@@ -1229,6 +1229,28 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
     }
 
     if (const auto* enum_decl = std::get_if<ast::EnumDecl>(&it->second)) {
+      analysis::TypeSubst enum_subst;
+      if (enum_decl->generic_params && !enum_decl->generic_params->params.empty()) {
+        if (type_path.generic_args.size() > enum_decl->generic_params->params.size()) {
+          return EmptyIR();
+        }
+        enum_subst = analysis::BuildSubstitution(
+            enum_decl->generic_params->params,
+            type_path.generic_args);
+      }
+      auto lower_payload_drop_type =
+          [&](const std::shared_ptr<ast::Type>& payload_type)
+              -> std::optional<analysis::TypeRef> {
+        const auto lowered = LowerTypeForDrop(payload_type, ctx);
+        if (!lowered.has_value()) {
+          return std::nullopt;
+        }
+        if (enum_subst.empty()) {
+          return *lowered;
+        }
+        return analysis::InstantiateType(*lowered, enum_subst);
+      };
+
       std::vector<IRIfCaseClause> arms;
       arms.reserve(enum_decl->variants.size());
       for (const auto& variant : enum_decl->variants) {
@@ -1242,7 +1264,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
                   std::get_if<ast::VariantPayloadTuple>(&*variant.payload_opt)) {
             for (std::size_t i = tuple_payload->elements.size(); i > 0; --i) {
               const auto lowered =
-                  LowerTypeForDrop(tuple_payload->elements[i - 1], ctx);
+                  lower_payload_drop_type(tuple_payload->elements[i - 1]);
               if (!lowered.has_value()) {
                 continue;
               }
@@ -1267,7 +1289,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
                              &*variant.payload_opt)) {
             for (std::size_t i = record_payload->fields.size(); i > 0; --i) {
               const auto& field = record_payload->fields[i - 1];
-              const auto lowered = LowerTypeForDrop(field.type, ctx);
+              const auto lowered = lower_payload_drop_type(field.type);
               if (!lowered.has_value()) {
                 continue;
               }

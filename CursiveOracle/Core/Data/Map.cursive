@@ -1,0 +1,177 @@
+public record TextIntMap {
+    public count: i32
+    public key0: string@View
+    public value0: i32
+    public key1: string@View
+    public value1: i32
+    public key2: string@View
+    public value2: i32
+    public key3: string@View
+    public value3: i32
+}
+
+public procedure textIntMapEmpty() -> TextIntMap {
+    return TextIntMap {
+        count: 0,
+        key0: "",
+        value0: 0,
+        key1: "",
+        value1: 0,
+        key2: "",
+        value2: 0,
+        key3: "",
+        value3: 0
+    }
+}
+
+public procedure textIntMapCount(map: TextIntMap) -> i32 {
+    return map.count
+}
+
+public procedure textIntMapGet(map: TextIntMap, key: string@View) -> LookupValue<i32> {
+    if ((map.count > 0) && (map.key0 == key)) {
+        return LookupValue::Present(map.value0)
+    }
+    if ((map.count > 1) && (map.key1 == key)) {
+        return LookupValue::Present(map.value1)
+    }
+    if ((map.count > 2) && (map.key2 == key)) {
+        return LookupValue::Present(map.value2)
+    }
+    if ((map.count > 3) && (map.key3 == key)) {
+        return LookupValue::Present(map.value3)
+    }
+    return LookupValue::Absent
+}
+
+public procedure textIntMapContains(map: TextIntMap, key: string@View) -> bool {
+    return lookupValueIsPresent(textIntMapGet(map, key))
+}
+
+public procedure textIntMapPut(
+    map: TextIntMap,
+    key: string@View,
+    value: i32
+) -> OperationOutcome<TextIntMap, string@View> {
+    if ((map.count > 0) && (map.key0 == key)) {
+        return OperationOutcome::Completed(
+            TextIntMap {
+                count: map.count,
+                key0: key,
+                value0: value,
+                key1: map.key1,
+                value1: map.value1,
+                key2: map.key2,
+                value2: map.value2,
+                key3: map.key3,
+                value3: map.value3
+            }
+        )
+    }
+    if ((map.count > 1) && (map.key1 == key)) {
+        return OperationOutcome::Completed(
+            TextIntMap {
+                count: map.count,
+                key0: map.key0,
+                value0: map.value0,
+                key1: key,
+                value1: value,
+                key2: map.key2,
+                value2: map.value2,
+                key3: map.key3,
+                value3: map.value3
+            }
+        )
+    }
+    if ((map.count > 2) && (map.key2 == key)) {
+        return OperationOutcome::Completed(
+            TextIntMap {
+                count: map.count,
+                key0: map.key0,
+                value0: map.value0,
+                key1: map.key1,
+                value1: map.value1,
+                key2: key,
+                value2: value,
+                key3: map.key3,
+                value3: map.value3
+            }
+        )
+    }
+    if ((map.count > 3) && (map.key3 == key)) {
+        return OperationOutcome::Completed(
+            TextIntMap {
+                count: map.count,
+                key0: map.key0,
+                value0: map.value0,
+                key1: map.key1,
+                value1: map.value1,
+                key2: map.key2,
+                value2: map.value2,
+                key3: key,
+                value3: value
+            }
+        )
+    }
+    if (map.count == 0) {
+        return OperationOutcome::Completed(
+            TextIntMap {
+                count: 1,
+                key0: key,
+                value0: value,
+                key1: map.key1,
+                value1: map.value1,
+                key2: map.key2,
+                value2: map.value2,
+                key3: map.key3,
+                value3: map.value3
+            }
+        )
+    }
+    if (map.count == 1) {
+        return OperationOutcome::Completed(
+            TextIntMap {
+                count: 2,
+                key0: map.key0,
+                value0: map.value0,
+                key1: key,
+                value1: value,
+                key2: map.key2,
+                value2: map.value2,
+                key3: map.key3,
+                value3: map.value3
+            }
+        )
+    }
+    if (map.count == 2) {
+        return OperationOutcome::Completed(
+            TextIntMap {
+                count: 3,
+                key0: map.key0,
+                value0: map.value0,
+                key1: map.key1,
+                value1: map.value1,
+                key2: key,
+                value2: value,
+                key3: map.key3,
+                value3: map.value3
+            }
+        )
+    }
+    if (map.count == 3) {
+        return OperationOutcome::Completed(
+            TextIntMap {
+                count: 4,
+                key0: map.key0,
+                value0: map.value0,
+                key1: map.key1,
+                value1: map.value1,
+                key2: map.key2,
+                value2: map.value2,
+                key3: key,
+                value3: value
+            }
+        )
+    }
+    return OperationOutcome::Rejected("TextIntMap capacity exceeded")
+}

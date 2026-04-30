@@ -52,7 +52,7 @@ std::optional<std::filesystem::path> CompilerSupportSubdir(
       dir = *support_root / std::string(PackagedSupportPlatformDir(profile)) /
             std::string(subdir);
       break;
-    case core::CompilerSupportLayoutKind::LegacyBuildTree:
+    case core::CompilerSupportLayoutKind::BuildTree:
       dir = *support_root / std::string(subdir);
       break;
     case core::CompilerSupportLayoutKind::None:
@@ -124,7 +124,7 @@ std::filesystem::path CompilerRuntimeLibPath(const Project& project,
   const auto support_root = CompilerSupportRoot(project);
   if (!support_root.empty()) {
     const auto layout = core::CompilerSupportLayout();
-    if (layout == core::CompilerSupportLayoutKind::LegacyBuildTree) {
+    if (layout == core::CompilerSupportLayoutKind::BuildTree) {
       const std::filesystem::path staged_runtime = support_root / "runtime" / runtime_name;
       if (FileExists(staged_runtime)) {
         return staged_runtime;

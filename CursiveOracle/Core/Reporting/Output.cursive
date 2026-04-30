@@ -1,0 +1,302 @@
+public let REPORT_WRITE_FAILURE_STATUS: i32 = 65
+
+procedure stdoutWrite(fs: $FileSystem, text: string@View) -> bool {
+    return if fs~>write_stdout(text) is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure stderrWrite(fs: $FileSystem, text: string@View) -> bool {
+    return if fs~>write_stderr(text) is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure emitPart(ctx: OutputContext, text: string@View, to_stderr: bool) -> bool {
+    if (to_stderr == true) {
+        return stderrWrite(ctx.fs, text)
+    }
+    return stdoutWrite(ctx.fs, text)
+}
+
+procedure emitField(
+    ctx: OutputContext,
+    name: string@View,
+    value: string@View,
+    to_stderr: bool
+) -> bool {
+    let name_ok: bool = emitPart(ctx, name, to_stderr)
+    let equal_ok: bool = emitPart(ctx, "=", to_stderr)
+    let value_ok: bool = emitPart(ctx, value, to_stderr)
+    return name_ok && equal_ok && value_ok
+}
+
+procedure emitSpaceField(
+    ctx: OutputContext,
+    name: string@View,
+    value: string@View,
+    to_stderr: bool
+) -> bool {
+    let space_ok: bool = emitPart(ctx, " ", to_stderr)
+    let field_ok: bool = emitField(ctx, name, value, to_stderr)
+    return space_ok && field_ok
+}
+
+procedure emitDigit(ctx: OutputContext, digit: i32, to_stderr: bool) -> bool {
+    if (digit == 0) { return emitPart(ctx, "0", to_stderr) }
+    if (digit == 1) { return emitPart(ctx, "1", to_stderr) }
+    if (digit == 2) { return emitPart(ctx, "2", to_stderr) }
+    if (digit == 3) { return emitPart(ctx, "3", to_stderr) }
+    if (digit == 4) { return emitPart(ctx, "4", to_stderr) }
+    if (digit == 5) { return emitPart(ctx, "5", to_stderr) }
+    if (digit == 6) { return emitPart(ctx, "6", to_stderr) }
+    if (digit == 7) { return emitPart(ctx, "7", to_stderr) }
+    if (digit == 8) { return emitPart(ctx, "8", to_stderr) }
+    if (digit == 9) { return emitPart(ctx, "9", to_stderr) }
+    return false
+}
+
+procedure emitUnsignedInteger(ctx: OutputContext, value: i32, to_stderr: bool) -> bool {
+    if (value >= 10) {
+        return emitUnsignedInteger(ctx, value / 10, to_stderr) &&
+            emitDigit(ctx, value % 10, to_stderr)
+    }
+    return emitDigit(ctx, value, to_stderr)
+}
+
+procedure emitInteger(ctx: OutputContext, value: i32, to_stderr: bool) -> bool {
+    if (value < 0) {
+        return emitPart(ctx, "-", to_stderr) &&
+            emitUnsignedInteger(ctx, 0 - value, to_stderr)
+    }
+    return emitUnsignedInteger(ctx, value, to_stderr)
+}
+
+procedure emitIntegerField(
+    ctx: OutputContext,
+    name: string@View,
+    value: i32,
+    to_stderr: bool
+) -> bool {
+    return emitPart(ctx, name, to_stderr) &&
+        emitPart(ctx, "=", to_stderr) &&
+        emitInteger(ctx, value, to_stderr)
+}
+
+procedure emitSpaceIntegerField(
+    ctx: OutputContext,
+    name: string@View,
+    value: i32,
+    to_stderr: bool
+) -> bool {
+    return emitPart(ctx, " ", to_stderr) &&
+        emitIntegerField(ctx, name, value, to_stderr)
+}
+
+procedure emitEscapedAsciiFrom(
+    ctx: OutputContext,
+    value: string@View,
+    index: i32,
+    length: i32,
+    to_stderr: bool
+) -> bool {
+    if (index >= length) {
+        return true
+    }
+    let view: bytes@View = bytes::view_string(value)
+    let slice: const [u8] = bytes::as_slice(view)
+    let byte: u8 = slice[index as usize]
+    let part: string@View = if (byte == 9) || (byte == 10) || (byte == 13) ||
+        (byte == 32) || (byte == 37) || (byte == 44) || (byte == 61) ||
+        (byte == 91) || (byte == 92) || (byte == 93) || (byte == 124) {
+        renderReservedEscape(byte)
+    } else {
+        renderAsciiOutputByte(byte)
+    }
+    let part_ok: bool = if (string::is_empty(part) == true) {
+        false
+    } else {
+        emitPart(ctx, part, to_stderr)
+    }
+    return part_ok && emitEscapedAsciiFrom(ctx, value, index + 1, length, to_stderr)
+}
+
+procedure emitEscapedBytesFrom(
+    ctx: OutputContext,
+    value: bytes@View,
+    index: i32,
+    length: i32,
+    to_stderr: bool
+) -> bool {
+    if (index >= length) {
+        return true
+    }
+    let slice: const [u8] = bytes::as_slice(value)
+    let byte: u8 = slice[index as usize]
+    let part: string@View = if (byte == 9) || (byte == 10) || (byte == 13) ||
+        (byte == 32) || (byte == 37) || (byte == 44) || (byte == 61) ||
+        (byte == 91) || (byte == 92) || (byte == 93) || (byte == 124) {
+        renderReservedEscape(byte)
+    } else if byte > 126 {
+        ""
+    } else {
+        renderAsciiOutputByte(byte)
+    }
+    let part_ok: bool = if (byte > 126) {
+        emitPart(ctx, "%", to_stderr) &&
+            emitPart(ctx, renderHexDigit(byte / 16), to_stderr) &&
+            emitPart(ctx, renderHexDigit(byte % 16), to_stderr)
+    } else if (string::is_empty(part) == true) {
+        emitPart(ctx, "%", to_stderr) &&
+            emitPart(ctx, renderHexDigit(byte / 16), to_stderr) &&
+            emitPart(ctx, renderHexDigit(byte % 16), to_stderr)
+    } else {
+        emitPart(ctx, part, to_stderr)
+    }
+    return part_ok && emitEscapedBytesFrom(ctx, value, index + 1, length, to_stderr)
+}
+
+procedure emitEscapedText(ctx: OutputContext, value: string@View, to_stderr: bool) -> bool {
+    if (string::is_empty(value) == true) {
+        return emitPart(ctx, "%00", to_stderr)
+    }
+    if (value == "-") {
+        return emitPart(ctx, "%2D", to_stderr)
+    }
+    if (textRequiresEscaping(value) == true) {
+        return emitEscapedAsciiFrom(ctx, value, 0, textByteLength(value), to_stderr)
+    }
+    return emitPart(ctx, value, to_stderr)
+}
+
+procedure emitEscapedBytes(ctx: OutputContext, value: bytes@View, to_stderr: bool) -> bool {
+    if (bytes::is_empty(value) == true) {
+        return emitPart(ctx, "%00", to_stderr)
+    }
+    return emitEscapedBytesFrom(ctx, value, 0, bytes::length(value) as i32, to_stderr)
+}
+
+procedure emitValue(ctx: OutputContext, value: ReportTextValue, to_stderr: bool) -> bool {
+    return if value is {
+        ReportTextValue::Omitted {
+            emitPart(ctx, "-", to_stderr)
+        }
+        ReportTextValue::Integer(integer_value) {
+            emitInteger(ctx, integer_value, to_stderr)
+        }
+        ReportTextValue::Bytes(byte_value) {
+            emitEscapedBytes(ctx, byte_value, to_stderr)
+        }
+        ReportTextValue::Text(text) {
+            emitEscapedText(ctx, text, to_stderr)
+        }
+        ReportTextValue::ListEmpty {
+            emitPart(ctx, "[]", to_stderr)
+        }
+        ReportTextValue::ListOne(first) {
+            emitPart(ctx, "[", to_stderr) &&
+                emitEscapedText(ctx, first, to_stderr) &&
+                emitPart(ctx, "]", to_stderr)
+        }
+        ReportTextValue::ListTwo(first, second) {
+            emitPart(ctx, "[", to_stderr) &&
+                emitEscapedText(ctx, first, to_stderr) &&
+                emitPart(ctx, ",", to_stderr) &&
+                emitEscapedText(ctx, second, to_stderr) &&
+                emitPart(ctx, "]", to_stderr)
+        }
+    }
+}
+
+procedure emitValueField(
+    ctx: OutputContext,
+    name: string@View,
+    value: ReportTextValue,
+    to_stderr: bool
+) -> bool {
+    return emitPart(ctx, name, to_stderr) &&
+        emitPart(ctx, "=", to_stderr) &&
+        emitValue(ctx, value, to_stderr)
+}
+
+procedure emitSpaceValueField(
+    ctx: OutputContext,
+    name: string@View,
+    value: ReportTextValue,
+    to_stderr: bool
+) -> bool {
+    return emitPart(ctx, " ", to_stderr) &&
+        emitValueField(ctx, name, value, to_stderr)
+}
+
+procedure recordWriteResult(ctx: OutputContext, ok: bool) -> OutputContext {
+    if (ok == true) {
+        return ctx
+    }
+    return OutputContext {
+        fs: ctx.fs,
+        run_scope: ctx.run_scope,
+        next_event_index: ctx.next_event_index,
+        report_write_failure_count: ctx.report_write_failure_count + 1
+    }
+}
+
+procedure advanceEventIndex(ctx: OutputContext) -> OutputContext {
+    return OutputContext {
+        fs: ctx.fs,
+        run_scope: ctx.run_scope,
+        next_event_index: ctx.next_event_index + 1,
+        report_write_failure_count: ctx.report_write_failure_count
+    }
+}
+
+procedure eventWritesStderr(event: OutputEvent) -> bool {
+    return if event.severity is {
+        ReportSeverity::Info { false }
+        ReportSeverity::Warning { true }
+        ReportSeverity::Error { true }
+        ReportSeverity::Fatal { true }
+    }
+}
+
+public procedure emitEvent(ctx: OutputContext, event: OutputEvent) -> OutputContext {
+    let to_stderr: bool = eventWritesStderr(event)
+    let write_ok: bool =
+        emitField(ctx, "protocol", "cursive-oracle-event-v1", to_stderr) &&
+        emitSpaceField(ctx, "run_scope", ctx.run_scope, to_stderr) &&
+        emitSpaceIntegerField(ctx, "event_index", ctx.next_event_index, to_stderr) &&
+        emitSpaceField(ctx, "event_kind", renderEventKind(event.event_kind), to_stderr) &&
+        emitSpaceField(ctx, "severity", renderSeverity(event.severity), to_stderr) &&
+        emitSpaceField(ctx, "phase", renderPhase(event.phase), to_stderr) &&
+        emitSpaceField(ctx, "subject_kind", renderSubjectKind(event.subject_kind), to_stderr) &&
+        emitSpaceValueField(ctx, "subject_id", event.subject_id, to_stderr) &&
+        emitSpaceValueField(ctx, "owner", event.owner, to_stderr) &&
+        emitSpaceField(ctx, "status", renderStatus(event.status), to_stderr) &&
+        emitSpaceField(ctx, "failure_kind", renderFailureKind(event.failure_kind), to_stderr) &&
+        emitSpaceField(ctx, "evidence_kind", renderEvidenceKind(event.evidence_kind), to_stderr) &&
+        emitSpaceValueField(ctx, "expected", event.expected, to_stderr) &&
+        emitSpaceValueField(ctx, "observed", event.observed, to_stderr) &&
+        emitSpaceValueField(ctx, "evidence_path", event.evidence_path, to_stderr) &&
+        emitSpaceValueField(ctx, "source_start", event.source_start, to_stderr) &&
+        emitSpaceValueField(ctx, "source_end", event.source_end, to_stderr) &&
+        emitSpaceValueField(ctx, "source_line", event.source_line, to_stderr) &&
+        emitSpaceValueField(ctx, "source_column", event.source_column, to_stderr) &&
+        emitSpaceValueField(ctx, "content_identity", event.content_identity, to_stderr) &&
+        emitSpaceField(ctx, "metric_kind", renderMetricKind(event.metric_kind), to_stderr) &&
+        emitSpaceValueField(ctx, "metric_value", event.metric_value, to_stderr) &&
+        emitSpaceValueField(ctx, "message", event.message, to_stderr) &&
+        emitPart(ctx, "\n", to_stderr)
+    return recordWriteResult(advanceEventIndex(ctx), write_ok)
+}
+
+public procedure finalStatus(ctx: OutputContext, status: i32) -> i32 {
+    if (status != 0) {
+        return status
+    }
+    if (ctx.report_write_failure_count != 0) {
+        return REPORT_WRITE_FAILURE_STATUS
+    }
+    return 0
+}

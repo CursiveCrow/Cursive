@@ -44,6 +44,16 @@ procedure run_issue33_enum_item_separated(ctx: Context) -> i32 {
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_enum_item_separated")
 }
 
+procedure run_generic_enum_variant_construction(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\generic_enum_variant_construction\\Main.cursive > build\\main\\logs\\compile_checks\\generic_enum_variant_construction.json 2> build\\main\\logs\\compile_checks\\generic_enum_variant_construction.stderr & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "generic_enum_variant_construction")
+}
+
+procedure run_generic_enum_layout_codegen(ctx: Context) -> i32 {
+    let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --diag-json ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\generic_enum_layout_codegen\\Main.cursive > build\\main\\logs\\compile_checks\\generic_enum_layout_codegen.json 2> build\\main\\logs\\compile_checks\\generic_enum_layout_codegen.stderr & if errorlevel 1 exit /b 1 & ..\\TestProjects\\Types\\CoreSystem\\Generated\\generic_enum_layout_codegen\\build\\probe\\bin\\probe.exe & if errorlevel 1 exit /b 1"
+    return testsupport::runCompileCheckCommand(ctx, command, "generic_enum_layout_codegen")
+}
+
 procedure run_issue33_enum_missing_class_method_impl(ctx: Context) -> i32 {
     let command: string@View = "cmd.exe /C %CURSIVE_COMPILER_UNDER_TEST% --incremental off --check --diag-json ..\\TestProjects\\Types\\\\CoreSystem\\Generated\\issue33_enum_missing_class_method_impl\\Main.cursive > build\\main\\logs\\compile_checks\\issue33_enum_missing_class_method_impl.json 2> build\\main\\logs\\compile_checks\\issue33_enum_missing_class_method_impl.stderr & if errorlevel 2 exit /b 1 & if not errorlevel 1 exit /b 1 & findstr /C:\"\\\"E-TYP-2503\\\"\" build\\main\\logs\\compile_checks\\issue33_enum_missing_class_method_impl.json >nul"
     return testsupport::runCompileCheckCommand(ctx, command, "issue33_enum_missing_class_method_impl")
@@ -278,6 +288,16 @@ public procedure runGeneratedCompileChecks(ctx: Context) -> i32 {
     let status_run_issue33_enum_item_separated: i32 = run_issue33_enum_item_separated(ctx)
     if (status_run_issue33_enum_item_separated != 0) {
         return status_run_issue33_enum_item_separated
+    }
+
+    let status_generic_enum_variant_construction: i32 = run_generic_enum_variant_construction(ctx)
+    if (status_generic_enum_variant_construction != 0) {
+        return status_generic_enum_variant_construction
+    }
+
+    let status_generic_enum_layout_codegen: i32 = run_generic_enum_layout_codegen(ctx)
+    if (status_generic_enum_layout_codegen != 0) {
+        return status_generic_enum_layout_codegen
     }
 
     let status_run_issue33_enum_missing_class_method_impl: i32 = run_issue33_enum_missing_class_method_impl(ctx)

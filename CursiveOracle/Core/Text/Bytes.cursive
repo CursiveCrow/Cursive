@@ -1,0 +1,96 @@
+import core::Data
+
+public procedure byteViewFromString(text: string@View) -> bytes@View {
+    return bytes::view_string(text)
+}
+
+public procedure byteViewFromSlice(data: [u8]) -> bytes@View {
+    return bytes::view(data)
+}
+
+public procedure byteLength(view: bytes@View) -> i32 {
+    return bytes::length(view) as i32
+}
+
+public procedure byteIsEmpty(view: bytes@View) -> bool {
+    return bytes::is_empty(view)
+}
+
+public procedure byteAt(view: bytes@View, index: i32) -> Data::LookupValue<u8> {
+    if ((index < 0) || (index >= byteLength(view))) {
+        return Data::LookupValue::Absent
+    }
+
+    let view_slice: const [u8] = bytes::as_slice(view)
+    return Data::LookupValue::Present(view_slice[index as usize])
+}
+
+public procedure byteEquals(left: bytes@View, right: bytes@View) -> bool {
+    let left_length: i32 = byteLength(left)
+    if (left_length != byteLength(right)) {
+        return false
+    }
+    let left_slice: const [u8] = bytes::as_slice(left)
+    let right_slice: const [u8] = bytes::as_slice(right)
+    var index: i32 = 0
+    loop {
+        if (index >= left_length) {
+            break
+        }
+        if (left_slice[index as usize] != right_slice[index as usize]) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+public procedure byteContains(view: bytes@View, value: u8) -> bool {
+    let length: i32 = byteLength(view)
+    let view_slice: const [u8] = bytes::as_slice(view)
+    var index: i32 = 0
+    loop {
+        if (index >= length) {
+            break
+        }
+        if (view_slice[index as usize] == value) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+public procedure bytePairContains(view: bytes@View, first: u8, second: u8) -> bool {
+    let length: i32 = byteLength(view)
+    let view_slice: const [u8] = bytes::as_slice(view)
+    var index: i32 = 0
+    loop {
+        if ((index + 1) >= length) {
+            break
+        }
+        if ((view_slice[index as usize] == first) &&
+            (view_slice[(index + 1) as usize] == second)) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+public procedure byteSlice(
+    view: bytes@View,
+    start: i32,
+    count: i32
+) -> Data::OperationOutcome<bytes@View, string@View> {
+    let length: i32 = byteLength(view)
+    if ((start < 0) || (count < 0) || ((start + count) > length)) {
+        return Data::OperationOutcome::Rejected("byte slice out of range")
+    }
+
+    let view_slice: const [u8] = bytes::as_slice(view)
+    let start_index: usize = start as usize
+    let end_index: usize = (start + count) as usize
+    let window: const [u8] = view_slice[start_index..end_index]
+    return Data::OperationOutcome::Completed(bytes::view(window))
+}

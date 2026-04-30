@@ -1,0 +1,157 @@
+import core::Reporting
+import reference::Contract
+import spec::Obligations
+
+procedure emitReferenceMetric(
+    ctx: Reporting::OutputContext,
+    subject_id: string@View,
+    metric_kind: Reporting::ReportMetricKind,
+    value: i32,
+    status: Reporting::ReportStatus,
+    message: string@View
+) -> Reporting::OutputContext {
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::metricIntegerEvent(
+            Reporting::ReportPhase::ReferenceModeling,
+            Reporting::ReportSubjectKind::ReferenceRule,
+            subject_id,
+            "Reference",
+            status,
+            metric_kind,
+            value,
+            message
+        )
+    )
+}
+
+procedure emitReferenceResult(
+    ctx: Reporting::OutputContext,
+    input: Contract::ReferenceInput,
+    result: Contract::ReferenceResult
+) -> Reporting::OutputContext {
+    let event: Reporting::OutputEvent = Reporting::eventWithSourceContext(
+        Reporting::eventWithEvidence(
+            Reporting::eventWithExpectedObserved(
+                Reporting::eventBase(
+                    Reporting::ReportEventKind::Progress,
+                    Reporting::ReportSeverity::Info,
+                    Reporting::ReportPhase::ReferenceModeling,
+                    Reporting::ReportSubjectKind::ReferenceRule,
+                    result.rule_id,
+                    "Reference",
+                    Contract::coverageStatus(result.coverage_state),
+                    "reference_rule_classified"
+                ),
+                Contract::renderReferenceCommandMode(input.command_mode),
+                input.target_profile
+            ),
+            Reporting::ReportEvidenceKind::ObligationId,
+            result.obligation_id
+        ),
+        input.obligation.source.source_start,
+        input.obligation.source.source_end,
+        input.obligation.source.source_line,
+        input.obligation.source.source_column,
+        input.obligation.source.content_identity
+    )
+    return Reporting::emitEvent(ctx, event)
+}
+
+procedure emitOracleLanguageBlocker(
+    ctx: Reporting::OutputContext,
+    input: Contract::ReferenceInput
+) -> Reporting::OutputContext {
+    let event: Reporting::OutputEvent = Reporting::eventWithSourceContext(
+        Reporting::eventWithEvidence(
+            Reporting::eventWithExpectedObserved(
+                Reporting::eventBase(
+                    Reporting::ReportEventKind::Progress,
+                    Reporting::ReportSeverity::Info,
+                    Reporting::ReportPhase::ReferenceModeling,
+                    Reporting::ReportSubjectKind::ReferenceRule,
+                    "reference.rule.generated.project.execution",
+                    "Reference",
+                    Reporting::ReportStatus::BlockedByOracleLanguageSupport,
+                    "reference_rule_blocked_by_oracle_language_support"
+                ),
+                input.obligation.obligation_id,
+                "runner_not_wired_for_execution"
+            ),
+            Reporting::ReportEvidenceKind::ObligationId,
+            input.obligation.obligation_id
+        ),
+        input.obligation.source.source_start,
+        input.obligation.source.source_end,
+        input.obligation.source.source_line,
+        input.obligation.source.source_column,
+        input.obligation.source.content_identity
+    )
+    return Reporting::emitEvent(ctx, event)
+}
+
+public procedure runReferenceModeling(
+    ctx: Reporting::OutputContext,
+    obligations: Obligations::ObligationSummary
+) -> Contract::ReferenceModelSummary {
+    var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
+        ctx,
+        Reporting::ReportPhase::ReferenceModeling,
+        "reference_modeling",
+        "Reference"
+    )
+    let input: Contract::ReferenceInput = Contract::referenceInput(
+        obligations.primary_obligation,
+        Contract::ReferenceCommandMode::CheckOnly,
+        "x86_64-win64"
+    )
+    let result: Contract::ReferenceResult = Contract::referenceResult(
+        obligations.primary_obligation.obligation_id,
+        "reference.rule.reject_illformed",
+        Contract::ReferenceCoverageState::Modeled,
+        Reporting::ReportStatus::Failed,
+        "-"
+    )
+    output = emitReferenceResult(output, input, result)
+    output = emitOracleLanguageBlocker(output, input)
+    output = emitReferenceMetric(
+        output,
+        "status.modeled",
+        Reporting::ReportMetricKind::ModeledObligationCount,
+        1,
+        Reporting::ReportStatus::Modeled,
+        "reference_model_count_by_status"
+    )
+    output = emitReferenceMetric(
+        output,
+        "status.unsupported_by_reference",
+        Reporting::ReportMetricKind::UnsupportedCount,
+        0,
+        Reporting::ReportStatus::UnsupportedByReference,
+        "reference_model_count_by_status"
+    )
+    output = emitReferenceMetric(
+        output,
+        "status.outside_conformance",
+        Reporting::ReportMetricKind::OutsideConformanceCount,
+        0,
+        Reporting::ReportStatus::OutsideConformance,
+        "reference_model_count_by_status"
+    )
+    output = emitReferenceMetric(
+        output,
+        "status.blocked_by_oracle_language_support",
+        Reporting::ReportMetricKind::BlockedCount,
+        1,
+        Reporting::ReportStatus::BlockedByOracleLanguageSupport,
+        "reference_model_count_by_status"
+    )
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::ReferenceModeling,
+        "reference_modeling",
+        "Reference",
+        Reporting::ReportStatus::Modeled
+    )
+    return Contract::referenceModelSummary(output, 0, 1, 0, 0, 1, result)
+}

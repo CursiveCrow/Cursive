@@ -224,8 +224,8 @@ static IntroResult IntroBinding(const TypeEnv& env,
     return {false, std::nullopt, env};
   }
   if (InOuter(env, key)) {
-    SPEC_RULE("Intro-Shadow-Required");
-    return {false, "Intro-Shadow-Required", env};
+    SPEC_RULE("Intro-Outer-Err");
+    return {false, "Intro-Outer-Err", env};
   }
 
   TypeEnv out = env;
@@ -387,6 +387,9 @@ void CollectPatNames(const ast::Pattern& pat, std::vector<IdKey>& out) {
         if constexpr (std::is_same_v<T, ast::IdentifierPattern>) {
           out.push_back(IdKeyOf(node.name));
         } else if constexpr (std::is_same_v<T, ast::TypedPattern>) {
+          if (node.name == "_") {
+            return;
+          }
           out.push_back(IdKeyOf(node.name));
         } else if constexpr (std::is_same_v<T, ast::TuplePattern>) {
           for (const auto& elem : node.elements) {
@@ -2725,6 +2728,9 @@ PatternTypeResult TypePattern(const ScopeContext& ctx,
             }
           }
           SPEC_RULE("Pat-Typed");
+          if (node.name == "_") {
+            return {true, std::nullopt, {}};
+          }
           return {true, std::nullopt, {{std::string(node.name), lowered.type}}};
         }
 

@@ -1,0 +1,145 @@
+import core::Reporting
+import runner::Contract
+
+procedure ensureRunnerDirectories(fs: $FileSystem) -> bool {
+    return if fs~>ensure_dir("CursiveOracle/build") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("CursiveOracle/build/main") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("CursiveOracle/build/main/runner") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("CursiveOracle/build/main/runner/case_obligation_0001") is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure writeTextFile(fs: $FileSystem, path: string@View, text: string@View) -> bool {
+    return if fs~>write_file(path, bytes::view_string(text)) is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure emitRunnerEvidence(
+    ctx: Reporting::OutputContext,
+    phase: Reporting::ReportPhase,
+    evidence_kind: Reporting::ReportEvidenceKind,
+    evidence_path: string@View,
+    result: Contract::ImplementationResult,
+    message: string@View
+) -> Reporting::OutputContext {
+    let event: Reporting::OutputEvent = Reporting::eventWithExpectedObserved(
+        Reporting::evidenceEvent(
+            phase,
+            Reporting::ReportSubjectKind::ImplementationResult,
+            result.case_id,
+            "Runner",
+            Contract::runnerStatus(result),
+            evidence_kind,
+            evidence_path,
+            message
+        ),
+        result.obligation_id,
+        Contract::renderRunnerCommandMode(result.command_mode)
+    )
+    return Reporting::emitEvent(ctx, event)
+}
+
+procedure emitCompilerEvidence(
+    ctx: Reporting::OutputContext,
+    result: Contract::ImplementationResult
+) -> Reporting::OutputContext {
+    var output: Reporting::OutputContext = emitRunnerEvidence(
+        ctx,
+        Reporting::ReportPhase::CompilerRun,
+        Reporting::ReportEvidenceKind::CommandText,
+        "CursiveOracle/build/main/runner/case_obligation_0001/compiler.command",
+        result,
+        "compiler_command"
+    )
+    output = emitRunnerEvidence(
+        output,
+        Reporting::ReportPhase::CompilerRun,
+        Reporting::ReportEvidenceKind::CompilerStatus,
+        Reporting::renderSmallInteger(result.exit_status),
+        result,
+        "compiler_exit_status"
+    )
+    output = emitRunnerEvidence(
+        output,
+        Reporting::ReportPhase::CompilerRun,
+        Reporting::ReportEvidenceKind::StdoutPath,
+        result.stdout_path,
+        result,
+        "compiler_stdout_path"
+    )
+    output = emitRunnerEvidence(
+        output,
+        Reporting::ReportPhase::CompilerRun,
+        Reporting::ReportEvidenceKind::StderrPath,
+        result.stderr_path,
+        result,
+        "compiler_stderr_path"
+    )
+    output = emitRunnerEvidence(
+        output,
+        Reporting::ReportPhase::CompilerRun,
+        Reporting::ReportEvidenceKind::DiagnosticJsonPath,
+        result.diagnostic_path,
+        result,
+        "compiler_diagnostic_path"
+    )
+    return emitRunnerEvidence(
+        output,
+        Reporting::ReportPhase::CompilerRun,
+        Reporting::ReportEvidenceKind::EmittedArtifactPath,
+        result.artifact_path,
+        result,
+        "compiler_artifact_root"
+    )
+}
+
+public procedure runCompilerCheck(
+    ctx: Reporting::OutputContext,
+    sys: System
+) -> Contract::CompilerRunResult {
+    var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
+        ctx,
+        Reporting::ReportPhase::CompilerRun,
+        "compiler_run",
+        "Runner"
+    )
+    let _dirs_ok: bool = ensureRunnerDirectories(output.fs)
+    let compiler: Contract::CompilerUnderTest = Contract::repositoryDefaultCompiler()
+    let command: string@View = compiler.check_command
+    let _command_written: bool = writeTextFile(
+        output.fs,
+        "CursiveOracle/build/main/runner/case_obligation_0001/compiler.command",
+        command
+    )
+    let status: i32 = sys~>run(command)
+    let result: Contract::ImplementationResult = Contract::implementationResult(
+        "case_obligation_0001",
+        "obligation.formal_rule.1",
+        Contract::RunnerCommandMode::CheckOnly,
+        command,
+        status,
+        "CursiveOracle/build/main/runner/case_obligation_0001/compiler.stdout",
+        "CursiveOracle/build/main/runner/case_obligation_0001/compiler.stderr",
+        "CursiveOracle/build/main/runner/case_obligation_0001/compiler.stdout",
+        "CursiveOracle/build/main/generated-cases/case_obligation_0001"
+    )
+    output = emitCompilerEvidence(output, result)
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::CompilerRun,
+        "compiler_run",
+        "Runner",
+        Contract::runnerStatus(result)
+    )
+    return Contract::compilerRunResult(output, result)
+}

@@ -909,23 +909,23 @@ using namespace emit_detail;
                                     analysis::TypePath *out_path) -> const ast::EnumDecl *
       {
         type = strip_perm(type);
-        const auto *path = type ? std::get_if<analysis::TypePathType>(&type->node) : nullptr;
+        const auto *path = type ? analysis::AppliedTypePath(*type) : nullptr;
         if (!path)
         {
           return nullptr;
         }
         if (out_path)
         {
-          *out_path = path->path;
+          *out_path = *path;
         }
-        if (const ast::EnumDecl* decl = analysis::LookupEnumDecl(scope, path->path))
+        if (const ast::EnumDecl* decl = analysis::LookupEnumDecl(scope, *path))
         {
           return decl;
         }
-        if (!scope.current_module.empty() && path->path.size() == 1u)
+        if (!scope.current_module.empty() && path->size() == 1u)
         {
           analysis::TypePath qualified = scope.current_module;
-          qualified.insert(qualified.end(), path->path.begin(), path->path.end());
+          qualified.insert(qualified.end(), path->begin(), path->end());
           if (out_path)
           {
             *out_path = qualified;
@@ -938,6 +938,26 @@ using namespace emit_detail;
                                      analysis::TypePath *out_path) -> const ast::EnumDecl *
       {
         return enum_decl_for_type(lookup_value_type(value), out_path);
+      };
+      auto enum_generic_args_for_type = [&](analysis::TypeRef type)
+          -> std::vector<analysis::TypeRef>
+      {
+        type = strip_perm(type);
+        if (!type)
+        {
+          return {};
+        }
+        const auto *args = analysis::AppliedTypeArgs(*type);
+        if (!args)
+        {
+          return {};
+        }
+        return *args;
+      };
+      auto enum_generic_args_for_value = [&](const IRValue &value)
+          -> std::vector<analysis::TypeRef>
+      {
+        return enum_generic_args_for_type(lookup_value_type(value));
       };
       auto enum_decl_for_static_path = [&](const std::vector<std::string> &path,
                                            analysis::TypePath *out_path)
@@ -1002,6 +1022,11 @@ using namespace emit_detail;
         }
         return nullptr;
       };
+      auto enum_generic_args_for_payload_value = [&](const DerivedValueInfo &info)
+          -> std::vector<analysis::TypeRef>
+      {
+        return enum_generic_args_for_value(info.base);
+      };
       auto find_enum_variant = [](const ast::EnumDecl &decl,
                                   std::string_view variant_name) -> const ast::VariantDecl *
       {
@@ -1041,99 +1066,49 @@ using namespace emit_detail;
       };
       auto enum_payload_member_by_index = [&](const ast::EnumDecl &enum_decl,
                                               const ast::VariantDecl &variant,
+                                              const std::vector<analysis::TypeRef> &generic_args,
                                               std::size_t index) -> EnumPayloadMemberInfo
       {
         EnumPayloadMemberInfo out;
-        const auto enum_layout =
-            ::cursive::analysis::layout::EnumLayoutOf(scope, enum_decl, ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl.attrs));
-        if (!enum_layout.has_value())
+        const auto member = ::cursive::analysis::layout::EnumTuplePayloadMemberLayout(
+            scope,
+            enum_decl,
+            variant,
+            generic_args,
+            index);
+        if (!member.has_value())
         {
           return out;
         }
-        if (!variant.payload_opt.has_value())
-        {
-          return out;
-        }
-        const auto *tuple = std::get_if<ast::VariantPayloadTuple>(&*variant.payload_opt);
-        if (!tuple || index >= tuple->elements.size())
-        {
-          return out;
-        }
-        std::vector<analysis::TypeRef> field_types;
-        field_types.reserve(tuple->elements.size());
-        for (const auto &elem : tuple->elements)
-        {
-          const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, elem);
-          if (!lowered.has_value())
-          {
-            return out;
-          }
-          field_types.push_back(*lowered);
-        }
-        const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
-        if (!layout.has_value() || index >= layout->offsets.size())
-        {
-          return out;
-        }
-        out.type = field_types[index];
-        out.offset = layout->offsets[index];
-        out.payload_size = enum_layout->payload_size;
-        out.payload_align = enum_layout->payload_align;
+        out.type = member->type;
+        out.offset = member->offset;
+        out.payload_size = member->payload_size;
+        out.payload_align = member->payload_align;
         out.ok = true;
         return out;
       };
       auto enum_payload_member_by_field = [&](const ast::EnumDecl &enum_decl,
                                               const ast::VariantDecl &variant,
+                                              const std::vector<analysis::TypeRef> &generic_args,
                                               std::string_view field_name)
           -> EnumPayloadMemberInfo
       {
         EnumPayloadMemberInfo out;
-        const auto enum_layout =
-            ::cursive::analysis::layout::EnumLayoutOf(scope, enum_decl, ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl.attrs));
-        if (!enum_layout.has_value())
+        const auto member = ::cursive::analysis::layout::EnumRecordPayloadMemberLayout(
+            scope,
+            enum_decl,
+            variant,
+            generic_args,
+            field_name);
+        if (!member.has_value())
         {
           return out;
         }
-        if (!variant.payload_opt.has_value())
-        {
-          return out;
-        }
-        const auto *record = std::get_if<ast::VariantPayloadRecord>(&*variant.payload_opt);
-        if (!record)
-        {
-          return out;
-        }
-        std::vector<analysis::TypeRef> field_types;
-        std::vector<std::string> field_names;
-        field_types.reserve(record->fields.size());
-        field_names.reserve(record->fields.size());
-        for (const auto &field : record->fields)
-        {
-          const auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, field.type);
-          if (!lowered.has_value())
-          {
-            return out;
-          }
-          field_types.push_back(*lowered);
-          field_names.push_back(field.name);
-        }
-        const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
-        if (!layout.has_value())
-        {
-          return out;
-        }
-        for (std::size_t i = 0; i < field_names.size() && i < layout->offsets.size(); ++i)
-        {
-          if (analysis::IdEq(field_names[i], std::string(field_name)))
-          {
-            out.type = field_types[i];
-            out.offset = layout->offsets[i];
-            out.payload_size = enum_layout->payload_size;
-            out.payload_align = enum_layout->payload_align;
-            out.ok = true;
-            break;
-          }
-        }
+        out.type = member->type;
+        out.offset = member->offset;
+        out.payload_size = member->payload_size;
+        out.payload_align = member->payload_align;
+        out.ok = true;
         return out;
       };
       auto load_enum_payload_member = [&](llvm::Value *enum_value,
@@ -2605,12 +2580,18 @@ using namespace emit_detail;
         analysis::TypePath enum_path;
         const ast::EnumDecl *enum_decl =
             enum_decl_for_payload_value(*derived, &enum_path);
+        const std::vector<analysis::TypeRef> enum_generic_args =
+            enum_generic_args_for_payload_value(*derived);
         EnumPayloadMemberInfo member;
         if (enum_decl)
         {
           if (const ast::VariantDecl *variant = find_enum_variant(*enum_decl, derived->variant))
           {
-            member = enum_payload_member_by_index(*enum_decl, *variant, derived->tuple_index);
+            member = enum_payload_member_by_index(
+                *enum_decl,
+                *variant,
+                enum_generic_args,
+                derived->tuple_index);
           }
         }
         if (!member.ok)
@@ -2623,6 +2604,7 @@ using namespace emit_detail;
             if (const auto enum_layout = ::cursive::analysis::layout::EnumLayoutOf(
                     scope,
                     *enum_decl,
+                    enum_generic_args,
                     ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs)))
             {
               member.payload_size = enum_layout->payload_size;
@@ -2649,12 +2631,18 @@ using namespace emit_detail;
         analysis::TypePath enum_path;
         const ast::EnumDecl *enum_decl =
             enum_decl_for_payload_value(*derived, &enum_path);
+        const std::vector<analysis::TypeRef> enum_generic_args =
+            enum_generic_args_for_payload_value(*derived);
         EnumPayloadMemberInfo member;
         if (enum_decl)
         {
           if (const ast::VariantDecl *variant = find_enum_variant(*enum_decl, derived->variant))
           {
-            member = enum_payload_member_by_field(*enum_decl, *variant, derived->field);
+            member = enum_payload_member_by_field(
+                *enum_decl,
+                *variant,
+                enum_generic_args,
+                derived->field);
           }
         }
         if (!member.ok)
@@ -2667,6 +2655,7 @@ using namespace emit_detail;
             if (const auto enum_layout = ::cursive::analysis::layout::EnumLayoutOf(
                     scope,
                     *enum_decl,
+                    enum_generic_args,
                     ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs)))
             {
               member.payload_size = enum_layout->payload_size;
@@ -2755,6 +2744,8 @@ using namespace emit_detail;
         analysis::TypePath enum_path;
         analysis::TypeRef enum_type = lookup_value_type(val);
         const ast::EnumDecl *enum_decl = enum_decl_for_type(enum_type, &enum_path);
+        const std::vector<analysis::TypeRef> enum_generic_args =
+            enum_generic_args_for_type(enum_type);
         if (!enum_decl && !derived->static_path.empty())
         {
           enum_decl = enum_decl_for_static_path(derived->static_path, &enum_path);
@@ -2768,6 +2759,7 @@ using namespace emit_detail;
         const auto enum_layout = ::cursive::analysis::layout::EnumLayoutOf(
             scope,
             *enum_decl,
+            enum_generic_args,
             ::cursive::analysis::layout::ResolveEnumLayoutOptions(enum_decl->attrs));
         if (!variant || !disc.has_value() || !enum_layout.has_value())
         {
@@ -2877,7 +2869,11 @@ using namespace emit_detail;
               std::min(tuple_payload->elements.size(), derived->payload_elems.size());
           for (std::size_t i = 0; i < count; ++i)
           {
-            const auto member = enum_payload_member_by_index(*enum_decl, *variant, i);
+            const auto member = enum_payload_member_by_index(
+                *enum_decl,
+                *variant,
+                enum_generic_args,
+                i);
             store_payload_value(member, EvaluateIRValue(derived->payload_elems[i]));
           }
         }
@@ -2889,7 +2885,11 @@ using namespace emit_detail;
           (void)record_payload;
           for (const auto &[field_name, field_value] : derived->payload_fields)
           {
-            const auto member = enum_payload_member_by_field(*enum_decl, *variant, field_name);
+            const auto member = enum_payload_member_by_field(
+                *enum_decl,
+                *variant,
+                enum_generic_args,
+                field_name);
             store_payload_value(member, EvaluateIRValue(field_value));
           }
         }

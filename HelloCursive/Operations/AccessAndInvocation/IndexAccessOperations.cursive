@@ -120,7 +120,7 @@ procedure VerifyIndexAccessOperationsItem(ctx: Context, scope: string@View, move
     let catch_oob_passed: bool = catch_oob_metric_log == 0
     let catch_passed: bool = catch_in_bounds_passed && catch_oob_passed
     let catch_passed_with_log: bool =
-        catch_passed
+        move catch_passed
     if (item_index == 0) {
         return RunIndexAccessOperationsItem(
             ctx,

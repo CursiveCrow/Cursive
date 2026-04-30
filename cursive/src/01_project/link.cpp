@@ -1439,7 +1439,7 @@ std::filesystem::path RuntimeLibPath(const Project& project,
                                      TargetProfile target_profile) {
   // Spec rule:
   // 1. CLI/manifest override
-  // 2. Compiler-provided runtime (packaged root runtime or legacy runtime/)
+  // 2. Compiler-provided runtime
   if (const auto override_lib = core::RuntimeLibOverride();
       override_lib.has_value() && !override_lib->empty()) {
     return std::filesystem::path(*override_lib);

@@ -693,7 +693,7 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
   // Check that the target is a place expression (lvalue)
   if (!IsPlaceExprLocal(node.place)) {
     SPEC_RULE("Assign-NotPlace");
-    return {false, "Assign-NotPlace", {}, {}};
+    return {false, "E-SEM-3131", {}, {}};
   }
 
   // Type the place expression
@@ -728,7 +728,7 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
   if (const auto* perm = std::get_if<TypePerm>(&place_type.type->node)) {
     if (perm->perm == Permission::Const) {
       SPEC_RULE("Assign-Const-Err");
-      return {false, "Assign-Const-Err", {}, {}};
+      return {false, "E-SEM-3132", {}, {}};
     }
   }
 
@@ -774,7 +774,7 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
         root_mut.mut.has_value() &&
         *root_mut.mut == ast::Mutability::Let) {
       SPEC_RULE("Assign-Immutable-Err");
-      return {false, "Assign-Immutable-Err", {}, {}};
+      return {false, "E-MOD-2401", {}, {}};
     }
   }
 
@@ -832,7 +832,7 @@ StmtTypeResult TypeAssignStmt(const ScopeContext& ctx,
     }
     if (!check.diag_id.has_value()) {
       SPEC_RULE("Assign-Type-Err");
-      return {false, "Assign-Type-Err", {}, {}};
+      return {false, "E-SEM-3133", {}, {}};
     }
     return {false, check.diag_id, {}, {}};
   }

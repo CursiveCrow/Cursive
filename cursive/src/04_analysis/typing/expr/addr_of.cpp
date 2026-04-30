@@ -84,7 +84,7 @@ ExprTypeResult TypeAddressOfExprImpl(const ScopeContext& ctx,
         if (const auto* path = stripped ? std::get_if<TypePathType>(&stripped->node) : nullptr) {
           if (IsPackedRecord(ctx, path->path) && !IsInUnsafeSpan(ctx, expr.place->span)) {
             SPEC_RULE("AddrOf-Packed-Unsafe-Err");
-            result.diag_id = "Packed-Field-Unsafe-Err";
+            result.diag_id = "E-TYP-2105";
             return result;
           }
         }

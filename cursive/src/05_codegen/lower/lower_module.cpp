@@ -122,6 +122,7 @@ const analysis::ScopeContext& BuildScope(const ast::ModulePath& module_path,
     std::optional<project::TargetProfile> target_profile;
     analysis::ExprTypeMap* expr_types = nullptr;
     analysis::DynamicRefineExprMap* dynamic_refine_checks = nullptr;
+    analysis::GenericCallSubstMap* generic_call_substs = nullptr;
     analysis::ScopeContext scope;
   };
 
@@ -134,13 +135,15 @@ const analysis::ScopeContext& BuildScope(const ast::ModulePath& module_path,
       cache.module_path != module_path ||
       cache.target_profile != ctx.target_profile ||
       cache.expr_types != ctx.expr_types ||
-      cache.dynamic_refine_checks != ctx.dynamic_refine_checks) {
+      cache.dynamic_refine_checks != ctx.dynamic_refine_checks ||
+      cache.generic_call_substs != ctx.generic_call_substs) {
     cache.ctx = &ctx;
     cache.sigma = ctx.sigma;
     cache.module_path = module_path;
     cache.target_profile = ctx.target_profile;
     cache.expr_types = ctx.expr_types;
     cache.dynamic_refine_checks = ctx.dynamic_refine_checks;
+    cache.generic_call_substs = ctx.generic_call_substs;
     cache.scope = analysis::ScopeContext{};
     cache.scope.sigma = *ctx.sigma;
     cache.scope.sigma_source = ctx.sigma;
@@ -148,6 +151,7 @@ const analysis::ScopeContext& BuildScope(const ast::ModulePath& module_path,
     cache.scope.target_profile = ctx.target_profile;
     cache.scope.expr_types = ctx.expr_types;
     cache.scope.dynamic_refine_checks = ctx.dynamic_refine_checks;
+    cache.scope.generic_call_substs = ctx.generic_call_substs;
   }
   return cache.scope;
 }

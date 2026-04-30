@@ -72,7 +72,7 @@ ExprTypeResult TypeRangeExprImpl(const ScopeContext& ctx,
       return result;
     }
     if (!eq.equiv) {
-      result.diag_id = "Assign-Type-Err";
+      result.diag_id = "E-SEM-3133";
       return result;
     }
   }

@@ -184,6 +184,9 @@ std::optional<std::string> StaticName(const ast::Binding& binding) {
 
   if (const auto* typed =
           std::get_if<ast::TypedPattern>(&binding.pat->node)) {
+    if (typed->name == "_") {
+      return std::nullopt;
+    }
     return typed->name;
   }
 

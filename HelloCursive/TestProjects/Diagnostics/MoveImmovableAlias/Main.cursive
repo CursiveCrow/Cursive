@@ -1,0 +1,13 @@
+procedure consume(move value: bool) -> i32 {
+    if (value) {
+        return 1
+    }
+    return 0
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let source: bool = true
+    let alias: bool = source
+    return consume(move alias)
+}

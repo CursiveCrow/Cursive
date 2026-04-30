@@ -2885,11 +2885,16 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
             const auto* expr_types = &typechecked.expr_types;
             const auto* dynamic_refine_checks =
                 &typechecked.dynamic_refine_checks;
+            const auto* generic_call_substs =
+                &typechecked.generic_call_substs;
             lower_ctx.expr_types =
                 const_cast<analysis::ExprTypeMap*>(expr_types);
             lower_ctx.dynamic_refine_checks =
                 const_cast<analysis::DynamicRefineExprMap*>(
                     dynamic_refine_checks);
+            lower_ctx.generic_call_substs =
+                const_cast<analysis::GenericCallSubstMap*>(
+                    generic_call_substs);
             lower_ctx.expr_type =
                 [expr_types](const ast::Expr& expr) -> analysis::TypeRef {
               if (!expr_types) {

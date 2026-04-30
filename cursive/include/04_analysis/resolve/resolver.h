@@ -12,6 +12,8 @@
 
 namespace cursive::analysis {
 
+class LanguageServiceIndex;
+
 struct ResolveContext {
   ScopeContext* ctx = nullptr;
   const NameMapTable* name_maps = nullptr;
@@ -19,6 +21,7 @@ struct ResolveContext {
   CanAccessFn can_access = nullptr;
   bool parse_ok = true;
   const core::DiagnosticStream* parse_diags = nullptr;
+  LanguageServiceIndex* language_service = nullptr;
 };
 
 template <typename T>

@@ -437,19 +437,19 @@ ExprTypeResult TypeLoopIterExpr(const ScopeContext& ctx,
   } else {
     const auto elem = GetIterableElementType(iter_type.type);
     if (!elem.has_value()) {
-      result.diag_id = "Assign-Type-Err";
+      result.diag_id = "E-SEM-3133";
       return result;
     }
     element_type = *elem;
 
     if (RequiresLoopStepBound(iter_type.type) &&
         !CheckClassBound(ctx, element_type, TypePath{"Step"})) {
-      result.diag_id = "Assign-Type-Err";
+      result.diag_id = "E-SEM-3133";
       return result;
     }
     if (RequiresLoopEqBound(iter_type.type) &&
         !CheckClassBound(ctx, element_type, TypePath{"Eq"})) {
-      result.diag_id = "Assign-Type-Err";
+      result.diag_id = "E-SEM-3133";
       return result;
     }
   }
@@ -567,13 +567,13 @@ ExprTypeResult TypeCtLoopIterExpr(const ScopeContext& ctx,
   }
 
   if (!CtIterableType(iter_type.type)) {
-    result.diag_id = "Assign-Type-Err";
+    result.diag_id = "E-SEM-3133";
     return result;
   }
 
   auto element_type = CtElemType(iter_type.type);
   if (!element_type.has_value()) {
-    result.diag_id = "Assign-Type-Err";
+    result.diag_id = "E-SEM-3133";
     return result;
   }
 

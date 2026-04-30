@@ -1,0 +1,4 @@
+public enum ProbeOption<T> {
+    Some(T)
+    None
+}

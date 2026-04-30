@@ -701,6 +701,7 @@ enum class IRInlineMode {
 
 struct ProcIR {
   std::string symbol;
+  std::vector<std::string> defining_module_path;
   std::vector<IRParam> params;
   analysis::TypeRef ret;
   IRPtr body;

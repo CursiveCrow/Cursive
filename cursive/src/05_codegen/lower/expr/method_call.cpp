@@ -62,6 +62,15 @@ ParamModeList ParamModesFromFuncParams(const std::vector<analysis::TypeFuncParam
     return modes;
 }
 
+ParamTypeList ParamTypesFromFuncParams(const std::vector<analysis::TypeFuncParam>& params) {
+    ParamTypeList types;
+    types.reserve(params.size());
+    for (const auto& param : params) {
+        types.push_back(param.type);
+    }
+    return types;
+}
+
 // Extract parameter modes from syntax parameters
 ParamModeList ParamModesFromParams(const std::vector<ast::Param>& params) {
     ParamModeList modes;
@@ -74,6 +83,23 @@ ParamModeList ParamModesFromParams(const std::vector<ast::Param>& params) {
         }
     }
     return modes;
+}
+
+ParamTypeList ParamTypesFromParams(const analysis::ScopeContext& scope,
+                                   const std::vector<ast::Param>& params) {
+    ParamTypeList types;
+    types.reserve(params.size());
+    for (const auto& param : params) {
+        analysis::TypeRef param_type = nullptr;
+        if (param.type) {
+            const auto lowered = analysis::LowerType(scope, param.type);
+            if (lowered.ok) {
+                param_type = lowered.type;
+            }
+        }
+        types.push_back(param_type);
+    }
+    return types;
 }
 
 // Extract modal state info from a type
@@ -131,7 +157,9 @@ analysis::TypeRef ReceiverBindingType(const ast::ExprPtr& receiver,
 
 // Materialize a temporary for non-`move` receiver expressions that do not
 // already carry source provenance and must be passed by reference.
-LowerResult LowerRefReceiverWithTemp(const ast::ExprPtr& expr, LowerCtx& ctx) {
+LowerResult LowerRefReceiverWithTemp(const ast::ExprPtr& expr,
+                                     const analysis::TypeRef& expected_type,
+                                     LowerCtx& ctx) {
     if (!expr) {
         return LowerResult{EmptyIR(), IRValue{}};
     }
@@ -143,9 +171,12 @@ LowerResult LowerRefReceiverWithTemp(const ast::ExprPtr& expr, LowerCtx& ctx) {
     auto value_result = LowerExpr(*expr, ctx);
     std::string temp_name = ctx.FreshTempValue("method_recv_tmp").name;
 
-    analysis::TypeRef temp_type = ctx.LookupValueType(value_result.value);
-    if (!temp_type && ctx.expr_type) {
-        temp_type = ctx.expr_type(*expr);
+    analysis::TypeRef temp_type = expected_type;
+    if (!temp_type) {
+        temp_type = ctx.LookupValueType(value_result.value);
+        if (!temp_type && ctx.expr_type) {
+            temp_type = ctx.expr_type(*expr);
+        }
     }
     if (!temp_type) {
         temp_type = analysis::MakeTypePrim("()");
@@ -171,7 +202,9 @@ LowerResult LowerRefReceiverWithTemp(const ast::ExprPtr& expr, LowerCtx& ctx) {
 }
 
 // Lower receiver argument expression - either by reference or by move
-LowerResult LowerRecvArgExpr(const ast::ExprPtr& base, LowerCtx& ctx) {
+LowerResult LowerRecvArgExpr(const ast::ExprPtr& base,
+                             LowerCtx& ctx,
+                             const analysis::TypeRef& expected_type = nullptr) {
     if (!base) {
         return LowerResult{EmptyIR(), IRValue{}};
     }
@@ -180,7 +213,7 @@ LowerResult LowerRecvArgExpr(const ast::ExprPtr& base, LowerCtx& ctx) {
         return LowerExpr(*base, ctx);
     }
     SPEC_RULE("Lower-RecvArg-Ref");
-    return LowerRefReceiverWithTemp(base, ctx);
+    return LowerRefReceiverWithTemp(base, expected_type, ctx);
 }
 
 std::optional<ParamModeList> BuiltinCapabilityParamModes(
@@ -228,6 +261,54 @@ std::optional<ParamModeList> BuiltinCapabilityParamModes(
   }
 
   return std::nullopt;
+}
+
+std::optional<ParamTypeList> BuiltinCapabilityParamTypes(
+    const analysis::ScopeContext& scope,
+    const analysis::TypePath& cap_path,
+    std::string_view method_name) {
+    ast::ClassPath class_path;
+    class_path.reserve(cap_path.size());
+    for (const auto& seg : cap_path) {
+        class_path.push_back(seg);
+    }
+
+    if (analysis::IsFileSystemClassPath(class_path)) {
+        if (const auto sig = analysis::LookupFileSystemMethodSig(method_name)) {
+            return ParamTypesFromParams(scope, sig->params);
+        }
+        return std::nullopt;
+    }
+
+    if (analysis::IsHeapAllocatorClassPath(class_path)) {
+        if (const auto sig = analysis::LookupHeapAllocatorMethodSig(method_name)) {
+            return ParamTypesFromParams(scope, sig->params);
+        }
+        return std::nullopt;
+    }
+
+    if (analysis::IsNetworkClassPath(class_path)) {
+        if (const auto sig = analysis::LookupNetworkMethodSig(method_name)) {
+            return ParamTypesFromParams(scope, sig->params);
+        }
+        return std::nullopt;
+    }
+
+    if (analysis::IsExecutionDomainTypePath(cap_path)) {
+        if (const auto sig = analysis::LookupExecutionDomainMethodSig(method_name)) {
+            return ParamTypesFromParams(scope, sig->params);
+        }
+        return std::nullopt;
+    }
+
+    if (analysis::IsSystemTypePath(cap_path)) {
+        if (const auto sig = analysis::LookupSystemMethodSig(method_name)) {
+            return ParamTypesFromParams(scope, sig->params);
+        }
+        return std::nullopt;
+    }
+
+    return std::nullopt;
 }
 
 std::optional<std::string> AsyncCombinatorRuntimeSymbol(std::string_view name) {
@@ -530,8 +611,7 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
     }
 
     // Async combinators are lowered to pseudo-calls that are interpreted
-    // directly by LLVM emission. This preserves combinator semantics instead
-    // of the old receiver-preserving fallback behavior.
+    // directly by LLVM emission, preserving combinator semantics.
     const analysis::ScopeContext& scope = ScopeForLowering(ctx);
     const auto async_combinator_symbol = AsyncCombinatorRuntimeSymbol(expr.name);
     analysis::TypeRef method_expr_type;
@@ -628,6 +708,7 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
     }
 
     ParamModeList param_modes;
+    ParamTypeList param_types;
     bool move_receiver = false;
     ast::KeyMode receiver_key_mode = ast::KeyMode::Read;
     auto lower_type = [&](const std::shared_ptr<ast::Type>& type)
@@ -640,8 +721,12 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
     if (analysis::IsContextTypePath(path->path) &&
         (expr.name == "cpu" || expr.name == "gpu" || expr.name == "inline")) {
             SPEC_RULE("Lower-MethodCall-ContextBuiltin");
-            auto recv_result = LowerRecvArgExpr(expr.receiver, ctx);
-            auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
+            auto recv_result = LowerRecvArgExpr(expr.receiver, ctx, recv_type);
+            auto [args_ir, arg_values] =
+                LowerArgs(param_modes,
+                          expr.args,
+                          ctx,
+                          param_types.empty() ? nullptr : &param_types);
 
             std::vector<IRValue> all_args;
             all_args.push_back(recv_result.value);
@@ -669,17 +754,24 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
                 std::string callee_sym = BuiltinSym(qualified);
                 if (const auto runtime_info = GetRuntimeFuncInfo(callee_sym)) {
                     param_modes.reserve(runtime_info->params.size());
+                    param_types.reserve(runtime_info->params.size());
                     for (const auto& param : runtime_info->params) {
                         param_modes.push_back(param.mode);
+                        param_types.push_back(param.type);
                     }
                     if (runtime_info->ret) {
                         result_type = runtime_info->ret;
                     }
                 } else {
                     param_modes = ParamModesFromParams(sig->params);
+                    param_types = ParamTypesFromParams(scope, sig->params);
                 }
-                auto recv_result = LowerRecvArgExpr(expr.receiver, ctx);
-                auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
+                auto recv_result = LowerRecvArgExpr(expr.receiver, ctx, recv_type);
+                auto [args_ir, arg_values] =
+                    LowerArgs(param_modes,
+                              expr.args,
+                              ctx,
+                              param_types.empty() ? nullptr : &param_types);
 
                 std::vector<IRValue> all_args;
                 all_args.insert(all_args.end(), arg_values.begin(), arg_values.end());
@@ -754,6 +846,7 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
         const auto* class_method = analysis::LookupClassMethod(scope, dyn_type->path, expr.name);
         if (class_method) {
             param_modes = ParamModesFromParams(class_method->params);
+            param_types = ParamTypesFromParams(scope, class_method->params);
         }
 
         // Capability methods (FileSystem, HeapAllocator, etc.)
@@ -763,8 +856,16 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
                     BuiltinCapabilityParamModes(dyn_type->path, expr.name)) {
                 param_modes = *builtin_param_modes;
             }
-            auto recv_result = LowerRecvArgExpr(expr.receiver, ctx);
-            auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
+            if (const auto builtin_param_types =
+                    BuiltinCapabilityParamTypes(scope, dyn_type->path, expr.name)) {
+                param_types = *builtin_param_types;
+            }
+            auto recv_result = LowerRecvArgExpr(expr.receiver, ctx, recv_type);
+            auto [args_ir, arg_values] =
+                LowerArgs(param_modes,
+                          expr.args,
+                          ctx,
+                          param_types.empty() ? nullptr : &param_types);
 
             std::vector<IRValue> all_args;
             all_args.push_back(recv_result.value);
@@ -797,7 +898,11 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
         if (class_decl) {
             SPEC_RULE("Lower-MethodCall-Dynamic");
             auto recv_result = LowerExpr(*expr.receiver, ctx);
-            auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
+            auto [args_ir, arg_values] =
+                LowerArgs(param_modes,
+                          expr.args,
+                          ctx,
+                          param_types.empty() ? nullptr : &param_types);
             IRValue panic_out;
             panic_out.kind = IRValue::Kind::Local;
             panic_out.name = std::string(kPanicOutName);
@@ -823,9 +928,11 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
                 if (const auto* state_method =
                         analysis::LookupStateMethodDecl(*modal_decl, modal_info->second, expr.name)) {
                     param_modes = ParamModesFromParams(state_method->params);
+                    param_types = ParamTypesFromParams(scope, state_method->params);
                 } else if (const auto* transition =
                                analysis::LookupTransitionDecl(*modal_decl, modal_info->second, expr.name)) {
                     param_modes = ParamModesFromParams(transition->params);
+                    param_types = ParamTypesFromParams(scope, transition->params);
                     move_receiver = true;
                     receiver_key_mode = ast::KeyMode::Write;
                 }
@@ -834,10 +941,12 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
             if (const auto builtin_sig =
                     analysis::LookupStringBytesBuiltinMethodSig(stripped, expr.name)) {
                 param_modes = ParamModesFromFuncParams(builtin_sig->params);
+                param_types = ParamTypesFromFuncParams(builtin_sig->params);
             }
             const auto lookup = analysis::LookupMethodStatic(scope, stripped, expr.name);
             if (lookup.record_method) {
                 param_modes = ParamModesFromParams(lookup.record_method->params);
+                param_types = ParamTypesFromParams(scope, lookup.record_method->params);
                 const auto recv_info = analysis::RecvTypeForReceiver(
                     scope, stripped, lookup.record_method->receiver, lower_type);
                 if (recv_info.ok && recv_info.type) {
@@ -846,6 +955,7 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
                 }
             } else if (lookup.class_method) {
                 param_modes = ParamModesFromParams(lookup.class_method->params);
+                param_types = ParamTypesFromParams(scope, lookup.class_method->params);
                 const auto recv_info = analysis::RecvTypeForReceiver(
                     scope, stripped, lookup.class_method->receiver, lower_type);
                 if (recv_info.ok && recv_info.type) {
@@ -869,9 +979,13 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
             recv_result = LowerMovePlace(*expr.receiver, ctx);
         }
     } else {
-        recv_result = LowerRecvArgExpr(expr.receiver, ctx);
+        recv_result = LowerRecvArgExpr(expr.receiver, ctx, recv_type);
     }
-    auto [args_ir, arg_values] = LowerArgs(param_modes, expr.args, ctx);
+    auto [args_ir, arg_values] =
+        LowerArgs(param_modes,
+                  expr.args,
+                  ctx,
+                  param_types.empty() ? nullptr : &param_types);
 
     // Build argument list with receiver first
     std::vector<IRValue> all_args;

@@ -228,6 +228,9 @@ ImportResolveResult ResolveImportPath(
                   if constexpr (std::is_same_v<P, ast::IdentifierPattern>) {
                     result.exported_names.push_back(pat.name);
                   } else if constexpr (std::is_same_v<P, ast::TypedPattern>) {
+                    if (pat.name == "_") {
+                      return;
+                    }
                     result.exported_names.push_back(pat.name);
                   }
                 }, node.binding.pat->node);

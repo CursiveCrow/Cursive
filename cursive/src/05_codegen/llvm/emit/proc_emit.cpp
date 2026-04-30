@@ -25,6 +25,9 @@ using namespace emit_detail;
       return;
     }
 
+    ProcModuleContextScope proc_module_scope(
+        current_ctx_, proc.defining_module_path);
+
     using Clock = std::chrono::steady_clock;
     const bool perf_enabled = EmitPerfLoggingEnabled();
     const bool log_all_procs = perf_enabled && EmitPerfLogAllProcs();

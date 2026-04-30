@@ -95,6 +95,9 @@ std::optional<std::string> StaticName(const ast::Binding& binding) {
   // StaticName(binding) = name if TypedPattern(name, _)
   if (const auto* typed =
           std::get_if<ast::TypedPattern>(&binding.pat->node)) {
+    if (typed->name == "_") {
+      return std::nullopt;
+    }
     return typed->name;
   }
 
@@ -113,6 +116,9 @@ static void CollectPatternNames(const ast::Pattern& pat,
 
   if (const auto* typed =
           std::get_if<ast::TypedPattern>(&pat.node)) {
+    if (typed->name == "_") {
+      return;
+    }
     names.push_back(typed->name);
     return;
   }
