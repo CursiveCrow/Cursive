@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -15,6 +16,7 @@
 #include <vector>
 
 #include "00_core/source_load.h"
+#include "02_source/lexer.h"
 #include "06_driver/lsp/diagnostic_adapter.h"
 #include "06_driver/lsp/protocol.h"
 #include "06_driver/lsp/semantic_tokens.h"
@@ -199,6 +201,278 @@ std::optional<tooling::LineRange> RangeFromJson(
   };
 }
 
+std::optional<lexer::LexerOutput> TokenizeText(
+    const std::filesystem::path& path,
+    const std::string& text) {
+  std::vector<std::uint8_t> bytes(text.begin(), text.end());
+  core::SourceLoadResult loaded =
+      core::LoadSource(path.generic_string(), bytes);
+  if (!loaded.source.has_value()) {
+    return std::nullopt;
+  }
+  lexer::TokenizeDiagnosticResult tokenized =
+      lexer::TokenizeWithDiagnostics(*loaded.source);
+  return tokenized.output;
+}
+
+bool IsCallableSymbolKind(analysis::LanguageSymbolKind kind) {
+  return kind == analysis::LanguageSymbolKind::Function ||
+         kind == analysis::LanguageSymbolKind::Method;
+}
+
+bool IsValidRenameName(std::string_view name) {
+  if (name.empty()) {
+    return false;
+  }
+  std::vector<std::uint8_t> bytes(name.begin(), name.end());
+  core::SourceLoadResult loaded = core::LoadSource("<rename>", bytes);
+  if (!loaded.source.has_value()) {
+    return false;
+  }
+  lexer::IdentScanResult ident = lexer::ScanIdentToken(*loaded.source, 0);
+  return ident.ok && ident.next == loaded.source->scalars.size() &&
+         ident.kind == lexer::TokenKind::Identifier && ident.lexeme == name;
+}
+
+std::optional<std::size_t> PreviousSignificantToken(
+    const std::vector<lexer::Token>& tokens,
+    std::size_t index) {
+  while (index > 0) {
+    --index;
+    if (tokens[index].kind != lexer::TokenKind::Newline &&
+        tokens[index].kind != lexer::TokenKind::Eof) {
+      return index;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<std::size_t> CalleeTokenIndex(
+    const std::vector<lexer::Token>& tokens,
+    std::size_t lparen_index) {
+  const auto previous = PreviousSignificantToken(tokens, lparen_index);
+  if (!previous.has_value()) {
+    return std::nullopt;
+  }
+  const lexer::Token& token = tokens[*previous];
+  if (token.kind != lexer::TokenKind::Identifier) {
+    return std::nullopt;
+  }
+  return previous;
+}
+
+struct CallContext {
+  std::size_t lparen_index = 0;
+  std::size_t callee_index = 0;
+  std::size_t active_parameter = 0;
+};
+
+std::size_t ActiveParameterIndex(const std::vector<lexer::Token>& tokens,
+                                 std::size_t lparen_index,
+                                 std::size_t cursor_offset) {
+  std::size_t active = 0;
+  int paren_depth = 0;
+  int bracket_depth = 0;
+  int brace_depth = 0;
+  for (std::size_t i = lparen_index + 1; i < tokens.size(); ++i) {
+    const lexer::Token& token = tokens[i];
+    if (token.span.start_offset >= cursor_offset) {
+      break;
+    }
+    if (token.kind == lexer::TokenKind::Punctuator) {
+      if (token.lexeme == "(") {
+        ++paren_depth;
+      } else if (token.lexeme == ")") {
+        if (paren_depth == 0) {
+          break;
+        }
+        --paren_depth;
+      } else if (token.lexeme == "[") {
+        ++bracket_depth;
+      } else if (token.lexeme == "]") {
+        if (bracket_depth > 0) {
+          --bracket_depth;
+        }
+      } else if (token.lexeme == "{") {
+        ++brace_depth;
+      } else if (token.lexeme == "}") {
+        if (brace_depth > 0) {
+          --brace_depth;
+        }
+      } else if (token.lexeme == "," && paren_depth == 0 &&
+                 bracket_depth == 0 && brace_depth == 0) {
+        ++active;
+      }
+    }
+  }
+  return active;
+}
+
+std::optional<CallContext> CallContextAt(
+    const std::vector<lexer::Token>& tokens,
+    std::size_t cursor_offset) {
+  std::vector<std::size_t> lparen_stack;
+  std::optional<CallContext> best;
+  for (std::size_t i = 0; i < tokens.size(); ++i) {
+    const lexer::Token& token = tokens[i];
+    if (token.span.start_offset > cursor_offset) {
+      break;
+    }
+    if (token.kind != lexer::TokenKind::Punctuator) {
+      continue;
+    }
+    if (token.lexeme == "(") {
+      lparen_stack.push_back(i);
+      continue;
+    }
+    if (token.lexeme == ")") {
+      if (!lparen_stack.empty()) {
+        const std::size_t lparen = lparen_stack.back();
+        lparen_stack.pop_back();
+        if (token.span.start_offset >= cursor_offset) {
+          if (const auto callee = CalleeTokenIndex(tokens, lparen)) {
+            best = CallContext{
+                lparen,
+                *callee,
+                ActiveParameterIndex(tokens, lparen, cursor_offset),
+            };
+          }
+          break;
+        }
+      }
+    }
+  }
+  for (auto it = lparen_stack.rbegin(); it != lparen_stack.rend(); ++it) {
+    if (const auto callee = CalleeTokenIndex(tokens, *it)) {
+      best = CallContext{
+          *it,
+          *callee,
+          ActiveParameterIndex(tokens, *it, cursor_offset),
+      };
+      break;
+    }
+  }
+  return best;
+}
+
+std::optional<std::size_t> MatchingRightParen(
+    const std::vector<lexer::Token>& tokens,
+    std::size_t lparen_index) {
+  int depth = 0;
+  for (std::size_t i = lparen_index; i < tokens.size(); ++i) {
+    const lexer::Token& token = tokens[i];
+    if (token.kind != lexer::TokenKind::Punctuator) {
+      continue;
+    }
+    if (token.lexeme == "(") {
+      ++depth;
+    } else if (token.lexeme == ")") {
+      --depth;
+      if (depth == 0) {
+        return i;
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+std::vector<std::size_t> ArgumentStartTokenIndices(
+    const std::vector<lexer::Token>& tokens,
+    std::size_t lparen_index,
+    std::size_t rparen_index) {
+  std::vector<std::size_t> out;
+  int paren_depth = 0;
+  int bracket_depth = 0;
+  int brace_depth = 0;
+  bool expect_argument = true;
+  for (std::size_t i = lparen_index + 1; i < rparen_index; ++i) {
+    const lexer::Token& token = tokens[i];
+    if (token.kind == lexer::TokenKind::Newline ||
+        token.kind == lexer::TokenKind::Eof) {
+      continue;
+    }
+    if (token.kind == lexer::TokenKind::Punctuator) {
+      if (token.lexeme == "," && paren_depth == 0 && bracket_depth == 0 &&
+          brace_depth == 0) {
+        expect_argument = true;
+        continue;
+      }
+      if (expect_argument) {
+        out.push_back(i);
+        expect_argument = false;
+      }
+      if (token.lexeme == "(") {
+        ++paren_depth;
+      } else if (token.lexeme == ")") {
+        if (paren_depth > 0) {
+          --paren_depth;
+        }
+      } else if (token.lexeme == "[") {
+        ++bracket_depth;
+      } else if (token.lexeme == "]") {
+        if (bracket_depth > 0) {
+          --bracket_depth;
+        }
+      } else if (token.lexeme == "{") {
+        ++brace_depth;
+      } else if (token.lexeme == "}") {
+        if (brace_depth > 0) {
+          --brace_depth;
+        }
+      }
+      continue;
+    }
+    if (expect_argument) {
+      out.push_back(i);
+      expect_argument = false;
+    }
+  }
+  return out;
+}
+
+bool PositionInRange(std::size_t offset,
+                     std::size_t start_offset,
+                     std::size_t end_offset) {
+  return offset >= start_offset && offset <= end_offset;
+}
+
+bool SpanContains(const core::Span& outer, const core::Span& inner) {
+  return tooling::PathKey(outer.file) == tooling::PathKey(inner.file) &&
+         outer.start_offset <= inner.start_offset &&
+         inner.end_offset <= outer.end_offset;
+}
+
+std::optional<core::Span> NarrowIdentifierSpan(
+    const std::filesystem::path& path,
+    const std::string& text,
+    const core::Span& search_span,
+    std::string_view name) {
+  const auto tokenized = TokenizeText(path, text);
+  if (!tokenized.has_value()) {
+    return std::nullopt;
+  }
+  for (const auto& token : tokenized->tokens) {
+    if (token.kind != lexer::TokenKind::Identifier || token.lexeme != name) {
+      continue;
+    }
+    if (SpanContains(search_span, token.span)) {
+      return token.span;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<core::Span> RenameSpanForReference(
+    const std::filesystem::path& path,
+    const std::string& text,
+    const analysis::LanguageSymbolInfo& symbol,
+    const analysis::LanguageReference& reference) {
+  if (!reference.is_declaration) {
+    return reference.range;
+  }
+  return NarrowIdentifierSpan(path, text, reference.range, symbol.name);
+}
+
 }  // namespace
 
 LspServer::LspServer(LspServerOptions options)
@@ -206,6 +480,11 @@ LspServer::LspServer(LspServerOptions options)
   if (server_options_.log_file.has_value()) {
     log_.open(*server_options_.log_file, std::ios::app);
   }
+  analysis_worker_ = std::thread([this]() { AnalysisWorkerLoop(); });
+}
+
+LspServer::~LspServer() {
+  StopAnalysisWorker();
 }
 
 int LspServer::Run() {
@@ -221,6 +500,7 @@ int LspServer::Run() {
     }
     HandleMessage(*object);
   }
+  StopAnalysisWorker();
   Log("server stop");
   return shutdown_requested_ ? 0 : 1;
 }
@@ -285,6 +565,22 @@ void LspServer::HandleRequest(const llvm::json::Object& message,
   }
   if (method == "textDocument/codeAction") {
     SendResponse(id, HandleCodeAction(params));
+    return;
+  }
+  if (method == "textDocument/prepareRename") {
+    SendResponse(id, HandlePrepareRename(params));
+    return;
+  }
+  if (method == "textDocument/rename") {
+    SendResponse(id, HandleRename(params));
+    return;
+  }
+  if (method == "textDocument/signatureHelp") {
+    SendResponse(id, HandleSignatureHelp(params));
+    return;
+  }
+  if (method == "textDocument/inlayHint") {
+    SendResponse(id, HandleInlayHint(params));
     return;
   }
 
@@ -354,9 +650,13 @@ llvm::json::Value LspServer::HandleInitialize(
   for (const auto& token_type : SemanticTokenTypes()) {
     token_types.emplace_back(token_type);
   }
+  llvm::json::Array token_modifiers;
+  for (const auto& token_modifier : SemanticTokenModifiers()) {
+    token_modifiers.emplace_back(token_modifier);
+  }
   llvm::json::Object legend;
   legend["tokenTypes"] = std::move(token_types);
-  legend["tokenModifiers"] = llvm::json::Array();
+  legend["tokenModifiers"] = std::move(token_modifiers);
 
   llvm::json::Object semantic_tokens;
   semantic_tokens["legend"] = std::move(legend);
@@ -377,6 +677,16 @@ llvm::json::Value LspServer::HandleInitialize(
   capabilities["codeActionProvider"] = llvm::json::Object{
       {"codeActionKinds", llvm::json::Array{"quickfix"}},
   };
+  capabilities["renameProvider"] = llvm::json::Object{
+      {"prepareProvider", true},
+  };
+  capabilities["signatureHelpProvider"] = llvm::json::Object{
+      {"triggerCharacters", llvm::json::Array{"(", ","}},
+      {"retriggerCharacters", llvm::json::Array{","}},
+  };
+  capabilities["inlayHintProvider"] = llvm::json::Object{
+      {"resolveProvider", false},
+  };
   capabilities["semanticTokensProvider"] = std::move(semantic_tokens);
 
   llvm::json::Object server_info;
@@ -394,7 +704,7 @@ llvm::json::Value LspServer::HandleDocumentSymbol(
   if (!path.has_value()) {
     return llvm::json::Array();
   }
-  const auto* project = SnapshotForPath(*path);
+  const auto project = SnapshotForPath(*path);
   if (project == nullptr) {
     return llvm::json::Array();
   }
@@ -428,7 +738,7 @@ llvm::json::Value LspServer::HandleHover(const llvm::json::Object* params) {
   const std::string text = TextForPath(*path);
   tooling::LineIndex index(text);
   const std::size_t offset = index.ByteOffsetAt(*position);
-  const auto* project = SnapshotForPath(*path);
+  const auto project = SnapshotForPath(*path);
   if (project == nullptr) {
     return nullptr;
   }
@@ -491,7 +801,7 @@ llvm::json::Value LspServer::HandleDefinition(
   const std::string text = TextForPath(*path);
   tooling::LineIndex index(text);
   const std::size_t offset = index.ByteOffsetAt(*position);
-  const auto* project = SnapshotForPath(*path);
+  const auto project = SnapshotForPath(*path);
   if (project == nullptr) {
     return nullptr;
   }
@@ -511,13 +821,13 @@ llvm::json::Value LspServer::HandleSemanticTokens(
     empty["data"] = llvm::json::Array();
     return empty;
   }
-  const auto* project = SnapshotForPath(*path);
+  const auto project = SnapshotForPath(*path);
   if (project == nullptr) {
-    llvm::json::Object empty;
-    empty["data"] = llvm::json::Array();
-    return empty;
+    return SemanticTokensFull(*path, TextForPath(*path),
+                              static_cast<const tooling::AnalysisSnapshot*>(
+                                  nullptr));
   }
-  return SemanticTokensFull(*path, TextForPath(*path), project->snapshot);
+  return SemanticTokensFull(*path, TextForPath(*path), &project->snapshot);
 }
 
 llvm::json::Value LspServer::HandleWorkspaceSymbol(
@@ -525,8 +835,8 @@ llvm::json::Value LspServer::HandleWorkspaceSymbol(
   const std::string query =
       params != nullptr ? GetString(*params, "query").value_or("") : "";
   llvm::json::Array results;
-  for (const auto& [_, project] : projects_by_root_) {
-    for (const auto& symbol : project.snapshot.language_service.Symbols()) {
+  for (const auto& project : ProjectSnapshots()) {
+    for (const auto& symbol : project->snapshot.language_service.Symbols()) {
       if (!symbol.include_in_workspace) {
         continue;
       }
@@ -558,7 +868,7 @@ llvm::json::Value LspServer::HandleDocumentHighlight(
   const std::string text = TextForPath(*path);
   tooling::LineIndex index(text);
   const std::size_t offset = index.ByteOffsetAt(*position);
-  const auto* project = SnapshotForPath(*path);
+  const auto project = SnapshotForPath(*path);
   if (project == nullptr) {
     return llvm::json::Array();
   }
@@ -596,7 +906,7 @@ llvm::json::Value LspServer::HandleReferences(
   if (!path.has_value() || !position.has_value()) {
     return llvm::json::Array();
   }
-  const auto* project = SnapshotForPath(*path);
+  const auto project = SnapshotForPath(*path);
   if (project == nullptr) {
     return llvm::json::Array();
   }
@@ -637,7 +947,7 @@ llvm::json::Value LspServer::HandleReferences(
 llvm::json::Value LspServer::HandleCompletion(
     const llvm::json::Object* params) {
   const auto path = PathFromTextDocument(params);
-  const auto* project = path.has_value() ? SnapshotForPath(*path) : nullptr;
+  const auto project = path.has_value() ? SnapshotForPath(*path) : nullptr;
   llvm::json::Array items;
 
   static constexpr std::string_view kKeywords[] = {
@@ -746,6 +1056,242 @@ llvm::json::Value LspServer::HandleCodeAction(
   return actions;
 }
 
+llvm::json::Value LspServer::HandlePrepareRename(
+    const llvm::json::Object* params) {
+  const auto path = PathFromTextDocument(params);
+  const auto position = PositionParam(params);
+  if (!path.has_value() || !position.has_value()) {
+    return nullptr;
+  }
+  const auto project = SnapshotForPath(*path);
+  if (project == nullptr) {
+    return nullptr;
+  }
+
+  const std::string text = TextForPath(*path);
+  tooling::LineIndex index(text);
+  const std::size_t offset = index.ByteOffsetAt(*position);
+  const auto* reference =
+      project->snapshot.language_service.ReferenceAt(*path, offset);
+  if (reference == nullptr) {
+    return nullptr;
+  }
+  const auto* symbol =
+      project->snapshot.language_service.SymbolById(reference->symbol_id);
+  if (symbol == nullptr || symbol->name.empty()) {
+    return nullptr;
+  }
+  const auto rename_span =
+      RenameSpanForReference(*path, text, *symbol, *reference);
+  if (!rename_span.has_value() ||
+      !PositionInRange(offset, rename_span->start_offset,
+                       rename_span->end_offset)) {
+    return nullptr;
+  }
+
+  llvm::json::Object result;
+  result["range"] = RangeJson(index.RangeFor(*rename_span));
+  result["placeholder"] = symbol->name;
+  return result;
+}
+
+llvm::json::Value LspServer::HandleRename(const llvm::json::Object* params) {
+  const auto path = PathFromTextDocument(params);
+  const auto position = PositionParam(params);
+  if (!path.has_value() || !position.has_value() || params == nullptr) {
+    return llvm::json::Object{{"changes", llvm::json::Object()}};
+  }
+  const auto new_name = GetString(*params, "newName");
+  if (!new_name.has_value() || !IsValidRenameName(*new_name)) {
+    return llvm::json::Object{{"changes", llvm::json::Object()}};
+  }
+  const auto project = SnapshotForPath(*path);
+  if (project == nullptr) {
+    return llvm::json::Object{{"changes", llvm::json::Object()}};
+  }
+
+  const std::string text = TextForPath(*path);
+  tooling::LineIndex index(text);
+  const std::size_t offset = index.ByteOffsetAt(*position);
+  const auto* reference =
+      project->snapshot.language_service.ReferenceAt(*path, offset);
+  if (reference == nullptr) {
+    return llvm::json::Object{{"changes", llvm::json::Object()}};
+  }
+  const auto* symbol =
+      project->snapshot.language_service.SymbolById(reference->symbol_id);
+  if (symbol == nullptr || symbol->name.empty()) {
+    return llvm::json::Object{{"changes", llvm::json::Object()}};
+  }
+  const auto initial_span =
+      RenameSpanForReference(*path, text, *symbol, *reference);
+  if (!initial_span.has_value() ||
+      !PositionInRange(offset, initial_span->start_offset,
+                       initial_span->end_offset)) {
+    return llvm::json::Object{{"changes", llvm::json::Object()}};
+  }
+
+  std::map<std::string, llvm::json::Array> changes_by_uri;
+  for (const auto* ref :
+       project->snapshot.language_service.ReferencesForSymbol(symbol->id,
+                                                              true)) {
+    if (ref == nullptr) {
+      continue;
+    }
+    const std::filesystem::path file(ref->range.file);
+    const std::string file_text = TextForPath(file);
+    const auto rename_span =
+        RenameSpanForReference(file, file_text, *symbol, *ref);
+    if (!rename_span.has_value()) {
+      continue;
+    }
+    tooling::LineIndex file_index(file_text);
+    const std::string uri = tooling::PathToFileUri(file);
+    changes_by_uri[uri].emplace_back(
+        TextEdit(file_index.RangeFor(*rename_span), *new_name));
+  }
+
+  llvm::json::Object changes;
+  for (auto& [uri, edits] : changes_by_uri) {
+    changes[uri] = std::move(edits);
+  }
+  llvm::json::Object result;
+  result["changes"] = std::move(changes);
+  return result;
+}
+
+llvm::json::Value LspServer::HandleSignatureHelp(
+    const llvm::json::Object* params) {
+  const auto path = PathFromTextDocument(params);
+  const auto position = PositionParam(params);
+  if (!path.has_value() || !position.has_value()) {
+    return nullptr;
+  }
+  const auto project = SnapshotForPath(*path);
+  if (project == nullptr) {
+    return nullptr;
+  }
+  const std::string text = TextForPath(*path);
+  tooling::LineIndex index(text);
+  const std::size_t offset = index.ByteOffsetAt(*position);
+  const auto tokenized = TokenizeText(*path, text);
+  if (!tokenized.has_value()) {
+    return nullptr;
+  }
+  const auto context = CallContextAt(tokenized->tokens, offset);
+  if (!context.has_value()) {
+    return nullptr;
+  }
+
+  const lexer::Token& callee = tokenized->tokens[context->callee_index];
+  const auto* symbol = project->snapshot.language_service.ResolvedSymbolAt(
+      *path, callee.span.start_offset);
+  if (symbol == nullptr || !IsCallableSymbolKind(symbol->kind) ||
+      symbol->signature_label.empty()) {
+    return nullptr;
+  }
+
+  llvm::json::Array parameters;
+  for (const auto& parameter : symbol->parameters) {
+    llvm::json::Object item;
+    item["label"] = parameter.label;
+    parameters.emplace_back(std::move(item));
+  }
+
+  llvm::json::Object signature;
+  signature["label"] = symbol->signature_label;
+  signature["parameters"] = std::move(parameters);
+  if (!symbol->documentation.empty()) {
+    signature["documentation"] = llvm::json::Object{
+        {"kind", "markdown"},
+        {"value", symbol->documentation},
+    };
+  }
+
+  const std::size_t active =
+      symbol->parameters.empty()
+          ? 0
+          : std::min(context->active_parameter, symbol->parameters.size() - 1);
+  llvm::json::Object result;
+  result["signatures"] = llvm::json::Array{std::move(signature)};
+  result["activeSignature"] = static_cast<std::int64_t>(0);
+  result["activeParameter"] = static_cast<std::int64_t>(active);
+  return result;
+}
+
+llvm::json::Value LspServer::HandleInlayHint(
+    const llvm::json::Object* params) {
+  const auto path = PathFromTextDocument(params);
+  if (!path.has_value()) {
+    return llvm::json::Array();
+  }
+  const auto project = SnapshotForPath(*path);
+  if (project == nullptr) {
+    return llvm::json::Array();
+  }
+  const std::string text = TextForPath(*path);
+  tooling::LineIndex index(text);
+  const auto tokenized = TokenizeText(*path, text);
+  if (!tokenized.has_value()) {
+    return llvm::json::Array();
+  }
+
+  std::size_t range_start = 0;
+  std::size_t range_end = text.size();
+  if (params != nullptr) {
+    if (const auto range = RangeFromJson(params->getObject("range"))) {
+      range_start = index.ByteOffsetAt(range->start);
+      range_end = index.ByteOffsetAt(range->end);
+    }
+  }
+
+  llvm::json::Array hints;
+  const auto& tokens = tokenized->tokens;
+  for (std::size_t i = 0; i < tokens.size(); ++i) {
+    const lexer::Token& token = tokens[i];
+    if (token.kind != lexer::TokenKind::Punctuator || token.lexeme != "(") {
+      continue;
+    }
+    const auto callee_index = CalleeTokenIndex(tokens, i);
+    if (!callee_index.has_value()) {
+      continue;
+    }
+    const auto rparen = MatchingRightParen(tokens, i);
+    if (!rparen.has_value()) {
+      continue;
+    }
+    const auto* symbol = project->snapshot.language_service.ResolvedSymbolAt(
+        *path, tokens[*callee_index].span.start_offset);
+    if (symbol == nullptr || !IsCallableSymbolKind(symbol->kind) ||
+        symbol->parameters.empty()) {
+      continue;
+    }
+    const std::vector<std::size_t> arg_starts =
+        ArgumentStartTokenIndices(tokens, i, *rparen);
+    const std::size_t hint_count =
+        std::min(arg_starts.size(), symbol->parameters.size());
+    for (std::size_t arg_index = 0; arg_index < hint_count; ++arg_index) {
+      const auto& parameter = symbol->parameters[arg_index];
+      if (parameter.name.empty() || parameter.name == "_") {
+        continue;
+      }
+      const lexer::Token& arg_token = tokens[arg_starts[arg_index]];
+      if (!PositionInRange(arg_token.span.start_offset, range_start,
+                           range_end)) {
+        continue;
+      }
+      llvm::json::Object hint;
+      hint["position"] = PositionJson(index.PositionAt(
+          arg_token.span.start_offset));
+      hint["label"] = parameter.name + ":";
+      hint["kind"] = static_cast<std::int64_t>(2);
+      hint["paddingRight"] = true;
+      hints.emplace_back(std::move(hint));
+    }
+  }
+  return hints;
+}
+
 void LspServer::DidOpen(const llvm::json::Object* params) {
   if (params == nullptr) {
     return;
@@ -765,8 +1311,11 @@ void LspServer::DidOpen(const llvm::json::Object* params) {
   }
   const auto version = GetInteger(*text_document, "version").value_or(0);
   documents_.Open(*uri, *path, version, *text);
-  AnalyzeProjectForPath(*path);
-  PublishDiagnosticsForUri(*uri);
+  if (ManifestRootForPath(*path).has_value()) {
+    ScheduleProjectAnalysisForPath(*path);
+  } else {
+    PublishNoManifestDiagnostic(*uri, *path);
+  }
 }
 
 void LspServer::DidChange(const llvm::json::Object* params) {
@@ -795,9 +1344,8 @@ void LspServer::DidChange(const llvm::json::Object* params) {
   }
   documents_.ChangeFull(*uri, version, *text);
   if (const auto path = tooling::FileUriToPath(*uri)) {
-    AnalyzeProjectForPath(*path);
+    ScheduleProjectAnalysisForPath(*path);
   }
-  PublishDiagnosticsForUri(*uri);
 }
 
 void LspServer::DidSave(const llvm::json::Object* params) {
@@ -812,12 +1360,11 @@ void LspServer::DidSave(const llvm::json::Object* params) {
   }
   if (const auto uri = TextDocumentUri(params)) {
     if (const auto path = tooling::FileUriToPath(*uri)) {
-      AnalyzeProjectForPath(*path);
+      ScheduleProjectAnalysisForPath(*path);
     }
   } else {
     AnalyzeAndPublish();
   }
-  PublishDiagnosticsForOpenDocuments();
 }
 
 void LspServer::DidClose(const llvm::json::Object* params) {
@@ -841,30 +1388,123 @@ void LspServer::AnalyzeAndPublish() {
   for (const auto& overlay : documents_.Overlays()) {
     if (const auto root = ManifestRootForPath(overlay.path)) {
       roots.insert(tooling::PathKey(*root));
-      AnalyzeProject(*root);
+    }
+  }
+  for (const auto& root_key : roots) {
+    for (const auto& overlay : documents_.Overlays()) {
+      const auto root = ManifestRootForPath(overlay.path);
+      if (root.has_value() && tooling::PathKey(*root) == root_key) {
+        ScheduleProjectAnalysis(*root);
+        break;
+      }
     }
   }
   PublishDiagnosticsForOpenDocuments();
 }
 
-void LspServer::AnalyzeProject(const std::filesystem::path& project_root) {
+void LspServer::ScheduleProjectAnalysis(
+    const std::filesystem::path& project_root) {
   tooling::ToolingAnalysisOptions options;
   options.project_root = tooling::NormalizePath(project_root);
+  options.target_profile = server_options_.target_profile;
   const auto overlays = OverlaysForRoot(options.project_root);
-  ProjectSnapshot project;
-  project.options = options;
-  project.snapshot = tooling::AnalyzeWorkspace(options, overlays);
-  projects_by_root_[tooling::PathKey(options.project_root)] = std::move(project);
-  Log("analyzed " + options.project_root.generic_string());
+  const std::string root_key = tooling::PathKey(options.project_root);
+
+  {
+    std::lock_guard<std::mutex> lock(analysis_mutex_);
+    const std::uint64_t generation = ++analysis_generations_[root_key];
+    pending_analyses_.push_back(PendingAnalysis{
+        root_key,
+        generation,
+        std::move(options),
+        overlays,
+    });
+  }
+  analysis_cv_.notify_one();
 }
 
-void LspServer::AnalyzeProjectForPath(const std::filesystem::path& path) {
+void LspServer::ScheduleProjectAnalysisForPath(
+    const std::filesystem::path& path) {
   const auto root = ManifestRootForPath(path);
   if (!root.has_value()) {
     Log("no Cursive.toml for " + tooling::NormalizePath(path).generic_string());
     return;
   }
-  AnalyzeProject(*root);
+  ScheduleProjectAnalysis(*root);
+}
+
+void LspServer::AnalysisWorkerLoop() {
+  while (true) {
+    PendingAnalysis pending;
+    {
+      std::unique_lock<std::mutex> lock(analysis_mutex_);
+      analysis_cv_.wait(lock, [this]() {
+        return analysis_worker_stop_ || !pending_analyses_.empty();
+      });
+      if (analysis_worker_stop_ && pending_analyses_.empty()) {
+        return;
+      }
+      pending = std::move(pending_analyses_.front());
+      pending_analyses_.pop_front();
+      const auto current = analysis_generations_.find(pending.root_key);
+      if (current != analysis_generations_.end() &&
+          pending.generation < current->second) {
+        continue;
+      }
+    }
+
+    auto project = std::make_shared<ProjectSnapshot>();
+    project->options = pending.options;
+    project->snapshot =
+        tooling::AnalyzeWorkspace(pending.options, pending.overlays);
+
+    bool install = false;
+    {
+      std::lock_guard<std::mutex> lock(analysis_mutex_);
+      const auto current = analysis_generations_.find(pending.root_key);
+      install = current != analysis_generations_.end() &&
+                pending.generation == current->second;
+    }
+    if (!install) {
+      continue;
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(state_mutex_);
+      projects_by_root_[pending.root_key] = project;
+    }
+    Log("analyzed " + pending.options.project_root.generic_string());
+    PublishDiagnosticsForOverlays(pending.overlays, project->snapshot);
+  }
+}
+
+void LspServer::StopAnalysisWorker() {
+  {
+    std::lock_guard<std::mutex> lock(analysis_mutex_);
+    analysis_worker_stop_ = true;
+    pending_analyses_.clear();
+  }
+  analysis_cv_.notify_all();
+  if (analysis_worker_.joinable()) {
+    analysis_worker_.join();
+  }
+}
+
+void LspServer::PublishDiagnosticsForOverlays(
+    const std::vector<tooling::DocumentOverlay>& overlays,
+    const tooling::AnalysisSnapshot& snapshot) {
+  tooling::DocumentStore overlay_documents;
+  for (const auto& overlay : overlays) {
+    overlay_documents.Open(overlay.uri, overlay.path, overlay.version,
+                           overlay.text_utf8);
+  }
+  for (const auto& overlay : overlays) {
+    llvm::json::Object params;
+    params["uri"] = overlay.uri;
+    params["diagnostics"] =
+        DiagnosticsForPath(snapshot, overlay_documents, overlay.path);
+    SendNotification("textDocument/publishDiagnostics", std::move(params));
+  }
 }
 
 void LspServer::PublishDiagnosticsForOpenDocuments() {
@@ -878,9 +1518,16 @@ void LspServer::PublishDiagnosticsForUri(const std::string& uri) {
   if (!path.has_value()) {
     return;
   }
-  const auto* project = SnapshotForPath(*path);
+  const auto project = SnapshotForPath(*path);
   if (project == nullptr) {
-    PublishNoManifestDiagnostic(uri, *path);
+    if (ManifestRootForPath(*path).has_value()) {
+      llvm::json::Object params;
+      params["uri"] = uri;
+      params["diagnostics"] = llvm::json::Array();
+      SendNotification("textDocument/publishDiagnostics", std::move(params));
+    } else {
+      PublishNoManifestDiagnostic(uri, *path);
+    }
     return;
   }
   llvm::json::Object params;
@@ -908,6 +1555,7 @@ void LspServer::SendResponse(const llvm::json::Value& id,
   llvm::json::Object response = JsonRpcBase();
   response["id"] = id;
   response["result"] = std::move(result);
+  std::lock_guard<std::mutex> lock(output_mutex_);
   rpc_.WriteMessage(llvm::json::Value(std::move(response)));
 }
 
@@ -921,6 +1569,7 @@ void LspServer::SendError(const llvm::json::Value& id,
   llvm::json::Object response = JsonRpcBase();
   response["id"] = id;
   response["error"] = std::move(error);
+  std::lock_guard<std::mutex> lock(output_mutex_);
   rpc_.WriteMessage(llvm::json::Value(std::move(response)));
 }
 
@@ -928,10 +1577,12 @@ void LspServer::SendNotification(std::string method, llvm::json::Value params) {
   llvm::json::Object notification = JsonRpcBase();
   notification["method"] = std::move(method);
   notification["params"] = std::move(params);
+  std::lock_guard<std::mutex> lock(output_mutex_);
   rpc_.WriteMessage(llvm::json::Value(std::move(notification)));
 }
 
 void LspServer::Log(std::string_view message) {
+  std::lock_guard<std::mutex> lock(output_mutex_);
   if (log_.is_open()) {
     log_ << message << '\n';
     log_.flush();
@@ -1011,29 +1662,27 @@ std::vector<tooling::DocumentOverlay> LspServer::OverlaysForRoot(
   return overlays;
 }
 
-LspServer::ProjectSnapshot* LspServer::SnapshotForPath(
-    const std::filesystem::path& path) {
-  const auto root = ManifestRootForPath(path);
-  if (!root.has_value()) {
-    return nullptr;
-  }
-  const std::string key = tooling::PathKey(*root);
-  auto it = projects_by_root_.find(key);
-  if (it == projects_by_root_.end()) {
-    AnalyzeProject(*root);
-    it = projects_by_root_.find(key);
-  }
-  return it == projects_by_root_.end() ? nullptr : &it->second;
-}
-
-const LspServer::ProjectSnapshot* LspServer::SnapshotForPath(
+std::shared_ptr<const LspServer::ProjectSnapshot> LspServer::SnapshotForPath(
     const std::filesystem::path& path) const {
   const auto root = ManifestRootForPath(path);
   if (!root.has_value()) {
     return nullptr;
   }
-  const auto it = projects_by_root_.find(tooling::PathKey(*root));
-  return it == projects_by_root_.end() ? nullptr : &it->second;
+  const std::string key = tooling::PathKey(*root);
+  std::lock_guard<std::mutex> lock(state_mutex_);
+  const auto it = projects_by_root_.find(key);
+  return it == projects_by_root_.end() ? nullptr : it->second;
+}
+
+std::vector<std::shared_ptr<const LspServer::ProjectSnapshot>>
+LspServer::ProjectSnapshots() const {
+  std::vector<std::shared_ptr<const ProjectSnapshot>> snapshots;
+  std::lock_guard<std::mutex> lock(state_mutex_);
+  snapshots.reserve(projects_by_root_.size());
+  for (const auto& [_, project] : projects_by_root_) {
+    snapshots.push_back(project);
+  }
+  return snapshots;
 }
 
 }  // namespace cursive::driver::lsp

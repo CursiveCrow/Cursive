@@ -79,15 +79,14 @@ llvm::json::Array DiagnosticsForPath(
   const std::string key = tooling::PathKey(path);
 
   for (const auto& diag : snapshot.diagnostics) {
-    if (!diag.span.has_value()) {
-      continue;
-    }
-    if (tooling::PathKey(diag.span->file) != key) {
+    if (diag.span.has_value() && tooling::PathKey(diag.span->file) != key) {
       continue;
     }
 
     llvm::json::Object item;
-    item["range"] = RangeJson(index.RangeFor(*diag.span));
+    item["range"] = diag.span.has_value()
+                        ? RangeJson(index.RangeFor(*diag.span))
+                        : RangeJson(tooling::LineRange{});
     item["severity"] = static_cast<std::int64_t>(SeverityToLsp(diag.severity));
     if (!diag.code.empty()) {
       item["code"] = diag.code;

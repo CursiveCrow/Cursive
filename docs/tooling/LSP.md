@@ -20,20 +20,23 @@ C:\Dev\Cursive\cursive\build\windows\Debug\Cursive_LSP.exe
 ## Server Options
 
 ```text
-Cursive_LSP [--stdio] [--log-file <path>]
+Cursive_LSP [--stdio] [--log-file <path>] [--target-profile <profile>]
 Cursive_LSP --version
 ```
 
 - `--stdio` runs LSP over stdin/stdout. This is the default.
 - `--version` prints the server version and exits.
 - `--log-file <path>` writes server lifecycle and project-analysis logs.
+- `--target-profile <profile>` selects the target profile when the manifest does
+  not set `[toolchain].target_profile`. Supported values match the compiler:
+  `x86_64-sysv`, `x86_64-win64`, and `aarch64-aapcs64`.
 
 ## Editor Configuration
 
 Use the same command shape in every editor:
 
 ```text
-Cursive_LSP --stdio
+Cursive_LSP --stdio --target-profile x86_64-win64
 ```
 
 Open a folder that contains a `Cursive.toml` manifest. The server also discovers
@@ -43,6 +46,9 @@ under a manifest root.
 
 If no manifest is found, the server publishes a diagnostic on the opened file
 instead of silently doing nothing.
+
+If neither `--target-profile` nor `[toolchain].target_profile` is set, the
+server publishes the same `E-PRJ-0112` diagnostic as the compiler.
 
 ### Neovim
 
@@ -61,6 +67,8 @@ vim.api.nvim_create_autocmd("FileType", {
       cmd = {
         "C:/Dev/Cursive/cursive/build/windows/Debug/Cursive_LSP.exe",
         "--stdio",
+        "--target-profile",
+        "x86_64-win64",
       },
       root_dir = root,
     })
@@ -73,7 +81,7 @@ vim.api.nvim_create_autocmd("FileType", {
 ```toml
 [language-server.cursive-lsp]
 command = "C:/Dev/Cursive/cursive/build/windows/Debug/Cursive_LSP.exe"
-args = ["--stdio"]
+args = ["--stdio", "--target-profile", "x86_64-win64"]
 
 [[language]]
 name = "cursive"
@@ -117,5 +125,7 @@ python tests/lsp/test_features.py
 python tests/lsp/test_manifest_root.py
 python tests/lsp/test_no_manifest.py
 python tests/lsp/test_code_action.py
+python tests/lsp/test_qualified_navigation.py
+python tests/lsp/test_semantic_diagnostics.py
 python tests/lsp/test_version.py
 ```

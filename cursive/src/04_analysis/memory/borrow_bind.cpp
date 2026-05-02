@@ -1529,8 +1529,8 @@ static void DowngradeUniqueBind_inplace(const ScopeContext& ctx,
   if (PermOfType(*init_type) != Permission::Unique) {
     return;
   }
-  // C0X Extension: unique -> shared or unique -> const both trigger downgrade
-  // Permission lattice: unique <: shared <: const
+  // Binding-state suspension is the call/binding use-site rule; it is not
+  // general permission subtyping and it does not rewrite the source type.
   const auto bind_perm = PermOfType(bind_type);
   if (bind_perm != Permission::Const && bind_perm != Permission::Shared) {
     return;

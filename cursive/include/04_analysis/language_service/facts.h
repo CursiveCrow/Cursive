@@ -32,6 +32,11 @@ enum class LanguageSymbolKind {
   Parameter,
 };
 
+struct LanguageParameterInfo {
+  std::string name;
+  std::string label;
+};
+
 struct LanguageSymbolInfo {
   std::string id;
   std::string name;
@@ -43,6 +48,8 @@ struct LanguageSymbolInfo {
   std::string detail;
   std::string documentation;
   TypeRef type;
+  std::string signature_label;
+  std::vector<LanguageParameterInfo> parameters;
   bool is_local = false;
   bool include_in_outline = true;
   bool include_in_workspace = true;

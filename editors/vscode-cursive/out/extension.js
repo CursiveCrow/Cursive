@@ -42,9 +42,10 @@ const node_1 = require("vscode-languageclient/node");
 let client;
 function defaultServerPath(context) {
     const repoRoot = path.resolve(context.extensionPath, "..", "..");
-    const executable = process.platform === "win32" ? "Cursive_LSP.exe" : "Cursive_LSP";
-    const buildHost = process.platform === "win32" ? "windows" : "linux";
-    return path.join(repoRoot, "cursive", "build", buildHost, "Debug", executable);
+    if (process.platform === "win32") {
+        return path.join(repoRoot, "cursive", "build", "windows", "Debug", "Cursive_LSP.exe");
+    }
+    return path.join(repoRoot, "cursive", "build", "linux", "Cursive_LSP");
 }
 function configuredServerPath(context) {
     const config = vscode.workspace.getConfiguration("cursive");
@@ -57,6 +58,10 @@ function serverArgs() {
     const logFile = config.get("lsp.logFile", "").trim();
     if (logFile.length > 0) {
         args.push("--log-file", logFile);
+    }
+    const targetProfile = config.get("lsp.targetProfile", "").trim();
+    if (targetProfile.length > 0) {
+        args.push("--target-profile", targetProfile);
     }
     return args;
 }

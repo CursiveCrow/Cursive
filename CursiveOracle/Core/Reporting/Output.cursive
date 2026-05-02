@@ -243,6 +243,10 @@ procedure recordWriteResult(ctx: OutputContext, ok: bool) -> OutputContext {
     }
 }
 
+public procedure recordReportArtifactWriteResult(ctx: OutputContext, ok: bool) -> OutputContext {
+    return recordWriteResult(ctx, ok)
+}
+
 procedure advanceEventIndex(ctx: OutputContext) -> OutputContext {
     return OutputContext {
         fs: ctx.fs,

@@ -2,7 +2,7 @@
   "name": "cursive-vscode",
   "displayName": "Cursive",
   "description": "VS Code language support for Cursive.",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "publisher": "local",
   "engines": {
     "vscode": "^1.90.0"
@@ -28,6 +28,80 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "grammars": [
+      {
+        "language": "cursive",
+        "scopeName": "source.cursive",
+        "path": "./syntaxes/cursive.tmLanguage.json"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "cursive",
+        "scopes": {
+          "namespace": [
+            "entity.name.namespace.cursive"
+          ],
+          "type": [
+            "entity.name.type.cursive",
+            "support.type.cursive"
+          ],
+          "class": [
+            "entity.name.type.class.cursive"
+          ],
+          "enum": [
+            "entity.name.type.enum.cursive"
+          ],
+          "struct": [
+            "entity.name.type.struct.cursive"
+          ],
+          "enumMember": [
+            "variable.other.enummember.cursive"
+          ],
+          "function": [
+            "entity.name.function.cursive"
+          ],
+          "method": [
+            "entity.name.function.member.cursive"
+          ],
+          "property": [
+            "variable.other.property.cursive"
+          ],
+          "parameter": [
+            "variable.parameter.cursive"
+          ],
+          "variable": [
+            "variable.other.readwrite.cursive"
+          ],
+          "variable.readonly": [
+            "variable.other.constant.cursive"
+          ],
+          "keyword": [
+            "keyword.control.cursive"
+          ],
+          "number": [
+            "constant.numeric.cursive"
+          ],
+          "string": [
+            "string.quoted.cursive"
+          ],
+          "operator": [
+            "keyword.operator.cursive"
+          ],
+          "comment": [
+            "comment.line.double-slash.cursive"
+          ],
+          "comment.documentation": [
+            "comment.line.documentation.cursive"
+          ]
+        }
+      }
+    ],
+    "configurationDefaults": {
+      "[cursive]": {
+        "editor.semanticHighlighting.enabled": true
+      }
+    },
     "configuration": {
       "title": "Cursive",
       "properties": {
@@ -50,6 +124,17 @@
           "type": "string",
           "default": "",
           "description": "Optional path for Cursive language server lifecycle logs."
+        },
+        "cursive.lsp.targetProfile": {
+          "type": "string",
+          "enum": [
+            "",
+            "x86_64-sysv",
+            "x86_64-win64",
+            "aarch64-aapcs64"
+          ],
+          "default": "",
+          "description": "Optional target profile passed to the Cursive language server."
         }
       }
     }

@@ -942,6 +942,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     if (abi.param_kinds[i] == PassKind::ByRef) {
       // Need to pass by reference - create temporary if not already a pointer
       llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
+      bool materialized_slice_storage = false;
       if (analysis::TypeRef slice_arg_type = is_slice_param_type(params[i].type)
                                                 ? params[i].type
                                                 : source_arg_slice_type(i)) {
@@ -952,6 +953,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
                                       /*prefer_storage=*/true,
                                       arg)) {
           arg = slice_storage;
+          materialized_slice_storage = true;
         }
       }
       if (!arg->getType()->isPointerTy() || is_null_pointer_arg(arg)) {
@@ -976,14 +978,16 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
         }
         continue;
       }
-      if (llvm::Value* storage =
-              materialize_mismatched_pointer_arg(i,
-                                                 arg,
-                                                 elem_ty,
-                                                 params[i].type,
-                                                 "byref_arg")) {
-        call_args[idx] = storage;
-        continue;
+      if (!materialized_slice_storage) {
+        if (llvm::Value* storage =
+                materialize_mismatched_pointer_arg(i,
+                                                   arg,
+                                                   elem_ty,
+                                                   params[i].type,
+                                                   "byref_arg")) {
+          call_args[idx] = storage;
+          continue;
+        }
       }
       llvm::Type* target_ty = abi.param_types[idx];
       if (target_ty && arg->getType() != target_ty) {
@@ -996,6 +1000,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
     if (carrier == ABIArgCarrierKind::Indirect) {
       llvm::Type* elem_ty = emitter.GetLLVMType(params[i].type);
       llvm::Value* ptr_arg = arg;
+      bool materialized_slice_storage = false;
       if (analysis::TypeRef slice_arg_type = is_slice_param_type(params[i].type)
                                                 ? params[i].type
                                                 : source_arg_slice_type(i)) {
@@ -1006,6 +1011,7 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
                                       /*prefer_storage=*/true,
                                       arg)) {
           ptr_arg = slice_storage;
+          materialized_slice_storage = true;
         }
       }
       if (!ptr_arg->getType()->isPointerTy() || is_null_pointer_arg(ptr_arg)) {
@@ -1028,13 +1034,15 @@ llvm::Value* EmitABICall(LLVMEmitter& emitter,
           }
         }
       }
-      if (llvm::Value* storage =
-              materialize_mismatched_pointer_arg(i,
-                                                 ptr_arg,
-                                                 elem_ty,
-                                                 params[i].type,
-                                                 "indirect_arg")) {
-        ptr_arg = storage;
+      if (!materialized_slice_storage) {
+        if (llvm::Value* storage =
+                materialize_mismatched_pointer_arg(i,
+                                                   ptr_arg,
+                                                   elem_ty,
+                                                   params[i].type,
+                                                   "indirect_arg")) {
+          ptr_arg = storage;
+        }
       }
       llvm::Type* target_ty = abi.param_types[idx];
       if (target_ty && ptr_arg->getType() != target_ty) {

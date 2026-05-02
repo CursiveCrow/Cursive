@@ -1,0 +1,16 @@
+/// Shared answer constant.
+public let ANSWER: i32 = 42
+
+public record Box {
+    public value: i32
+}
+
+procedure increment(value: i32) -> i32 {
+    let next: i32 = value + ANSWER
+    return next
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let result: i32 = increment(ANSWER)
+    return result
+}

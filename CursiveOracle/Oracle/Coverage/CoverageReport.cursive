@@ -5,22 +5,209 @@ procedure ensureCoverageReportDirectory(fs: $FileSystem) -> bool {
     }
 }
 
-procedure writeCoverageTextFile(fs: $FileSystem, path: string@View, text: string@View) -> bool {
-    return if fs~>write_file(path, bytes::view_string(text)) is {
+procedure appendCoverageText(
+    writer: unique File@Write,
+    text: string@View
+) -> bool {
+    return if writer~>write(bytes::view_string(text)) is {
         _: () { true }
         _: IoError { false }
     }
+}
+
+procedure appendCoverageBytes(
+    writer: unique File@Write,
+    value: bytes@View
+) -> bool {
+    return if writer~>write(value) is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure appendCoverageDigit(
+    writer: unique File@Write,
+    digit: i32
+) -> bool {
+    if (digit == 0) { return appendCoverageText(writer, "0") }
+    if (digit == 1) { return appendCoverageText(writer, "1") }
+    if (digit == 2) { return appendCoverageText(writer, "2") }
+    if (digit == 3) { return appendCoverageText(writer, "3") }
+    if (digit == 4) { return appendCoverageText(writer, "4") }
+    if (digit == 5) { return appendCoverageText(writer, "5") }
+    if (digit == 6) { return appendCoverageText(writer, "6") }
+    if (digit == 7) { return appendCoverageText(writer, "7") }
+    if (digit == 8) { return appendCoverageText(writer, "8") }
+    if (digit == 9) { return appendCoverageText(writer, "9") }
+    return false
+}
+
+procedure appendCoverageUnsignedInteger(
+    writer: unique File@Write,
+    value: i32
+) -> bool {
+    if (value >= 10) {
+        return appendCoverageUnsignedInteger(writer, value / 10) &&
+            appendCoverageDigit(writer, value % 10)
+    }
+    return appendCoverageDigit(writer, value)
+}
+
+procedure appendCoverageInteger(
+    writer: unique File@Write,
+    value: i32
+) -> bool {
+    if (value < 0) {
+        return appendCoverageText(writer, "-") &&
+            appendCoverageUnsignedInteger(writer, 0 - value)
+    }
+    return appendCoverageUnsignedInteger(writer, value)
+}
+
+procedure appendCoverageTextLine(
+    writer: unique File@Write,
+    name: string@View,
+    value: string@View
+) -> bool {
+    return appendCoverageText(writer, name) &&
+        appendCoverageText(writer, "=") &&
+        appendCoverageText(writer, value) &&
+        appendCoverageText(writer, "\n")
+}
+
+procedure appendCoverageIntegerLine(
+    writer: unique File@Write,
+    name: string@View,
+    value: i32
+) -> bool {
+    return appendCoverageText(writer, name) &&
+        appendCoverageText(writer, "=") &&
+        appendCoverageInteger(writer, value) &&
+        appendCoverageText(writer, "\n")
+}
+
+procedure appendCoverageRecordLine(
+    writer: unique File@Write,
+    name: string@View,
+    present: bool,
+    coverage_record: CoverageRecord
+) -> bool {
+    if (present == false) {
+        return appendCoverageTextLine(writer, name, "-")
+    }
+    return appendCoverageText(writer, name) &&
+        appendCoverageText(writer, "=") &&
+        appendCoverageBytes(writer, coverage_record.obligation_id) &&
+        appendCoverageText(writer, " source_start=") &&
+        appendCoverageInteger(writer, coverage_record.source_start) &&
+        appendCoverageText(writer, " source_end=") &&
+        appendCoverageInteger(writer, coverage_record.source_end) &&
+        appendCoverageText(writer, " source_line=") &&
+        appendCoverageInteger(writer, coverage_record.source_line) &&
+        appendCoverageText(writer, " source_column=") &&
+        appendCoverageInteger(writer, coverage_record.source_column) &&
+        appendCoverageText(writer, " content_identity=") &&
+        appendCoverageInteger(writer, coverage_record.content_identity) &&
+        appendCoverageText(writer, " state=") &&
+        appendCoverageText(writer, renderCoverageState(coverage_record.coverage_state)) &&
+        appendCoverageText(writer, " reason=") &&
+        appendCoverageText(writer, coverage_record.blocker_reason) &&
+        appendCoverageText(writer, "\n")
+}
+
+procedure appendCoverageReport(
+    writer: unique File@Write,
+    ledger: CoverageLedger
+) -> bool {
+    return appendCoverageTextLine(writer, "coverage_ledger", ledger.ledger_id) &&
+        appendCoverageTextLine(writer, "source", ledger.source_spec_path) &&
+        appendCoverageTextLine(
+            writer,
+            "obligation_ledger",
+            ledger.obligation_ledger_path
+        ) &&
+        appendCoverageTextLine(writer, "status", Reporting::renderStatus(coverageLedgerStatus(ledger))) &&
+        appendCoverageIntegerLine(writer, "total_obligation_count", ledger.total_obligation_count) &&
+        appendCoverageIntegerLine(writer, "required_obligation_count", ledger.required_obligation_count) &&
+        appendCoverageIntegerLine(writer, "uncovered_count", ledger.uncovered_count) &&
+        appendCoverageIntegerLine(writer, "state.uncovered", ledger.uncovered_count) &&
+        appendCoverageIntegerLine(writer, "state.parsed_only", ledger.parsed_only_count) &&
+        appendCoverageIntegerLine(writer, "state.modeled", ledger.modeled_count) &&
+        appendCoverageIntegerLine(writer, "state.reference_covered", ledger.reference_covered_count) &&
+        appendCoverageIntegerLine(writer, "state.generated", ledger.generated_count) &&
+        appendCoverageIntegerLine(writer, "state.executed_pass", ledger.executed_pass_count) &&
+        appendCoverageIntegerLine(writer, "state.executed_fail", ledger.executed_fail_count) &&
+        appendCoverageIntegerLine(
+            writer,
+            "state.blocked_by_current_compiler",
+            ledger.blocked_by_current_compiler_count
+        ) &&
+        appendCoverageIntegerLine(
+            writer,
+            "state.blocked_by_oracle_language_support",
+            ledger.blocked_by_oracle_language_support_count
+        ) &&
+        appendCoverageIntegerLine(
+            writer,
+            "state.unsupported_by_reference",
+            ledger.unsupported_by_reference_count
+        ) &&
+        appendCoverageIntegerLine(
+            writer,
+            "state.outside_conformance",
+            ledger.outside_conformance_count
+        ) &&
+        appendCoverageIntegerLine(writer, "state.informative_only", ledger.informative_only_count) &&
+        appendCoverageIntegerLine(
+            writer,
+            "obligation_ledger_read_failure_count",
+            ledger.obligation_ledger_read_failure_count
+        ) &&
+        appendCoverageIntegerLine(
+            writer,
+            "malformed_obligation_record_count",
+            ledger.malformed_obligation_record_count
+        ) &&
+        appendCoverageRecordLine(
+            writer,
+            "top_oracle_language_blocker",
+            ledger.has_top_oracle_language_blocker,
+            ledger.top_oracle_language_blocker
+        ) &&
+        appendCoverageRecordLine(
+            writer,
+            "top_current_compiler_blocker",
+            ledger.has_top_current_compiler_blocker,
+            ledger.top_current_compiler_blocker
+        ) &&
+        appendCoverageRecordLine(
+            writer,
+            "top_uncovered_obligation",
+            ledger.has_top_uncovered_obligation,
+            ledger.top_uncovered_obligation
+        )
 }
 
 public procedure writeCoverageReport(fs: $FileSystem, ledger: CoverageLedger) -> bool {
     if (ensureCoverageReportDirectory(fs) == false) {
         return false
     }
-    return writeCoverageTextFile(
-        fs,
-        ledger.report_path,
-        "coverage_ledger=coverage.ledger.main\nsource=docs/CursiveSpecification.md\nstate=incomplete_required_obligations\n"
-    )
+    let stale_report_cleanup: () | IoError = fs~>remove(ledger.report_path)
+    let _ = stale_report_cleanup
+    return if fs~>create_write(ledger.report_path) is {
+        writer: unique File@Write {
+            let appended: bool = appendCoverageReport(writer, ledger)
+            let flush_result: () | IoError = writer~>flush()
+            let closed: File@Closed = writer~>close()
+            let _ = closed
+            let flushed: bool = if flush_result is {
+                _: () { true }
+                _: IoError { false }
+            }
+            appended && flushed
+        }
+        _: IoError { false }
+    }
 }
 
 procedure emitCoverageMetric(
@@ -64,37 +251,103 @@ procedure emitCoverageEvidence(
     )
 }
 
-procedure emitCoverageBlocker(
+procedure emitCoverageBlockerEvent(
     ctx: Reporting::OutputContext,
     ledger: CoverageLedger,
-    obligation: Obligations::SpecObligation
+    coverage_record: CoverageRecord,
+    status: Reporting::ReportStatus,
+    observed: string@View,
+    message: string@View
 ) -> Reporting::OutputContext {
-    let event: Reporting::OutputEvent = Reporting::eventWithSourceContext(
-        Reporting::eventWithEvidence(
-            Reporting::eventWithExpectedObserved(
-                Reporting::eventBase(
-                    Reporting::ReportEventKind::Progress,
-                    Reporting::ReportSeverity::Info,
-                    Reporting::ReportPhase::Coverage,
-                    Reporting::ReportSubjectKind::CoverageLedger,
-                    ledger.ledger_id,
-                    "Oracle::Coverage",
-                    Reporting::ReportStatus::Uncovered,
-                    "coverage_blocker_next_task_task_014"
-                ),
-                "executed_pass",
-                "uncovered_required_obligations"
-            ),
-            Reporting::ReportEvidenceKind::ObligationId,
-            obligation.obligation_id
+    let base: Reporting::OutputEvent = Reporting::eventWithExpectedObserved(
+        Reporting::eventBase(
+            Reporting::ReportEventKind::Progress,
+            Reporting::ReportSeverity::Info,
+            Reporting::ReportPhase::Coverage,
+            Reporting::ReportSubjectKind::CoverageLedger,
+            ledger.ledger_id,
+            "Oracle::Coverage",
+            status,
+            message
         ),
-        obligation.source.source_start,
-        obligation.source.source_end,
-        obligation.source.source_line,
-        obligation.source.source_column,
-        obligation.source.content_identity
+        renderCoverageState(coverage_record.coverage_state),
+        observed
+    )
+    let with_evidence: Reporting::OutputEvent = Reporting::eventWithBytesEvidence(
+        base,
+        Reporting::ReportEvidenceKind::ObligationId,
+        coverage_record.obligation_id
+    )
+    let event: Reporting::OutputEvent = Reporting::eventWithSourceContext(
+        with_evidence,
+        coverage_record.source_start,
+        coverage_record.source_end,
+        coverage_record.source_line,
+        coverage_record.source_column,
+        coverage_record.content_identity
     )
     return Reporting::emitEvent(ctx, event)
+}
+
+procedure emitCoverageCurrentCompilerBlocker(
+    ctx: Reporting::OutputContext,
+    ledger: CoverageLedger
+) -> Reporting::OutputContext {
+    if (ledger.has_top_current_compiler_blocker == false) {
+        return ctx
+    }
+    return emitCoverageBlockerEvent(
+        ctx,
+        ledger,
+        ledger.top_current_compiler_blocker,
+        Reporting::ReportStatus::BlockedByCurrentCompiler,
+        ledger.top_current_compiler_blocker.blocker_reason,
+        "coverage_blocker_next_task_task_014"
+    )
+}
+
+procedure emitCoverageOracleSupportBlocker(
+    ctx: Reporting::OutputContext,
+    ledger: CoverageLedger
+) -> Reporting::OutputContext {
+    if (ledger.has_top_oracle_language_blocker == false) {
+        return ctx
+    }
+    return emitCoverageBlockerEvent(
+        ctx,
+        ledger,
+        ledger.top_oracle_language_blocker,
+        Reporting::ReportStatus::BlockedByOracleLanguageSupport,
+        ledger.top_oracle_language_blocker.blocker_reason,
+        "coverage_blocker_next_task_task_014"
+    )
+}
+
+procedure emitCoverageUncoveredBlocker(
+    ctx: Reporting::OutputContext,
+    ledger: CoverageLedger
+) -> Reporting::OutputContext {
+    if (ledger.has_top_uncovered_obligation == false) {
+        return ctx
+    }
+    return emitCoverageBlockerEvent(
+        ctx,
+        ledger,
+        ledger.top_uncovered_obligation,
+        Reporting::ReportStatus::Uncovered,
+        "required_obligation_not_executed_pass:task_014",
+        "coverage_blocker_next_task_task_014"
+    )
+}
+
+procedure emitCoverageBlockers(
+    ctx: Reporting::OutputContext,
+    ledger: CoverageLedger
+) -> Reporting::OutputContext {
+    var output: Reporting::OutputContext =
+        emitCoverageCurrentCompilerBlocker(ctx, ledger)
+    output = emitCoverageOracleSupportBlocker(output, ledger)
+    return emitCoverageUncoveredBlocker(output, ledger)
 }
 
 procedure emitCoverageFinalMetric(
@@ -134,6 +387,34 @@ procedure emitCoverageCounts(
     )
     output = emitCoverageMetric(
         output,
+        "state.parsed_only",
+        Reporting::ReportStatus::ParsedOnly,
+        Reporting::ReportMetricKind::ParsedOnlyCount,
+        ledger.parsed_only_count
+    )
+    output = emitCoverageMetric(
+        output,
+        "state.modeled",
+        Reporting::ReportStatus::Modeled,
+        Reporting::ReportMetricKind::ModeledObligationCount,
+        ledger.modeled_count
+    )
+    output = emitCoverageMetric(
+        output,
+        "state.reference_covered",
+        Reporting::ReportStatus::ReferenceCovered,
+        Reporting::ReportMetricKind::ReferenceCoveredCount,
+        ledger.reference_covered_count
+    )
+    output = emitCoverageMetric(
+        output,
+        "state.generated",
+        Reporting::ReportStatus::Generated,
+        Reporting::ReportMetricKind::GeneratedCaseCount,
+        ledger.generated_count
+    )
+    output = emitCoverageMetric(
+        output,
         "state.executed_pass",
         Reporting::ReportStatus::ExecutedPass,
         Reporting::ReportMetricKind::ExecutedPassCount,
@@ -153,12 +434,33 @@ procedure emitCoverageCounts(
         Reporting::ReportMetricKind::BlockedCount,
         ledger.blocked_by_current_compiler_count
     )
-    return emitCoverageMetric(
+    output = emitCoverageMetric(
         output,
         "state.blocked_by_oracle_language_support",
         Reporting::ReportStatus::BlockedByOracleLanguageSupport,
         Reporting::ReportMetricKind::BlockedCount,
         ledger.blocked_by_oracle_language_support_count
+    )
+    output = emitCoverageMetric(
+        output,
+        "state.unsupported_by_reference",
+        Reporting::ReportStatus::UnsupportedByReference,
+        Reporting::ReportMetricKind::UnsupportedCount,
+        ledger.unsupported_by_reference_count
+    )
+    output = emitCoverageMetric(
+        output,
+        "state.outside_conformance",
+        Reporting::ReportStatus::OutsideConformance,
+        Reporting::ReportMetricKind::OutsideConformanceCount,
+        ledger.outside_conformance_count
+    )
+    return emitCoverageMetric(
+        output,
+        "state.informative_only",
+        Reporting::ReportStatus::InformativeOnly,
+        Reporting::ReportMetricKind::InformativeObligationCount,
+        ledger.informative_only_count
     )
 }
 
@@ -183,6 +485,13 @@ procedure emitCoverageFinalMetrics(
     output = emitCoverageFinalMetric(
         output,
         ledger,
+        Reporting::ReportMetricKind::UncoveredCount,
+        ledger.uncovered_count,
+        "coverage_final_uncovered_obligations"
+    )
+    output = emitCoverageFinalMetric(
+        output,
+        ledger,
         Reporting::ReportMetricKind::ExecutedPassCount,
         ledger.executed_pass_count,
         "coverage_final_executed_pass"
@@ -194,18 +503,150 @@ procedure emitCoverageFinalMetrics(
         ledger.executed_fail_count,
         "coverage_final_executed_fail"
     )
-    return emitCoverageFinalMetric(
+    output = emitCoverageFinalMetric(
         output,
         ledger,
         Reporting::ReportMetricKind::BlockedCount,
-        ledger.blocked_by_current_compiler_count + ledger.blocked_by_oracle_language_support_count,
-        "coverage_final_blockers"
+        ledger.blocked_by_current_compiler_count,
+        "coverage_final_blocked_by_current_compiler"
+    )
+    output = emitCoverageFinalMetric(
+        output,
+        ledger,
+        Reporting::ReportMetricKind::BlockedCount,
+        ledger.blocked_by_oracle_language_support_count,
+        "coverage_final_blocked_by_oracle_language_support"
+    )
+    output = emitCoverageFinalMetric(
+        output,
+        ledger,
+        Reporting::ReportMetricKind::UnsupportedCount,
+        ledger.unsupported_by_reference_count,
+        "coverage_final_unsupported_by_reference"
+    )
+    return emitCoverageFinalMetric(
+        output,
+        ledger,
+        Reporting::ReportMetricKind::OutsideConformanceCount,
+        ledger.outside_conformance_count,
+        "coverage_final_outside_conformance"
+    )
+}
+
+procedure emitCoverageReportWriteFailure(
+    ctx: Reporting::OutputContext,
+    ledger: CoverageLedger,
+    report_written: bool
+) -> Reporting::OutputContext {
+    if (report_written == true) {
+        return ctx
+    }
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::failureEvent(
+            Reporting::ReportPhase::ReportWrite,
+            Reporting::ReportSubjectKind::Report,
+            ledger.report_path,
+            "Oracle::Coverage",
+            Reporting::ReportFailureKind::ReportWriteFailure,
+            "coverage_report_written",
+            "write_failed",
+            "coverage_report_write_failed"
+        )
+    )
+}
+
+procedure emitCoverageLedgerReadFailure(
+    ctx: Reporting::OutputContext,
+    ledger: CoverageLedger
+) -> Reporting::OutputContext {
+    if (ledger.obligation_ledger_read_failure_count == 0) {
+        return ctx
+    }
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::failureEvent(
+            Reporting::ReportPhase::Coverage,
+            Reporting::ReportSubjectKind::CoverageLedger,
+            ledger.ledger_id,
+            "Oracle::Coverage",
+            Reporting::ReportFailureKind::OracleInternal,
+            "readable_obligation_ledger",
+            ledger.obligation_ledger_path,
+            "coverage_obligation_ledger_read_failed"
+        )
+    )
+}
+
+procedure emitCoverageMalformedRecordFailure(
+    ctx: Reporting::OutputContext,
+    ledger: CoverageLedger
+) -> Reporting::OutputContext {
+    if (ledger.malformed_obligation_record_count == 0) {
+        return ctx
+    }
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::failureEvent(
+            Reporting::ReportPhase::Coverage,
+            Reporting::ReportSubjectKind::CoverageLedger,
+            ledger.ledger_id,
+            "Oracle::Coverage",
+            Reporting::ReportFailureKind::OracleInternal,
+            "0",
+            Reporting::renderSmallInteger(ledger.malformed_obligation_record_count),
+            "coverage_obligation_ledger_malformed"
+        )
+    )
+}
+
+procedure coverageReportStatus(
+    ledger: CoverageLedger,
+    report_written: bool
+) -> Reporting::ReportStatus {
+    if (report_written == false) {
+        return Reporting::ReportStatus::ReportWriteFailed
+    }
+    return coverageLedgerStatus(ledger)
+}
+
+procedure coverageRunStatus(ledger: CoverageLedger, report_written: bool) -> i32 {
+    return ledger.status
+}
+
+procedure finishCoverageRun(
+    output_context: Reporting::OutputContext,
+    ledger: CoverageLedger
+) -> CoverageRunResult {
+    var output: Reporting::OutputContext = output_context
+    let report_written: bool = writeCoverageReport(output.fs, ledger)
+    output = Reporting::recordReportArtifactWriteResult(output, report_written)
+    output = emitCoverageReportWriteFailure(output, ledger, report_written)
+    output = emitCoverageLedgerReadFailure(output, ledger)
+    output = emitCoverageMalformedRecordFailure(output, ledger)
+    output = emitCoverageEvidence(output, ledger)
+    output = emitCoverageCounts(output, ledger)
+    output = emitCoverageBlockers(output, ledger)
+    output = emitCoverageFinalMetrics(output, ledger)
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::Coverage,
+        "coverage",
+        "Oracle::Coverage",
+        coverageReportStatus(ledger, report_written)
+    )
+    return coverageRunResult(
+        output,
+        coverageRunStatus(ledger, report_written),
+        coverageLedgerForSummary(ledger)
     )
 }
 
 public procedure runCoverage(
     ctx: Reporting::OutputContext,
     obligations: Obligations::ObligationSummary,
+    reference: Contract::ReferenceModelSummary,
+    generated: Reporting::PhaseRunResult,
     comparison: Compare::ComparisonSummary
 ) -> CoverageRunResult {
     var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
@@ -214,18 +655,20 @@ public procedure runCoverage(
         "coverage",
         "Oracle::Coverage"
     )
-    let ledger: CoverageLedger = buildCoverageLedger(obligations, comparison)
-    let _report_written: bool = writeCoverageReport(output.fs, ledger)
-    output = emitCoverageEvidence(output, ledger)
-    output = emitCoverageCounts(output, ledger)
-    output = emitCoverageBlocker(output, ledger, obligations.primary_obligation)
-    output = emitCoverageFinalMetrics(output, ledger)
-    output = Reporting::emitPhaseEnd(
-        output,
-        Reporting::ReportPhase::Coverage,
-        "coverage",
-        "Oracle::Coverage",
-        coverageLedgerStatus(ledger)
-    )
-    return coverageRunResult(output, ledger.status, ledger)
+    return if output.fs~>read_bytes(obligations.ledger.path) is {
+        obligation_ledger_bytes: unique bytes@Managed {
+            let ledger: CoverageLedger = buildCoverageLedger(
+                obligations,
+                reference,
+                generated,
+                comparison,
+                bytes::as_view(obligation_ledger_bytes)
+            )
+            finishCoverageRun(output, ledger)
+        }
+        _: IoError {
+            let ledger: CoverageLedger = coverageLedgerForReadFailure()
+            finishCoverageRun(output, ledger)
+        }
+    }
 }

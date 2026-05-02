@@ -50,7 +50,7 @@ struct ConstParamInfo {
 // Validation Results
 // =============================================================================
 
-struct GenericParamsResult {
+struct GenericParamValidationResult {
   bool ok = true;
   std::optional<std::string_view> diag_id;
   std::vector<TypeParamInfo> type_params;
@@ -82,7 +82,7 @@ struct DefaultValueResult {
 //   - Bound validity (class paths must resolve)
 //   - Default value ordering (defaults after non-defaults is an error)
 //   - Default type well-formedness
-GenericParamsResult ValidateGenericParams(
+GenericParamValidationResult ValidateGenericParams(
     const ScopeContext& ctx,
     const std::optional<ast::GenericParams>& params_opt);
 

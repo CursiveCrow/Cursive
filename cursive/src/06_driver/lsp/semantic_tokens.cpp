@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <string>
+#include <string_view>
 #include <vector>
 
 #include "00_core/source_load.h"
@@ -23,16 +23,73 @@ struct SemanticToken {
   int modifiers = 0;
 };
 
-std::string TypeForIdentifier(const std::filesystem::path& path,
-                              const lexer::Token& token,
-                              const tooling::AnalysisSnapshot& snapshot) {
-  const auto* symbol =
-      snapshot.language_service.ResolvedSymbolAt(path, token.span.start_offset);
-  if (symbol == nullptr) {
-    return "variable";
+struct SemanticTokenClass {
+  std::string_view type;
+  int modifiers = 0;
+};
+
+bool IsBuiltinType(std::string_view lexeme) {
+  static constexpr std::string_view kBuiltinTypes[] = {
+      "bool",            "bytes",      "char",      "f32",
+      "f64",             "i8",         "i16",       "i32",
+      "i64",             "isize",      "string",    "u8",
+      "u16",             "u32",        "u64",       "usize",
+      "Context",         "System",     "FileSystem", "Network",
+      "HeapAllocator",   "ExecutionDomain", "Reactor", "Region",
+      "RegionOptions",   "CancelToken", "File",      "DirIter",
+      "DirEntry",        "FileKind",   "IoError",   "Async",
+      "Future",          "Sequence",   "Stream",    "Pipe",
+      "Exchange",        "Spawned",    "Tracked",
+  };
+  for (const std::string_view builtin_type : kBuiltinTypes) {
+    if (builtin_type == lexeme) {
+      return true;
+    }
   }
-  switch (symbol->kind) {
+  return false;
+}
+
+bool IsAsciiUpper(char ch) {
+  return ch >= 'A' && ch <= 'Z';
+}
+
+bool IsAsciiLower(char ch) {
+  return ch >= 'a' && ch <= 'z';
+}
+
+bool IsReadonlyName(std::string_view lexeme) {
+  bool has_letter = false;
+  for (const char ch : lexeme) {
+    if (IsAsciiLower(ch)) {
+      return false;
+    }
+    if (IsAsciiUpper(ch)) {
+      has_letter = true;
+    }
+  }
+  return has_letter && lexeme.size() > 1;
+}
+
+SemanticTokenClass ClassifyIdentifierSyntaxOnly(std::string_view lexeme) {
+  if (IsBuiltinType(lexeme)) {
+    return SemanticTokenClass{"type", 0};
+  }
+  if (!lexeme.empty() && IsAsciiUpper(lexeme.front())) {
+    if (IsReadonlyName(lexeme)) {
+      return SemanticTokenClass{"variable",
+                                SemanticTokenModifierMask("readonly")};
+    }
+    return SemanticTokenClass{"type", 0};
+  }
+  return SemanticTokenClass{"variable", 0};
+}
+
+std::string_view TypeForSymbolKind(analysis::LanguageSymbolKind kind) {
+  switch (kind) {
+    case analysis::LanguageSymbolKind::Module:
+      return "namespace";
     case analysis::LanguageSymbolKind::Record:
+      return "struct";
     case analysis::LanguageSymbolKind::Modal:
     case analysis::LanguageSymbolKind::TypeAlias:
       return "type";
@@ -51,37 +108,96 @@ std::string TypeForIdentifier(const std::filesystem::path& path,
       return "property";
     case analysis::LanguageSymbolKind::Parameter:
       return "parameter";
-    default:
+    case analysis::LanguageSymbolKind::Constant:
+    case analysis::LanguageSymbolKind::Variable:
       return "variable";
   }
+  return "variable";
 }
 
-std::string TypeForToken(const std::filesystem::path& path,
-                         const lexer::Token& token,
-                         const tooling::AnalysisSnapshot& snapshot) {
+const analysis::LanguageSymbolInfo* SymbolForIdentifier(
+    const std::filesystem::path& path,
+    const lexer::Token& token,
+    const tooling::AnalysisSnapshot& snapshot,
+    const analysis::LanguageReference** reference_out) {
+  const auto* reference =
+      snapshot.language_service.ReferenceAt(path, token.span.start_offset);
+  if (reference_out != nullptr) {
+    *reference_out = reference;
+  }
+  if (reference != nullptr) {
+    if (const auto* symbol =
+            snapshot.language_service.SymbolById(reference->symbol_id)) {
+      return symbol;
+    }
+  }
+
+  const auto* symbol =
+      snapshot.language_service.SymbolAt(path, token.span.start_offset);
+  if (symbol != nullptr && symbol->name == token.lexeme) {
+    return symbol;
+  }
+  return nullptr;
+}
+
+SemanticTokenClass ClassifyIdentifier(
+    const std::filesystem::path& path,
+    const lexer::Token& token,
+    const tooling::AnalysisSnapshot* snapshot) {
+  if (IsBuiltinType(token.lexeme)) {
+    return SemanticTokenClass{"type", 0};
+  }
+  if (snapshot == nullptr) {
+    return ClassifyIdentifierSyntaxOnly(token.lexeme);
+  }
+
+  const analysis::LanguageReference* reference = nullptr;
+  const auto* symbol =
+      SymbolForIdentifier(path, token, *snapshot, &reference);
+  if (symbol == nullptr) {
+    return SemanticTokenClass{"variable", 0};
+  }
+
+  int modifiers = 0;
+  if (reference != nullptr && reference->is_declaration &&
+      symbol->name == token.lexeme) {
+    modifiers |= SemanticTokenModifierMask("declaration");
+  }
+  if (symbol->kind == analysis::LanguageSymbolKind::Constant) {
+    modifiers |= SemanticTokenModifierMask("readonly");
+  }
+  return SemanticTokenClass{TypeForSymbolKind(symbol->kind), modifiers};
+}
+
+SemanticTokenClass ClassifyToken(const std::filesystem::path& path,
+                                 const lexer::Token& token,
+                                 const tooling::AnalysisSnapshot* snapshot) {
   switch (token.kind) {
     case lexer::TokenKind::Keyword:
-      return "keyword";
+    case lexer::TokenKind::BoolLiteral:
+    case lexer::TokenKind::NullLiteral:
+      return SemanticTokenClass{"keyword", 0};
     case lexer::TokenKind::Identifier:
-      return TypeForIdentifier(path, token, snapshot);
+      return ClassifyIdentifier(path, token, snapshot);
     case lexer::TokenKind::IntLiteral:
     case lexer::TokenKind::FloatLiteral:
-      return "number";
+      return SemanticTokenClass{"number", 0};
     case lexer::TokenKind::StringLiteral:
     case lexer::TokenKind::CharLiteral:
-      return "string";
+      return SemanticTokenClass{"string", 0};
     case lexer::TokenKind::Operator:
     case lexer::TokenKind::Punctuator:
-      return "operator";
+      return SemanticTokenClass{"operator", 0};
     default:
-      return {};
+      return SemanticTokenClass{};
   }
 }
 
 void AddToken(std::vector<SemanticToken>& out,
               const tooling::LineIndex& index,
               const core::Span& span,
-              int type_index) {
+              int type_index,
+              int modifiers) {
   const tooling::LineRange range = index.RangeFor(span);
   if (range.start.line != range.end.line ||
       range.end.character <= range.start.character) {
@@ -92,7 +208,7 @@ void AddToken(std::vector<SemanticToken>& out,
       range.start.character,
       range.end.character - range.start.character,
       type_index,
-      0,
+      modifiers,
   });
 }
 
@@ -101,7 +217,7 @@ void AddToken(std::vector<SemanticToken>& out,
 llvm::json::Object SemanticTokensFull(
     const std::filesystem::path& path,
     const std::string& text_utf8,
-    const tooling::AnalysisSnapshot& snapshot) {
+    const tooling::AnalysisSnapshot* snapshot) {
   llvm::json::Array data;
   std::vector<std::uint8_t> bytes(text_utf8.begin(), text_utf8.end());
   core::SourceLoadResult loaded = core::LoadSource(path.generic_string(), bytes);
@@ -118,14 +234,18 @@ llvm::json::Object SemanticTokensFull(
   std::vector<SemanticToken> tokens;
   if (tokenized.output.has_value()) {
     for (const auto& token : tokenized.output->tokens) {
-      const std::string type = TypeForToken(path, token, snapshot);
-      if (type.empty()) {
+      const SemanticTokenClass token_class =
+          ClassifyToken(path, token, snapshot);
+      if (token_class.type.empty()) {
         continue;
       }
-      AddToken(tokens, index, token.span, SemanticTokenTypeIndex(type));
+      AddToken(tokens, index, token.span,
+               SemanticTokenTypeIndex(token_class.type),
+               token_class.modifiers);
     }
     for (const auto& doc : tokenized.output->docs) {
-      AddToken(tokens, index, doc.span, SemanticTokenTypeIndex("comment"));
+      AddToken(tokens, index, doc.span, SemanticTokenTypeIndex("comment"),
+               SemanticTokenModifierMask("documentation"));
     }
   }
 
@@ -157,6 +277,13 @@ llvm::json::Object SemanticTokensFull(
   llvm::json::Object result;
   result["data"] = std::move(data);
   return result;
+}
+
+llvm::json::Object SemanticTokensFull(
+    const std::filesystem::path& path,
+    const std::string& text_utf8,
+    const tooling::AnalysisSnapshot& snapshot) {
+  return SemanticTokensFull(path, text_utf8, &snapshot);
 }
 
 }  // namespace cursive::driver::lsp

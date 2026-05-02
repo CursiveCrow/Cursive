@@ -4276,29 +4276,6 @@ Permission PermOfType(const TypeRef& type) {
 
 // StripPerm is defined in type_predicates.cpp (canonical location)
 
-bool PermSub(Permission lhs, Permission rhs) {
-  // Permission subtyping: unique <: shared <: const
-  if (lhs == Permission::Const && rhs == Permission::Const) {
-    return true;
-  }
-  if (lhs == Permission::Unique && rhs == Permission::Unique) {
-    return true;
-  }
-  if (lhs == Permission::Unique && rhs == Permission::Const) {
-    return true;
-  }
-  if (lhs == Permission::Shared && rhs == Permission::Const) {
-    return true;
-  }
-  if (lhs == Permission::Shared && rhs == Permission::Shared) {
-    return true;
-  }
-  if (lhs == Permission::Unique && rhs == Permission::Shared) {
-    return true;
-  }
-  return false;
-}
-
 static ast::ClassPath AsClassPath(const TypePath& path) {
   ast::ClassPath out;
   out.reserve(path.size());

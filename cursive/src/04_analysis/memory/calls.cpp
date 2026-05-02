@@ -30,7 +30,8 @@
  *      without explicit `move`)
  *   3. Receiver shorthands: ~ (const), ~! (unique), ~% (shared)
  *   4. Argument evaluation order is left-to-right
- *   5. Permission compatibility: unique can satisfy const/shared, shared can satisfy const
+ *   5. Non-consuming permission admissibility is a use-site check; it does
+ *      not create a weaker alias or general permission subtype
  *   6. After move argument, binding is Moved state
  *   7. Consider tracking which arguments were moved for error recovery
  *
@@ -993,7 +994,9 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
   }
 
   for (std::size_t i = 0; i < args.size(); ++i) {
-    const auto sub = Subtyping(ctx, arg_types[i], params[i].type);
+    const auto sub =
+        ArgumentTypeCompatible(ctx, arg_types[i], params[i].type,
+                               params[i].mode);
     if (!sub.ok) {
       result.diag_id = sub.diag_id;
       return result;
@@ -1028,7 +1031,9 @@ CallTypeResult TypeCall(const ScopeContext& ctx,
           result.diag_id = moved_type.diag_id;
           return result;
         }
-        const auto sub = Subtyping(ctx, moved_type.type, params[i].type);
+        const auto sub =
+            ArgumentTypeCompatible(ctx, moved_type.type, params[i].type,
+                                   params[i].mode);
         if (!sub.ok) {
           result.diag_id = sub.diag_id;
           return result;
@@ -1195,7 +1200,9 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
   for (std::size_t i = 0; i < args.size(); ++i) {
     // Apply substitution to parameter type (T -> concrete type)
     const TypeRef subst_param_type = InstantiateType(params[i].type, subst);
-    const auto sub = Subtyping(ctx, arg_types[i], subst_param_type);
+    const auto sub =
+        ArgumentTypeCompatible(ctx, arg_types[i], subst_param_type,
+                               params[i].mode);
     if (!sub.ok) {
       result.diag_id = sub.diag_id;
       return result;
@@ -1232,7 +1239,9 @@ CallTypeResult TypeCallWithSubst(const ScopeContext& ctx,
         }
         // Apply substitution to parameter type
         const TypeRef subst_param_type = InstantiateType(params[i].type, subst);
-        const auto sub = Subtyping(ctx, moved_type.type, subst_param_type);
+        const auto sub =
+            ArgumentTypeCompatible(ctx, moved_type.type, subst_param_type,
+                                   params[i].mode);
         if (!sub.ok) {
           result.diag_id = sub.diag_id;
           return result;

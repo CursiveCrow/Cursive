@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "00_core/symbols.h"
+#include "02_source/ast/ast_dump.h"
 #include "04_analysis/resolve/resolve_items.h"
 
 namespace cursive::analysis {
@@ -53,6 +54,56 @@ std::string DocText(const ast::DocList& docs) {
 
 std::string DocText(const std::optional<ast::DocList>& docs) {
   return docs.has_value() ? DocText(*docs) : std::string();
+}
+
+std::string AstTypeText(const ast::TypePtr& type) {
+  if (!type) {
+    return "()";
+  }
+  ast::DumpOptions options;
+  options.include_spans = false;
+  options.include_docs = false;
+  return ast::to_string(*type, options);
+}
+
+std::string ParamLabel(const ast::Param& param) {
+  std::string out;
+  if (param.mode.has_value()) {
+    out += "move ";
+  }
+  out += param.name;
+  out += ": ";
+  out += AstTypeText(param.type);
+  return out;
+}
+
+std::vector<LanguageParameterInfo> ParameterInfo(
+    const std::vector<ast::Param>& params) {
+  std::vector<LanguageParameterInfo> out;
+  out.reserve(params.size());
+  for (const auto& param : params) {
+    out.push_back(LanguageParameterInfo{param.name, ParamLabel(param)});
+  }
+  return out;
+}
+
+std::string CallableSignatureLabel(std::string_view name,
+                                   const std::vector<ast::Param>& params,
+                                   const ast::TypePtr& return_type_opt) {
+  std::string out(name);
+  out += "(";
+  for (std::size_t i = 0; i < params.size(); ++i) {
+    if (i > 0) {
+      out += ", ";
+    }
+    out += ParamLabel(params[i]);
+  }
+  out += ")";
+  if (return_type_opt) {
+    out += " -> ";
+    out += AstTypeText(return_type_opt);
+  }
+  return out;
 }
 
 std::string Qualified(std::string_view module_path, std::string_view name) {
@@ -176,7 +227,9 @@ void AddDeclaration(LanguageServiceIndex& index,
                     LanguageSymbolKind kind,
                     const core::Span& range,
                     std::string detail,
-                    std::string documentation) {
+                    std::string documentation,
+                    std::string signature_label = {},
+                    std::vector<LanguageParameterInfo> parameters = {}) {
   const std::string module_path = core::StringOfPath(module);
   LanguageSymbolInfo symbol;
   symbol.id = std::move(id);
@@ -188,6 +241,8 @@ void AddDeclaration(LanguageServiceIndex& index,
   symbol.selection_range = range;
   symbol.detail = std::move(detail);
   symbol.documentation = std::move(documentation);
+  symbol.signature_label = std::move(signature_label);
+  symbol.parameters = std::move(parameters);
   const std::string symbol_id = symbol.id;
   index.AddSymbol(std::move(symbol));
   index.AddReference(LanguageReference{symbol_id, range, true});
@@ -200,7 +255,9 @@ void AddMemberDeclaration(LanguageServiceIndex& index,
                           LanguageSymbolKind kind,
                           const core::Span& range,
                           std::string detail,
-                          std::string documentation) {
+                          std::string documentation,
+                          std::string signature_label = {},
+                          std::vector<LanguageParameterInfo> parameters = {}) {
   const std::string module_path = core::StringOfPath(module);
   const std::string id = MemberSymbolId(module_path, owner, name);
   LanguageSymbolInfo symbol;
@@ -214,6 +271,8 @@ void AddMemberDeclaration(LanguageServiceIndex& index,
   symbol.selection_range = range;
   symbol.detail = std::move(detail);
   symbol.documentation = std::move(documentation);
+  symbol.signature_label = std::move(signature_label);
+  symbol.parameters = std::move(parameters);
   const std::string symbol_id = symbol.id;
   index.AddSymbol(std::move(symbol));
   index.AddReference(LanguageReference{symbol_id, range, true});
@@ -226,10 +285,13 @@ void AddTopLevelDeclaration(LanguageServiceIndex& index,
                             LanguageSymbolKind symbol_kind,
                             const core::Span& range,
                             std::string detail,
-                            std::string documentation) {
+                            std::string documentation,
+                            std::string signature_label = {},
+                            std::vector<LanguageParameterInfo> parameters = {}) {
   const std::string id = TopLevelSymbolId(entity_kind, module, name);
   AddDeclaration(index, id, module, std::move(name), symbol_kind, range,
-                 std::move(detail), std::move(documentation));
+                 std::move(detail), std::move(documentation),
+                 std::move(signature_label), std::move(parameters));
 }
 
 void AddPatternDeclarations(LanguageServiceIndex& index,
@@ -442,12 +504,20 @@ LanguageServiceIndex BuildLanguageServiceDeclarations(
               AddTopLevelDeclaration(index, module.path, node.name,
                                      EntityKind::Value,
                                      LanguageSymbolKind::Function, node.span,
-                                     "procedure", DocText(node.doc));
+                                     "procedure", DocText(node.doc),
+                                     CallableSignatureLabel(
+                                         node.name, node.params,
+                                         node.return_type_opt),
+                                     ParameterInfo(node.params));
             } else if constexpr (std::is_same_v<T, ast::ComptimeProcedureDecl>) {
               AddTopLevelDeclaration(index, module.path, node.name,
                                      EntityKind::Value,
                                      LanguageSymbolKind::Function, node.span,
-                                     "comptime procedure", DocText(node.doc));
+                                     "comptime procedure", DocText(node.doc),
+                                     CallableSignatureLabel(
+                                         node.name, node.params,
+                                         node.return_type_opt),
+                                     ParameterInfo(node.params));
             } else if constexpr (std::is_same_v<T, ast::StaticDecl>) {
               AddPatternDeclarations(index, module.path, node.binding.pat,
                                      LanguageSymbolKind::Constant,
@@ -470,7 +540,11 @@ LanguageServiceIndex BuildLanguageServiceDeclarations(
                         AddMemberDeclaration(
                             index, module.path, node.name, member_node.name,
                             LanguageSymbolKind::Method, member_node.span,
-                            "record method", DocText(member_node.doc_opt));
+                            "record method", DocText(member_node.doc_opt),
+                            CallableSignatureLabel(
+                                member_node.name, member_node.params,
+                                member_node.return_type_opt),
+                            ParameterInfo(member_node.params));
                       } else if constexpr (std::is_same_v<M, ast::AssociatedTypeDecl>) {
                         AddMemberDeclaration(
                             index, module.path, node.name, member_node.name,
@@ -501,6 +575,39 @@ LanguageServiceIndex BuildLanguageServiceDeclarations(
                 AddMemberDeclaration(index, module.path, node.name, state.name,
                                      LanguageSymbolKind::State, state.span,
                                      "modal state", DocText(state.doc_opt));
+                const std::string state_owner = node.name + "::" + state.name;
+                for (const auto& member : state.members) {
+                  std::visit(
+                      [&](const auto& member_node) {
+                        using M = std::decay_t<decltype(member_node)>;
+                        if constexpr (std::is_same_v<M, ast::StateFieldDecl>) {
+                          AddMemberDeclaration(
+                              index, module.path, state_owner, member_node.name,
+                              LanguageSymbolKind::Field, member_node.span,
+                              "modal state field", DocText(member_node.doc_opt));
+                        } else if constexpr (
+                            std::is_same_v<M, ast::StateMethodDecl>) {
+                          AddMemberDeclaration(
+                              index, module.path, state_owner, member_node.name,
+                              LanguageSymbolKind::Method, member_node.span,
+                              "modal state method", DocText(member_node.doc_opt),
+                              CallableSignatureLabel(
+                                  member_node.name, member_node.params,
+                                  member_node.return_type_opt),
+                              ParameterInfo(member_node.params));
+                        } else if constexpr (std::is_same_v<M, ast::TransitionDecl>) {
+                          AddMemberDeclaration(
+                              index, module.path, state_owner, member_node.name,
+                              LanguageSymbolKind::Method, member_node.span,
+                              "modal transition", DocText(member_node.doc_opt),
+                              CallableSignatureLabel(member_node.name,
+                                                     member_node.params,
+                                                     nullptr),
+                              ParameterInfo(member_node.params));
+                        }
+                      },
+                      member);
+                }
               }
             } else if constexpr (std::is_same_v<T, ast::ClassDecl>) {
               AddTopLevelDeclaration(index, module.path, node.name,
@@ -508,6 +615,55 @@ LanguageServiceIndex BuildLanguageServiceDeclarations(
                                      LanguageSymbolKind::Class, node.span,
                                      node.modal ? "modal class" : "class",
                                      DocText(node.doc));
+              for (const auto& item : node.items) {
+                std::visit(
+                    [&](const auto& item_node) {
+                      using C = std::decay_t<decltype(item_node)>;
+                      if constexpr (std::is_same_v<C, ast::ClassFieldDecl>) {
+                        AddMemberDeclaration(
+                            index, module.path, node.name, item_node.name,
+                            LanguageSymbolKind::Field, item_node.span,
+                            "class field", DocText(item_node.doc_opt));
+                      } else if constexpr (
+                          std::is_same_v<C, ast::ClassMethodDecl>) {
+                        AddMemberDeclaration(
+                            index, module.path, node.name, item_node.name,
+                            LanguageSymbolKind::Method, item_node.span,
+                            "class method", DocText(item_node.doc_opt),
+                            CallableSignatureLabel(
+                                item_node.name, item_node.params,
+                                item_node.return_type_opt),
+                            ParameterInfo(item_node.params));
+                      } else if constexpr (
+                          std::is_same_v<C, ast::AssociatedTypeDecl>) {
+                        AddMemberDeclaration(
+                            index, module.path, node.name, item_node.name,
+                            LanguageSymbolKind::TypeAlias, item_node.span,
+                            "associated type", DocText(item_node.doc_opt));
+                      } else if constexpr (
+                          std::is_same_v<C, ast::AbstractFieldDecl>) {
+                        AddMemberDeclaration(
+                            index, module.path, node.name, item_node.name,
+                            LanguageSymbolKind::Field, item_node.span,
+                            "abstract field", DocText(item_node.doc_opt));
+                      } else if constexpr (
+                          std::is_same_v<C, ast::AbstractStateDecl>) {
+                        AddMemberDeclaration(
+                            index, module.path, node.name, item_node.name,
+                            LanguageSymbolKind::State, item_node.span,
+                            "abstract state", DocText(item_node.doc_opt));
+                        const std::string state_owner =
+                            node.name + "::" + item_node.name;
+                        for (const auto& field : item_node.fields) {
+                          AddMemberDeclaration(
+                              index, module.path, state_owner, field.name,
+                              LanguageSymbolKind::Field, field.span,
+                              "abstract state field", DocText(field.doc_opt));
+                        }
+                      }
+                    },
+                    item);
+              }
             } else if constexpr (std::is_same_v<T, ast::TypeAliasDecl>) {
               AddTopLevelDeclaration(index, module.path, node.name,
                                      EntityKind::Type,

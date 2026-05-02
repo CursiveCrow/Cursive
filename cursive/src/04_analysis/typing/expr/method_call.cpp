@@ -213,8 +213,6 @@ static inline void SpecDefsMethodCall() {
   SPEC_DEF("UntilMethod", "19.3.6");
   SPEC_DEF("Drop-Call-Err", "10.2");
   SPEC_DEF("Drop-Call-Err-Dyn", "10.2");
-  SPEC_DEF("ReceiverPerm", "5.3.1");
-  SPEC_DEF("PermSub", "5.3.1");
   SPEC_DEF("ArgsOk", "5.2.4");
 }
 
@@ -238,61 +236,10 @@ static TypeRef StripPermDeep(const TypeRef& type) {
   return cur;
 }
 
-// Extract permission from type
-static std::optional<Permission> ExtractPerm(const TypeRef& type) {
-  if (!type) {
-    return std::nullopt;
-  }
-  if (const auto* perm = std::get_if<TypePerm>(&type->node)) {
-    return perm->perm;
-  }
-  // Default permission for unqualified types is unique
-  return Permission::Unique;
-}
-
-// Check receiver permission compatibility
-// ~ (const): const, shared, or unique receiver OK
-// ~! (unique): only unique receiver OK
-// ~% (shared): shared or unique receiver OK
-static bool PermSub(std::optional<Permission> caller,
-                    std::optional<Permission> method) {
-  if (!method.has_value()) {
-    // Method has no receiver requirement
-    return true;
-  }
-
-  Permission caller_perm = caller.value_or(Permission::Unique);
-  Permission method_perm = *method;
-
-  // Permission lattice: unique <: shared <: const
-  switch (method_perm) {
-    case Permission::Const:
-      // Const method accepts any permission
-      return true;
-    case Permission::Shared:
-      // Shared method accepts shared or unique
-      return caller_perm == Permission::Shared ||
-             caller_perm == Permission::Unique;
-    case Permission::Unique:
-      // Unique method only accepts unique
-      return caller_perm == Permission::Unique;
-  }
-  return false;
-}
-
 // NOTE: PermOfType is now declared in type_expr.h
 
-// Check permission subtyping
-static bool PermSubLocal(Permission lhs, Permission rhs) {
-  switch (rhs) {
-    case Permission::Const:
-      return true;
-    case Permission::Shared:
-      return lhs == Permission::Shared || lhs == Permission::Unique;
-    case Permission::Unique:
-      return lhs == Permission::Unique;
-  }
-  return false;
+static bool ReceiverPermissionAdmits(Permission caller, Permission required) {
+  return PermissionAdmits(caller, required);
 }
 
 static bool KeyModeSufficient(ast::KeyMode held, ast::KeyMode required) {
@@ -917,7 +864,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   if (IdEq(expr.name, "until")) {
     SPEC_RULE("UntilMethod");
 
-    if (!PermSubLocal(caller_perm, Permission::Shared)) {
+    if (!ReceiverPermissionAdmits(caller_perm, Permission::Shared)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
       result.diag_id = "E-TYP-1605";
       return result;
@@ -1014,7 +961,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
               ? LookupBuiltinAsyncCombinator(expr.name)
               : std::nullopt;
       if (async_combinator.has_value()) {
-        if (!PermSubLocal(caller_perm, Permission::Const)) {
+        if (!ReceiverPermissionAdmits(caller_perm, Permission::Const)) {
           SPEC_RULE("MethodCall-RecvPerm-Err");
           result.diag_id = "E-TYP-1605";
           return result;
@@ -1343,7 +1290,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
   if (const auto builtin_sig =
           LookupStringBytesBuiltinMethodSig(lookup_base, expr.name)) {
-    if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
+    if (!ReceiverPermissionAdmits(caller_perm, builtin_sig->recv_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
       result.diag_id = "E-TYP-1605";
       return result;
@@ -1375,7 +1322,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
   if (const auto builtin_sig =
           LookupFoundationalBuiltinMethodSig(lookup_base, expr.name)) {
-    if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
+    if (!ReceiverPermissionAdmits(caller_perm, builtin_sig->recv_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
       result.diag_id = "E-TYP-1605";
       return result;
@@ -1428,7 +1375,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   auto handle_cap_method = [&](Permission recv_perm,
                                const std::vector<ast::Param>& params,
                                const TypeRef& ret) -> bool {
-    if (!PermSubLocal(caller_perm, recv_perm)) {
+    if (!ReceiverPermissionAdmits(caller_perm, recv_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
       result.diag_id = "E-TYP-1605";
       return true;
@@ -1452,7 +1399,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
   if (const auto* modal = std::get_if<TypeModalState>(&lookup_base->node)) {
     if (const auto builtin_sig =
             LookupBuiltinModalMemberSig(modal->path, modal->state, expr.name)) {
-      if (!PermSubLocal(caller_perm, builtin_sig->recv_perm)) {
+      if (!ReceiverPermissionAdmits(caller_perm, builtin_sig->recv_perm)) {
         SPEC_RULE("MethodCall-RecvPerm-Err");
         result.diag_id = "E-TYP-1605";
         return result;
@@ -1554,7 +1501,9 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         }
 
         if (param.type) {
-          const auto sub = Subtyping(ctx, arg_types.back(), param.type);
+          const auto sub =
+              ArgumentTypeCompatible(ctx, arg_types.back(), param.type,
+                                     param.mode);
           if (!sub.ok) {
             result.diag_id = sub.diag_id;
             return result;
@@ -1613,7 +1562,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
 
     const auto modal_member = LookupModalMember(ctx, *modal, expr.name);
     if (modal_member.transition) {
-      if (!PermSubLocal(caller_perm, Permission::Unique)) {
+      if (!ReceiverPermissionAdmits(caller_perm, Permission::Unique)) {
         SPEC_RULE("Transition-Source-Err");
         result.diag_id = "E-TYP-2056";
         return result;
@@ -1653,7 +1602,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
         return result;
       }
       const auto method_perm = PermOfType(recv_type.type);
-      if (!PermSubLocal(caller_perm, method_perm)) {
+      if (!ReceiverPermissionAdmits(caller_perm, method_perm)) {
         SPEC_RULE("MethodCall-RecvPerm-Err");
         result.diag_id = "E-TYP-1605";
         return result;
@@ -1760,7 +1709,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         const auto method_perm = PermOfType(recv_type.type);
-        if (!PermSubLocal(caller_perm, method_perm)) {
+        if (!ReceiverPermissionAdmits(caller_perm, method_perm)) {
           SPEC_RULE("MethodCall-RecvPerm-Err");
           result.diag_id = "E-TYP-1605";
           return result;
@@ -1838,7 +1787,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
           return result;
         }
         const auto method_perm = PermOfType(recv_type.type);
-        if (!PermSubLocal(caller_perm, method_perm)) {
+        if (!ReceiverPermissionAdmits(caller_perm, method_perm)) {
           SPEC_RULE("MethodCall-RecvPerm-Err");
           result.diag_id = "E-TYP-1605";
           return result;
@@ -1938,7 +1887,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
       return result;
     }
     const auto method_perm = PermOfType(recv_type.type);
-    if (!PermSubLocal(caller_perm, method_perm)) {
+    if (!ReceiverPermissionAdmits(caller_perm, method_perm)) {
       SPEC_RULE("MethodCall-RecvPerm-Err");
       result.diag_id = "E-TYP-1605";
       return result;
@@ -2185,7 +2134,7 @@ ExprTypeResult TypeMethodCallExprImpl(const ScopeContext& ctx,
     return result;
   }
   const auto method_perm = PermOfType(recv_type.type);
-  if (!PermSubLocal(caller_perm, method_perm)) {
+  if (!ReceiverPermissionAdmits(caller_perm, method_perm)) {
     SPEC_RULE("MethodCall-RecvPerm-Err");
     result.diag_id = "E-TYP-1605";
     return result;

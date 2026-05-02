@@ -300,8 +300,7 @@ static std::uint64_t TagKeyOf(const TypeNode& node) {
 }
 
 static std::uint64_t PermKeyOf(Permission perm) {
-  // C0X Extension: Permission lattice includes shared
-  // Key ordering: const=0, unique=1, shared=2
+  // Stable ordering for structural type keys.
   if (perm == Permission::Const) {
     return 0;
   }
@@ -504,8 +503,6 @@ static std::string BytesStateString(BytesState state) {
 
 bool IsPermInC0(Permission perm) {
   SpecDefsPermissionSets();
-  // C0X Extension: shared permission is now supported
-  // Permission lattice: unique <: shared <: const
   (void)perm;
   return true;
 }

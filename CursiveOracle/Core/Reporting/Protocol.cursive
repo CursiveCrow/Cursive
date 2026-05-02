@@ -141,6 +141,7 @@ public enum ReportMetricKind {
     InformativeObligationCount
     ReportWriteFailureCount
     EventCount
+    FinalExitStatus
 }
 
 public procedure renderSeverity(value: ReportSeverity) -> string@View {
@@ -301,6 +302,7 @@ public procedure renderMetricKind(value: ReportMetricKind) -> string@View {
         ReportMetricKind::InformativeObligationCount { "informative_obligation_count" }
         ReportMetricKind::ReportWriteFailureCount { "report_write_failure_count" }
         ReportMetricKind::EventCount { "event_count" }
+        ReportMetricKind::FinalExitStatus { "final_exit_status" }
     }
 }
 
@@ -846,7 +848,8 @@ procedure validateMetricKindSpan(line: string@View, start_index: i32, end_index:
         valueSpanEquals(line, start_index, end_index, "required_obligation_count") ||
         valueSpanEquals(line, start_index, end_index, "informative_obligation_count") ||
         valueSpanEquals(line, start_index, end_index, "report_write_failure_count") ||
-        valueSpanEquals(line, start_index, end_index, "event_count")
+        valueSpanEquals(line, start_index, end_index, "event_count") ||
+        valueSpanEquals(line, start_index, end_index, "final_exit_status")
 }
 
 public procedure validateEventLineShape(line: string@View) -> bool {

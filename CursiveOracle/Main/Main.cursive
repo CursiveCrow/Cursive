@@ -45,10 +45,10 @@ public procedure main(move ctx: Context) -> i32 {
         phase_status
     )
 
-    let spec_result: Source::SpecIngestionResult = Source::runSpecIngestion(output, ctx.heap)
+    let spec_result: Source::SpecIngestionResult = Source::runSpecIngestion(output)
     output = spec_result.ctx
     let obligation_result: Obligations::ObligationSummary =
-        Obligations::runObligationExtraction(output, spec_result, ctx.heap)
+        Obligations::runObligationExtraction(output, spec_result)
     output = obligation_result.ctx
     let reference_result: Contract::ReferenceModelSummary =
         Modeling::runReferenceModeling(output, obligation_result)
@@ -74,6 +74,8 @@ public procedure main(move ctx: Context) -> i32 {
         Coverage::runCoverage(
             output,
             obligation_result,
+            reference_result,
+            case_result,
             comparison_result
         )
     output = coverage_result.ctx
@@ -108,11 +110,75 @@ public procedure main(move ctx: Context) -> i32 {
         }
     }
     let final_phase_status: Reporting::ReportStatus = Reporting::statusFromCode(run_status)
+    let final_exit_status: i32 = Reporting::finalStatus(output, run_status)
 
     output = Reporting::emitFinalSummary(
         output,
         final_phase_status,
         output.next_event_index
+    )
+    output = Reporting::emitFinalMetric(
+        output,
+        final_phase_status,
+        Reporting::ReportMetricKind::TotalObligationCount,
+        coverage_result.ledger.total_obligation_count,
+        "final_summary_total_obligations"
+    )
+    output = Reporting::emitFinalMetric(
+        output,
+        final_phase_status,
+        Reporting::ReportMetricKind::RequiredObligationCount,
+        coverage_result.ledger.required_obligation_count,
+        "final_summary_required_obligations"
+    )
+    output = Reporting::emitFinalMetric(
+        output,
+        final_phase_status,
+        Reporting::ReportMetricKind::UncoveredCount,
+        coverage_result.ledger.uncovered_count,
+        "final_summary_uncovered_obligations"
+    )
+    output = Reporting::emitFinalMetric(
+        output,
+        final_phase_status,
+        Reporting::ReportMetricKind::ExecutedPassCount,
+        coverage_result.ledger.executed_pass_count,
+        "final_summary_executed_pass"
+    )
+    output = Reporting::emitFinalMetric(
+        output,
+        final_phase_status,
+        Reporting::ReportMetricKind::ExecutedFailCount,
+        coverage_result.ledger.executed_fail_count,
+        "final_summary_executed_fail"
+    )
+    output = Reporting::emitFinalMetric(
+        output,
+        final_phase_status,
+        Reporting::ReportMetricKind::BlockedCount,
+        coverage_result.ledger.blocked_by_current_compiler_count,
+        "final_summary_blocked_by_current_compiler"
+    )
+    output = Reporting::emitFinalMetric(
+        output,
+        final_phase_status,
+        Reporting::ReportMetricKind::BlockedCount,
+        coverage_result.ledger.blocked_by_oracle_language_support_count,
+        "final_summary_blocked_by_oracle_language_support"
+    )
+    output = Reporting::emitFinalEvidence(
+        output,
+        final_phase_status,
+        Reporting::ReportEvidenceKind::CoverageLedgerPath,
+        coverage_result.ledger.report_path,
+        "final_summary_coverage_report_path"
+    )
+    output = Reporting::emitFinalMetric(
+        output,
+        final_phase_status,
+        Reporting::ReportMetricKind::FinalExitStatus,
+        final_exit_status,
+        "final_summary_exit_status"
     )
     output = Reporting::emitPhaseEnd(
         output,

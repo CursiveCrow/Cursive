@@ -111,7 +111,7 @@ public enum ObligationRecordReadState {
 public record ObligationRecordRead {
     public state: ObligationRecordReadState
     public next_offset: i32
-    public record: ObligationRecord
+    public obligation: ObligationRecord
 }
 
 public record ObligationSummary {

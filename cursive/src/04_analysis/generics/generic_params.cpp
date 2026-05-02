@@ -335,13 +335,13 @@ TypeRef LowerTypeForValidation(const ScopeContext& ctx,
 // Validation Functions
 // =============================================================================
 
-GenericParamsResult ValidateGenericParams(
+GenericParamValidationResult ValidateGenericParams(
     const ScopeContext& ctx,
     const std::optional<ast::GenericParams>& params_opt) {
   SpecDefsGenericParams();
   SPEC_RULE("Validate-GenericParams");
 
-  GenericParamsResult result;
+  GenericParamValidationResult result;
   const auto& params = ast::TypeParamsOpt(params_opt);
 
   // No parameters is valid

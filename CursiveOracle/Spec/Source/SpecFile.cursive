@@ -94,6 +94,8 @@ public record SpecUnitRecord {
     public source_line: i32
     public source_column: i32
     public content_identity: i32
+    public id_start: i32
+    public id_end: i32
     public kind: SpecUnitKind
     public strength: SpecUnitStrength
     public has_id: bool
@@ -125,7 +127,7 @@ public enum SpecUnitRecordReadState {
 public record SpecUnitRecordRead {
     public state: SpecUnitRecordReadState
     public next_offset: i32
-    public record: SpecUnitRecord
+    public unit: SpecUnitRecord
 }
 
 internal record LedgerIntegerRead {
@@ -189,6 +191,11 @@ internal record SpecSourceScan {
     internal section_count: i32
     internal storage_failure_count: i32
     internal units: SpecUnitSummary
+}
+
+internal record SpecSourceScanResult {
+    internal ctx: Reporting::OutputContext
+    internal scan: SpecSourceScan
 }
 
 public record SpecIngestionResult {
@@ -286,9 +293,12 @@ procedure isBlankBodyByte(byte: u8) -> bool {
 }
 
 procedure lineBreakWidthAt(slice: const [u8], index: i32, length: i32) -> i32 {
-    let byte: u8 = byteAtOrZero(slice, index, length)
+    if ((index < 0) || (index >= length)) {
+        return 0
+    }
+    let byte: u8 = slice[index as usize]
     if (byte == 13) {
-        if (((index + 1) < length) && (byteAtOrZero(slice, index + 1, length) == 10)) {
+        if (((index + 1) < length) && (slice[(index + 1) as usize] == 10)) {
             return 2
         }
         return 1
@@ -305,7 +315,8 @@ procedure lineEndFrom(slice: const [u8], start: i32, length: i32) -> i32 {
         if (index >= length) {
             break
         }
-        if (isLineBreak(byteAtOrZero(slice, index, length)) == true) {
+        let byte: u8 = slice[index as usize]
+        if ((byte == 10) || (byte == 13)) {
             break
         }
         index = index + 1
@@ -337,28 +348,72 @@ procedure hashStep(state: i32, byte: u8, index: i32) -> i32 {
 procedure hashBytes(slice: const [u8], start: i32, end: i32, length: i32) -> i32 {
     var index: i32 = start
     var state: i32 = 17
+    let capped_end: i32 = if end > length { length } else { end }
     loop {
-        if (index >= end) {
+        if (index >= capped_end) {
             break
         }
-        state = hashStep(state, byteAtOrZero(slice, index, length), index - start)
+        state = hashStep(state, slice[index as usize], index - start)
         index = index + 1
     }
     return state
 }
 
+procedure mergeIdentity(left: i32, right: i32) -> i32 {
+    return ((left * 33) + right) % 4093
+}
+
+procedure spanIdentity(seed: i32, start: i32, end: i32) -> i32 {
+    return mergeIdentity(mergeIdentity(seed, start % 4093), (end - start) % 4093)
+}
+
+procedure unitContentIdentity(
+    slice: const [u8],
+    length: i32,
+    unit_start: i32,
+    unit_end: i32,
+    id_span: MetadataValueSpan,
+    summary_span: MetadataValueSpan
+) -> i32 {
+    let id_identity: i32 = if id_span.present == true {
+        hashBytes(slice, id_span.start, id_span.end, length)
+    } else {
+        17
+    }
+    let summary_identity: i32 = if summary_span.present == true {
+        hashBytes(slice, summary_span.start, summary_span.end, length)
+    } else {
+        0
+    }
+    return spanIdentity(mergeIdentity(id_identity, summary_identity), unit_start, unit_end)
+}
+
 procedure bodyHasContent(slice: const [u8], start: i32, end: i32, length: i32) -> bool {
     var index: i32 = start
+    let capped_end: i32 = if end > length { length } else { end }
     loop {
-        if (index >= end) {
+        if (index >= capped_end) {
             break
         }
-        if (isBlankBodyByte(byteAtOrZero(slice, index, length)) == false) {
+        if (isBlankBodyByte(slice[index as usize]) == false) {
             return true
         }
         index = index + 1
     }
     return false
+}
+
+procedure lineHasBodyContent(slice: const [u8], line: SourceLine, length: i32) -> bool {
+    if (line.end <= line.start) {
+        return false
+    }
+    if (isBlankBodyByte(byteAtOrZero(slice, line.start, length)) == false) {
+        return true
+    }
+    if (isBlankBodyByte(byteAtOrZero(slice, line.end - 1, length)) == false) {
+        return true
+    }
+    return bodyHasContent(slice, line.start, line.end, length)
 }
 
 procedure byteSpanEqualsText(
@@ -372,6 +427,9 @@ procedure byteSpanEqualsText(
     if ((end - start) != text_length) {
         return false
     }
+    if ((start < 0) || (end < start)) {
+        return false
+    }
 
     let text_slice: const [u8] = bytes::as_slice(text_view)
     var index: i32 = 0
@@ -379,7 +437,7 @@ procedure byteSpanEqualsText(
         if (index >= text_length) {
             break
         }
-        if (byteAtOrZero(slice, start + index, end) != text_slice[index as usize]) {
+        if (slice[(start + index) as usize] != text_slice[index as usize]) {
             return false
         }
         index = index + 1
@@ -399,12 +457,15 @@ procedure byteSpanEqualsSpan(
     }
     var index: i32 = 0
     let length: i32 = left_end - left_start
+    if ((left_start < 0) || (right_start < 0)) {
+        return false
+    }
     loop {
         if (index >= length) {
             break
         }
-        if (byteAtOrZero(slice, left_start + index, left_end) !=
-            byteAtOrZero(slice, right_start + index, right_end)) {
+        if (slice[(left_start + index) as usize] !=
+            slice[(right_start + index) as usize]) {
             return false
         }
         index = index + 1
@@ -444,19 +505,22 @@ procedure metadataValueSpan(
     if ((line.end - line.start) <= key_length) {
         return absentMetadataValue(line.end)
     }
+    if (line.start < 0) {
+        return absentMetadataValue(line.end)
+    }
 
     var key_index: i32 = 0
     loop {
         if (key_index >= key_length) {
             break
         }
-        if (byteAtOrZero(slice, line.start + key_index, line.end) !=
+        if (slice[(line.start + key_index) as usize] !=
             key_slice[key_index as usize]) {
             return absentMetadataValue(line.end)
         }
         key_index = key_index + 1
     }
-    if (byteAtOrZero(slice, line.start + key_length, line.end) != 58) {
+    if (slice[(line.start + key_length) as usize] != 58) {
         return absentMetadataValue(line.end)
     }
 
@@ -465,7 +529,7 @@ procedure metadataValueSpan(
         if (value_start >= line.end) {
             break
         }
-        if (byteAtOrZero(slice, value_start, line.end) != 32) {
+        if (slice[value_start as usize] != 32) {
             break
         }
         value_start = value_start + 1
@@ -488,6 +552,17 @@ procedure metadataValueEqualsText(
     value: string@View
 ) -> bool {
     let value_span: MetadataValueSpan = metadataValueSpan(slice, line, key)
+    if (value_span.present == false) {
+        return false
+    }
+    return byteSpanEqualsText(slice, value_span.start, value_span.end, value)
+}
+
+procedure metadataSpanEqualsText(
+    slice: const [u8],
+    value_span: MetadataValueSpan,
+    value: string@View
+) -> bool {
     if (value_span.present == false) {
         return false
     }
@@ -549,6 +624,61 @@ procedure kindFromMetadataLine(slice: const [u8], line: SourceLine) -> SpecUnitK
     return SpecUnitKind::Unknown
 }
 
+procedure kindFromMetadataValue(slice: const [u8], value_span: MetadataValueSpan) -> SpecUnitKind {
+    if (metadataSpanEqualsText(slice, value_span, "grammar") == true) {
+        return SpecUnitKind::Grammar
+    }
+    if (metadataSpanEqualsText(slice, value_span, "grammar-requirement") == true) {
+        return SpecUnitKind::GrammarRequirement
+    }
+    if (metadataSpanEqualsText(slice, value_span, "formal-rule") == true) {
+        return SpecUnitKind::FormalRule
+    }
+    if (metadataSpanEqualsText(slice, value_span, "formal-definition") == true) {
+        return SpecUnitKind::FormalDefinition
+    }
+    if (metadataSpanEqualsText(slice, value_span, "diagnostic-table") == true) {
+        return SpecUnitKind::DiagnosticTable
+    }
+    if (metadataSpanEqualsText(slice, value_span, "diagnostic-requirement") == true) {
+        return SpecUnitKind::DiagnosticRequirement
+    }
+    if (metadataSpanEqualsText(slice, value_span, "diagnostics") == true) {
+        return SpecUnitKind::Diagnostics
+    }
+    if (metadataSpanEqualsText(slice, value_span, "semantic-requirement") == true) {
+        return SpecUnitKind::SemanticRequirement
+    }
+    if (metadataSpanEqualsText(slice, value_span, "syntax-requirement") == true) {
+        return SpecUnitKind::SyntaxRequirement
+    }
+    if (metadataSpanEqualsText(slice, value_span, "dynamic-semantics") == true) {
+        return SpecUnitKind::DynamicSemantics
+    }
+    if (metadataSpanEqualsText(slice, value_span, "normative-requirement") == true) {
+        return SpecUnitKind::NormativeRequirement
+    }
+    if (metadataSpanEqualsText(slice, value_span, "lowering-rule") == true) {
+        return SpecUnitKind::LoweringRule
+    }
+    if (metadataSpanEqualsText(slice, value_span, "lowering-requirement") == true) {
+        return SpecUnitKind::LoweringRequirement
+    }
+    if (metadataSpanEqualsText(slice, value_span, "conformance-statement") == true) {
+        return SpecUnitKind::ConformanceStatement
+    }
+    if (metadataSpanEqualsText(slice, value_span, "metatheoretic-property") == true) {
+        return SpecUnitKind::MetatheoreticProperty
+    }
+    if (metadataSpanEqualsText(slice, value_span, "informative") == true) {
+        return SpecUnitKind::Informative
+    }
+    if (metadataSpanEqualsText(slice, value_span, "informative-note") == true) {
+        return SpecUnitKind::InformativeNote
+    }
+    return SpecUnitKind::Unknown
+}
+
 procedure strengthFromMetadataLine(slice: const [u8], line: SourceLine) -> SpecUnitStrength {
     if (metadataValueEqualsText(slice, line, "strength", "required") == true) {
         return SpecUnitStrength::Required
@@ -572,6 +702,37 @@ procedure strengthFromMetadataLine(slice: const [u8], line: SourceLine) -> SpecU
         return SpecUnitStrength::Optional
     }
     if (metadataValueEqualsText(slice, line, "strength", "informative") == true) {
+        return SpecUnitStrength::Informative
+    }
+    return SpecUnitStrength::Unknown
+}
+
+procedure strengthFromMetadataValue(
+    slice: const [u8],
+    value_span: MetadataValueSpan
+) -> SpecUnitStrength {
+    if (metadataSpanEqualsText(slice, value_span, "required") == true) {
+        return SpecUnitStrength::Required
+    }
+    if (metadataSpanEqualsText(slice, value_span, "normative") == true) {
+        return SpecUnitStrength::Normative
+    }
+    if (metadataSpanEqualsText(slice, value_span, "recommended") == true) {
+        return SpecUnitStrength::Recommended
+    }
+    if (metadataSpanEqualsText(slice, value_span, "advisory") == true) {
+        return SpecUnitStrength::Advisory
+    }
+    if (metadataSpanEqualsText(slice, value_span, "permitted") == true) {
+        return SpecUnitStrength::Permitted
+    }
+    if (metadataSpanEqualsText(slice, value_span, "allowed") == true) {
+        return SpecUnitStrength::Allowed
+    }
+    if (metadataSpanEqualsText(slice, value_span, "optional") == true) {
+        return SpecUnitStrength::Optional
+    }
+    if (metadataSpanEqualsText(slice, value_span, "informative") == true) {
         return SpecUnitStrength::Informative
     }
     return SpecUnitStrength::Unknown
@@ -676,13 +837,6 @@ procedure bodyDefectCount(has_body_content: bool) -> i32 {
     return 1
 }
 
-procedure specIdLedgerInitialByteCapacity(spec_byte_length: i32) -> usize {
-    if (spec_byte_length <= 0) {
-        return 1usize
-    }
-    return spec_byte_length as usize
-}
-
 public procedure specUnitLedgerPath() -> string@View {
     return "CursiveOracle/build/main/spec-units/parsed-units.bin"
 }
@@ -700,25 +854,24 @@ procedure ensureSpecUnitLedgerDirectory(fs: $FileSystem) -> bool {
     }
 }
 
-procedure writeSpecUnitLedger(fs: $FileSystem, view: bytes@View) -> bool {
+procedure writeEmptySpecUnitLedger(fs: $FileSystem) -> bool {
     if (ensureSpecUnitLedgerDirectory(fs) == false) {
         return false
     }
-    return if fs~>write_file(specUnitLedgerPath(), view) is {
-        _: () { true }
+    let stale_ledger_cleanup: () | IoError = fs~>remove(specUnitLedgerPath())
+    let _ = stale_ledger_cleanup
+    return if fs~>create_write(specUnitLedgerPath()) is {
+        writer: unique File@Write {
+            let flush_result: () | IoError = writer~>flush()
+            let closed: File@Closed = writer~>close()
+            let _ = closed
+            if flush_result is {
+                _: () { true }
+                _: IoError { false }
+            }
+        }
         _: IoError { false }
     }
-}
-
-procedure specUnitLedgerInitialByteCapacity(spec_byte_length: i32) -> usize {
-    if (spec_byte_length <= 0) {
-        return 1usize
-    }
-    return (spec_byte_length * 2) as usize
-}
-
-procedure specIdLedgerDelimiter() -> bytes@View {
-    return bytes::view_string("\n")
 }
 
 procedure byteViewFromSpan(slice: const [u8], start: i32, end: i32) -> bytes@View {
@@ -813,139 +966,133 @@ procedure boolFromLedgerFlag(value: i32) -> bool {
     return value != 0
 }
 
-procedure appendLedgerText(ledger: unique bytes@Managed, text: string@View, heap: $HeapAllocator) -> bool {
-    return if bytes::append(ledger, bytes::view_string(text), heap) is {
+procedure writeLedgerText(writer: unique File@Write, text: string@View) -> bool {
+    return if writer~>write(bytes::view_string(text)) is {
         _: () { true }
-        _: AllocationError { false }
+        _: IoError { false }
     }
 }
 
-procedure appendLedgerDigitText(
-    ledger: unique bytes@Managed,
-    digit: i32,
-    heap: $HeapAllocator
-) -> bool {
-    if (digit == 0) { return appendLedgerText(ledger, "0", heap) }
-    if (digit == 1) { return appendLedgerText(ledger, "1", heap) }
-    if (digit == 2) { return appendLedgerText(ledger, "2", heap) }
-    if (digit == 3) { return appendLedgerText(ledger, "3", heap) }
-    if (digit == 4) { return appendLedgerText(ledger, "4", heap) }
-    if (digit == 5) { return appendLedgerText(ledger, "5", heap) }
-    if (digit == 6) { return appendLedgerText(ledger, "6", heap) }
-    if (digit == 7) { return appendLedgerText(ledger, "7", heap) }
-    if (digit == 8) { return appendLedgerText(ledger, "8", heap) }
-    if (digit == 9) { return appendLedgerText(ledger, "9", heap) }
-    return false
-}
-
-procedure appendLedgerUnsignedIntegerText(
-    ledger: unique bytes@Managed,
-    value: i32,
-    heap: $HeapAllocator
-) -> bool {
-    if (value >= 10) {
-        return appendLedgerUnsignedIntegerText(ledger, value / 10, heap) &&
-            appendLedgerDigitText(ledger, value % 10, heap)
+procedure writeLedgerIntegerText(writer: unique File@Write, value: i32) -> bool {
+    var scratch_storage: [u8; 12] = [0u8; 12]
+    var scratch: [u8] = scratch_storage
+    var next_index: i32 = 12
+    var remaining: i32 = value
+    let is_negative: bool = value < 0
+    if (is_negative == true) {
+        remaining = 0 - remaining
     }
-    return appendLedgerDigitText(ledger, value, heap)
-}
 
-procedure appendLedgerIntegerText(
-    ledger: unique bytes@Managed,
-    value: i32,
-    heap: $HeapAllocator
-) -> bool {
-    if (value < 0) {
-        return appendLedgerText(ledger, "-", heap) &&
-            appendLedgerUnsignedIntegerText(ledger, 0 - value, heap)
+    if (remaining == 0) {
+        next_index = next_index - 1
+        scratch[next_index as usize] = 48u8
+    } else {
+        loop {
+            if (remaining <= 0) {
+                break
+            }
+            let digit: i32 = remaining % 10
+            next_index = next_index - 1
+            scratch[next_index as usize] = (48 + digit) as u8
+            remaining = remaining / 10
+        }
     }
-    return appendLedgerUnsignedIntegerText(ledger, value, heap)
+
+    if (is_negative == true) {
+        next_index = next_index - 1
+        scratch[next_index as usize] = 45u8
+    }
+
+    let start_index: usize = next_index as usize
+    let end_index: usize = 12usize
+    let window: const [u8] = scratch[start_index..end_index]
+    return if writer~>write(bytes::view(window)) is {
+        _: () { true }
+        _: IoError { false }
+    }
 }
 
-procedure appendLedgerSpanText(
-    ledger: unique bytes@Managed,
+procedure writeLedgerSpanText(
+    writer: unique File@Write,
     slice: const [u8],
     start: i32,
-    end: i32,
-    heap: $HeapAllocator
+    end: i32
 ) -> bool {
-    return if bytes::append(ledger, byteViewFromSpan(slice, start, end), heap) is {
+    return if writer~>write(byteViewFromSpan(slice, start, end)) is {
         _: () { true }
-        _: AllocationError { false }
+        _: IoError { false }
     }
 }
 
 procedure appendSpecUnitRecordField(
-    ledger: unique bytes@Managed,
-    value: i32,
-    heap: $HeapAllocator
+    writer: unique File@Write,
+    value: i32
 ) -> bool {
-    return appendLedgerIntegerText(ledger, value, heap) &&
-        appendLedgerText(ledger, "\t", heap)
+    return writeLedgerIntegerText(writer, value) &&
+        writeLedgerText(writer, "\t")
 }
 
 procedure appendSpecUnitRecordSpan(
-    ledger: unique bytes@Managed,
+    writer: unique File@Write,
     slice: const [u8],
     start: i32,
-    end: i32,
-    heap: $HeapAllocator
+    end: i32
 ) -> bool {
-    return appendLedgerIntegerText(ledger, end - start, heap) &&
-        appendLedgerText(ledger, ":", heap) &&
-        appendLedgerSpanText(ledger, slice, start, end, heap) &&
-        appendLedgerText(ledger, "\t", heap)
+    return writeLedgerIntegerText(writer, end - start) &&
+        writeLedgerText(writer, ":") &&
+        writeLedgerSpanText(writer, slice, start, end) &&
+        writeLedgerText(writer, "\t")
 }
 
 procedure appendSpecUnitRecordFinalSpan(
-    ledger: unique bytes@Managed,
+    writer: unique File@Write,
     slice: const [u8],
     start: i32,
-    end: i32,
-    heap: $HeapAllocator
+    end: i32
 ) -> bool {
-    return appendLedgerIntegerText(ledger, end - start, heap) &&
-        appendLedgerText(ledger, ":", heap) &&
-        appendLedgerSpanText(ledger, slice, start, end, heap) &&
-        appendLedgerText(ledger, "\n", heap)
+    return writeLedgerIntegerText(writer, end - start) &&
+        writeLedgerText(writer, ":") &&
+        writeLedgerSpanText(writer, slice, start, end) &&
+        writeLedgerText(writer, "\n")
 }
 
 procedure appendSpecUnitRecord(
-    ledger: unique bytes@Managed,
+    writer: unique File@Write,
     slice: const [u8],
-    unit: SpecParsedUnit,
-    heap: $HeapAllocator
+    unit: SpecParsedUnit
 ) -> bool {
-    return appendSpecUnitRecordField(ledger, unit.ordinal, heap) &&
-        appendSpecUnitRecordField(ledger, unit.source_start, heap) &&
-        appendSpecUnitRecordField(ledger, unit.source_end, heap) &&
-        appendSpecUnitRecordField(ledger, unit.metadata_start, heap) &&
-        appendSpecUnitRecordField(ledger, unit.metadata_end, heap) &&
-        appendSpecUnitRecordField(ledger, unit.body_start, heap) &&
-        appendSpecUnitRecordField(ledger, unit.body_end, heap) &&
-        appendSpecUnitRecordField(ledger, unit.source_line, heap) &&
-        appendSpecUnitRecordField(ledger, unit.source_column, heap) &&
-        appendSpecUnitRecordField(ledger, unit.content_identity, heap) &&
-        appendSpecUnitRecordField(ledger, specUnitKindTag(unit.kind), heap) &&
-        appendSpecUnitRecordField(ledger, specUnitStrengthTag(unit.strength), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_id), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_kind), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_phase), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_strength), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_owner), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_applies_to), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_summary), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_labels), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_metadata_close), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.has_body_content), heap) &&
-        appendSpecUnitRecordField(ledger, boolLedgerFlag(unit.duplicate_id), heap) &&
-        appendSpecUnitRecordField(ledger, unit.parse_defect_count, heap) &&
-        appendSpecUnitRecordSpan(ledger, slice, unit.id_start, unit.id_end, heap) &&
-        appendSpecUnitRecordSpan(ledger, slice, unit.phase_start, unit.phase_end, heap) &&
-        appendSpecUnitRecordSpan(ledger, slice, unit.owner_start, unit.owner_end, heap) &&
-        appendSpecUnitRecordSpan(ledger, slice, unit.applies_to_start, unit.applies_to_end, heap) &&
-        appendSpecUnitRecordSpan(ledger, slice, unit.summary_start, unit.summary_end, heap) &&
-        appendSpecUnitRecordFinalSpan(ledger, slice, unit.labels_start, unit.labels_end, heap)
+    return appendSpecUnitRecordField(writer, unit.ordinal) &&
+        appendSpecUnitRecordField(writer, unit.source_start) &&
+        appendSpecUnitRecordField(writer, unit.source_end) &&
+        appendSpecUnitRecordField(writer, unit.metadata_start) &&
+        appendSpecUnitRecordField(writer, unit.metadata_end) &&
+        appendSpecUnitRecordField(writer, unit.body_start) &&
+        appendSpecUnitRecordField(writer, unit.body_end) &&
+        appendSpecUnitRecordField(writer, unit.source_line) &&
+        appendSpecUnitRecordField(writer, unit.source_column) &&
+        appendSpecUnitRecordField(writer, unit.content_identity) &&
+        appendSpecUnitRecordField(writer, unit.id_start) &&
+        appendSpecUnitRecordField(writer, unit.id_end) &&
+        appendSpecUnitRecordField(writer, specUnitKindTag(unit.kind)) &&
+        appendSpecUnitRecordField(writer, specUnitStrengthTag(unit.strength)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_id)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_kind)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_phase)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_strength)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_owner)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_applies_to)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_summary)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_labels)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_metadata_close)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.has_body_content)) &&
+        appendSpecUnitRecordField(writer, boolLedgerFlag(unit.duplicate_id)) &&
+        appendSpecUnitRecordField(writer, unit.parse_defect_count) &&
+        appendSpecUnitRecordSpan(writer, slice, unit.id_start, unit.id_end) &&
+        appendSpecUnitRecordSpan(writer, slice, unit.phase_start, unit.phase_end) &&
+        appendSpecUnitRecordSpan(writer, slice, unit.owner_start, unit.owner_end) &&
+        appendSpecUnitRecordSpan(writer, slice, unit.applies_to_start, unit.applies_to_end) &&
+        appendSpecUnitRecordSpan(writer, slice, unit.summary_start, unit.summary_end) &&
+        appendSpecUnitRecordFinalSpan(writer, slice, unit.labels_start, unit.labels_end)
 }
 
 procedure emptySpecUnitRecord() -> SpecUnitRecord {
@@ -960,6 +1107,8 @@ procedure emptySpecUnitRecord() -> SpecUnitRecord {
         source_line: 1,
         source_column: 1,
         content_identity: 0,
+        id_start: 0,
+        id_end: 0,
         kind: SpecUnitKind::Unknown,
         strength: SpecUnitStrength::Unknown,
         has_id: false,
@@ -1104,20 +1253,19 @@ procedure readLedgerFinalTextField(
     return readLedgerBytesField(slice, length, offset, 10)
 }
 
-public procedure readSpecUnitRecord(
-    ledger: bytes@View,
+public procedure readSpecUnitRecordFromSlice(
+    slice: const [u8],
+    length: i32,
     offset: i32
 ) -> SpecUnitRecordRead {
-    let length: i32 = bytes::length(ledger) as i32
     if (offset >= length) {
         return SpecUnitRecordRead {
             state: SpecUnitRecordReadState::EndOfLedger,
             next_offset: offset,
-            record: emptySpecUnitRecord()
+            unit: emptySpecUnitRecord()
         }
     }
 
-    let slice: const [u8] = bytes::as_slice(ledger)
     let ordinal: LedgerIntegerRead = readLedgerField(slice, length, offset)
     let source_start: LedgerIntegerRead = readLedgerField(slice, length, ordinal.next_offset)
     let source_end: LedgerIntegerRead = readLedgerField(slice, length, source_start.next_offset)
@@ -1129,7 +1277,9 @@ public procedure readSpecUnitRecord(
     let source_column: LedgerIntegerRead = readLedgerField(slice, length, source_line.next_offset)
     let content_identity: LedgerIntegerRead =
         readLedgerField(slice, length, source_column.next_offset)
-    let kind_tag: LedgerIntegerRead = readLedgerField(slice, length, content_identity.next_offset)
+    let id_start: LedgerIntegerRead = readLedgerField(slice, length, content_identity.next_offset)
+    let id_end: LedgerIntegerRead = readLedgerField(slice, length, id_start.next_offset)
+    let kind_tag: LedgerIntegerRead = readLedgerField(slice, length, id_end.next_offset)
     let strength_tag: LedgerIntegerRead = readLedgerField(slice, length, kind_tag.next_offset)
     let has_id: LedgerIntegerRead = readLedgerField(slice, length, strength_tag.next_offset)
     let has_kind: LedgerIntegerRead = readLedgerField(slice, length, has_id.next_offset)
@@ -1166,6 +1316,8 @@ public procedure readSpecUnitRecord(
         source_line.valid &&
         source_column.valid &&
         content_identity.valid &&
+        id_start.valid &&
+        id_end.valid &&
         kind_tag.valid &&
         strength_tag.valid &&
         has_id.valid &&
@@ -1190,14 +1342,14 @@ public procedure readSpecUnitRecord(
         return SpecUnitRecordRead {
             state: SpecUnitRecordReadState::Malformed,
             next_offset: labels_text.next_offset,
-            record: emptySpecUnitRecord()
+            unit: emptySpecUnitRecord()
         }
     }
 
     return SpecUnitRecordRead {
         state: SpecUnitRecordReadState::Readable,
         next_offset: labels_text.next_offset,
-        record: SpecUnitRecord {
+        unit: SpecUnitRecord {
             ordinal: ordinal.value,
             source_start: source_start.value,
             source_end: source_end.value,
@@ -1208,6 +1360,8 @@ public procedure readSpecUnitRecord(
             source_line: source_line.value,
             source_column: source_column.value,
             content_identity: content_identity.value,
+            id_start: id_start.value,
+            id_end: id_end.value,
             kind: specUnitKindFromTag(kind_tag.value),
             strength: specUnitStrengthFromTag(strength_tag.value),
             has_id: boolFromLedgerFlag(has_id.value),
@@ -1232,114 +1386,45 @@ public procedure readSpecUnitRecord(
     }
 }
 
-procedure specIdLedgerEntryEquals(
-    ledger_slice: const [u8],
-    ledger_length: i32,
-    entry_start: i32,
-    entry_end: i32,
-    spec_slice: const [u8],
-    spec_length: i32,
-    id_start: i32,
-    id_end: i32
-) -> bool {
-    if ((entry_end - entry_start) != (id_end - id_start)) {
-        return false
-    }
-
-    var index: i32 = 0
-    let id_length: i32 = id_end - id_start
-    loop {
-        if (index >= id_length) {
-            break
-        }
-        if (byteAtOrZero(ledger_slice, entry_start + index, ledger_length) !=
-            byteAtOrZero(spec_slice, id_start + index, spec_length)) {
-            return false
-        }
-        index = index + 1
-    }
-    return true
+public procedure readSpecUnitRecord(
+    ledger: bytes@View,
+    offset: i32
+) -> SpecUnitRecordRead {
+    let length: i32 = bytes::length(ledger) as i32
+    let slice: const [u8] = bytes::as_slice(ledger)
+    return readSpecUnitRecordFromSlice(slice, length, offset)
 }
 
-procedure specIdLedgerContains(
-    ledger_view: bytes@View,
-    spec_slice: const [u8],
-    spec_length: i32,
-    id_start: i32,
-    id_end: i32
-) -> bool {
-    if (id_end <= id_start) {
-        return false
-    }
-
-    let ledger_length: i32 = bytes::length(ledger_view) as i32
-    let ledger_slice: const [u8] = bytes::as_slice(ledger_view)
-    var entry_start: i32 = 0
-    var index: i32 = 0
-    loop {
-        if (index >= ledger_length) {
-            if (index > entry_start) {
-                return specIdLedgerEntryEquals(
-                    ledger_slice,
-                    ledger_length,
-                    entry_start,
-                    index,
-                    spec_slice,
-                    spec_length,
-                    id_start,
-                    id_end
-                )
-            }
-            break
-        }
-
-        if (byteAtOrZero(ledger_slice, index, ledger_length) == 10) {
-            if (specIdLedgerEntryEquals(
-                ledger_slice,
-                ledger_length,
-                entry_start,
-                index,
-                spec_slice,
-                spec_length,
-                id_start,
-                id_end
-            ) == true) {
-                return true
-            }
-            entry_start = index + 1
-        }
-        index = index + 1
-    }
-    return false
+procedure specIdHashTableCapacity() -> i32 {
+    return 8192
 }
 
-procedure appendSpecIdToLedger(
-    ledger: unique bytes@Managed,
-    spec_slice: const [u8],
-    id_start: i32,
-    id_end: i32,
-    heap: $HeapAllocator
-) -> bool {
-    if (id_end <= id_start) {
-        return false
-    }
+procedure specIdHashStep(state: i32, byte: u8, index: i32) -> i32 {
+    let state_part: i32 = state % 8191
+    let index_part: i32 = index % 8191
+    return ((state_part * 131) + (byte as i32) + index_part + 1) % 8191
+}
 
-    let id_view: bytes@View = byteViewFromSpan(spec_slice, id_start, id_end)
-    let id_append: () | AllocationError = bytes::append(ledger, id_view, heap)
-    if id_append is {
-        _: () {
-            let delimiter_append: () | AllocationError =
-                bytes::append(ledger, specIdLedgerDelimiter(), heap)
-            return if delimiter_append is {
-                _: () { true }
-                _: AllocationError { false }
-            }
+procedure specIdHashBytes(slice: const [u8], start: i32, end: i32, length: i32) -> i32 {
+    var index: i32 = start
+    var state: i32 = 23
+    let capped_end: i32 = if end > length { length } else { end }
+    loop {
+        if (index >= capped_end) {
+            break
         }
-        _: AllocationError {
-            return false
-        }
+        state = specIdHashStep(state, slice[index as usize], index - start)
+        index = index + 1
     }
-    return false
+    return state
+}
+
+procedure specIdHashTableSlot(hash: i32, probe: i32) -> usize {
+    let raw_slot: i32 = (hash + probe) % specIdHashTableCapacity()
+    if (raw_slot < 0) {
+        return 0usize
+    }
+    return raw_slot as usize
 }
 
 procedure parsedUnitFromState(
@@ -1364,9 +1449,9 @@ procedure parsedUnitFromState(
     has_kind: bool,
     has_strength: bool,
     has_metadata_close: bool,
+    has_body_content: bool,
     duplicate_id: bool
 ) -> SpecParsedUnit {
-    let has_body_content: bool = bodyHasContent(slice, body_start, body_end, length)
     let missing_count: i32 = requiredMetadataMissingCount(
         id_span.present,
         has_kind,
@@ -1392,7 +1477,7 @@ procedure parsedUnitFromState(
         body_end: body_end,
         source_line: source_line,
         source_column: 1,
-        content_identity: hashBytes(slice, unit_start, unit_end, length),
+        content_identity: unitContentIdentity(slice, length, unit_start, unit_end, id_span, summary_span),
         id_start: id_span.start,
         id_end: id_span.end,
         kind: kind,
@@ -1679,12 +1764,12 @@ procedure unitSummaryWithUnit(summary: SpecUnitSummary, unit: SpecParsedUnit) ->
 }
 
 procedure scanSpecStructure(
+    ctx: Reporting::OutputContext,
     view: bytes@View,
     utf8_valid: bool,
-    ledger: unique bytes@Managed,
-    unit_ledger: unique bytes@Managed,
-    heap: $HeapAllocator
-) -> SpecSourceScan {
+    writer: unique File@Write
+) -> SpecSourceScanResult {
+    var output: Reporting::OutputContext = ctx
     let length: i32 = bytes::length(view) as i32
     let slice: const [u8] = bytes::as_slice(view)
     var index: i32 = 0
@@ -1710,6 +1795,16 @@ procedure scanSpecStructure(
     var has_kind: bool = false
     var has_strength: bool = false
     var has_metadata_close: bool = false
+    var unit_has_body_content: bool = false
+    var next_progress_unit_count: i32 = 1000
+    var hash_occupied_storage: [bool; 8192] = [false; 8192]
+    var hash_start_storage: [i32; 8192] = [0; 8192]
+    var hash_end_storage: [i32; 8192] = [0; 8192]
+    var hash_value_storage: [i32; 8192] = [0; 8192]
+    var hash_occupied: [bool] = hash_occupied_storage
+    var hash_start: [i32] = hash_start_storage
+    var hash_end: [i32] = hash_end_storage
+    var hash_value: [i32] = hash_value_storage
 
     loop {
         if (index >= length) {
@@ -1717,11 +1812,12 @@ procedure scanSpecStructure(
         }
 
         let line: SourceLine = sourceLineAt(slice, index, length, line_number)
-        if (lineStartsWithText(slice, line, "#") == true) {
+        let line_first: u8 = byteAtOrZero(slice, line.start, length)
+        if (line_first == 35) {
             section_count = section_count + 1
         }
 
-        if (lineEqualsText(slice, line, markerStartText()) == true) {
+        if ((line_first == 60) && (lineEqualsText(slice, line, markerStartText()) == true)) {
             if (inside_unit == true) {
                 summary = SpecUnitSummary {
                     unit_count: summary.unit_count,
@@ -1783,67 +1879,99 @@ procedure scanSpecStructure(
             has_kind = false
             has_strength = false
             has_metadata_close = false
+            unit_has_body_content = false
         } else if ((inside_unit == true) && (inside_metadata == true)) {
-            if (lineEqualsText(slice, line, metadataCloseText()) == true) {
+            if ((line_first == 45) && (lineEqualsText(slice, line, metadataCloseText()) == true)) {
                 inside_metadata = false
                 has_metadata_close = true
                 metadata_end = line.end
                 body_start = line.end + line.break_width
             } else {
-                let id_value: MetadataValueSpan = metadataValueSpan(slice, line, "id")
-                if (id_value.present == true) {
-                    id_span = id_value
-                }
-                let phase_value: MetadataValueSpan = metadataValueSpan(slice, line, "phase")
-                if (phase_value.present == true) {
-                    phase_span = phase_value
-                }
-                let owner_value: MetadataValueSpan = metadataValueSpan(slice, line, "owner")
-                if (owner_value.present == true) {
-                    owner_span = owner_value
-                }
-                let applies_to_value: MetadataValueSpan =
-                    metadataValueSpan(slice, line, "applies-to")
-                if (applies_to_value.present == true) {
-                    applies_to_span = applies_to_value
-                }
-                let summary_value: MetadataValueSpan = metadataValueSpan(slice, line, "summary")
-                if (summary_value.present == true) {
-                    summary_span = summary_value
-                }
-                let labels_value: MetadataValueSpan = metadataValueSpan(slice, line, "labels")
-                if (labels_value.present == true) {
-                    labels_span = labels_value
-                }
-                if (metadataLineHasKey(slice, line, "kind") == true) {
-                    has_kind = true
-                    unit_kind = kindFromMetadataLine(slice, line)
-                }
-                if (metadataLineHasKey(slice, line, "strength") == true) {
-                    has_strength = true
-                    unit_strength = strengthFromMetadataLine(slice, line)
+                if (line_first == 105) {
+                    let id_value: MetadataValueSpan = metadataValueSpan(slice, line, "id")
+                    if (id_value.present == true) {
+                        id_span = id_value
+                    }
+                } else if (line_first == 112) {
+                    let phase_value: MetadataValueSpan = metadataValueSpan(slice, line, "phase")
+                    if (phase_value.present == true) {
+                        phase_span = phase_value
+                    }
+                } else if (line_first == 111) {
+                    let owner_value: MetadataValueSpan = metadataValueSpan(slice, line, "owner")
+                    if (owner_value.present == true) {
+                        owner_span = owner_value
+                    }
+                } else if (line_first == 97) {
+                    let applies_to_value: MetadataValueSpan =
+                        metadataValueSpan(slice, line, "applies-to")
+                    if (applies_to_value.present == true) {
+                        applies_to_span = applies_to_value
+                    }
+                } else if (line_first == 115) {
+                    let summary_value: MetadataValueSpan = metadataValueSpan(slice, line, "summary")
+                    if (summary_value.present == true) {
+                        summary_span = summary_value
+                    } else {
+                        let strength_value: MetadataValueSpan =
+                            metadataValueSpan(slice, line, "strength")
+                        if (strength_value.present == true) {
+                            has_strength = true
+                            unit_strength = strengthFromMetadataValue(slice, strength_value)
+                        }
+                    }
+                } else if (line_first == 108) {
+                    let labels_value: MetadataValueSpan = metadataValueSpan(slice, line, "labels")
+                    if (labels_value.present == true) {
+                        labels_span = labels_value
+                    }
+                } else if (line_first == 107) {
+                    let kind_value: MetadataValueSpan = metadataValueSpan(slice, line, "kind")
+                    if (kind_value.present == true) {
+                        has_kind = true
+                        unit_kind = kindFromMetadataValue(slice, kind_value)
+                    }
                 }
             }
-        } else if ((inside_unit == true) && (lineEqualsText(slice, line, markerEndText()) == true)) {
-            let duplicate_id: bool = if id_span.present == true {
-                specIdLedgerContains(
-                    bytes::as_view(ledger),
-                    slice,
-                    length,
-                    id_span.start,
-                    id_span.end
-                )
-            } else {
-                false
-            }
+        } else if ((inside_unit == true) &&
+            (line_first == 60) &&
+            (lineEqualsText(slice, line, markerEndText()) == true)) {
+            var duplicate_id: bool = false
             if (id_span.present == true) {
-                if (appendSpecIdToLedger(
-                    ledger,
-                    slice,
-                    id_span.start,
-                    id_span.end,
-                    heap
-                ) == false) {
+                let id_hash: i32 = specIdHashBytes(slice, id_span.start, id_span.end, length)
+                var probe: i32 = 0
+                var inserted_id: bool = false
+                loop {
+                    if (probe >= specIdHashTableCapacity()) {
+                        break
+                    }
+
+                    let slot: usize = specIdHashTableSlot(id_hash, probe)
+                    if (hash_occupied[slot] == false) {
+                        hash_occupied[slot] = true
+                        hash_start[slot] = id_span.start
+                        hash_end[slot] = id_span.end
+                        hash_value[slot] = id_hash
+                        inserted_id = true
+                        break
+                    }
+
+                    if ((hash_value[slot] == id_hash) &&
+                        (byteSpanEqualsSpan(
+                            slice,
+                            hash_start[slot],
+                            hash_end[slot],
+                            id_span.start,
+                            id_span.end
+                        ) == true)) {
+                        duplicate_id = true
+                        inserted_id = true
+                        break
+                    }
+
+                    probe = probe + 1
+                }
+                if (inserted_id == false) {
                     storage_failure_count = storage_failure_count + 1
                 }
             }
@@ -1870,15 +1998,38 @@ procedure scanSpecStructure(
                 has_kind,
                 has_strength,
                 has_metadata_close,
+                unit_has_body_content,
                 duplicate_id
             )
-            if (appendSpecUnitRecord(unit_ledger, slice, unit, heap) == false) {
+            if (appendSpecUnitRecord(writer, slice, unit) == false) {
                 storage_failure_count = storage_failure_count + 1
             }
             summary = unitSummaryWithUnit(summary, unit)
+            if (summary.unit_count >= next_progress_unit_count) {
+                output = Reporting::emitEvent(
+                    output,
+                    Reporting::metricIntegerEvent(
+                        Reporting::ReportPhase::SpecIngestion,
+                        Reporting::ReportSubjectKind::SpecDocument,
+                        canonicalSpecPath(),
+                        "Spec::Source",
+                        Reporting::ReportStatus::Running,
+                        Reporting::ReportMetricKind::ParsedUnitCount,
+                        summary.unit_count,
+                        "spec_structure_scan_progress"
+                    )
+                )
+                next_progress_unit_count = next_progress_unit_count + 1000
+            }
             inside_unit = false
             inside_metadata = false
-        } else if (lineEqualsText(slice, line, markerEndText()) == true) {
+            unit_has_body_content = false
+        } else if ((inside_unit == true) && (inside_metadata == false)) {
+            if ((unit_has_body_content == false) &&
+                (lineHasBodyContent(slice, line, length) == true)) {
+                unit_has_body_content = true
+            }
+        } else if ((line_first == 60) && (lineEqualsText(slice, line, markerEndText()) == true)) {
             summary = SpecUnitSummary {
                 unit_count: summary.unit_count,
                 parse_error_count: summary.parse_error_count + 1,
@@ -1970,13 +2121,16 @@ procedure scanSpecStructure(
         }
     }
 
-    return SpecSourceScan {
-        byte_length: length,
-        line_count: line_number - 1,
-        utf8_valid: utf8_valid,
-        section_count: section_count,
-        storage_failure_count: storage_failure_count,
-        units: summary
+    return SpecSourceScanResult {
+        ctx: output,
+        scan: SpecSourceScan {
+            byte_length: length,
+            line_count: line_number - 1,
+            utf8_valid: utf8_valid,
+            section_count: section_count,
+            storage_failure_count: storage_failure_count,
+            units: summary
+        }
     }
 }
 
@@ -2023,7 +2177,7 @@ procedure emitSpecIntegerMetric(
 
 procedure emitParsedSpecUnit(
     ctx: Reporting::OutputContext,
-    unit: SpecParsedUnit
+    unit: SpecUnitRecord
 ) -> Reporting::OutputContext {
     let base: Reporting::OutputEvent = Reporting::eventWithSubjectInteger(
         Reporting::eventBase(
@@ -2063,7 +2217,7 @@ procedure emitParsedSpecUnit(
 
 procedure emitSpecDuplicateWarning(
     ctx: Reporting::OutputContext,
-    unit: SpecParsedUnit
+    unit: SpecUnitRecord
 ) -> Reporting::OutputContext {
     let base: Reporting::OutputEvent = Reporting::eventWithSubjectInteger(
         Reporting::eventBase(
@@ -2094,6 +2248,37 @@ procedure emitSpecDuplicateWarning(
             unit.content_identity
         )
     )
+}
+
+procedure specUnitRecordReadIsReadable(value: SpecUnitRecordReadState) -> bool {
+    return if value is {
+        SpecUnitRecordReadState::Readable { true }
+        _ { false }
+    }
+}
+
+procedure specUnitRecordReadIsEndOfLedger(value: SpecUnitRecordReadState) -> bool {
+    return if value is {
+        SpecUnitRecordReadState::EndOfLedger { true }
+        _ { false }
+    }
+}
+
+procedure emitSpecUnitLedgerReadFailure(
+    ctx: Reporting::OutputContext,
+    offset: i32
+) -> Reporting::OutputContext {
+    let event: Reporting::OutputEvent = Reporting::failureEvent(
+        Reporting::ReportPhase::SpecIngestion,
+        Reporting::ReportSubjectKind::SpecDocument,
+        specUnitLedgerPath(),
+        "Spec::Source",
+        Reporting::ReportFailureKind::OracleInternal,
+        "valid_spec_unit_ledger",
+        Reporting::renderSmallInteger(offset),
+        "spec_unit_ledger_malformed"
+    )
+    return Reporting::emitEvent(ctx, event)
 }
 
 procedure emitSpecStorageFailure(
@@ -2132,154 +2317,30 @@ procedure emitSpecParseFailure(
 
 procedure emitSpecUnitEvents(
     ctx: Reporting::OutputContext,
-    view: bytes@View,
-    ledger: unique bytes@Managed,
-    heap: $HeapAllocator
+    ledger: bytes@View
 ) -> Reporting::OutputContext {
-    let length: i32 = bytes::length(view) as i32
-    let slice: const [u8] = bytes::as_slice(view)
     var output: Reporting::OutputContext = ctx
-    var index: i32 = 0
-    var line_number: i32 = 1
-    var unit_count: i32 = 0
-    var inside_unit: bool = false
-    var inside_metadata: bool = false
-    var unit_start: i32 = 0
-    var unit_line: i32 = 1
-    var metadata_start: i32 = 0
-    var metadata_end: i32 = 0
-    var body_start: i32 = 0
-    var unit_kind: SpecUnitKind = SpecUnitKind::Unknown
-    var unit_strength: SpecUnitStrength = SpecUnitStrength::Unknown
-    var id_span: MetadataValueSpan = absentMetadataValue(0)
-    var phase_span: MetadataValueSpan = absentMetadataValue(0)
-    var owner_span: MetadataValueSpan = absentMetadataValue(0)
-    var applies_to_span: MetadataValueSpan = absentMetadataValue(0)
-    var summary_span: MetadataValueSpan = absentMetadataValue(0)
-    var labels_span: MetadataValueSpan = absentMetadataValue(0)
-    var has_kind: bool = false
-    var has_strength: bool = false
-    var has_metadata_close: bool = false
+    var offset: i32 = 0
+    let ledger_length: i32 = bytes::length(ledger) as i32
+    let ledger_slice: const [u8] = bytes::as_slice(ledger)
 
     loop {
-        if (index >= length) {
+        let record_read: SpecUnitRecordRead =
+            readSpecUnitRecordFromSlice(ledger_slice, ledger_length, offset)
+        let read_state: SpecUnitRecordReadState = record_read.state
+        if (specUnitRecordReadIsEndOfLedger(read_state) == true) {
+            break
+        }
+        if (specUnitRecordReadIsReadable(read_state) == false) {
+            output = emitSpecUnitLedgerReadFailure(output, offset)
             break
         }
 
-        let line: SourceLine = sourceLineAt(slice, index, length, line_number)
-        if (lineEqualsText(slice, line, markerStartText()) == true) {
-            inside_unit = true
-            inside_metadata = true
-            unit_start = line.start
-            unit_line = line.line_number
-            metadata_start = line.start
-            metadata_end = line.end
-            body_start = line.end
-            unit_kind = SpecUnitKind::Unknown
-            unit_strength = SpecUnitStrength::Unknown
-            id_span = absentMetadataValue(line.end)
-            phase_span = absentMetadataValue(line.end)
-            owner_span = absentMetadataValue(line.end)
-            applies_to_span = absentMetadataValue(line.end)
-            summary_span = absentMetadataValue(line.end)
-            labels_span = absentMetadataValue(line.end)
-            has_kind = false
-            has_strength = false
-            has_metadata_close = false
-        } else if ((inside_unit == true) && (inside_metadata == true)) {
-            if (lineEqualsText(slice, line, metadataCloseText()) == true) {
-                inside_metadata = false
-                has_metadata_close = true
-                metadata_end = line.end
-                body_start = line.end + line.break_width
-            } else {
-                let id_value: MetadataValueSpan = metadataValueSpan(slice, line, "id")
-                if (id_value.present == true) {
-                    id_span = id_value
-                }
-                let phase_value: MetadataValueSpan = metadataValueSpan(slice, line, "phase")
-                if (phase_value.present == true) {
-                    phase_span = phase_value
-                }
-                let owner_value: MetadataValueSpan = metadataValueSpan(slice, line, "owner")
-                if (owner_value.present == true) {
-                    owner_span = owner_value
-                }
-                let applies_to_value: MetadataValueSpan =
-                    metadataValueSpan(slice, line, "applies-to")
-                if (applies_to_value.present == true) {
-                    applies_to_span = applies_to_value
-                }
-                let summary_value: MetadataValueSpan = metadataValueSpan(slice, line, "summary")
-                if (summary_value.present == true) {
-                    summary_span = summary_value
-                }
-                let labels_value: MetadataValueSpan = metadataValueSpan(slice, line, "labels")
-                if (labels_value.present == true) {
-                    labels_span = labels_value
-                }
-                if (metadataLineHasKey(slice, line, "kind") == true) {
-                    has_kind = true
-                    unit_kind = kindFromMetadataLine(slice, line)
-                }
-                if (metadataLineHasKey(slice, line, "strength") == true) {
-                    has_strength = true
-                    unit_strength = strengthFromMetadataLine(slice, line)
-                }
-            }
-        } else if ((inside_unit == true) && (lineEqualsText(slice, line, markerEndText()) == true)) {
-            let duplicate_id: bool = if id_span.present == true {
-                specIdLedgerContains(
-                    bytes::as_view(ledger),
-                    slice,
-                    length,
-                    id_span.start,
-                    id_span.end
-                )
-            } else {
-                false
-            }
-            if (id_span.present == true) {
-                let append_ok: bool =
-                    appendSpecIdToLedger(ledger, slice, id_span.start, id_span.end, heap)
-                let _ = append_ok
-            }
-
-            let unit: SpecParsedUnit = parsedUnitFromState(
-                slice,
-                length,
-                unit_count + 1,
-                unit_start,
-                line.end,
-                metadata_start,
-                metadata_end,
-                body_start,
-                line.start,
-                unit_line,
-                id_span,
-                unit_kind,
-                unit_strength,
-                phase_span,
-                owner_span,
-                applies_to_span,
-                summary_span,
-                labels_span,
-                has_kind,
-                has_strength,
-                has_metadata_close,
-                duplicate_id
-            )
-            output = emitParsedSpecUnit(output, unit)
-            if (unit.duplicate_id == true) {
-                output = emitSpecDuplicateWarning(output, unit)
-            }
-            unit_count = unit_count + 1
-            inside_unit = false
-            inside_metadata = false
+        output = emitParsedSpecUnit(output, record_read.unit)
+        if (record_read.unit.duplicate_id == true) {
+            output = emitSpecDuplicateWarning(output, record_read.unit)
         }
-
-        index = line.end + line.break_width
-        line_number = line_number + 1
+        offset = record_read.next_offset
     }
 
     return output
@@ -2473,10 +2534,14 @@ procedure failedSpecReadResult(ctx: Reporting::OutputContext) -> SpecIngestionRe
     return specIngestionResult(ctx, 73, 0, 1, empty_scan, 1)
 }
 
-public procedure runSpecIngestion(
-    ctx: Reporting::OutputContext,
-    heap: $HeapAllocator
-) -> SpecIngestionResult {
+procedure writeEmptySpecUnitLedgerFailureCount(fs: $FileSystem) -> i32 {
+    if (writeEmptySpecUnitLedger(fs) == false) {
+        return 2
+    }
+    return 1
+}
+
+public procedure runSpecIngestion(ctx: Reporting::OutputContext) -> SpecIngestionResult {
     var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
         ctx,
         Reporting::ReportPhase::SpecIngestion,
@@ -2539,56 +2604,71 @@ public procedure runSpecIngestion(
                 "Spec::Source"
             )
             var unit_ledger_storage_failure_count: i32 = 0
-            let ledger_result: bytes@Managed | AllocationError =
-                bytes::with_capacity(specIdLedgerInitialByteCapacity(bytes::length(view) as i32), heap)
-            let raw_scan: SpecSourceScan = if ledger_result is {
-                ledger: unique bytes@Managed {
-                    let unit_ledger_result: bytes@Managed | AllocationError =
-                        bytes::with_capacity(
-                            specUnitLedgerInitialByteCapacity(bytes::length(view) as i32),
-                            heap
+            let raw_scan: SpecSourceScan = if (ensureSpecUnitLedgerDirectory(output.fs)) {
+                let stale_ledger_cleanup: () | IoError =
+                    output.fs~>remove(specUnitLedgerPath())
+                let _ = stale_ledger_cleanup
+                if output.fs~>create_write(specUnitLedgerPath()) is {
+                    writer: unique File@Write {
+                        output = Reporting::emitCheckpoint(
+                            output,
+                            Reporting::ReportPhase::SpecIngestion,
+                            Reporting::ReportSubjectKind::SpecDocument,
+                            "spec_structure_storage_ready",
+                            "Spec::Source"
                         )
-                    if unit_ledger_result is {
-                        unit_ledger: unique bytes@Managed {
-                            let parsed_scan: SpecSourceScan =
-                                scanSpecStructure(view, utf8_valid, ledger, unit_ledger, heap)
-                            if (writeSpecUnitLedger(output.fs, bytes::as_view(unit_ledger)) == false) {
-                                unit_ledger_storage_failure_count =
-                                    unit_ledger_storage_failure_count + 1
-                            }
-                            parsed_scan
+                        let parsed_result: SpecSourceScanResult =
+                            scanSpecStructure(output, view, utf8_valid, writer)
+                        output = parsed_result.ctx
+                        let parsed_scan: SpecSourceScan = parsed_result.scan
+                        output = Reporting::emitCheckpoint(
+                            output,
+                            Reporting::ReportPhase::SpecIngestion,
+                            Reporting::ReportSubjectKind::SpecDocument,
+                            "spec_unit_ledger_flush_start",
+                            "Spec::Source"
+                        )
+                        let flush_result: () | IoError = writer~>flush()
+                        let closed: File@Closed = writer~>close()
+                        let _ = closed
+                        let flush_succeeded: bool = if flush_result is {
+                            _: () { true }
+                            _: IoError { false }
                         }
-                        _: AllocationError {
+                        if (flush_succeeded == false) {
                             unit_ledger_storage_failure_count =
                                 unit_ledger_storage_failure_count + 1
-                            if (writeSpecUnitLedger(output.fs, bytes::view_string("")) == false) {
-                                unit_ledger_storage_failure_count =
-                                    unit_ledger_storage_failure_count + 1
-                            }
-                            SpecSourceScan {
-                                byte_length: bytes::length(view) as i32,
-                                line_count: 0,
-                                utf8_valid: utf8_valid,
-                                section_count: 0,
-                                storage_failure_count: 1,
-                                units: specUnitSummaryEmpty()
-                            }
+                        }
+                        output = Reporting::emitCheckpoint(
+                            output,
+                            Reporting::ReportPhase::SpecIngestion,
+                            Reporting::ReportSubjectKind::SpecDocument,
+                            "spec_unit_ledger_flush_complete",
+                            "Spec::Source"
+                        )
+                        parsed_scan
+                    }
+                    _: IoError {
+                        unit_ledger_storage_failure_count = 1
+                        SpecSourceScan {
+                            byte_length: bytes::length(view) as i32,
+                            line_count: 0,
+                            utf8_valid: utf8_valid,
+                            section_count: 0,
+                            storage_failure_count: 1,
+                            units: specUnitSummaryEmpty()
                         }
                     }
                 }
-                _: AllocationError {
-                    unit_ledger_storage_failure_count = unit_ledger_storage_failure_count + 1
-                    if (writeSpecUnitLedger(output.fs, bytes::view_string("")) == false) {
-                        unit_ledger_storage_failure_count = unit_ledger_storage_failure_count + 1
-                    }
-                    SpecSourceScan {
-                        byte_length: bytes::length(view) as i32,
-                        line_count: 0,
-                        utf8_valid: utf8_valid,
-                        section_count: 0,
-                        storage_failure_count: 1,
-                        units: specUnitSummaryEmpty()
-                    }
+            } else {
+                unit_ledger_storage_failure_count = 1
+                SpecSourceScan {
+                    byte_length: bytes::length(view) as i32,
+                    line_count: 0,
+                    utf8_valid: utf8_valid,
+                    section_count: 0,
+                    storage_failure_count: 1,
+                    units: specUnitSummaryEmpty()
                 }
             }
             let scan: SpecSourceScan = if unit_ledger_storage_failure_count == 0 {
@@ -2617,34 +2697,7 @@ public procedure runSpecIngestion(
                 output,
                 Reporting::ReportPhase::SpecIngestion,
                 Reporting::ReportSubjectKind::SpecDocument,
-                "spec_unit_emit_start",
-                "Spec::Source"
-            )
-            let emit_ledger_result: bytes@Managed | AllocationError =
-                bytes::with_capacity(specIdLedgerInitialByteCapacity(bytes::length(view) as i32), heap)
-            output = if emit_ledger_result is {
-                emit_ledger: unique bytes@Managed {
-                    emitSpecUnitEvents(output, view, emit_ledger, heap)
-                }
-                _: AllocationError {
-                    emitSpecStorageFailure(
-                        output,
-                        SpecSourceScan {
-                            byte_length: bytes::length(view) as i32,
-                            line_count: scan.line_count,
-                            utf8_valid: utf8_valid,
-                            section_count: scan.section_count,
-                            storage_failure_count: scan.storage_failure_count + 1,
-                            units: scan.units
-                        }
-                    )
-                }
-            }
-            output = Reporting::emitCheckpoint(
-                output,
-                Reporting::ReportPhase::SpecIngestion,
-                Reporting::ReportSubjectKind::SpecDocument,
-                "spec_unit_emit_complete",
+                "spec_unit_ledger_ready",
                 "Spec::Source"
             )
 

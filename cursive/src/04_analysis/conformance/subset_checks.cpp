@@ -5,7 +5,7 @@
  *
  * SPEC REFERENCE:
  *   - CursiveSpecification.md, Section 5.2.2 "Subtyping" (lines 8594-8696)
- *   - CursiveSpecification.md, Section 10.3 "Permission Subtyping and Coercion"
+ *   - CursiveSpecification.md, Section 10.4 "Permission Admissibility"
  *   - CursiveSpecification.md, Section 5.3 "CastValid" predicate
  *
  * MIGRATED FROM:
@@ -13,7 +13,7 @@
  *     (subset checking logic integrated into conformance.cpp)
  *
  * KEY RULES:
- *   - Permission lattice: unique <: shared <: const
+ *   - Permission-qualified subtyping requires permission equality
  *   - No implicit numeric coercion (i32 -> i64 requires explicit cast)
  *   - Union subset: every variant of A|B must appear in C|D for subset
  *   - Safe pointer states: @Valid <: @Null (valid can be used where null expected)
@@ -47,7 +47,6 @@ namespace {
 
 static inline void SpecDefsSubsetChecks() {
   SPEC_DEF("SubtypingJudg", "5.2.2");
-  SPEC_DEF("PermSubJudg", "5.2.2");
   SPEC_DEF("Member", "5.2.2");
   SPEC_DEF("Sub-Union-Width", "5.2.2");
   SPEC_DEF("CastValid", "5.3");
@@ -201,15 +200,17 @@ static bool CastValid(const TypeRef& source, const TypeRef& target) {
 static bool ArrayToSliceCoercion(const TypeRef& from, const TypeRef& to) {
   SpecDefsSubsetChecks();
 
-  // Extract permission and base types
   const auto* from_perm = std::get_if<TypePerm>(&from->node);
   const auto* to_perm = std::get_if<TypePerm>(&to->node);
+  const Permission from_effective_perm =
+      from_perm ? from_perm->perm : Permission::Const;
+  const Permission to_effective_perm =
+      to_perm ? to_perm->perm : Permission::Const;
 
   TypeRef from_base = from_perm ? from_perm->base : from;
   TypeRef to_base = to_perm ? to_perm->base : to;
 
-  // Check permissions match (if both have permissions)
-  if (from_perm && to_perm && from_perm->perm != to_perm->perm) {
+  if (from_effective_perm != to_effective_perm) {
     return false;
   }
 
@@ -236,7 +237,6 @@ static bool ArrayToSliceCoercion(const TypeRef& from, const TypeRef& to) {
 bool PermissionSubset(Permission sub, Permission super) {
   SpecDefsSubsetChecks();
 
-  // Reflexivity
   if (sub == super) {
     if (sub == Permission::Const) {
       SPEC_RULE("Perm-Const");
@@ -245,20 +245,6 @@ bool PermissionSubset(Permission sub, Permission super) {
     } else if (sub == Permission::Shared) {
       SPEC_RULE("Perm-Shared");
     }
-    return true;
-  }
-
-  // Transitivity: unique <: shared <: const
-  if (sub == Permission::Unique && super == Permission::Const) {
-    SPEC_RULE("Perm-Unique-Const");
-    return true;
-  }
-  if (sub == Permission::Unique && super == Permission::Shared) {
-    SPEC_RULE("Perm-Unique-Shared");
-    return true;
-  }
-  if (sub == Permission::Shared && super == Permission::Const) {
-    SPEC_RULE("Perm-Shared-Const");
     return true;
   }
 
@@ -335,28 +321,19 @@ CoercionResult CanCoerceTo(const ScopeContext& ctx,
     return {true, std::nullopt, true};
   }
 
-  // Permission coercion: stronger -> weaker is implicit
-  // This is already handled by subtyping, but we can check explicitly
   const auto* from_perm = std::get_if<TypePerm>(&from->node);
   const auto* to_perm = std::get_if<TypePerm>(&to->node);
 
-  if (from_perm && to_perm) {
-    if (PermissionSubset(from_perm->perm, to_perm->perm)) {
-      // Check base types
-      const auto base_eq = TypeEquiv(from_perm->base, to_perm->base);
-      if (base_eq.ok && base_eq.equiv) {
-        return {true, std::nullopt, true};
-      }
+  if (from_perm && to_perm && from_perm->perm == to_perm->perm) {
+    const auto base_eq = TypeEquiv(from_perm->base, to_perm->base);
+    if (base_eq.ok && base_eq.equiv) {
+      return {true, std::nullopt, true};
     }
   }
 
-  // If from has permission and to doesn't, check if from's permission
-  // coerces to const (implicit const context)
-  if (from_perm && !to_perm) {
-    // Check if base types are equivalent
+  if (from_perm && !to_perm && from_perm->perm == Permission::Const) {
     const auto base_eq = TypeEquiv(from_perm->base, to);
     if (base_eq.ok && base_eq.equiv) {
-      // Permission can implicitly coerce to const context
       return {true, std::nullopt, true};
     }
   }

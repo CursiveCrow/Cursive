@@ -1,0 +1,8 @@
+[toolchain]
+target_profile = "x86_64-win64"
+
+[[assembly]]
+name = "permission_unique_to_shared"
+kind = "executable"
+root = "src"
+out_dir = "build/permission_unique_to_shared"

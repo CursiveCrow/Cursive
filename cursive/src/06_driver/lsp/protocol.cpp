@@ -71,10 +71,20 @@ int SymbolKindToLsp(analysis::LanguageSymbolKind kind) {
 
 const std::vector<std::string>& SemanticTokenTypes() {
   static const std::vector<std::string> kTypes = {
-      "keyword",  "type",     "class",   "enum",  "function",
-      "method",   "variable", "parameter", "property", "enumMember",
-      "string",   "number",   "operator", "comment", "macro"};
+      "namespace", "type",     "class",    "enum",       "struct",
+      "function",  "method",   "variable", "parameter",  "property",
+      "enumMember", "string",  "number",   "keyword",    "operator",
+      "comment",   "macro"};
   return kTypes;
+}
+
+const std::vector<std::string>& SemanticTokenModifiers() {
+  static const std::vector<std::string> kModifiers = {
+      "declaration",
+      "readonly",
+      "documentation",
+  };
+  return kModifiers;
 }
 
 int SemanticTokenTypeIndex(std::string_view token_type) {
@@ -84,7 +94,17 @@ int SemanticTokenTypeIndex(std::string_view token_type) {
       return static_cast<int>(i);
     }
   }
-  return 6;
+  return SemanticTokenTypeIndex("variable");
+}
+
+int SemanticTokenModifierMask(std::string_view token_modifier) {
+  const auto& modifiers = SemanticTokenModifiers();
+  for (std::size_t i = 0; i < modifiers.size(); ++i) {
+    if (modifiers[i] == token_modifier) {
+      return 1 << static_cast<int>(i);
+    }
+  }
+  return 0;
 }
 
 }  // namespace cursive::driver::lsp

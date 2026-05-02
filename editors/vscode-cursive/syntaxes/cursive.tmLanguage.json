@@ -1,0 +1,196 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Cursive",
+  "scopeName": "source.cursive",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#attributes" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#builtin-types" },
+    { "include": "#constants" },
+    { "include": "#operators" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "attributes": {
+      "patterns": [
+        {
+          "name": "meta.attribute.cursive",
+          "begin": "\\[\\[",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.attribute.begin.cursive" }
+          },
+          "end": "\\]\\]",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.attribute.end.cursive" }
+          },
+          "patterns": [
+            { "include": "#strings" },
+            {
+              "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b",
+              "name": "entity.other.attribute-name.cursive"
+            },
+            { "include": "#numbers" },
+            { "include": "#operators" },
+            { "include": "#punctuation" }
+          ]
+        }
+      ]
+    },
+    "builtin-types": {
+      "patterns": [
+        {
+          "match": "\\b(?:bool|bytes|char|f32|f64|i8|i16|i32|i64|isize|string|u8|u16|u32|u64|usize|Context|System|FileSystem|Network|HeapAllocator|ExecutionDomain|Reactor|Region|RegionOptions|CancelToken|File|DirIter|DirEntry|FileKind|IoError|Async|Future|Sequence|Stream|Pipe|Exchange|Spawned|Tracked)\\b",
+          "name": "support.type.cursive"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.documentation.cursive",
+          "match": "///.*$"
+        },
+        {
+          "name": "comment.line.documentation.cursive",
+          "match": "//!.*$"
+        },
+        {
+          "name": "comment.line.double-slash.cursive",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.cursive",
+          "begin": "/\\*",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.comment.begin.cursive" }
+          },
+          "end": "\\*/",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.comment.end.cursive" }
+          }
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "match": "\\b[A-Z][A-Z0-9_]{2,}\\b",
+          "name": "variable.other.constant.cursive"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(procedure)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.cursive" },
+            "2": { "name": "entity.name.function.cursive" }
+          }
+        },
+        {
+          "match": "\\b(record|modal)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.cursive" },
+            "2": { "name": "entity.name.type.cursive" }
+          }
+        },
+        {
+          "match": "\\b(class)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.cursive" },
+            "2": { "name": "entity.name.type.class.cursive" }
+          }
+        },
+        {
+          "match": "\\b(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.cursive" },
+            "2": { "name": "entity.name.type.enum.cursive" }
+          }
+        },
+        {
+          "match": "\\b(let|var)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.cursive" },
+            "2": { "name": "variable.other.definition.cursive" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "\\b(?:public|internal|private|procedure|record|class|modal|enum|let|var|return|move|const|shared|unique|if|is|else|loop|break|continue|unsafe|extern|using|import|comptime|parallel|spawn|dispatch|sync|await|yield|release|race|region|frame|true|false|null)\\b",
+          "name": "keyword.control.cursive"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "match": "\\b(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|[0-9][0-9_]*(?:\\.[0-9_]+)?(?:[eE][+-]?[0-9_]+)?)(?:[iu](?:8|16|32|64|size)|f(?:32|64))?\\b",
+          "name": "constant.numeric.cursive"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "match": "->|~>|~%|:=|::|==|!=|<=|>=|&&|\\|\\||[+\\-*/%=&|^!<>?:~@]",
+          "name": "keyword.operator.cursive"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "match": "[{}\\[\\](),.;]",
+          "name": "punctuation.separator.cursive"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.cursive",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.cursive" }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.cursive" }
+          },
+          "patterns": [
+            {
+              "match": "\\\\(?:[\\\\\"'nrt0]|x[0-9A-Fa-f]{2}|u\\{[0-9A-Fa-f]+\\})",
+              "name": "constant.character.escape.cursive"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.cursive",
+          "begin": "'",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.cursive" }
+          },
+          "end": "'",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.cursive" }
+          },
+          "patterns": [
+            {
+              "match": "\\\\(?:[\\\\\"'nrt0]|x[0-9A-Fa-f]{2}|u\\{[0-9A-Fa-f]+\\})",
+              "name": "constant.character.escape.cursive"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -18,4 +18,11 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
                           const TypeRef& lhs,
                           const TypeRef& rhs);
 
+bool PermissionAdmits(Permission caller, Permission required);
+
+SubtypingResult ArgumentTypeCompatible(const ScopeContext& ctx,
+                                       const TypeRef& actual,
+                                       const TypeRef& expected,
+                                       const std::optional<ParamMode>& mode);
+
 }  // namespace cursive::analysis

@@ -176,14 +176,31 @@ procedure selfTestTextCore() -> i32 {
     }
 
     let line_seed: [u8; 7] = [65, 13, 10, 66, 10, 67, 13]
+    let line_view: bytes@View = Text::byteViewFromSlice(line_seed)
+    if (Text::byteLength(line_view) != 7) {
+        return 61
+    }
+    let line_second_byte: i32 = Data::lookupValueOr(Text::byteAt(line_view, 1), 0u8) as i32
+    if (line_second_byte != 13) {
+        return 62
+    }
+    let line_third_byte: i32 = Data::lookupValueOr(Text::byteAt(line_view, 2), 0u8) as i32
+    if (line_third_byte != 10) {
+        return 63
+    }
+    if (Text::bytePairContains(line_view, 13, 10) == false) {
+        return 64
+    }
     let line_summary: Text::LineEndingSummary =
-        Text::lineEndingSummaryFromBytes(Text::byteViewFromSlice(line_seed))
-    if (
-        (line_summary.has_crlf == false) ||
-        (line_summary.has_lf == false) ||
-        (line_summary.has_cr == false)
-    ) {
+        Text::lineEndingSummaryFromBytes(line_view)
+    if (line_summary.has_crlf == false) {
         return 46
+    }
+    if (line_summary.has_lf == false) {
+        return 48
+    }
+    if (line_summary.has_cr == false) {
+        return 49
     }
 
     if (Text::hashText(symbols) == Text::hashText("ascii")) {

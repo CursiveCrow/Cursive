@@ -4,7 +4,7 @@ public procedure byteViewFromString(text: string@View) -> bytes@View {
     return bytes::view_string(text)
 }
 
-public procedure byteViewFromSlice(data: [u8]) -> bytes@View {
+public procedure byteViewFromSlice(data: const [u8]) -> bytes@View {
     return bytes::view(data)
 }
 
@@ -69,9 +69,10 @@ public procedure bytePairContains(view: bytes@View, first: u8, second: u8) -> bo
         if ((index + 1) >= length) {
             break
         }
-        if ((view_slice[index as usize] == first) &&
-            (view_slice[(index + 1) as usize] == second)) {
-            return true
+        if (view_slice[index as usize] == first) {
+            if (view_slice[(index + 1) as usize] == second) {
+                return true
+            }
         }
         index = index + 1
     }

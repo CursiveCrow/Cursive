@@ -126,6 +126,54 @@ public procedure emitFinalSummary(
     )
 }
 
+public procedure emitFinalMetric(
+    ctx: OutputContext,
+    status: ReportStatus,
+    metric_kind: ReportMetricKind,
+    value: i32,
+    message: string@View
+) -> OutputContext {
+    let event: OutputEvent = eventWithMetricInteger(
+        eventBase(
+            ReportEventKind::FinalSummary,
+            ReportSeverity::Info,
+            ReportPhase::Shutdown,
+            ReportSubjectKind::OracleRun,
+            "main.default",
+            "CursiveOracle::Main",
+            status,
+            message
+        ),
+        metric_kind,
+        value
+    )
+    return emitEvent(ctx, event)
+}
+
+public procedure emitFinalEvidence(
+    ctx: OutputContext,
+    status: ReportStatus,
+    evidence_kind: ReportEvidenceKind,
+    evidence_path: string@View,
+    message: string@View
+) -> OutputContext {
+    let event: OutputEvent = eventWithEvidence(
+        eventBase(
+            ReportEventKind::FinalSummary,
+            ReportSeverity::Info,
+            ReportPhase::Shutdown,
+            ReportSubjectKind::OracleRun,
+            "main.default",
+            "CursiveOracle::Main",
+            status,
+            message
+        ),
+        evidence_kind,
+        evidence_path
+    )
+    return emitEvent(ctx, event)
+}
+
 public procedure statusFromCode(status: i32) -> ReportStatus {
     if (status == 0) {
         return ReportStatus::Passed

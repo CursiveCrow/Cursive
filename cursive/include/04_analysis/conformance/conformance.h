@@ -116,7 +116,6 @@ TypeSubsetResult IsSubsetOf(const ScopeContext& ctx,
 /// Coercion is allowed when:
 /// - from <: to (subtype relation holds), OR
 /// - Specific coercion rules apply (e.g., array to slice coercion)
-/// See §10.3 for permission coercion rules.
 CoercionResult CanCoerceTo(const ScopeContext& ctx,
                            const TypeRef& from,
                            const TypeRef& to);
@@ -129,9 +128,9 @@ CastResult RequiresExplicitCast(const ScopeContext& ctx,
                                 const TypeRef& from,
                                 const TypeRef& to);
 
-/// Check if permission `sub` is a subset of permission `super` in the
-/// permission lattice. The lattice is: unique <: shared <: const.
-/// See §5.2.2 PermSubJudg and §10.3.
+/// Check whether two permission qualifiers match for general subtyping.
+/// Permission admissibility at receiver and non-consuming argument sites is
+/// separate from general type subtyping.
 bool PermissionSubset(Permission sub, Permission super);
 
 /// Check if union_sub is a subset of union_super.

@@ -1,0 +1,27 @@
+procedure firstByte(data: const [u8]) -> u8 {
+    return data[0usize]
+}
+
+procedure secondByte(data: const [u8]) -> u8 {
+    return data[1usize]
+}
+
+procedure thirdByte(data: const [u8]) -> u8 {
+    return data[2usize]
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let seed: [u8; 7] = [65, 13, 10, 66, 10, 67, 13]
+
+    if firstByte(seed) != 65 {
+        return 10
+    }
+    if secondByte(seed) != 13 {
+        return 11
+    }
+    if thirdByte(seed) != 10 {
+        return 12
+    }
+    return 0
+}

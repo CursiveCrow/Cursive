@@ -207,7 +207,6 @@ TypeRef SubstSelfType(const TypeRef& self,
 TypeRef SubstSelfType(const TypeRef& self,
                       const TypeRef& type,
                       const TypeSubst* assoc_subst);
-bool PermSub(Permission lhs, Permission rhs);
 std::optional<Permission> PermOfTypeOpt(const TypeRef& type);
 Permission PermOfType(const TypeRef& type);
 bool IsPrimType(const TypeRef& type, std::string_view name);

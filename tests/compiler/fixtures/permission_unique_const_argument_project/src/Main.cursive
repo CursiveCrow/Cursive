@@ -1,0 +1,13 @@
+public record Cell {
+    public value: i32
+}
+
+procedure readCell(cell: const Cell) -> i32 {
+    return cell.value
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let owner: unique Cell = Cell { value: 7 }
+    return readCell(owner)
+}

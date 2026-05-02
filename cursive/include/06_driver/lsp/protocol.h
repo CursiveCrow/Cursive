@@ -25,6 +25,8 @@ std::optional<std::int64_t> GetInteger(const llvm::json::Object& object,
 int SymbolKindToLsp(analysis::LanguageSymbolKind kind);
 
 const std::vector<std::string>& SemanticTokenTypes();
+const std::vector<std::string>& SemanticTokenModifiers();
 int SemanticTokenTypeIndex(std::string_view token_type);
+int SemanticTokenModifierMask(std::string_view token_modifier);
 
 }  // namespace cursive::driver::lsp

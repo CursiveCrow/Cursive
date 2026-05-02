@@ -3,11 +3,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "00_core/diagnostic_messages.h"
 #include "00_core/diagnostics.h"
 #include "00_core/source_load.h"
 #include "01_project/module_discovery.h"
@@ -106,6 +108,14 @@ AnalysisSnapshot AnalyzeWorkspace(
   project::Project sema_project = *loaded.project;
   snapshot.project = sema_project;
 
+  std::optional<project::TargetProfile> selected_target_profile =
+      options.target_profile.has_value() ? options.target_profile
+                                         : sema_project.toolchain.target_profile;
+  if (!selected_target_profile.has_value()) {
+    core::EmitExternalDiagnostic(snapshot.diagnostics, "E-PRJ-0112");
+    return snapshot;
+  }
+
   std::unordered_map<std::string, std::string> overlay_text_by_path;
   overlay_text_by_path.reserve(overlays.size());
   for (const auto& overlay : overlays) {
@@ -182,9 +192,7 @@ AnalysisSnapshot AnalyzeWorkspace(
 
   analysis::ScopeContext ctx;
   ctx.project = &sema_project;
-  ctx.target_profile = options.target_profile.has_value()
-                           ? options.target_profile
-                           : sema_project.toolchain.target_profile;
+  ctx.target_profile = *selected_target_profile;
   ctx.sigma.mods = std::move(analysis_modules);
   ctx.sigma.unsafe_spans_by_file = std::move(unsafe_spans_by_file);
   snapshot.language_service =

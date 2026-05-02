@@ -428,7 +428,9 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
   }
 
   for (std::size_t i = 0; i < args.size(); ++i) {
-    const auto sub = Subtyping(ctx, arg_types[i], lowered_params[i].type);
+    const auto sub =
+        ArgumentTypeCompatible(ctx, arg_types[i], lowered_params[i].type,
+                               lowered_params[i].mode);
     if (!sub.ok) {
       result.diag_id = sub.diag_id;
       return result;
@@ -461,7 +463,9 @@ ArgsOkResult ArgsOk(const ScopeContext& ctx,
           result.diag_id = moved_type.diag_id;
           return result;
         }
-        const auto sub = Subtyping(ctx, moved_type.type, lowered_params[i].type);
+        const auto sub =
+            ArgumentTypeCompatible(ctx, moved_type.type, lowered_params[i].type,
+                                   lowered_params[i].mode);
         if (!sub.ok) {
           result.diag_id = sub.diag_id;
           return result;
@@ -598,7 +602,9 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
   }
 
   for (std::size_t i = 0; i < args.size(); ++i) {
-    const auto sub = Subtyping(ctx, arg_types[i], lowered_params[i].type);
+    const auto sub =
+        ArgumentTypeCompatible(ctx, arg_types[i], lowered_params[i].type,
+                               lowered_params[i].mode);
     if (!sub.ok) {
       result.diag_id = sub.diag_id;
       return result;
@@ -631,7 +637,9 @@ ArgsOkResult ArgsOkWithSubst(const ScopeContext& ctx,
           result.diag_id = moved_type.diag_id;
           return result;
         }
-        const auto sub = Subtyping(ctx, moved_type.type, lowered_params[i].type);
+        const auto sub =
+            ArgumentTypeCompatible(ctx, moved_type.type, lowered_params[i].type,
+                                   lowered_params[i].mode);
         if (!sub.ok) {
           result.diag_id = sub.diag_id;
           return result;

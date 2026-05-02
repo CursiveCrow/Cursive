@@ -129,6 +129,35 @@ public procedure eventWithEvidence(
     }
 }
 
+public procedure eventWithBytesEvidence(
+    event: OutputEvent,
+    evidence_kind: ReportEvidenceKind,
+    evidence_path: bytes@View
+) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event.event_kind,
+        severity: event.severity,
+        phase: event.phase,
+        subject_kind: event.subject_kind,
+        subject_id: event.subject_id,
+        owner: event.owner,
+        status: event.status,
+        failure_kind: event.failure_kind,
+        evidence_kind: evidence_kind,
+        expected: event.expected,
+        observed: event.observed,
+        evidence_path: ReportTextValue::Bytes(evidence_path),
+        source_start: event.source_start,
+        source_end: event.source_end,
+        source_line: event.source_line,
+        source_column: event.source_column,
+        content_identity: event.content_identity,
+        metric_kind: event.metric_kind,
+        metric_value: event.metric_value,
+        message: event.message
+    }
+}
+
 public procedure eventWithExpectedObserved(
     event: OutputEvent,
     expected: string@View,

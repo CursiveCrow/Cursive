@@ -18,6 +18,8 @@ C:\Dev\Cursive\cursive\build\windows\Debug\Cursive_LSP.exe
 
 Set `cursive.lsp.path` in VS Code settings if the server is somewhere else.
 Set `cursive.lsp.logFile` to pass `--log-file <path>` to the server.
+Set `cursive.lsp.targetProfile` to pass `--target-profile <profile>` when the
+project manifest does not set `[toolchain].target_profile`.
 
 ## Build The VS Code Client
 
@@ -47,6 +49,7 @@ cd C:\Dev\Cursive
 python tests/lsp/test_initialize.py
 python tests/lsp/test_diagnostics.py
 python tests/lsp/test_navigation.py
+python tests/lsp/test_semantic_diagnostics.py
 ```
 
 Then open:

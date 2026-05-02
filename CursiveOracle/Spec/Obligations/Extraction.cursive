@@ -20,6 +20,12 @@ internal record LedgerBytesRead {
     internal next_offset: i32
 }
 
+internal record StackLedgerBuffer {
+    internal data: [u8]
+    internal length: i32
+    internal valid: bool
+}
+
 procedure primaryObligationFromSource(
     path: string@View,
     source: Source::SpecIngestionResult
@@ -28,7 +34,7 @@ procedure primaryObligationFromSource(
         return absentSpecObligation(path)
     }
     return specObligation(
-        "obligation.spec_unit.1",
+        "obligation.primary_bridge",
         obligationKindFromSpecUnitKind(source.primary_kind),
         obligationStrengthFromSpecUnitStrength(source.primary_strength),
         ObligationState::Parsed,
@@ -36,8 +42,8 @@ procedure primaryObligationFromSource(
         "Spec::Obligations",
         obligationSource(
             path,
-            "spec_unit.marker.1",
-            "section.from_marker",
+            "spec_unit.primary_bridge",
+            "section.primary_bridge",
             "-",
             source.primary_unit_start,
             source.primary_unit_end,
@@ -76,7 +82,7 @@ procedure primaryObligationFromUnit(
     unit: Source::SpecUnitRecord
 ) -> SpecObligation {
     return specObligation(
-        "obligation.spec_unit.1",
+        "obligation.primary_bridge",
         obligationKindFromSpecUnitKind(unit.kind),
         obligationStrengthFromSpecUnitStrength(unit.strength),
         ObligationState::Parsed,
@@ -84,8 +90,8 @@ procedure primaryObligationFromUnit(
         "Spec::Obligations",
         obligationSource(
             path,
-            "spec_unit.marker.1",
-            "section.from_marker",
+            "spec_unit.primary_bridge",
+            "section.primary_bridge",
             "-",
             unit.source_start,
             unit.source_end,
@@ -134,6 +140,19 @@ procedure emitObligationMetric(
     )
 }
 
+procedure emitObligationCheckpoint(
+    ctx: Reporting::OutputContext,
+    subject_id: string@View
+) -> Reporting::OutputContext {
+    return Reporting::emitCheckpoint(
+        ctx,
+        Reporting::ReportPhase::ObligationExtraction,
+        Reporting::ReportSubjectKind::Obligation,
+        subject_id,
+        "Spec::Obligations"
+    )
+}
+
 public procedure obligationLedgerPath() -> string@View {
     return "CursiveOracle/build/main/obligations/obligations.bin"
 }
@@ -151,105 +170,232 @@ procedure ensureObligationLedgerDirectory(fs: $FileSystem) -> bool {
     }
 }
 
-procedure writeObligationLedger(fs: $FileSystem, view: bytes@View) -> bool {
+procedure writeEmptyObligationLedger(fs: $FileSystem) -> bool {
     if (ensureObligationLedgerDirectory(fs) == false) {
         return false
     }
-    return if fs~>write_file(obligationLedgerPath(), view) is {
+    let stale_ledger_cleanup: () | IoError = fs~>remove(obligationLedgerPath())
+    let _ = stale_ledger_cleanup
+    return if fs~>create_write(obligationLedgerPath()) is {
+        writer: unique File@Write {
+            let flush_result: () | IoError = writer~>flush()
+            let closed: File@Closed = writer~>close()
+            let _ = closed
+            if flush_result is {
+                _: () { true }
+                _: IoError { false }
+            }
+        }
+        _: IoError { false }
+    }
+}
+
+procedure writeLedgerText(writer: unique File@Write, text: string@View) -> bool {
+    return if writer~>write(bytes::view_string(text)) is {
         _: () { true }
         _: IoError { false }
     }
 }
 
-procedure appendLedgerText(ledger: unique bytes@Managed, text: string@View, heap: $HeapAllocator) -> bool {
-    return if bytes::append(ledger, bytes::view_string(text), heap) is {
+procedure stackLedgerBuffer(data: [u8]) -> StackLedgerBuffer {
+    return StackLedgerBuffer {
+        data: data,
+        length: 0,
+        valid: true
+    }
+}
+
+procedure stackLedgerBufferView(buffer: StackLedgerBuffer) -> bytes@View {
+    let start_index: usize = 0usize
+    let end_index: usize = buffer.length as usize
+    let window: const [u8] = buffer.data[start_index..end_index]
+    return bytes::view(window)
+}
+
+procedure appendBufferByte(buffer: StackLedgerBuffer, byte: u8) -> StackLedgerBuffer {
+    if (buffer.valid == false) {
+        return buffer
+    }
+    if (buffer.length >= 4096) {
+        return StackLedgerBuffer {
+            data: buffer.data,
+            length: buffer.length,
+            valid: false
+        }
+    }
+    var data: [u8] = buffer.data
+    data[buffer.length as usize] = byte
+    return StackLedgerBuffer {
+        data: data,
+        length: buffer.length + 1,
+        valid: true
+    }
+}
+
+procedure appendBufferText(buffer: StackLedgerBuffer, text: string@View) -> StackLedgerBuffer {
+    let text_view: bytes@View = bytes::view_string(text)
+    let text_slice: const [u8] = bytes::as_slice(text_view)
+    let text_length: i32 = bytes::length(text_view) as i32
+    var output: StackLedgerBuffer = buffer
+    var index: i32 = 0
+    loop {
+        if (index >= text_length) {
+            break
+        }
+        output = appendBufferByte(output, text_slice[index as usize])
+        index = index + 1
+    }
+    return output
+}
+
+procedure appendBufferBytes(buffer: StackLedgerBuffer, value: bytes@View) -> StackLedgerBuffer {
+    let value_slice: const [u8] = bytes::as_slice(value)
+    let value_length: i32 = bytes::length(value) as i32
+    var output: StackLedgerBuffer = buffer
+    var index: i32 = 0
+    loop {
+        if (index >= value_length) {
+            break
+        }
+        output = appendBufferByte(output, value_slice[index as usize])
+        index = index + 1
+    }
+    return output
+}
+
+procedure appendBufferIntegerText(buffer: StackLedgerBuffer, value: i32) -> StackLedgerBuffer {
+    var scratch_storage: [u8; 12] = [0u8; 12]
+    var scratch: [u8] = scratch_storage
+    var next_index: i32 = 12
+    var remaining: i32 = value
+    let is_negative: bool = value < 0
+    if (is_negative == true) {
+        remaining = 0 - remaining
+    }
+
+    if (remaining == 0) {
+        next_index = next_index - 1
+        scratch[next_index as usize] = 48u8
+    } else {
+        loop {
+            if (remaining <= 0) {
+                break
+            }
+            let digit: i32 = remaining % 10
+            next_index = next_index - 1
+            scratch[next_index as usize] = (48 + digit) as u8
+            remaining = remaining / 10
+        }
+    }
+
+    if (is_negative == true) {
+        next_index = next_index - 1
+        scratch[next_index as usize] = 45u8
+    }
+
+    let start_index: usize = next_index as usize
+    let end_index: usize = 12usize
+    let window: const [u8] = scratch[start_index..end_index]
+    return appendBufferBytes(buffer, bytes::view(window))
+}
+
+procedure writeLedgerIntegerText(writer: unique File@Write, value: i32) -> bool {
+    var scratch_storage: [u8; 12] = [0u8; 12]
+    var scratch: [u8] = scratch_storage
+    var next_index: i32 = 12
+    var remaining: i32 = value
+    let is_negative: bool = value < 0
+    if (is_negative == true) {
+        remaining = 0 - remaining
+    }
+
+    if (remaining == 0) {
+        next_index = next_index - 1
+        scratch[next_index as usize] = 48u8
+    } else {
+        loop {
+            if (remaining <= 0) {
+                break
+            }
+            let digit: i32 = remaining % 10
+            next_index = next_index - 1
+            scratch[next_index as usize] = (48 + digit) as u8
+            remaining = remaining / 10
+        }
+    }
+
+    if (is_negative == true) {
+        next_index = next_index - 1
+        scratch[next_index as usize] = 45u8
+    }
+
+    let start_index: usize = next_index as usize
+    let end_index: usize = 12usize
+    let window: const [u8] = scratch[start_index..end_index]
+    return if writer~>write(bytes::view(window)) is {
         _: () { true }
-        _: AllocationError { false }
+        _: IoError { false }
     }
 }
 
-procedure appendLedgerDigitText(
-    ledger: unique bytes@Managed,
-    digit: i32,
-    heap: $HeapAllocator
-) -> bool {
-    if (digit == 0) { return appendLedgerText(ledger, "0", heap) }
-    if (digit == 1) { return appendLedgerText(ledger, "1", heap) }
-    if (digit == 2) { return appendLedgerText(ledger, "2", heap) }
-    if (digit == 3) { return appendLedgerText(ledger, "3", heap) }
-    if (digit == 4) { return appendLedgerText(ledger, "4", heap) }
-    if (digit == 5) { return appendLedgerText(ledger, "5", heap) }
-    if (digit == 6) { return appendLedgerText(ledger, "6", heap) }
-    if (digit == 7) { return appendLedgerText(ledger, "7", heap) }
-    if (digit == 8) { return appendLedgerText(ledger, "8", heap) }
-    if (digit == 9) { return appendLedgerText(ledger, "9", heap) }
-    return false
-}
-
-procedure appendLedgerUnsignedIntegerText(
-    ledger: unique bytes@Managed,
-    value: i32,
-    heap: $HeapAllocator
-) -> bool {
-    if (value >= 10) {
-        return appendLedgerUnsignedIntegerText(ledger, value / 10, heap) &&
-            appendLedgerDigitText(ledger, value % 10, heap)
+procedure writeStackLedgerBuffer(writer: unique File@Write, buffer: StackLedgerBuffer) -> bool {
+    if (buffer.valid == false) {
+        return false
     }
-    return appendLedgerDigitText(ledger, value, heap)
-}
-
-procedure appendLedgerIntegerText(
-    ledger: unique bytes@Managed,
-    value: i32,
-    heap: $HeapAllocator
-) -> bool {
-    if (value < 0) {
-        return appendLedgerText(ledger, "-", heap) &&
-            appendLedgerUnsignedIntegerText(ledger, 0 - value, heap)
+    return if writer~>write(stackLedgerBufferView(buffer)) is {
+        _: () { true }
+        _: IoError { false }
     }
-    return appendLedgerUnsignedIntegerText(ledger, value, heap)
 }
 
 procedure appendObligationRecordField(
-    ledger: unique bytes@Managed,
-    value: i32,
-    heap: $HeapAllocator
-) -> bool {
-    return appendLedgerIntegerText(ledger, value, heap) &&
-        appendLedgerText(ledger, "\t", heap)
+    buffer: StackLedgerBuffer,
+    value: i32
+) -> StackLedgerBuffer {
+    return appendBufferText(
+        appendBufferIntegerText(buffer, value),
+        "\t"
+    )
 }
 
 procedure appendObligationRecordBytes(
-    ledger: unique bytes@Managed,
-    value: bytes@View,
-    heap: $HeapAllocator
-) -> bool {
-    return appendLedgerIntegerText(ledger, bytes::length(value) as i32, heap) &&
-        appendLedgerText(ledger, ":", heap) &&
-        if bytes::append(ledger, value, heap) is {
-            _: () { true }
-            _: AllocationError { false }
-        } &&
-        appendLedgerText(ledger, "\t", heap)
+    buffer: StackLedgerBuffer,
+    value: bytes@View
+) -> StackLedgerBuffer {
+    return appendBufferText(
+        appendBufferBytes(
+            appendBufferText(
+                appendBufferIntegerText(buffer, bytes::length(value) as i32),
+                ":"
+            ),
+            value
+        ),
+        "\t"
+    )
 }
 
 procedure appendObligationRecordFinalBytes(
-    ledger: unique bytes@Managed,
-    value: bytes@View,
-    heap: $HeapAllocator
-) -> bool {
-    return appendLedgerIntegerText(ledger, bytes::length(value) as i32, heap) &&
-        appendLedgerText(ledger, ":", heap) &&
-        if bytes::append(ledger, value, heap) is {
-            _: () { true }
-            _: AllocationError { false }
-        } &&
-        appendLedgerText(ledger, "\n", heap)
+    buffer: StackLedgerBuffer,
+    value: bytes@View
+) -> StackLedgerBuffer {
+    return appendBufferText(
+        appendBufferBytes(
+            appendBufferText(
+                appendBufferIntegerText(buffer, bytes::length(value) as i32),
+                ":"
+            ),
+            value
+        ),
+        "\n"
+    )
 }
 
 procedure obligationStateFromSourceUnit(unit: Source::SpecUnitRecord) -> ObligationState {
     if (unit.parse_defect_count != 0) {
         return ObligationState::BlockedBySpecParse
+    }
+    if (obligationKindIsOutsideConformance(obligationKindFromSpecUnitKind(unit.kind)) == true) {
+        return ObligationState::OutsideConformance
     }
     return if obligationStrengthFromSpecUnitStrength(unit.strength) is {
         ObligationStrength::Informative { ObligationState::InformativeOnly }
@@ -260,6 +406,9 @@ procedure obligationStateFromSourceUnit(unit: Source::SpecUnitRecord) -> Obligat
 procedure obligationBlockerFromSourceUnit(unit: Source::SpecUnitRecord) -> ObligationBlockerKind {
     if (unit.parse_defect_count != 0) {
         return ObligationBlockerKind::SpecParseError
+    }
+    if (obligationKindIsOutsideConformance(obligationKindFromSpecUnitKind(unit.kind)) == true) {
+        return ObligationBlockerKind::OutsideConformance
     }
     return if obligationStrengthFromSpecUnitStrength(unit.strength) is {
         ObligationStrength::Informative { ObligationBlockerKind::InformativeOnly }
@@ -290,27 +439,36 @@ procedure obligationRecordFromSourceUnit(unit: Source::SpecUnitRecord) -> Obliga
 }
 
 procedure appendObligationRecord(
-    ledger: unique bytes@Managed,
-    record: ObligationRecord,
-    heap: $HeapAllocator
+    writer: unique File@Write,
+    obligation_record: ObligationRecord
 ) -> bool {
-    return appendObligationRecordField(ledger, record.ordinal, heap) &&
-        appendObligationRecordField(ledger, record.source_start, heap) &&
-        appendObligationRecordField(ledger, record.source_end, heap) &&
-        appendObligationRecordField(ledger, record.source_line, heap) &&
-        appendObligationRecordField(ledger, record.source_column, heap) &&
-        appendObligationRecordField(ledger, record.content_identity, heap) &&
-        appendObligationRecordField(ledger, obligationKindTag(record.kind), heap) &&
-        appendObligationRecordField(ledger, obligationStrengthTag(record.strength), heap) &&
-        appendObligationRecordField(ledger, obligationStateTag(record.state), heap) &&
-        appendObligationRecordField(ledger, obligationBlockerTag(record.blocker), heap) &&
-        appendObligationRecordField(ledger, record.parse_defect_count, heap) &&
-        appendObligationRecordBytes(ledger, record.source_unit_id, heap) &&
-        appendObligationRecordBytes(ledger, record.owner, heap) &&
-        appendObligationRecordBytes(ledger, record.phase, heap) &&
-        appendObligationRecordBytes(ledger, record.applies_to, heap) &&
-        appendObligationRecordBytes(ledger, record.summary, heap) &&
-        appendObligationRecordFinalBytes(ledger, record.labels, heap)
+    var record_storage: [u8; 4096] = [0u8; 4096]
+    var record_data: [u8] = record_storage
+    var buffer: StackLedgerBuffer = stackLedgerBuffer(record_data)
+    buffer = appendObligationRecordField(buffer, obligation_record.ordinal)
+    buffer = appendObligationRecordField(buffer, obligation_record.source_start)
+    buffer = appendObligationRecordField(buffer, obligation_record.source_end)
+    buffer = appendObligationRecordField(buffer, obligation_record.source_line)
+    buffer = appendObligationRecordField(buffer, obligation_record.source_column)
+    buffer = appendObligationRecordField(buffer, obligation_record.content_identity)
+    buffer = appendObligationRecordField(buffer, obligationKindTag(obligation_record.kind))
+    buffer = appendObligationRecordField(
+        buffer,
+        obligationStrengthTag(obligation_record.strength)
+    )
+    buffer = appendObligationRecordField(buffer, obligationStateTag(obligation_record.state))
+    buffer = appendObligationRecordField(
+        buffer,
+        obligationBlockerTag(obligation_record.blocker)
+    )
+    buffer = appendObligationRecordField(buffer, obligation_record.parse_defect_count)
+    buffer = appendObligationRecordBytes(buffer, obligation_record.source_unit_id)
+    buffer = appendObligationRecordBytes(buffer, obligation_record.owner)
+    buffer = appendObligationRecordBytes(buffer, obligation_record.phase)
+    buffer = appendObligationRecordBytes(buffer, obligation_record.applies_to)
+    buffer = appendObligationRecordBytes(buffer, obligation_record.summary)
+    buffer = appendObligationRecordFinalBytes(buffer, obligation_record.labels)
+    return writeStackLedgerBuffer(writer, buffer)
 }
 
 procedure obligationStrengthIsRequired(value: ObligationStrength) -> bool {
@@ -404,25 +562,48 @@ procedure boolCount(value: bool) -> i32 {
     return 0
 }
 
-procedure countWithObligationRecord(counts: ObligationCounts, item: ObligationRecord) -> ObligationCounts {
-    let item_strength: ObligationStrength = item.strength
-    let item_kind: ObligationKind = item.kind
-    let item_state: ObligationState = item.state
+procedure obligationBlockerKindIsBlocking(value: ObligationBlockerKind) -> bool {
+    return if value is {
+        ObligationBlockerKind::NoBlocker { false }
+        _ { true }
+    }
+}
+
+procedure countWithObligationRecord(
+    counts: ObligationCounts,
+    obligation_record: ObligationRecord
+) -> ObligationCounts {
     return obligationCounts(
         counts.total_count + 1,
-        counts.required_count + boolCount(obligationStrengthIsRequired(item_strength)),
-        counts.recommended_count + boolCount(obligationStrengthIsRecommended(item_strength)),
-        counts.permitted_count + boolCount(obligationStrengthIsPermitted(item_strength)),
-        counts.informative_count + boolCount(obligationStrengthIsInformative(item_strength)),
-        counts.outside_conformance_count + boolCount(obligationKindIsOutsideConformance(item_kind)),
-        counts.formal_rule_count + boolCount(obligationKindIsFormalRule(item_kind)),
-        counts.grammar_production_count + boolCount(obligationKindIsGrammarProduction(item_kind)),
-        counts.diagnostic_table_row_count + boolCount(obligationKindIsDiagnosticTableRow(item_kind)),
-        counts.normative_sentence_count + boolCount(obligationKindIsNormativeSentence(item_kind)),
-        counts.conformance_statement_count + boolCount(obligationKindIsConformanceStatement(item_kind)),
-        counts.parsed_count + boolCount(obligationStateIsParsed(item_state)),
-        counts.classified_count + boolCount(obligationStateIsClassified(item_state)),
-        counts.blocked_count + boolCount(obligationRecordIsBlocked(item))
+        counts.required_count + boolCount(obligationStrengthIsRequired(obligation_record.strength)),
+        counts.recommended_count + boolCount(
+            obligationStrengthIsRecommended(obligation_record.strength)
+        ),
+        counts.permitted_count + boolCount(
+            obligationStrengthIsPermitted(obligation_record.strength)
+        ),
+        counts.informative_count + boolCount(
+            obligationStrengthIsInformative(obligation_record.strength)
+        ),
+        counts.outside_conformance_count + boolCount(
+            obligationKindIsOutsideConformance(obligation_record.kind)
+        ),
+        counts.formal_rule_count + boolCount(obligationKindIsFormalRule(obligation_record.kind)),
+        counts.grammar_production_count + boolCount(
+            obligationKindIsGrammarProduction(obligation_record.kind)
+        ),
+        counts.diagnostic_table_row_count + boolCount(
+            obligationKindIsDiagnosticTableRow(obligation_record.kind)
+        ),
+        counts.normative_sentence_count + boolCount(
+            obligationKindIsNormativeSentence(obligation_record.kind)
+        ),
+        counts.conformance_statement_count + boolCount(
+            obligationKindIsConformanceStatement(obligation_record.kind)
+        ),
+        counts.parsed_count + boolCount(obligationStateIsParsed(obligation_record.state)),
+        counts.classified_count + boolCount(obligationStateIsClassified(obligation_record.state)),
+        counts.blocked_count + boolCount(obligationBlockerKindIsBlocking(obligation_record.blocker))
     )
 }
 
@@ -568,17 +749,19 @@ procedure readLedgerFinalTextField(
     return readLedgerBytesField(slice, length, offset, 10)
 }
 
-public procedure readObligationRecord(ledger: bytes@View, offset: i32) -> ObligationRecordRead {
-    let length: i32 = bytes::length(ledger) as i32
+public procedure readObligationRecordFromSlice(
+    slice: const [u8],
+    length: i32,
+    offset: i32
+) -> ObligationRecordRead {
     if (offset >= length) {
         return ObligationRecordRead {
             state: ObligationRecordReadState::EndOfLedger,
             next_offset: offset,
-            record: emptyObligationRecord()
+            obligation: emptyObligationRecord()
         }
     }
 
-    let slice: const [u8] = bytes::as_slice(ledger)
     let ordinal: LedgerIntegerRead = readLedgerField(slice, length, offset)
     let source_start: LedgerIntegerRead = readLedgerField(slice, length, ordinal.next_offset)
     let source_end: LedgerIntegerRead = readLedgerField(slice, length, source_start.next_offset)
@@ -621,14 +804,14 @@ public procedure readObligationRecord(ledger: bytes@View, offset: i32) -> Obliga
         return ObligationRecordRead {
             state: ObligationRecordReadState::Malformed,
             next_offset: labels.next_offset,
-            record: emptyObligationRecord()
+            obligation: emptyObligationRecord()
         }
     }
 
     return ObligationRecordRead {
         state: ObligationRecordReadState::Readable,
         next_offset: labels.next_offset,
-        record: ObligationRecord {
+        obligation: ObligationRecord {
             ordinal: ordinal.value,
             source_start: source_start.value,
             source_end: source_end.value,
@@ -648,6 +831,15 @@ public procedure readObligationRecord(ledger: bytes@View, offset: i32) -> Obliga
             labels: labels.value
         }
     }
+}
+
+public procedure readObligationRecord(
+    ledger: bytes@View,
+    offset: i32
+) -> ObligationRecordRead {
+    let length: i32 = bytes::length(ledger) as i32
+    let slice: const [u8] = bytes::as_slice(ledger)
+    return readObligationRecordFromSlice(slice, length, offset)
 }
 
 procedure emitPrimaryObligation(
@@ -682,25 +874,64 @@ procedure emitPrimaryObligation(
     return Reporting::emitEvent(ctx, event)
 }
 
+procedure finishObligationExtractionBuild(
+    output: Reporting::OutputContext,
+    counts: ObligationCounts,
+    record_count: i32,
+    storage_failure_count: i32,
+    malformed_count: i32,
+    primary_obligation: SpecObligation,
+    writer: unique File@Write
+) -> ObligationExtractionBuild {
+    let checkpointed_output: Reporting::OutputContext =
+        emitObligationCheckpoint(output, "obligation_ledger_flush_start")
+    let flush_result: () | IoError = writer~>flush()
+    let closed: File@Closed = writer~>close()
+    let _ = closed
+    let obligation_ledger_written: bool = if flush_result is {
+        _: () { true }
+        _: IoError { false }
+    }
+    let obligation_ledger_storage_failure_count: i32 = if (obligation_ledger_written == false) {
+        1
+    } else {
+        0
+    }
+    return ObligationExtractionBuild {
+        output: emitObligationCheckpoint(checkpointed_output, "obligation_ledger_flush_complete"),
+        counts: counts,
+        ledger: obligationLedgerSummary(
+            obligationLedgerPath(),
+            record_count,
+            storage_failure_count + obligation_ledger_storage_failure_count,
+            malformed_count
+        ),
+        primary_obligation: primary_obligation
+    }
+}
+
 procedure buildObligationsFromSourceLedger(
     ctx: Reporting::OutputContext,
     path: string@View,
     source: Source::SpecIngestionResult,
     source_ledger: bytes@View,
-    ledger: unique bytes@Managed,
-    heap: $HeapAllocator
+    writer: unique File@Write
 ) -> ObligationExtractionBuild {
     var counts: ObligationCounts = obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     var record_count: i32 = 0
     var malformed_count: i32 = 0
     var storage_failure_count: i32 = source.unit_ledger_storage_failure_count
-    var output: Reporting::OutputContext = ctx
+    var output: Reporting::OutputContext =
+        emitObligationCheckpoint(ctx, "obligation_source_ledger_parse_start")
     var primary_obligation: SpecObligation = absentSpecObligation(path)
     var offset: i32 = 0
+    let source_ledger_length: i32 = bytes::length(source_ledger) as i32
+    let source_ledger_slice: const [u8] = bytes::as_slice(source_ledger)
 
     loop {
-        let read: Source::SpecUnitRecordRead = Source::readSpecUnitRecord(source_ledger, offset)
-        let read_state: Source::SpecUnitRecordReadState = read.state
+        let record_read: Source::SpecUnitRecordRead =
+            Source::readSpecUnitRecordFromSlice(source_ledger_slice, source_ledger_length, offset)
+        let read_state: Source::SpecUnitRecordReadState = record_read.state
         if (sourceUnitRecordReadIsEndOfLedger(read_state) == true) {
             break
         }
@@ -713,33 +944,43 @@ procedure buildObligationsFromSourceLedger(
             break
         }
 
-        let obligation_record: ObligationRecord = obligationRecordFromSourceUnit(read.record)
-        if (appendObligationRecord(ledger, obligation_record, heap) == false) {
+        let obligation_record: ObligationRecord = obligationRecordFromSourceUnit(record_read.unit)
+        if (appendObligationRecord(writer, obligation_record) == false) {
             storage_failure_count = storage_failure_count + 1
         }
         counts = countWithObligationRecord(counts, obligation_record)
         if (record_count == 0) {
-            primary_obligation = primaryObligationFromUnit(path, read.record)
+            primary_obligation = primaryObligationFromUnit(path, record_read.unit)
         }
         record_count = record_count + 1
-        offset = read.next_offset
+        if (record_count == 1000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_1000")
+        }
+        if (record_count == 2000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_2000")
+        }
+        if (record_count == 3000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_3000")
+        }
+        if (record_count == 4000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_4000")
+        }
+        if (record_count == 5000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_5000")
+        }
+        offset = record_read.next_offset
     }
 
-    if (writeObligationLedger(output.fs, bytes::as_view(ledger)) == false) {
-        storage_failure_count = storage_failure_count + 1
-    }
-
-    return ObligationExtractionBuild {
-        output: output,
-        counts: counts,
-        ledger: obligationLedgerSummary(
-            obligationLedgerPath(),
-            record_count,
-            storage_failure_count,
-            malformed_count
-        ),
-        primary_obligation: primary_obligation
-    }
+    output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_complete")
+    return finishObligationExtractionBuild(
+        output,
+        counts,
+        record_count,
+        storage_failure_count,
+        malformed_count,
+        primary_obligation,
+        writer
+    )
 }
 
 procedure emitObligationSource(
@@ -747,11 +988,10 @@ procedure emitObligationSource(
     path: string@View,
     source: Source::SpecIngestionResult,
     source_ledger: bytes@View,
-    ledger: unique bytes@Managed,
-    heap: $HeapAllocator
+    writer: unique File@Write
 ) -> ObligationSummary {
     let extracted: ObligationExtractionBuild =
-        buildObligationsFromSourceLedger(ctx, path, source, source_ledger, ledger, heap)
+        buildObligationsFromSourceLedger(ctx, path, source, source_ledger, writer)
     let primary_obligation: SpecObligation = if extracted.counts.total_count == 0 {
         primaryObligationFromSource(path, source)
     } else {
@@ -844,8 +1084,7 @@ procedure emitObligationSource(
 
 public procedure runObligationExtraction(
     ctx: Reporting::OutputContext,
-    source: Source::SpecIngestionResult,
-    heap: $HeapAllocator
+    source: Source::SpecIngestionResult
 ) -> ObligationSummary {
     let path: string@View = Source::canonicalSpecPath()
     var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
@@ -854,45 +1093,66 @@ public procedure runObligationExtraction(
         "obligation_extraction",
         "Spec::Obligations"
     )
-    let ledger_result: bytes@Managed | AllocationError =
-        bytes::with_capacity((source.unit_count * 96) as usize, heap)
-    let summary: ObligationSummary = if ledger_result is {
-        ledger: unique bytes@Managed {
-            if output.fs~>read_bytes(source.unit_ledger_path) is {
-                source_ledger: unique bytes@Managed {
-                    emitObligationSource(
-                        output,
-                        path,
-                        source,
-                        bytes::as_view(source_ledger),
-                        ledger,
-                        heap
-                    )
-                }
-                _: IoError {
-                    let write_failed: bool =
-                        writeObligationLedger(output.fs, bytes::view_string("")) == false
-                    obligationSummary(
-                        output,
-                        75,
-                        obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
-                        obligationLedgerSummary(obligationLedgerPath(), 0, if write_failed { 2 } else { 1 }, 0),
-                        absentSpecObligation(path)
-                    )
+    output = emitObligationCheckpoint(output, "obligation_ledger_open_start")
+    let summary: ObligationSummary = if (ensureObligationLedgerDirectory(output.fs)) {
+        let stale_ledger_cleanup: () | IoError =
+            output.fs~>remove(obligationLedgerPath())
+        let _ = stale_ledger_cleanup
+        if output.fs~>create_write(obligationLedgerPath()) is {
+            writer: unique File@Write {
+                output = emitObligationCheckpoint(output, "obligation_ledger_open_complete")
+                output = emitObligationCheckpoint(output, "obligation_source_ledger_read_start")
+                if output.fs~>read_bytes(source.unit_ledger_path) is {
+                    source_ledger: unique bytes@Managed {
+                        output = emitObligationCheckpoint(output, "obligation_source_ledger_read_complete")
+                        emitObligationSource(
+                            output,
+                            path,
+                            source,
+                            bytes::as_view(source_ledger),
+                            writer
+                        )
+                    }
+                    _: IoError {
+                        output = emitObligationCheckpoint(
+                            output,
+                            "obligation_source_ledger_read_failed"
+                        )
+                        let closed: File@Closed = writer~>close()
+                        let _ = closed
+                        obligationSummary(
+                            output,
+                            75,
+                            obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+                            obligationLedgerSummary(obligationLedgerPath(), 0, 1, 0),
+                            absentSpecObligation(path)
+                        )
+                    }
                 }
             }
+            _: IoError {
+                output = emitObligationCheckpoint(output, "obligation_ledger_open_failed")
+                let write_failed: bool = writeEmptyObligationLedger(output.fs) == false
+                obligationSummary(
+                    output,
+                    75,
+                    obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+                    obligationLedgerSummary(obligationLedgerPath(), 0, if write_failed { 2 } else { 1 }, 0),
+                    absentSpecObligation(path)
+                )
+            }
         }
-        _: AllocationError {
-            let write_failed: bool =
-                writeObligationLedger(output.fs, bytes::view_string("")) == false
-            obligationSummary(
-                output,
-                75,
-                obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
-                obligationLedgerSummary(obligationLedgerPath(), 0, if write_failed { 2 } else { 1 }, 0),
-                absentSpecObligation(path)
-            )
-        }
+    } else {
+        output = emitObligationCheckpoint(output, "obligation_ledger_open_failed")
+        let write_failed: bool =
+            writeEmptyObligationLedger(output.fs) == false
+        obligationSummary(
+            output,
+            75,
+            obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+            obligationLedgerSummary(obligationLedgerPath(), 0, if write_failed { 2 } else { 1 }, 0),
+            absentSpecObligation(path)
+        )
     }
     output = Reporting::emitPhaseEnd(
         summary.ctx,

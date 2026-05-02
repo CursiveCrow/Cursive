@@ -93,11 +93,8 @@ static bool SpanEq(const core::Span& lhs, const core::Span& rhs) {
          lhs.end_offset == rhs.end_offset;
 }
 
-static bool PermSub(Permission lhs, Permission rhs) {
+static bool PermEq(Permission lhs, Permission rhs) {
   SpecDefsSubtyping();
-  // C0X Extension: Permission lattice with shared
-  // Lattice: unique <: shared <: const
-  // Reflexivity:
   if (lhs == Permission::Const && rhs == Permission::Const) {
     SPEC_RULE("Perm-Const");
     return true;
@@ -110,20 +107,17 @@ static bool PermSub(Permission lhs, Permission rhs) {
     SPEC_RULE("Perm-Shared");
     return true;
   }
-  // Transitivity: unique <: shared <: const
-  if (lhs == Permission::Unique && rhs == Permission::Const) {
-    SPEC_RULE("Perm-Unique-Const");
-    return true;
-  }
-  if (lhs == Permission::Unique && rhs == Permission::Shared) {
-    SPEC_RULE("Perm-Unique-Shared");
-    return true;
-  }
-  if (lhs == Permission::Shared && rhs == Permission::Const) {
-    SPEC_RULE("Perm-Shared-Const");
-    return true;
-  }
   return false;
+}
+
+static bool TypeBaseCompatibleForArgument(const ScopeContext& ctx,
+                                          const TypeRef& actual,
+                                          const TypeRef& expected) {
+  if (!actual || !expected) {
+    return false;
+  }
+  const auto base_sub = Subtyping(ctx, actual, expected);
+  return base_sub.ok && base_sub.subtype;
 }
 
 static bool TypePathEq(const TypePath& lhs, const TypePath& rhs) {
@@ -1003,7 +997,7 @@ static SubtypingResult SubtypingUncached(const ScopeContext& ctx,
     const auto lhs_base = lperm ? lperm->base : lhs;
     const auto rhs_base = rperm ? rperm->base : rhs;
     SPEC_RULE("Sub-Perm");
-    if (!PermSub(lhs_perm, rhs_perm)) {
+    if (!PermEq(lhs_perm, rhs_perm)) {
       return {true, std::nullopt, false};
     }
 	    if (lhs_perm == Permission::Const && rhs_perm == Permission::Const) {
@@ -1307,6 +1301,55 @@ SubtypingResult Subtyping(const ScopeContext& ctx,
   SubtypingResult result = SubtypingUncached(ctx, lhs_in, rhs_in);
   memo.emplace(key, result);
   return result;
+}
+
+bool PermissionAdmits(Permission caller, Permission required) {
+  switch (required) {
+    case Permission::Const:
+      return caller == Permission::Const ||
+             caller == Permission::Shared ||
+             caller == Permission::Unique;
+    case Permission::Shared:
+      return caller == Permission::Shared ||
+             caller == Permission::Unique;
+    case Permission::Unique:
+      return caller == Permission::Unique;
+  }
+  return false;
+}
+
+SubtypingResult ArgumentTypeCompatible(const ScopeContext& ctx,
+                                       const TypeRef& actual,
+                                       const TypeRef& expected,
+                                       const std::optional<ParamMode>& mode) {
+  const auto sub = Subtyping(ctx, actual, expected);
+  if (!sub.ok || sub.subtype || mode.has_value()) {
+    return sub;
+  }
+
+  if (!actual || !expected) {
+    return sub;
+  }
+
+  const auto* actual_perm_type = std::get_if<TypePerm>(&actual->node);
+  const auto* expected_perm_type = std::get_if<TypePerm>(&expected->node);
+  const Permission actual_perm = actual_perm_type ? actual_perm_type->perm
+                                                 : Permission::Const;
+  const Permission expected_perm = expected_perm_type ? expected_perm_type->perm
+                                                     : Permission::Const;
+  const TypeRef actual_base = actual_perm_type ? actual_perm_type->base
+                                              : actual;
+  const TypeRef expected_base = expected_perm_type ? expected_perm_type->base
+                                                  : expected;
+
+  if (!PermissionAdmits(actual_perm, expected_perm)) {
+    return sub;
+  }
+  if (!TypeBaseCompatibleForArgument(ctx, actual_base, expected_base)) {
+    return sub;
+  }
+
+  return {true, std::nullopt, true};
 }
 
 }  // namespace cursive::analysis
