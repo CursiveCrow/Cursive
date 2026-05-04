@@ -1,0 +1,29 @@
+public record Pair {
+    public left: i32
+    public right: i32
+}
+
+procedure choosePair(flag: bool) -> Pair {
+    let chosen: Pair = if (flag) {
+        if (flag) {
+            Pair { left: 20, right: 22 }
+        } else {
+            Pair { left: 1, right: 2 }
+        }
+    } else {
+        Pair { left: 3, right: 4 }
+    }
+
+    return chosen
+}
+
+public procedure main(move ctx: Context) -> i32 {
+    let _ = ctx
+    let pair: Pair = choosePair(true)
+
+    if ((pair.left == 20) && (pair.right == 22)) {
+        return 0
+    }
+
+    return 1
+}

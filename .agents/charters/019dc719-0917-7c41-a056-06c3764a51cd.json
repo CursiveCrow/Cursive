@@ -1951,7 +1951,7 @@
         {
             "id": "TASK-013",
             "title": "Wire Coverage, Final Report, And Blocker Summary Logging",
-            "status": "in-progress",
+            "status": "complete",
             "observedProblem": [
                 "Global conformance progress and blockers need to be visible from oracle output, not buried in generated artifacts or left implicit in exit status.",
                 "Coverage state must be derived from parsed spec obligations and comparison results, not external audit tables or compiler trace labels."
@@ -2112,13 +2112,32 @@
                 "write"
             ],
             "completion": {
-                "changed": [],
-                "verified": [],
+                "changed": [
+                    "Fixed compiler block-tail temporary lifetime at `cursive/src/05_codegen/lower/expr/block_expr.cpp` so aggregate branch-tail results transfer to the enclosing expression instead of being dropped before use.",
+                    "Added compiler regression coverage for aggregate branch-tail codegen under `tests/compiler/test_aggregate_branch_tail_codegen.py` and `tests/compiler/fixtures/aggregate_branch_tail_project/**`.",
+                    "Updated `CursiveOracle/Spec/Obligations/Extraction.cursive` so obligation ledger records are serialized from the canonical `ObligationRecord` value with preserved source metadata and stake-backed local storage rather than heap-backed writer churn.",
+                    "Updated `CursiveOracle/Oracle/Coverage/CoverageLedger.cursive` so coverage reads parsed obligation records, classifies mutually exclusive TASK-013 states from typed source-backed evidence, and selects real top uncovered/blocker records without consuming `obligations.primary_obligation`.",
+                    "Updated `CursiveOracle/Oracle/Coverage/CoverageReport.cursive` and regenerated `CursiveOracle/Reports/coverage-ledger.txt` from typed coverage data, including global uncovered count, per-state counts, and source-backed top uncovered evidence."
+                ],
+                "verified": [
+                    ".\\cursive\\build\\windows\\Debug\\Cursive.exe build CursiveOracle\\Main\\Main.cursive --check --incremental=off --diag-json exited 0 with {\"diagnostics\":[]}.",
+                    ".\\cursive\\build\\windows\\Debug\\Cursive.exe build CursiveOracle\\Main\\Main.cursive --incremental=off --diag-json exited 0 with {\"diagnostics\":[]} and produced CursiveOracle/build/main/bin/main.exe.",
+                    ".\\CursiveOracle\\build\\main\\bin\\main.exe > CursiveOracle\\build\\main\\oracle.stdout 2> CursiveOracle\\build\\main\\oracle.stderr exited 1 after 5,184,110 ms; nonzero is expected because 5,932 required obligations remain not executed_pass.",
+                    "CursiveOracle/build/main/oracle.stderr is empty; no foundation_selftest failure remains.",
+                    "CursiveOracle/build/main/oracle.stdout contains phase=coverage, subject_kind=coverage_ledger, evidence_kind=coverage_ledger_path, status=uncovered, status=executed_pass, status=blocked_by_oracle_language_support, event_kind=final_summary, total_obligation_count, required_obligation_count, uncovered_count, executed_pass_count, blocked_count, and final_exit_status.",
+                    "CursiveOracle/Reports/coverage-ledger.txt contains coverage_ledger=coverage.ledger.main, source=docs/CursiveSpecification.md, total_obligation_count=5953, required_obligation_count=5933, uncovered_count=5932, state.uncovered=0, state.parsed_only=5951, state.executed_pass=1, and a source-backed top_uncovered_obligation.",
+                    "CursiveOracle/build/main/output-regression/coverage_incomplete.stderr contains failure_kind=coverage_incomplete and owner=Oracle::Coverage.",
+                    "Anti-shortcut scans show direct write_stdout/write_stderr calls only in CursiveOracle/Core/Reporting/**, no forbidden oracle expectation source use, and no obligations.primary_obligation consumption in Oracle::Coverage.",
+                    "git --no-pager diff --no-ext-diff --check -- CursiveOracle .agents/charters/019dc719-0917-7c41-a056-06c3764a51cd.json cursive tests exited 0.",
+                    "python -m unittest tests.compiler.test_aggregate_branch_tail_codegen tests.compiler.test_permission_conformance passed before the final oracle verification run."
+                ],
                 "handoff": [
-                    "Reopened because previous completion evidence relied on aggregate/primary-obligation bridge behavior that is insufficient for a complete spec oracle."
+                    "TASK-014 and later tasks remain pending. Current coverage truth is source-backed but intentionally incomplete: one obligation is executed_pass, 5,951 are parsed_only, one is informative_only, and 5,932 required obligations remain globally uncovered.",
+                    "Remaining primary bridge references are isolated to pre-TASK-014 bridge consumers in Spec::Obligations and Oracle::Compare; Oracle::Coverage no longer consumes the bridge for coverage or blocker selection."
                 ],
                 "risks": [
-                    "Previous completion notes are retained in git history but no longer trusted as task completion evidence."
+                    "The coverage pass is correct enough for TASK-013 but slow: the verified oracle run took about 86 minutes. Performance should be improved in a later task without changing coverage truth.",
+                    "Reference modeling and comparison still cover only the currently selected bridge obligation until later tasks expand per-obligation modeling, generation, execution, and comparison."
                 ]
             }
         },

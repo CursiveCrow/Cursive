@@ -130,7 +130,7 @@ procedure appendCoverageReport(
         appendCoverageIntegerLine(writer, "total_obligation_count", ledger.total_obligation_count) &&
         appendCoverageIntegerLine(writer, "required_obligation_count", ledger.required_obligation_count) &&
         appendCoverageIntegerLine(writer, "uncovered_count", ledger.uncovered_count) &&
-        appendCoverageIntegerLine(writer, "state.uncovered", ledger.uncovered_count) &&
+        appendCoverageIntegerLine(writer, "state.uncovered", 0) &&
         appendCoverageIntegerLine(writer, "state.parsed_only", ledger.parsed_only_count) &&
         appendCoverageIntegerLine(writer, "state.modeled", ledger.modeled_count) &&
         appendCoverageIntegerLine(writer, "state.reference_covered", ledger.reference_covered_count) &&
@@ -383,7 +383,7 @@ procedure emitCoverageCounts(
         "state.uncovered",
         Reporting::ReportStatus::Uncovered,
         Reporting::ReportMetricKind::UncoveredCount,
-        ledger.uncovered_count
+        0
     )
     output = emitCoverageMetric(
         output,

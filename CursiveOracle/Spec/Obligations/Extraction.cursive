@@ -20,12 +20,6 @@ internal record LedgerBytesRead {
     internal next_offset: i32
 }
 
-internal record StackLedgerBuffer {
-    internal data: [u8]
-    internal length: i32
-    internal valid: bool
-}
-
 procedure primaryObligationFromSource(
     path: string@View,
     source: Source::SpecIngestionResult
@@ -157,6 +151,10 @@ public procedure obligationLedgerPath() -> string@View {
     return "CursiveOracle/build/main/obligations/obligations.bin"
 }
 
+procedure obligationRecordCapacity() -> i32 {
+    return 8192
+}
+
 procedure ensureObligationLedgerDirectory(fs: $FileSystem) -> bool {
     return if fs~>ensure_dir("CursiveOracle/build") is {
         _: () { true }
@@ -190,204 +188,199 @@ procedure writeEmptyObligationLedger(fs: $FileSystem) -> bool {
     }
 }
 
-procedure writeLedgerText(writer: unique File@Write, text: string@View) -> bool {
-    return if writer~>write(bytes::view_string(text)) is {
-        _: () { true }
-        _: IoError { false }
+procedure writeObligationRecord(
+    writer: unique File@Write,
+    data: const [u8],
+    length: i32,
+    failed: bool
+) -> bool {
+    if (failed == true) {
+        return false
     }
-}
-
-procedure stackLedgerBuffer(data: [u8]) -> StackLedgerBuffer {
-    return StackLedgerBuffer {
-        data: data,
-        length: 0,
-        valid: true
-    }
-}
-
-procedure stackLedgerBufferView(buffer: StackLedgerBuffer) -> bytes@View {
     let start_index: usize = 0usize
-    let end_index: usize = buffer.length as usize
-    let window: const [u8] = buffer.data[start_index..end_index]
-    return bytes::view(window)
-}
-
-procedure appendBufferByte(buffer: StackLedgerBuffer, byte: u8) -> StackLedgerBuffer {
-    if (buffer.valid == false) {
-        return buffer
-    }
-    if (buffer.length >= 4096) {
-        return StackLedgerBuffer {
-            data: buffer.data,
-            length: buffer.length,
-            valid: false
-        }
-    }
-    var data: [u8] = buffer.data
-    data[buffer.length as usize] = byte
-    return StackLedgerBuffer {
-        data: data,
-        length: buffer.length + 1,
-        valid: true
-    }
-}
-
-procedure appendBufferText(buffer: StackLedgerBuffer, text: string@View) -> StackLedgerBuffer {
-    let text_view: bytes@View = bytes::view_string(text)
-    let text_slice: const [u8] = bytes::as_slice(text_view)
-    let text_length: i32 = bytes::length(text_view) as i32
-    var output: StackLedgerBuffer = buffer
-    var index: i32 = 0
-    loop {
-        if (index >= text_length) {
-            break
-        }
-        output = appendBufferByte(output, text_slice[index as usize])
-        index = index + 1
-    }
-    return output
-}
-
-procedure appendBufferBytes(buffer: StackLedgerBuffer, value: bytes@View) -> StackLedgerBuffer {
-    let value_slice: const [u8] = bytes::as_slice(value)
-    let value_length: i32 = bytes::length(value) as i32
-    var output: StackLedgerBuffer = buffer
-    var index: i32 = 0
-    loop {
-        if (index >= value_length) {
-            break
-        }
-        output = appendBufferByte(output, value_slice[index as usize])
-        index = index + 1
-    }
-    return output
-}
-
-procedure appendBufferIntegerText(buffer: StackLedgerBuffer, value: i32) -> StackLedgerBuffer {
-    var scratch_storage: [u8; 12] = [0u8; 12]
-    var scratch: [u8] = scratch_storage
-    var next_index: i32 = 12
-    var remaining: i32 = value
-    let is_negative: bool = value < 0
-    if (is_negative == true) {
-        remaining = 0 - remaining
-    }
-
-    if (remaining == 0) {
-        next_index = next_index - 1
-        scratch[next_index as usize] = 48u8
-    } else {
-        loop {
-            if (remaining <= 0) {
-                break
-            }
-            let digit: i32 = remaining % 10
-            next_index = next_index - 1
-            scratch[next_index as usize] = (48 + digit) as u8
-            remaining = remaining / 10
-        }
-    }
-
-    if (is_negative == true) {
-        next_index = next_index - 1
-        scratch[next_index as usize] = 45u8
-    }
-
-    let start_index: usize = next_index as usize
-    let end_index: usize = 12usize
-    let window: const [u8] = scratch[start_index..end_index]
-    return appendBufferBytes(buffer, bytes::view(window))
-}
-
-procedure writeLedgerIntegerText(writer: unique File@Write, value: i32) -> bool {
-    var scratch_storage: [u8; 12] = [0u8; 12]
-    var scratch: [u8] = scratch_storage
-    var next_index: i32 = 12
-    var remaining: i32 = value
-    let is_negative: bool = value < 0
-    if (is_negative == true) {
-        remaining = 0 - remaining
-    }
-
-    if (remaining == 0) {
-        next_index = next_index - 1
-        scratch[next_index as usize] = 48u8
-    } else {
-        loop {
-            if (remaining <= 0) {
-                break
-            }
-            let digit: i32 = remaining % 10
-            next_index = next_index - 1
-            scratch[next_index as usize] = (48 + digit) as u8
-            remaining = remaining / 10
-        }
-    }
-
-    if (is_negative == true) {
-        next_index = next_index - 1
-        scratch[next_index as usize] = 45u8
-    }
-
-    let start_index: usize = next_index as usize
-    let end_index: usize = 12usize
-    let window: const [u8] = scratch[start_index..end_index]
+    let end_index: usize = length as usize
+    let window: const [u8] = data[start_index..end_index]
     return if writer~>write(bytes::view(window)) is {
         _: () { true }
         _: IoError { false }
     }
 }
 
-procedure writeStackLedgerBuffer(writer: unique File@Write, buffer: StackLedgerBuffer) -> bool {
-    if (buffer.valid == false) {
-        return false
+procedure appendObligationRecord(
+    writer: unique File@Write,
+    obligation_record: ObligationRecord
+) -> bool {
+    var record_storage: [u8; 8192] = [0u8; 8192]
+    var record_data: [u8] = record_storage
+    let capacity: i32 = obligationRecordCapacity()
+    var length: i32 = 0
+    var failed: bool = false
+    var integer_field: i32 = 0
+
+    loop {
+        if (integer_field >= 11) {
+            break
+        }
+        if (failed == true) {
+            break
+        }
+
+        var value: i32 = obligation_record.ordinal
+        if (integer_field == 1) { value = obligation_record.source_start }
+        if (integer_field == 2) { value = obligation_record.source_end }
+        if (integer_field == 3) { value = obligation_record.source_line }
+        if (integer_field == 4) { value = obligation_record.source_column }
+        if (integer_field == 5) { value = obligation_record.content_identity }
+        if (integer_field == 6) { value = obligationKindTag(obligation_record.kind) }
+        if (integer_field == 7) { value = obligationStrengthTag(obligation_record.strength) }
+        if (integer_field == 8) { value = obligationStateTag(obligation_record.state) }
+        if (integer_field == 9) { value = obligationBlockerTag(obligation_record.blocker) }
+        if (integer_field == 10) { value = obligation_record.parse_defect_count }
+
+        var scratch_storage: [u8; 12] = [0u8; 12]
+        var scratch: [u8] = scratch_storage
+        var next_index: i32 = 12
+        var remaining: i32 = value
+        let is_negative: bool = value < 0
+        if (is_negative == true) {
+            remaining = 0 - remaining
+        }
+
+        if (remaining == 0) {
+            next_index = next_index - 1
+            scratch[next_index as usize] = 48u8
+        } else {
+            loop {
+                if (remaining <= 0) {
+                    break
+                }
+                let digit: i32 = remaining % 10
+                next_index = next_index - 1
+                scratch[next_index as usize] = (48 + digit) as u8
+                remaining = remaining / 10
+            }
+        }
+
+        if (is_negative == true) {
+            next_index = next_index - 1
+            scratch[next_index as usize] = 45u8
+        }
+
+        var digit_index: i32 = next_index
+        loop {
+            if (digit_index >= 12) {
+                break
+            }
+            if ((failed == false) && (length < capacity)) {
+                record_data[length as usize] = scratch[digit_index as usize]
+                length = length + 1
+            } else {
+                failed = true
+            }
+            digit_index = digit_index + 1
+        }
+
+        if ((failed == false) && (length < capacity)) {
+            record_data[length as usize] = 9u8
+            length = length + 1
+        } else {
+            failed = true
+        }
+        integer_field = integer_field + 1
     }
-    return if writer~>write(stackLedgerBufferView(buffer)) is {
-        _: () { true }
-        _: IoError { false }
+
+    var bytes_field: i32 = 0
+    loop {
+        if (bytes_field >= 6) {
+            break
+        }
+        if (failed == true) {
+            break
+        }
+
+        var bytes_value: bytes@View = obligation_record.source_unit_id
+        if (bytes_field == 1) { bytes_value = obligation_record.owner }
+        if (bytes_field == 2) { bytes_value = obligation_record.phase }
+        if (bytes_field == 3) { bytes_value = obligation_record.applies_to }
+        if (bytes_field == 4) { bytes_value = obligation_record.summary }
+        if (bytes_field == 5) { bytes_value = obligation_record.labels }
+
+        let bytes_length: i32 = bytes::length(bytes_value) as i32
+        var length_scratch_storage: [u8; 12] = [0u8; 12]
+        var length_scratch: [u8] = length_scratch_storage
+        var length_next_index: i32 = 12
+        var length_remaining: i32 = bytes_length
+
+        if (length_remaining == 0) {
+            length_next_index = length_next_index - 1
+            length_scratch[length_next_index as usize] = 48u8
+        } else {
+            loop {
+                if (length_remaining <= 0) {
+                    break
+                }
+                let digit: i32 = length_remaining % 10
+                length_next_index = length_next_index - 1
+                length_scratch[length_next_index as usize] = (48 + digit) as u8
+                length_remaining = length_remaining / 10
+            }
+        }
+
+        var length_digit_index: i32 = length_next_index
+        loop {
+            if (length_digit_index >= 12) {
+                break
+            }
+            if ((failed == false) && (length < capacity)) {
+                record_data[length as usize] = length_scratch[length_digit_index as usize]
+                length = length + 1
+            } else {
+                failed = true
+            }
+            length_digit_index = length_digit_index + 1
+        }
+
+        if ((failed == false) && (length < capacity)) {
+            record_data[length as usize] = 58u8
+            length = length + 1
+        } else {
+            failed = true
+        }
+
+        let bytes_slice: const [u8] = bytes::as_slice(bytes_value)
+        var bytes_index: i32 = 0
+        loop {
+            if (bytes_index >= bytes_length) {
+                break
+            }
+            if (failed == true) {
+                break
+            }
+            if (length < capacity) {
+                record_data[length as usize] = bytes_slice[bytes_index as usize]
+                length = length + 1
+            } else {
+                failed = true
+            }
+            bytes_index = bytes_index + 1
+        }
+
+        let terminator: u8 = if (bytes_field == 5) {
+            10u8
+        } else {
+            9u8
+        }
+        if ((failed == false) && (length < capacity)) {
+            record_data[length as usize] = terminator
+            length = length + 1
+        } else {
+            failed = true
+        }
+        bytes_field = bytes_field + 1
     }
-}
 
-procedure appendObligationRecordField(
-    buffer: StackLedgerBuffer,
-    value: i32
-) -> StackLedgerBuffer {
-    return appendBufferText(
-        appendBufferIntegerText(buffer, value),
-        "\t"
-    )
-}
-
-procedure appendObligationRecordBytes(
-    buffer: StackLedgerBuffer,
-    value: bytes@View
-) -> StackLedgerBuffer {
-    return appendBufferText(
-        appendBufferBytes(
-            appendBufferText(
-                appendBufferIntegerText(buffer, bytes::length(value) as i32),
-                ":"
-            ),
-            value
-        ),
-        "\t"
-    )
-}
-
-procedure appendObligationRecordFinalBytes(
-    buffer: StackLedgerBuffer,
-    value: bytes@View
-) -> StackLedgerBuffer {
-    return appendBufferText(
-        appendBufferBytes(
-            appendBufferText(
-                appendBufferIntegerText(buffer, bytes::length(value) as i32),
-                ":"
-            ),
-            value
-        ),
-        "\n"
-    )
+    let record_view: const [u8] = record_data
+    return writeObligationRecord(writer, record_view, length, failed)
 }
 
 procedure obligationStateFromSourceUnit(unit: Source::SpecUnitRecord) -> ObligationState {
@@ -436,39 +429,6 @@ procedure obligationRecordFromSourceUnit(unit: Source::SpecUnitRecord) -> Obliga
         summary: unit.summary_text,
         labels: unit.labels_text
     }
-}
-
-procedure appendObligationRecord(
-    writer: unique File@Write,
-    obligation_record: ObligationRecord
-) -> bool {
-    var record_storage: [u8; 4096] = [0u8; 4096]
-    var record_data: [u8] = record_storage
-    var buffer: StackLedgerBuffer = stackLedgerBuffer(record_data)
-    buffer = appendObligationRecordField(buffer, obligation_record.ordinal)
-    buffer = appendObligationRecordField(buffer, obligation_record.source_start)
-    buffer = appendObligationRecordField(buffer, obligation_record.source_end)
-    buffer = appendObligationRecordField(buffer, obligation_record.source_line)
-    buffer = appendObligationRecordField(buffer, obligation_record.source_column)
-    buffer = appendObligationRecordField(buffer, obligation_record.content_identity)
-    buffer = appendObligationRecordField(buffer, obligationKindTag(obligation_record.kind))
-    buffer = appendObligationRecordField(
-        buffer,
-        obligationStrengthTag(obligation_record.strength)
-    )
-    buffer = appendObligationRecordField(buffer, obligationStateTag(obligation_record.state))
-    buffer = appendObligationRecordField(
-        buffer,
-        obligationBlockerTag(obligation_record.blocker)
-    )
-    buffer = appendObligationRecordField(buffer, obligation_record.parse_defect_count)
-    buffer = appendObligationRecordBytes(buffer, obligation_record.source_unit_id)
-    buffer = appendObligationRecordBytes(buffer, obligation_record.owner)
-    buffer = appendObligationRecordBytes(buffer, obligation_record.phase)
-    buffer = appendObligationRecordBytes(buffer, obligation_record.applies_to)
-    buffer = appendObligationRecordBytes(buffer, obligation_record.summary)
-    buffer = appendObligationRecordFinalBytes(buffer, obligation_record.labels)
-    return writeStackLedgerBuffer(writer, buffer)
 }
 
 procedure obligationStrengthIsRequired(value: ObligationStrength) -> bool {

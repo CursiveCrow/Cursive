@@ -138,13 +138,6 @@ procedure nonNegative(value: i32) -> i32 {
     return value
 }
 
-procedure firstNonzero(primary: i32, fallback: i32) -> i32 {
-    if (primary != 0) {
-        return primary
-    }
-    return fallback
-}
-
 procedure emptyCoverageRecord() -> CoverageRecord {
     return CoverageRecord {
         obligation_id: bytes::view_string(""),
@@ -412,17 +405,61 @@ public procedure coverageLedgerForSummary(ledger: CoverageLedger) -> CoverageLed
     )
 }
 
+procedure obligationMatchesSource(
+    obligation: Obligations::ObligationRecord,
+    source_start: i32,
+    source_end: i32,
+    source_line: i32,
+    source_column: i32,
+    content_identity: i32
+) -> bool {
+    return (obligation.source_start == source_start) &&
+        (obligation.source_end == source_end) &&
+        (obligation.source_line == source_line) &&
+        (obligation.source_column == source_column) &&
+        (obligation.content_identity == content_identity)
+}
+
+procedure obligationMatchesComparison(
+    obligation: Obligations::ObligationRecord,
+    comparison: Compare::ComparisonSummary
+) -> bool {
+    if (comparison.passed_count == 0) {
+        if (comparison.failed_count == 0) {
+            if (comparison.blocked_count == 0) {
+                return false
+            }
+        }
+    }
+    return obligationMatchesSource(
+        obligation,
+        comparison.result.source_start,
+        comparison.result.source_end,
+        comparison.result.source_line,
+        comparison.result.source_column,
+        comparison.result.content_identity
+    )
+}
+
+procedure obligationMatchesReference(
+    obligation: Obligations::ObligationRecord,
+    comparison: Compare::ComparisonSummary
+) -> bool {
+    return obligationMatchesSource(
+        obligation,
+        comparison.result.source_start,
+        comparison.result.source_end,
+        comparison.result.source_line,
+        comparison.result.source_column,
+        comparison.result.content_identity
+    )
+}
+
 procedure classifiedCoverageState(
     obligation: Obligations::ObligationRecord,
-    executed_pass_budget: i32,
-    executed_fail_budget: i32,
-    blocked_by_current_compiler_budget: i32,
-    blocked_by_oracle_language_support_budget: i32,
-    unsupported_by_reference_budget: i32,
-    outside_conformance_budget: i32,
-    generated_budget: i32,
-    reference_covered_budget: i32,
-    modeled_budget: i32
+    reference: Contract::ReferenceModelSummary,
+    generated: Reporting::PhaseRunResult,
+    comparison: Compare::ComparisonSummary
 ) -> CoverageState {
     if (obligationRecordIsInformativeOnly(obligation) == true) {
         return CoverageState::InformativeOnly
@@ -430,32 +467,35 @@ procedure classifiedCoverageState(
     if (obligationRecordIsOutsideConformance(obligation) == true) {
         return CoverageState::OutsideConformance
     }
-    if (executed_pass_budget > 0) {
-        return CoverageState::ExecutedPass
+
+    if (obligationMatchesComparison(obligation, comparison) == true) {
+        if (comparison.passed_count != 0) {
+            return CoverageState::ExecutedPass
+        }
+        if (comparison.failed_count != 0) {
+            return CoverageState::ExecutedFail
+        }
+        if (comparison.blocked_count != 0) {
+            return CoverageState::BlockedByCurrentCompiler
+        }
     }
-    if (executed_fail_budget > 0) {
-        return CoverageState::ExecutedFail
-    }
-    if (blocked_by_current_compiler_budget > 0) {
-        return CoverageState::BlockedByCurrentCompiler
-    }
-    if (blocked_by_oracle_language_support_budget > 0) {
-        return CoverageState::BlockedByOracleLanguageSupport
-    }
-    if (unsupported_by_reference_budget > 0) {
-        return CoverageState::UnsupportedByReference
-    }
-    if (outside_conformance_budget > 0) {
-        return CoverageState::OutsideConformance
-    }
-    if (generated_budget > 0) {
-        return CoverageState::Generated
-    }
-    if (reference_covered_budget > 0) {
-        return CoverageState::ReferenceCovered
-    }
-    if (modeled_budget > 0) {
-        return CoverageState::Modeled
+
+    if (obligationMatchesReference(obligation, comparison) == true) {
+        if (reference.blocked_by_oracle_language_support_count != 0) {
+            return CoverageState::BlockedByOracleLanguageSupport
+        }
+        if (reference.unsupported_count != 0) {
+            return CoverageState::UnsupportedByReference
+        }
+        if (reference.outside_conformance_count != 0) {
+            return CoverageState::OutsideConformance
+        }
+        if (generated.passed_count != 0) {
+            return CoverageState::Generated
+        }
+        if (reference.modeled_count != 0) {
+            return CoverageState::Modeled
+        }
     }
     return CoverageState::ParsedOnly
 }
@@ -544,23 +584,6 @@ public procedure buildCoverageLedger(
     var informative_only_count: i32 = 0
     var malformed_count: i32 = obligations.ledger.malformed_record_count
 
-    var executed_pass_budget: i32 = comparison.passed_count
-    var executed_fail_budget: i32 = comparison.failed_count
-    var blocked_by_oracle_language_support_budget: i32 =
-        reference.blocked_by_oracle_language_support_count
-    var blocked_by_current_compiler_budget: i32 =
-        nonNegative(comparison.blocked_count - blocked_by_oracle_language_support_budget)
-    var unsupported_by_reference_budget: i32 =
-        firstNonzero(reference.unsupported_count, comparison.unsupported_count)
-    var outside_conformance_budget: i32 =
-        firstNonzero(reference.outside_conformance_count, comparison.outside_conformance_count)
-    var generated_budget: i32 =
-        nonNegative(generated.passed_count - comparison.passed_count - comparison.failed_count)
-    var reference_covered_budget: i32 =
-        nonNegative(reference.modeled_count - generated.passed_count)
-    var modeled_budget: i32 =
-        nonNegative(reference.modeled_count - generated.passed_count - reference_covered_budget)
-
     var has_top_uncovered_obligation: bool = false
     var top_uncovered_obligation: CoverageRecord = emptyCoverageRecord()
     var has_top_current_compiler_blocker: bool = false
@@ -589,15 +612,9 @@ public procedure buildCoverageLedger(
 
         let state: CoverageState = classifiedCoverageState(
             record_read.obligation,
-            executed_pass_budget,
-            executed_fail_budget,
-            blocked_by_current_compiler_budget,
-            blocked_by_oracle_language_support_budget,
-            unsupported_by_reference_budget,
-            outside_conformance_budget,
-            generated_budget,
-            reference_covered_budget,
-            modeled_budget
+            reference,
+            generated,
+            comparison
         )
         let coverage_record: CoverageRecord = coverageRecordFromObligation(
             record_read.obligation,
@@ -655,39 +672,6 @@ public procedure buildCoverageLedger(
             CoverageState::InformativeOnly { true }
             _ { false }
         })
-
-        if (coverageStateIsExecutedPass(state) == true) {
-            executed_pass_budget = nonNegative(executed_pass_budget - 1)
-        } else if state is {
-            CoverageState::ExecutedFail {
-                executed_fail_budget = nonNegative(executed_fail_budget - 1)
-            }
-            CoverageState::BlockedByCurrentCompiler {
-                blocked_by_current_compiler_budget =
-                    nonNegative(blocked_by_current_compiler_budget - 1)
-            }
-            CoverageState::BlockedByOracleLanguageSupport {
-                blocked_by_oracle_language_support_budget =
-                    nonNegative(blocked_by_oracle_language_support_budget - 1)
-            }
-            CoverageState::UnsupportedByReference {
-                unsupported_by_reference_budget =
-                    nonNegative(unsupported_by_reference_budget - 1)
-            }
-            CoverageState::OutsideConformance {
-                outside_conformance_budget = nonNegative(outside_conformance_budget - 1)
-            }
-            CoverageState::Generated {
-                generated_budget = nonNegative(generated_budget - 1)
-            }
-            CoverageState::ReferenceCovered {
-                reference_covered_budget = nonNegative(reference_covered_budget - 1)
-            }
-            CoverageState::Modeled {
-                modeled_budget = nonNegative(modeled_budget - 1)
-            }
-            _ {}
-        }
 
         if ((obligationStrengthIsRequired(record_read.obligation.strength) == true) &&
             (coverageStateIsExecutedPass(state) == false) &&

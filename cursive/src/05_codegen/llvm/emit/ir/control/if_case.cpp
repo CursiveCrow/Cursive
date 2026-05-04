@@ -1277,76 +1277,32 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
 
   if (aggregate_result)
   {
-    auto coerce_storage_in_predecessor =
-        [&](llvm::BasicBlock *pred, llvm::Value *storage) -> llvm::Value *
+    llvm::Value *merged_storage =
+        emitter.AcquireReusableAggregateStorage(func, result_ty, "ifcase.result");
+    llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+    if (merged_storage && merged_storage->getType() != expected_ptr_ty)
     {
-      if (!storage || !storage->getType()->isPointerTy())
-      {
-        return nullptr;
-      }
-      llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
-      if (storage->getType() == expected_ptr_ty)
-      {
-        return storage;
-      }
-      if (pred && pred->getTerminator())
-      {
-        llvm::IRBuilder<> pred_builder(pred->getTerminator());
-        return pred_builder.CreateBitCast(storage, expected_ptr_ty);
-      }
-      return builder.CreateBitCast(storage, expected_ptr_ty);
-    };
-
-    bool all_have_storage = !incoming.empty();
-    for (const auto &entry : incoming)
-    {
-      if (!entry.storage)
-      {
-        all_have_storage = false;
-        break;
-      }
+      merged_storage = builder.CreateBitCast(merged_storage, expected_ptr_ty);
     }
-
-    llvm::Value *merged_storage = nullptr;
-    if (all_have_storage)
+    if (merged_storage)
     {
-      if (incoming.size() == 1)
-      {
-        merged_storage = coerce_storage_in_predecessor(
-            incoming.front().pred, incoming.front().storage);
-      }
-      else
-      {
-        llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
-        llvm::PHINode *phi =
-            builder.CreatePHI(expected_ptr_ty, incoming.size(), "ifcase.result.addr");
-        for (const auto &entry : incoming)
-        {
-          llvm::Value *coerced =
-              coerce_storage_in_predecessor(entry.pred, entry.storage);
-          phi->addIncoming(
-              coerced ? coerced
-                      : llvm::ConstantPointerNull::get(
-                            llvm::cast<llvm::PointerType>(expected_ptr_ty)),
-              entry.pred);
-        }
-        merged_storage = phi;
-      }
-    }
-    else
-    {
-      llvm::Value *slot =
-          emitter.AcquireReusableAggregateStorage(func, result_ty, "ifcase.result");
-      llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
-      if (slot && slot->getType() != expected_ptr_ty)
-      {
-        slot = builder.CreateBitCast(slot, expected_ptr_ty);
-      }
       for (const auto &entry : incoming)
       {
         llvm::IRBuilder<> pred_builder(entry.pred->getTerminator());
-        llvm::Value *candidate =
-            entry.value ? entry.value : llvm::Constant::getNullValue(result_ty);
+        llvm::Value *candidate = nullptr;
+        if (entry.storage && entry.storage->getType()->isPointerTy())
+        {
+          llvm::Value *typed_storage = entry.storage;
+          if (typed_storage->getType() != expected_ptr_ty)
+          {
+            typed_storage = pred_builder.CreateBitCast(typed_storage, expected_ptr_ty);
+          }
+          candidate = pred_builder.CreateLoad(result_ty, typed_storage);
+        }
+        if (!candidate)
+        {
+          candidate = entry.value ? entry.value : llvm::Constant::getNullValue(result_ty);
+        }
         llvm::Value *coerced = CoerceToTyped(
             emitter,
             &pred_builder,
@@ -1362,13 +1318,9 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
         {
           coerced = llvm::Constant::getNullValue(result_ty);
         }
-        pred_builder.CreateStore(coerced, slot);
+        pred_builder.CreateStore(coerced, merged_storage);
       }
-      merged_storage = slot;
-    }
 
-    if (merged_storage)
-    {
       emitter.ForgetTempStorage(if_case.result);
       emitter.SetTempStorage(if_case.result, merged_storage);
       return;

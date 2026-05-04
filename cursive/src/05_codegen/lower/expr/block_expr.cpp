@@ -157,19 +157,15 @@ LowerResult LowerBlock(const ast::Block& block, LowerCtx& ctx) {
         ctx.parallel_collect && ctx.parallel_collect_depth == 1 &&
         IsCollectableParallelExpr(*block.tail_opt, needs_wait);
     auto prev_suppress = ctx.suppress_temp_at_depth;
-    if (collect_tail) {
-      ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
-    }
+    ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
     auto tail_result = LowerExpr(*block.tail_opt, ctx);
+    ctx.suppress_temp_at_depth = prev_suppress;
     if (collect_tail) {
-      ctx.suppress_temp_at_depth = prev_suppress;
       ParallelCollectItem item;
       item.value = tail_result.value;
       item.needs_wait = needs_wait;
       item.value_type = InferParallelCollectedType(*block.tail_opt, ctx, needs_wait);
       ctx.parallel_collect->push_back(std::move(item));
-    } else {
-      ctx.suppress_temp_at_depth = prev_suppress;
     }
     tail_ir = tail_result.ir;
     result_value = tail_result.value;
