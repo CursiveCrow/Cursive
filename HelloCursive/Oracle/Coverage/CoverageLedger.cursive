@@ -172,8 +172,8 @@ procedure coverageRecordFromObligation(
         coverage_state: state,
         blocker_kind: blocker,
         blocker_reason: blocker_reason,
-        evidence_path: "HelloCursive/Cases/Conformance/Startup/MinimalExecutable",
-        comparison_id: "comparison.case.minimal_executable"
+        evidence_path: "HelloCursive/Cases/ConformanceModel/Definitions/DefConforming/Positive/Primary",
+        comparison_id: "comparison.case.conformance_model.definitions.def_conforming.positive.primary"
     }
 }
 
@@ -195,8 +195,8 @@ procedure coverageRecordFromSpecObligation(
         coverage_state: state,
         blocker_kind: blocker,
         blocker_reason: blocker_reason,
-        evidence_path: "HelloCursive/Cases/Conformance/Startup/MinimalExecutable",
-        comparison_id: "comparison.case.minimal_executable"
+        evidence_path: "HelloCursive/Cases/ConformanceModel/Definitions/DefConforming/Positive/Primary",
+        comparison_id: "comparison.case.conformance_model.definitions.def_conforming.positive.primary"
     }
 }
 

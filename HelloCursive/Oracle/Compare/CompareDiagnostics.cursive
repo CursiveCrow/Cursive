@@ -22,10 +22,10 @@ procedure compareDiagnosticResult(
 ) -> ComparisonResult {
     if (reportStatusIsOutsideConformance(expected_status) == true) {
         return comparisonResult(
-            "comparison.case.minimal_executable",
+            "comparison.case.conformance_model.definitions.def_conforming.positive.primary",
             implementation.case_id,
             implementation.obligation_id,
-            "case.manual.minimal_executable",
+            "case.manual.def_conforming.positive.primary",
             implementation,
             obligation,
             Reporting::ReportStatus::OutsideConformance,
@@ -37,10 +37,10 @@ procedure compareDiagnosticResult(
     }
     if (implementation.exit_status == 0) {
         return comparisonResult(
-            "comparison.case.minimal_executable",
+            "comparison.case.conformance_model.definitions.def_conforming.positive.primary",
             implementation.case_id,
             implementation.obligation_id,
-            "case.manual.minimal_executable",
+            "case.manual.def_conforming.positive.primary",
             implementation,
             obligation,
             Reporting::ReportStatus::Passed,
@@ -51,10 +51,10 @@ procedure compareDiagnosticResult(
         )
     }
     return comparisonResult(
-        "comparison.case.minimal_executable",
+        "comparison.case.conformance_model.definitions.def_conforming.positive.primary",
         implementation.case_id,
         implementation.obligation_id,
-        "case.manual.minimal_executable",
+        "case.manual.def_conforming.positive.primary",
         implementation,
         obligation,
         Reporting::ReportStatus::Failed,

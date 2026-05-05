@@ -11,7 +11,7 @@ procedure ensureRunnerDirectories(fs: $FileSystem) -> bool {
     } && if fs~>ensure_dir("HelloCursive/build/oracle/runner") is {
         _: () { true }
         _: IoError { false }
-    } && if fs~>ensure_dir("HelloCursive/build/oracle/runner/case_minimal_executable") is {
+    } && if fs~>ensure_dir("HelloCursive/build/oracle/runner/case_conformance_model_definitions_def_conforming_positive_primary") is {
         _: () { true }
         _: IoError { false }
     }
@@ -57,7 +57,7 @@ procedure emitCompilerEvidence(
         ctx,
         Reporting::ReportPhase::CompilerRun,
         Reporting::ReportEvidenceKind::CommandText,
-        "HelloCursive/build/oracle/runner/case_minimal_executable/compiler.command",
+        "HelloCursive/build/oracle/runner/case_conformance_model_definitions_def_conforming_positive_primary/compiler.command",
         result,
         "compiler_command"
     )
@@ -118,20 +118,20 @@ public procedure runCompilerCheck(
     let command: string@View = compiler.check_command
     let _command_written: bool = writeTextFile(
         output.fs,
-        "HelloCursive/build/oracle/runner/case_minimal_executable/compiler.command",
+        "HelloCursive/build/oracle/runner/case_conformance_model_definitions_def_conforming_positive_primary/compiler.command",
         command
     )
     let status: i32 = sys~>run(command)
     let result: Contract::ImplementationResult = Contract::implementationResult(
-        "case.minimal_executable",
+        "case.conformance_model.definitions.def_conforming.positive.primary",
         "def.Conforming",
         Contract::RunnerCommandMode::CheckOnly,
         command,
         status,
-        "HelloCursive/build/oracle/runner/case_minimal_executable/compiler.stdout",
-        "HelloCursive/build/oracle/runner/case_minimal_executable/compiler.stderr",
-        "HelloCursive/build/oracle/runner/case_minimal_executable/compiler.stdout",
-        "HelloCursive/Cases/Conformance/Startup/MinimalExecutable"
+        "HelloCursive/build/oracle/runner/case_conformance_model_definitions_def_conforming_positive_primary/compiler.stdout",
+        "HelloCursive/build/oracle/runner/case_conformance_model_definitions_def_conforming_positive_primary/compiler.stderr",
+        "HelloCursive/build/oracle/runner/case_conformance_model_definitions_def_conforming_positive_primary/compiler.stdout",
+        "HelloCursive/Cases/ConformanceModel/Definitions/DefConforming/Positive/Primary"
     )
     output = emitCompilerEvidence(output, result)
     output = Reporting::emitPhaseEnd(

@@ -1,0 +1,13 @@
+[toolchain]
+target_profile = "x86_64-win64"
+
+[build]
+incremental = false
+progress = false
+
+[[assembly]]
+name = "DefConformingPositivePrimary"
+kind = "executable"
+root = "./Main"
+out_dir = "build/main"
+emit_ir = "ll"

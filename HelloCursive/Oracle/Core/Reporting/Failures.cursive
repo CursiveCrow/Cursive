@@ -151,7 +151,7 @@ public procedure oracleLanguageFailureEvent() -> OutputEvent {
         ReportEvidenceKind::CaseId,
         "case_ready",
         "blocked",
-        "case.minimal_executable",
+        "case.conformance_model.definitions.def_conforming.positive.primary",
         true,
         11715,
         11737,

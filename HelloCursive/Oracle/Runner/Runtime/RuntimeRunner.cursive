@@ -41,8 +41,8 @@ public procedure recordRuntimeSkipped(
         Contract::RunnerCommandMode::RuntimeSkipped,
         "runtime_not_launched_no_executable_artifact",
         compiler_result.exit_status,
-        "HelloCursive/build/oracle/runner/case_minimal_executable/runtime.stdout",
-        "HelloCursive/build/oracle/runner/case_minimal_executable/runtime.stderr",
+        "HelloCursive/build/oracle/runner/case_conformance_model_definitions_def_conforming_positive_primary/runtime.stdout",
+        "HelloCursive/build/oracle/runner/case_conformance_model_definitions_def_conforming_positive_primary/runtime.stderr",
         compiler_result.diagnostic_path,
         compiler_result.artifact_path
     )

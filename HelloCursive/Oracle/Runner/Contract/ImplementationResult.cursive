@@ -30,7 +30,7 @@ public record CompilerRunResult {
 public procedure repositoryDefaultCompiler() -> CompilerUnderTest {
     return CompilerUnderTest {
         executable_path: "cursive/build/windows/Debug/Cursive.exe",
-        check_command: "cmd /c cursive\\build\\windows\\Debug\\Cursive.exe build HelloCursive\\Cases\\Conformance\\Startup\\MinimalExecutable\\Main\\Main.cursive --check --incremental=off --diag-json > HelloCursive\\build\\oracle\\runner\\case_minimal_executable\\compiler.stdout 2> HelloCursive\\build\\oracle\\runner\\case_minimal_executable\\compiler.stderr"
+        check_command: "cmd /c cursive\\build\\windows\\Debug\\Cursive.exe build HelloCursive\\Cases\\ConformanceModel\\Definitions\\DefConforming\\Positive\\Primary\\Main\\Main.cursive --check --incremental=off --diag-json > HelloCursive\\build\\oracle\\runner\\case_conformance_model_definitions_def_conforming_positive_primary\\compiler.stdout 2> HelloCursive\\build\\oracle\\runner\\case_conformance_model_definitions_def_conforming_positive_primary\\compiler.stderr"
     }
 }
 
