@@ -123,8 +123,8 @@ procedure appendCoverageReport(
         appendCoverageTextLine(writer, "source", ledger.source_spec_path) &&
         appendCoverageTextLine(
             writer,
-            "obligation_ledger",
-            ledger.obligation_ledger_path
+            "source_unit_ledger",
+            ledger.source_unit_ledger_path
         ) &&
         appendCoverageTextLine(
             writer,
@@ -149,13 +149,13 @@ procedure appendCoverageReport(
         ) &&
         appendCoverageIntegerLine(
             writer,
-            "obligation_ledger_read_failure_count",
-            ledger.obligation_ledger_read_failure_count
+            "source_unit_ledger_read_failure_count",
+            ledger.source_unit_ledger_read_failure_count
         ) &&
         appendCoverageIntegerLine(
             writer,
-            "malformed_obligation_record_count",
-            ledger.malformed_obligation_record_count
+            "malformed_source_unit_record_count",
+            ledger.malformed_source_unit_record_count
         ) &&
         appendCoverageRecordLine(
             writer,
@@ -323,11 +323,11 @@ procedure emitCoverageReportWriteFailure(
     )
 }
 
-procedure emitCoverageLedgerReadFailure(
+procedure emitCoverageSourceUnitLedgerReadFailure(
     ctx: Reporting::OutputContext,
     ledger: CoverageLedger
 ) -> Reporting::OutputContext {
-    if (ledger.obligation_ledger_read_failure_count == 0) {
+    if (ledger.source_unit_ledger_read_failure_count == 0) {
         return ctx
     }
     return Reporting::emitEvent(
@@ -338,9 +338,9 @@ procedure emitCoverageLedgerReadFailure(
             ledger.ledger_id,
             "Oracle::Coverage",
             Reporting::ReportFailureKind::OracleInternal,
-            "readable_obligation_ledger",
-            ledger.obligation_ledger_path,
-            "coverage_obligation_ledger_read_failed"
+            "readable_source_unit_ledger",
+            ledger.source_unit_ledger_path,
+            "coverage_source_unit_ledger_read_failed"
         )
     )
 }
@@ -349,7 +349,7 @@ procedure emitCoverageMalformedRecordFailure(
     ctx: Reporting::OutputContext,
     ledger: CoverageLedger
 ) -> Reporting::OutputContext {
-    if (ledger.malformed_obligation_record_count == 0) {
+    if (ledger.malformed_source_unit_record_count == 0) {
         return ctx
     }
     return Reporting::emitEvent(
@@ -361,8 +361,8 @@ procedure emitCoverageMalformedRecordFailure(
             "Oracle::Coverage",
             Reporting::ReportFailureKind::OracleInternal,
             "0",
-            Reporting::renderSmallInteger(ledger.malformed_obligation_record_count),
-            "coverage_obligation_ledger_malformed"
+            Reporting::renderSmallInteger(ledger.malformed_source_unit_record_count),
+            "coverage_source_unit_ledger_malformed"
         )
     )
 }
@@ -392,7 +392,7 @@ procedure finishCoverageRun(
     let report_written: bool = writeCoverageReport(output.fs, ledger)
     output = Reporting::recordReportArtifactWriteResult(output, report_written)
     output = emitCoverageReportWriteFailure(output, ledger, report_written)
-    output = emitCoverageLedgerReadFailure(output, ledger)
+    output = emitCoverageSourceUnitLedgerReadFailure(output, ledger)
     output = emitCoverageMalformedRecordFailure(output, ledger)
     output = emitCoverageEvidence(output, ledger)
     output = emitCoverageCounts(output, ledger)
@@ -421,17 +421,6 @@ public procedure runCoverage(
         "coverage",
         "Oracle::Coverage"
     )
-    return if output.fs~>read_bytes(obligations.ledger.path) is {
-        obligation_ledger_bytes: unique bytes@Managed {
-            let ledger: CoverageLedger = buildCoverageLedger(
-                obligations,
-                bytes::as_view(obligation_ledger_bytes)
-            )
-            finishCoverageRun(output, ledger)
-        }
-        _: IoError {
-            let ledger: CoverageLedger = coverageLedgerForReadFailure()
-            finishCoverageRun(output, ledger)
-        }
-    }
+    let ledger: CoverageLedger = buildCoverageLedger(obligations)
+    return finishCoverageRun(output, ledger)
 }

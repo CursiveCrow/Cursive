@@ -1,9 +1,13 @@
 [toolchain]
 target_profile = "x86_64-win64"
 
+[build]
+incremental = false
+progress = false
+
 [[assembly]]
-name = "main"
+name = "MinimalExecutable"
 kind = "executable"
-root = "./src"
+root = "./Main"
 out_dir = "build/main"
 emit_ir = "ll"

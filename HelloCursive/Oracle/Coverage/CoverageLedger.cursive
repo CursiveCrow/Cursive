@@ -35,7 +35,7 @@ public record CoverageRecord {
 public record CoverageLedger {
     public ledger_id: string@View
     public source_spec_path: string@View
-    public obligation_ledger_path: string@View
+    public source_unit_ledger_path: string@View
     public report_path: string@View
     public total_obligation_count: i32
     public required_obligation_count: i32
@@ -51,8 +51,8 @@ public record CoverageLedger {
     public unsupported_by_reference_count: i32
     public outside_conformance_count: i32
     public informative_only_count: i32
-    public obligation_ledger_read_failure_count: i32
-    public malformed_obligation_record_count: i32
+    public source_unit_ledger_read_failure_count: i32
+    public malformed_source_unit_record_count: i32
     public has_top_uncovered_obligation: bool
     public top_uncovered_obligation: CoverageRecord
     public has_top_current_compiler_blocker: bool
@@ -177,17 +177,26 @@ procedure coverageRecordFromObligation(
     }
 }
 
-procedure obligationRecordReadIsReadable(value: Obligations::ObligationRecordReadState) -> bool {
-    return if value is {
-        Obligations::ObligationRecordReadState::Readable { true }
-        _ { false }
-    }
-}
-
-procedure obligationRecordReadIsEndOfLedger(value: Obligations::ObligationRecordReadState) -> bool {
-    return if value is {
-        Obligations::ObligationRecordReadState::EndOfLedger { true }
-        _ { false }
+procedure coverageRecordFromSpecObligation(
+    obligation: Obligations::SpecObligation,
+    state: CoverageState,
+    blocker: Obligations::ObligationBlockerKind,
+    blocker_reason: string@View
+) -> CoverageRecord {
+    return CoverageRecord {
+        obligation_id: bytes::view_string(obligation.obligation_id),
+        source_start: obligation.source.source_start,
+        source_end: obligation.source.source_end,
+        source_line: obligation.source.source_line,
+        source_column: obligation.source.source_column,
+        content_identity: obligation.source.content_identity,
+        obligation_kind: obligation.kind,
+        obligation_strength: obligation.strength,
+        coverage_state: state,
+        blocker_kind: blocker,
+        blocker_reason: blocker_reason,
+        evidence_path: "HelloCursive/Cases/Conformance/Startup/MinimalExecutable",
+        comparison_id: "comparison.case.minimal_executable"
     }
 }
 
@@ -267,6 +276,7 @@ procedure coverageLedgerFinalStatus(
 }
 
 procedure coverageLedgerFromCounts(
+    source_unit_ledger_path: string@View,
     total_count: i32,
     required_count: i32,
     parsed_only_count: i32,
@@ -284,7 +294,7 @@ procedure coverageLedgerFromCounts(
     return CoverageLedger {
         ledger_id: "coverage.ledger.main",
         source_spec_path: "docs/CursiveSpecification.md",
-        obligation_ledger_path: Obligations::obligationLedgerPath(),
+        source_unit_ledger_path: source_unit_ledger_path,
         report_path: "HelloCursive/Oracle/Reports/coverage-ledger.txt",
         total_obligation_count: total_count,
         required_obligation_count: required_count,
@@ -300,8 +310,8 @@ procedure coverageLedgerFromCounts(
         unsupported_by_reference_count: 0,
         outside_conformance_count: outside_conformance_count,
         informative_only_count: informative_only_count,
-        obligation_ledger_read_failure_count: read_failure_count,
-        malformed_obligation_record_count: malformed_count,
+        source_unit_ledger_read_failure_count: read_failure_count,
+        malformed_source_unit_record_count: malformed_count,
         has_top_uncovered_obligation: has_top_uncovered_obligation,
         top_uncovered_obligation: top_uncovered_obligation,
         has_top_current_compiler_blocker: false,
@@ -317,8 +327,9 @@ procedure coverageLedgerFromCounts(
     }
 }
 
-public procedure coverageLedgerForReadFailure() -> CoverageLedger {
+public procedure coverageLedgerForReadFailure(source_unit_ledger_path: string@View) -> CoverageLedger {
     return coverageLedgerFromCounts(
+        source_unit_ledger_path,
         0,
         0,
         0,
@@ -335,6 +346,7 @@ public procedure coverageLedgerForReadFailure() -> CoverageLedger {
 
 public procedure coverageLedgerForSummary(ledger: CoverageLedger) -> CoverageLedger {
     return coverageLedgerFromCounts(
+        ledger.source_unit_ledger_path,
         ledger.total_obligation_count,
         ledger.required_obligation_count,
         ledger.parsed_only_count,
@@ -342,8 +354,8 @@ public procedure coverageLedgerForSummary(ledger: CoverageLedger) -> CoverageLed
         ledger.executed_fail_count,
         ledger.outside_conformance_count,
         ledger.informative_only_count,
-        ledger.obligation_ledger_read_failure_count,
-        ledger.malformed_obligation_record_count,
+        ledger.source_unit_ledger_read_failure_count,
+        ledger.malformed_source_unit_record_count,
         false,
         emptyCoverageRecord()
     )
@@ -382,75 +394,33 @@ procedure coverageBlockerReasonForState(state: CoverageState) -> string@View {
 }
 
 public procedure buildCoverageLedger(
-    obligations: Obligations::ObligationSummary,
-    obligation_ledger: bytes@View
+    obligations: Obligations::ObligationSummary
 ) -> CoverageLedger {
-    var total_count: i32 = 0
-    var required_count: i32 = 0
-    var parsed_only_count: i32 = 0
-    var executed_pass_count: i32 = 0
-    var executed_fail_count: i32 = 0
-    var outside_conformance_count: i32 = 0
-    var informative_only_count: i32 = 0
-    var malformed_count: i32 = obligations.ledger.malformed_record_count
-
-    var has_top_uncovered_obligation: bool = false
-    var top_uncovered_obligation: CoverageRecord = emptyCoverageRecord()
-    var offset: i32 = 0
-    let obligation_ledger_length: i32 = bytes::length(obligation_ledger) as i32
-    let obligation_ledger_slice: const [u8] = bytes::as_slice(obligation_ledger)
-
-    loop {
-        let record_read: Obligations::ObligationRecordRead =
-            Obligations::readObligationRecordFromSlice(
-                obligation_ledger_slice,
-                obligation_ledger_length,
-                offset
-            )
-        let read_state: Obligations::ObligationRecordReadState = record_read.state
-        if (obligationRecordReadIsEndOfLedger(read_state) == true) {
-            break
-        }
-        if (obligationRecordReadIsReadable(read_state) == false) {
-            malformed_count = malformed_count + 1
-            break
-        }
-
-        let state: CoverageState = classifiedCoverageState(record_read.obligation)
-        let coverage_record: CoverageRecord = coverageRecordFromObligation(
-            record_read.obligation,
-            state,
-            coverageBlockerKindForState(state),
-            coverageBlockerReasonForState(state)
+    let total_count: i32 = obligations.counts.total_count
+    let required_count: i32 = obligations.counts.required_count
+    let parsed_only_count: i32 = obligations.counts.parsed_count
+    let executed_pass_count: i32 = 0
+    let executed_fail_count: i32 = 0
+    let outside_conformance_count: i32 = obligations.counts.outside_conformance_count
+    let informative_only_count: i32 = obligations.counts.informative_count
+    let read_failure_count: i32 = obligations.ledger.storage_failure_count
+    let malformed_count: i32 = obligations.ledger.malformed_record_count
+    let has_top_uncovered_obligation: bool =
+        (required_count > executed_pass_count) &&
+        (Obligations::obligationIsRequired(obligations.primary_obligation) == true)
+    let top_uncovered_obligation: CoverageRecord = if has_top_uncovered_obligation == true {
+        coverageRecordFromSpecObligation(
+            obligations.primary_obligation,
+            CoverageState::ParsedOnly,
+            Obligations::ObligationBlockerKind::NoBlocker,
+            "required_obligation_without_passing_hand_case"
         )
-
-        total_count = total_count + 1
-        required_count = required_count + boolCount(
-            obligationStrengthIsRequired(record_read.obligation.strength)
-        )
-        parsed_only_count = parsed_only_count + boolCount(if state is {
-            CoverageState::ParsedOnly { true }
-            _ { false }
-        })
-        outside_conformance_count = outside_conformance_count + boolCount(if state is {
-            CoverageState::OutsideConformance { true }
-            _ { false }
-        })
-        informative_only_count = informative_only_count + boolCount(if state is {
-            CoverageState::InformativeOnly { true }
-            _ { false }
-        })
-
-        if ((obligationStrengthIsRequired(record_read.obligation.strength) == true) &&
-            (has_top_uncovered_obligation == false)) {
-            has_top_uncovered_obligation = true
-            top_uncovered_obligation = coverage_record
-        }
-
-        offset = record_read.next_offset
+    } else {
+        emptyCoverageRecord()
     }
 
     return coverageLedgerFromCounts(
+        obligations.ledger.path,
         total_count,
         required_count,
         parsed_only_count,
@@ -458,7 +428,7 @@ public procedure buildCoverageLedger(
         executed_fail_count,
         outside_conformance_count,
         informative_only_count,
-        0,
+        read_failure_count,
         malformed_count,
         has_top_uncovered_obligation,
         top_uncovered_obligation

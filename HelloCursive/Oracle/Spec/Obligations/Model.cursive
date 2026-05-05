@@ -75,7 +75,7 @@ public record ObligationCounts {
     public blocked_count: i32
 }
 
-public record ObligationLedgerSummary {
+public record ObligationSourceLedgerSummary {
     public path: string@View
     public record_count: i32
     public storage_failure_count: i32
@@ -102,23 +102,11 @@ public record ObligationRecord {
     public labels: bytes@View
 }
 
-public enum ObligationRecordReadState {
-    Readable
-    EndOfLedger
-    Malformed
-}
-
-public record ObligationRecordRead {
-    public state: ObligationRecordReadState
-    public next_offset: i32
-    public obligation: ObligationRecord
-}
-
 public record ObligationSummary {
     public ctx: Reporting::OutputContext
     public status: i32
     public counts: ObligationCounts
-    public ledger: ObligationLedgerSummary
+    public ledger: ObligationSourceLedgerSummary
     public primary_obligation: SpecObligation
 }
 
@@ -200,13 +188,13 @@ public procedure obligationCounts(
     }
 }
 
-public procedure obligationLedgerSummary(
+public procedure obligationSourceLedgerSummary(
     path: string@View,
     record_count: i32,
     storage_failure_count: i32,
     malformed_record_count: i32
-) -> ObligationLedgerSummary {
-    return ObligationLedgerSummary {
+) -> ObligationSourceLedgerSummary {
+    return ObligationSourceLedgerSummary {
         path: path,
         record_count: record_count,
         storage_failure_count: storage_failure_count,
@@ -266,7 +254,7 @@ public procedure obligationSummary(
     ctx: Reporting::OutputContext,
     status: i32,
     counts: ObligationCounts,
-    ledger: ObligationLedgerSummary,
+    ledger: ObligationSourceLedgerSummary,
     primary_obligation: SpecObligation
 ) -> ObligationSummary {
     return ObligationSummary {
@@ -322,92 +310,6 @@ public procedure renderObligationBlockerKind(value: ObligationBlockerKind) -> st
         ObligationBlockerKind::InformativeOnly { "informative_only" }
         ObligationBlockerKind::OutsideConformance { "outside_conformance" }
     }
-}
-
-public procedure obligationKindTag(value: ObligationKind) -> i32 {
-    return if value is {
-        ObligationKind::FormalRule { 1 }
-        ObligationKind::GrammarProduction { 2 }
-        ObligationKind::DiagnosticTableRow { 3 }
-        ObligationKind::NormativeSentence { 4 }
-        ObligationKind::ConformanceStatement { 5 }
-        ObligationKind::InformativeUnit { 6 }
-        ObligationKind::OutsideConformanceUnit { 7 }
-    }
-}
-
-public procedure obligationKindFromTag(tag: i32) -> ObligationKind {
-    if (tag == 1) { return ObligationKind::FormalRule }
-    if (tag == 2) { return ObligationKind::GrammarProduction }
-    if (tag == 3) { return ObligationKind::DiagnosticTableRow }
-    if (tag == 4) { return ObligationKind::NormativeSentence }
-    if (tag == 5) { return ObligationKind::ConformanceStatement }
-    if (tag == 6) { return ObligationKind::InformativeUnit }
-    return ObligationKind::OutsideConformanceUnit
-}
-
-public procedure obligationStrengthTag(value: ObligationStrength) -> i32 {
-    return if value is {
-        ObligationStrength::Required { 1 }
-        ObligationStrength::Recommended { 2 }
-        ObligationStrength::Permitted { 3 }
-        ObligationStrength::Informative { 4 }
-    }
-}
-
-public procedure obligationStrengthFromTag(tag: i32) -> ObligationStrength {
-    if (tag == 1) { return ObligationStrength::Required }
-    if (tag == 2) { return ObligationStrength::Recommended }
-    if (tag == 3) { return ObligationStrength::Permitted }
-    return ObligationStrength::Informative
-}
-
-public procedure obligationStateTag(value: ObligationState) -> i32 {
-    return if value is {
-        ObligationState::Candidate { 1 }
-        ObligationState::Parsed { 2 }
-        ObligationState::Classified { 3 }
-        ObligationState::BlockedBySpecParse { 4 }
-        ObligationState::BlockedByClassification { 5 }
-        ObligationState::InformativeOnly { 6 }
-        ObligationState::OutsideConformance { 7 }
-    }
-}
-
-public procedure obligationStateFromTag(tag: i32) -> ObligationState {
-    if (tag == 1) { return ObligationState::Candidate }
-    if (tag == 2) { return ObligationState::Parsed }
-    if (tag == 3) { return ObligationState::Classified }
-    if (tag == 4) { return ObligationState::BlockedBySpecParse }
-    if (tag == 5) { return ObligationState::BlockedByClassification }
-    if (tag == 6) { return ObligationState::InformativeOnly }
-    if (tag == 7) { return ObligationState::OutsideConformance }
-    return ObligationState::BlockedBySpecParse
-}
-
-public procedure obligationBlockerTag(value: ObligationBlockerKind) -> i32 {
-    return if value is {
-        ObligationBlockerKind::NoBlocker { 0 }
-        ObligationBlockerKind::SpecParseError { 1 }
-        ObligationBlockerKind::ClassificationGap { 2 }
-        ObligationBlockerKind::ReferenceModelGap { 3 }
-        ObligationBlockerKind::OracleLanguageSupport { 4 }
-        ObligationBlockerKind::CurrentCompiler { 5 }
-        ObligationBlockerKind::InformativeOnly { 6 }
-        ObligationBlockerKind::OutsideConformance { 7 }
-    }
-}
-
-public procedure obligationBlockerFromTag(tag: i32) -> ObligationBlockerKind {
-    if (tag == 0) { return ObligationBlockerKind::NoBlocker }
-    if (tag == 1) { return ObligationBlockerKind::SpecParseError }
-    if (tag == 2) { return ObligationBlockerKind::ClassificationGap }
-    if (tag == 3) { return ObligationBlockerKind::ReferenceModelGap }
-    if (tag == 4) { return ObligationBlockerKind::OracleLanguageSupport }
-    if (tag == 5) { return ObligationBlockerKind::CurrentCompiler }
-    if (tag == 6) { return ObligationBlockerKind::InformativeOnly }
-    if (tag == 7) { return ObligationBlockerKind::OutsideConformance }
-    return ObligationBlockerKind::SpecParseError
 }
 
 public procedure obligationIsRequired(value: SpecObligation) -> bool {
