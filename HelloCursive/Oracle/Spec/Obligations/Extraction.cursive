@@ -1,0 +1,1131 @@
+import core::Reporting
+import spec::Source
+
+internal record ObligationExtractionBuild {
+    internal output: Reporting::OutputContext
+    internal counts: ObligationCounts
+    internal ledger: ObligationLedgerSummary
+    internal primary_obligation: SpecObligation
+}
+
+internal record LedgerIntegerRead {
+    internal valid: bool
+    internal value: i32
+    internal next_offset: i32
+}
+
+internal record LedgerBytesRead {
+    internal valid: bool
+    internal value: bytes@View
+    internal next_offset: i32
+}
+
+procedure primaryObligationFromSource(
+    path: string@View,
+    source: Source::SpecIngestionResult
+) -> SpecObligation {
+    if (source.unit_count == 0) {
+        return absentSpecObligation(path)
+    }
+    return specObligation(
+        "obligation.primary_bridge",
+        obligationKindFromSpecUnitKind(source.primary_kind),
+        obligationStrengthFromSpecUnitStrength(source.primary_strength),
+        ObligationState::Parsed,
+        ObligationBlockerKind::NoBlocker,
+        "Spec::Obligations",
+        obligationSource(
+            path,
+            "spec_unit.primary_bridge",
+            "section.primary_bridge",
+            "-",
+            source.primary_unit_start,
+            source.primary_unit_end,
+            source.primary_unit_line,
+            source.primary_unit_column,
+            source.primary_unit_identity
+        )
+    )
+}
+
+procedure obligationKindFromSpecUnitKind(kind: Source::SpecUnitKind) -> ObligationKind {
+    return if kind is {
+        Source::SpecUnitKind::Grammar { ObligationKind::GrammarProduction }
+        Source::SpecUnitKind::GrammarRequirement { ObligationKind::GrammarProduction }
+        Source::SpecUnitKind::FormalRule { ObligationKind::FormalRule }
+        Source::SpecUnitKind::FormalDefinition { ObligationKind::FormalRule }
+        Source::SpecUnitKind::LoweringRule { ObligationKind::FormalRule }
+        Source::SpecUnitKind::DiagnosticTable { ObligationKind::DiagnosticTableRow }
+        Source::SpecUnitKind::DiagnosticRequirement { ObligationKind::DiagnosticTableRow }
+        Source::SpecUnitKind::Diagnostics { ObligationKind::DiagnosticTableRow }
+        Source::SpecUnitKind::SemanticRequirement { ObligationKind::NormativeSentence }
+        Source::SpecUnitKind::SyntaxRequirement { ObligationKind::NormativeSentence }
+        Source::SpecUnitKind::DynamicSemantics { ObligationKind::NormativeSentence }
+        Source::SpecUnitKind::NormativeRequirement { ObligationKind::NormativeSentence }
+        Source::SpecUnitKind::LoweringRequirement { ObligationKind::NormativeSentence }
+        Source::SpecUnitKind::ConformanceStatement { ObligationKind::ConformanceStatement }
+        Source::SpecUnitKind::MetatheoreticProperty { ObligationKind::ConformanceStatement }
+        Source::SpecUnitKind::Informative { ObligationKind::InformativeUnit }
+        Source::SpecUnitKind::InformativeNote { ObligationKind::InformativeUnit }
+        Source::SpecUnitKind::Unknown { ObligationKind::OutsideConformanceUnit }
+    }
+}
+
+procedure primaryObligationFromUnit(
+    path: string@View,
+    unit: Source::SpecUnitRecord
+) -> SpecObligation {
+    return specObligation(
+        "obligation.primary_bridge",
+        obligationKindFromSpecUnitKind(unit.kind),
+        obligationStrengthFromSpecUnitStrength(unit.strength),
+        ObligationState::Parsed,
+        ObligationBlockerKind::NoBlocker,
+        "Spec::Obligations",
+        obligationSource(
+            path,
+            "spec_unit.primary_bridge",
+            "section.primary_bridge",
+            "-",
+            unit.source_start,
+            unit.source_end,
+            unit.source_line,
+            unit.source_column,
+            unit.content_identity
+        )
+    )
+}
+
+procedure obligationStrengthFromSpecUnitStrength(
+    strength: Source::SpecUnitStrength
+) -> ObligationStrength {
+    return if strength is {
+        Source::SpecUnitStrength::Required { ObligationStrength::Required }
+        Source::SpecUnitStrength::Normative { ObligationStrength::Required }
+        Source::SpecUnitStrength::Recommended { ObligationStrength::Recommended }
+        Source::SpecUnitStrength::Advisory { ObligationStrength::Recommended }
+        Source::SpecUnitStrength::Permitted { ObligationStrength::Permitted }
+        Source::SpecUnitStrength::Allowed { ObligationStrength::Permitted }
+        Source::SpecUnitStrength::Optional { ObligationStrength::Permitted }
+        Source::SpecUnitStrength::Informative { ObligationStrength::Informative }
+        Source::SpecUnitStrength::Unknown { ObligationStrength::Informative }
+    }
+}
+
+procedure emitObligationMetric(
+    ctx: Reporting::OutputContext,
+    subject_id: string@View,
+    metric_kind: Reporting::ReportMetricKind,
+    value: i32,
+    message: string@View
+) -> Reporting::OutputContext {
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::metricIntegerEvent(
+            Reporting::ReportPhase::ObligationExtraction,
+            Reporting::ReportSubjectKind::Obligation,
+            subject_id,
+            "Spec::Obligations",
+            Reporting::ReportStatus::Parsed,
+            metric_kind,
+            value,
+            message
+        )
+    )
+}
+
+procedure emitObligationCheckpoint(
+    ctx: Reporting::OutputContext,
+    subject_id: string@View
+) -> Reporting::OutputContext {
+    return Reporting::emitCheckpoint(
+        ctx,
+        Reporting::ReportPhase::ObligationExtraction,
+        Reporting::ReportSubjectKind::Obligation,
+        subject_id,
+        "Spec::Obligations"
+    )
+}
+
+public procedure obligationLedgerPath() -> string@View {
+    return "HelloCursive/build/oracle/obligations/obligations.bin"
+}
+
+procedure obligationRecordCapacity() -> i32 {
+    return 8192
+}
+
+procedure ensureObligationLedgerDirectory(fs: $FileSystem) -> bool {
+    return if fs~>ensure_dir("HelloCursive/build") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("HelloCursive/build/oracle") is {
+        _: () { true }
+        _: IoError { false }
+    } && if fs~>ensure_dir("HelloCursive/build/oracle/obligations") is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure writeEmptyObligationLedger(fs: $FileSystem) -> bool {
+    if (ensureObligationLedgerDirectory(fs) == false) {
+        return false
+    }
+    let stale_ledger_cleanup: () | IoError = fs~>remove(obligationLedgerPath())
+    let _ = stale_ledger_cleanup
+    return if fs~>create_write(obligationLedgerPath()) is {
+        writer: unique File@Write {
+            let flush_result: () | IoError = writer~>flush()
+            let closed: File@Closed = writer~>close()
+            let _ = closed
+            if flush_result is {
+                _: () { true }
+                _: IoError { false }
+            }
+        }
+        _: IoError { false }
+    }
+}
+
+procedure writeObligationRecord(
+    writer: unique File@Write,
+    data: const [u8],
+    length: i32,
+    failed: bool
+) -> bool {
+    if (failed == true) {
+        return false
+    }
+    let start_index: usize = 0usize
+    let end_index: usize = length as usize
+    let window: const [u8] = data[start_index..end_index]
+    return if writer~>write(bytes::view(window)) is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure appendObligationRecord(
+    writer: unique File@Write,
+    obligation_record: ObligationRecord
+) -> bool {
+    var record_storage: [u8; 8192] = [0u8; 8192]
+    var record_data: [u8] = record_storage
+    let capacity: i32 = obligationRecordCapacity()
+    var length: i32 = 0
+    var failed: bool = false
+    var integer_field: i32 = 0
+
+    loop {
+        if (integer_field >= 11) {
+            break
+        }
+        if (failed == true) {
+            break
+        }
+
+        var value: i32 = obligation_record.ordinal
+        if (integer_field == 1) { value = obligation_record.source_start }
+        if (integer_field == 2) { value = obligation_record.source_end }
+        if (integer_field == 3) { value = obligation_record.source_line }
+        if (integer_field == 4) { value = obligation_record.source_column }
+        if (integer_field == 5) { value = obligation_record.content_identity }
+        if (integer_field == 6) { value = obligationKindTag(obligation_record.kind) }
+        if (integer_field == 7) { value = obligationStrengthTag(obligation_record.strength) }
+        if (integer_field == 8) { value = obligationStateTag(obligation_record.state) }
+        if (integer_field == 9) { value = obligationBlockerTag(obligation_record.blocker) }
+        if (integer_field == 10) { value = obligation_record.parse_defect_count }
+
+        var scratch_storage: [u8; 12] = [0u8; 12]
+        var scratch: [u8] = scratch_storage
+        var next_index: i32 = 12
+        var remaining: i32 = value
+        let is_negative: bool = value < 0
+        if (is_negative == true) {
+            remaining = 0 - remaining
+        }
+
+        if (remaining == 0) {
+            next_index = next_index - 1
+            scratch[next_index as usize] = 48u8
+        } else {
+            loop {
+                if (remaining <= 0) {
+                    break
+                }
+                let digit: i32 = remaining % 10
+                next_index = next_index - 1
+                scratch[next_index as usize] = (48 + digit) as u8
+                remaining = remaining / 10
+            }
+        }
+
+        if (is_negative == true) {
+            next_index = next_index - 1
+            scratch[next_index as usize] = 45u8
+        }
+
+        var digit_index: i32 = next_index
+        loop {
+            if (digit_index >= 12) {
+                break
+            }
+            if ((failed == false) && (length < capacity)) {
+                record_data[length as usize] = scratch[digit_index as usize]
+                length = length + 1
+            } else {
+                failed = true
+            }
+            digit_index = digit_index + 1
+        }
+
+        if ((failed == false) && (length < capacity)) {
+            record_data[length as usize] = 9u8
+            length = length + 1
+        } else {
+            failed = true
+        }
+        integer_field = integer_field + 1
+    }
+
+    var bytes_field: i32 = 0
+    loop {
+        if (bytes_field >= 6) {
+            break
+        }
+        if (failed == true) {
+            break
+        }
+
+        var bytes_value: bytes@View = obligation_record.source_unit_id
+        if (bytes_field == 1) { bytes_value = obligation_record.owner }
+        if (bytes_field == 2) { bytes_value = obligation_record.phase }
+        if (bytes_field == 3) { bytes_value = obligation_record.applies_to }
+        if (bytes_field == 4) { bytes_value = obligation_record.summary }
+        if (bytes_field == 5) { bytes_value = obligation_record.labels }
+
+        let bytes_length: i32 = bytes::length(bytes_value) as i32
+        var length_scratch_storage: [u8; 12] = [0u8; 12]
+        var length_scratch: [u8] = length_scratch_storage
+        var length_next_index: i32 = 12
+        var length_remaining: i32 = bytes_length
+
+        if (length_remaining == 0) {
+            length_next_index = length_next_index - 1
+            length_scratch[length_next_index as usize] = 48u8
+        } else {
+            loop {
+                if (length_remaining <= 0) {
+                    break
+                }
+                let digit: i32 = length_remaining % 10
+                length_next_index = length_next_index - 1
+                length_scratch[length_next_index as usize] = (48 + digit) as u8
+                length_remaining = length_remaining / 10
+            }
+        }
+
+        var length_digit_index: i32 = length_next_index
+        loop {
+            if (length_digit_index >= 12) {
+                break
+            }
+            if ((failed == false) && (length < capacity)) {
+                record_data[length as usize] = length_scratch[length_digit_index as usize]
+                length = length + 1
+            } else {
+                failed = true
+            }
+            length_digit_index = length_digit_index + 1
+        }
+
+        if ((failed == false) && (length < capacity)) {
+            record_data[length as usize] = 58u8
+            length = length + 1
+        } else {
+            failed = true
+        }
+
+        let bytes_slice: const [u8] = bytes::as_slice(bytes_value)
+        var bytes_index: i32 = 0
+        loop {
+            if (bytes_index >= bytes_length) {
+                break
+            }
+            if (failed == true) {
+                break
+            }
+            if (length < capacity) {
+                record_data[length as usize] = bytes_slice[bytes_index as usize]
+                length = length + 1
+            } else {
+                failed = true
+            }
+            bytes_index = bytes_index + 1
+        }
+
+        let terminator: u8 = if (bytes_field == 5) {
+            10u8
+        } else {
+            9u8
+        }
+        if ((failed == false) && (length < capacity)) {
+            record_data[length as usize] = terminator
+            length = length + 1
+        } else {
+            failed = true
+        }
+        bytes_field = bytes_field + 1
+    }
+
+    let record_view: const [u8] = record_data
+    return writeObligationRecord(writer, record_view, length, failed)
+}
+
+procedure obligationStateFromSourceUnit(unit: Source::SpecUnitRecord) -> ObligationState {
+    if (unit.parse_defect_count != 0) {
+        return ObligationState::BlockedBySpecParse
+    }
+    if (obligationKindIsOutsideConformance(obligationKindFromSpecUnitKind(unit.kind)) == true) {
+        return ObligationState::OutsideConformance
+    }
+    return if obligationStrengthFromSpecUnitStrength(unit.strength) is {
+        ObligationStrength::Informative { ObligationState::InformativeOnly }
+        _ { ObligationState::Parsed }
+    }
+}
+
+procedure obligationBlockerFromSourceUnit(unit: Source::SpecUnitRecord) -> ObligationBlockerKind {
+    if (unit.parse_defect_count != 0) {
+        return ObligationBlockerKind::SpecParseError
+    }
+    if (obligationKindIsOutsideConformance(obligationKindFromSpecUnitKind(unit.kind)) == true) {
+        return ObligationBlockerKind::OutsideConformance
+    }
+    return if obligationStrengthFromSpecUnitStrength(unit.strength) is {
+        ObligationStrength::Informative { ObligationBlockerKind::InformativeOnly }
+        _ { ObligationBlockerKind::NoBlocker }
+    }
+}
+
+procedure obligationRecordFromSourceUnit(unit: Source::SpecUnitRecord) -> ObligationRecord {
+    return ObligationRecord {
+        ordinal: unit.ordinal,
+        source_start: unit.source_start,
+        source_end: unit.source_end,
+        source_line: unit.source_line,
+        source_column: unit.source_column,
+        content_identity: unit.content_identity,
+        kind: obligationKindFromSpecUnitKind(unit.kind),
+        strength: obligationStrengthFromSpecUnitStrength(unit.strength),
+        state: obligationStateFromSourceUnit(unit),
+        blocker: obligationBlockerFromSourceUnit(unit),
+        parse_defect_count: unit.parse_defect_count,
+        source_unit_id: unit.id_text,
+        owner: unit.owner_text,
+        phase: unit.phase_text,
+        applies_to: unit.applies_to_text,
+        summary: unit.summary_text,
+        labels: unit.labels_text
+    }
+}
+
+procedure obligationStrengthIsRequired(value: ObligationStrength) -> bool {
+    return if value is {
+        ObligationStrength::Required { true }
+        _ { false }
+    }
+}
+
+procedure obligationStrengthIsRecommended(value: ObligationStrength) -> bool {
+    return if value is {
+        ObligationStrength::Recommended { true }
+        _ { false }
+    }
+}
+
+procedure obligationStrengthIsPermitted(value: ObligationStrength) -> bool {
+    return if value is {
+        ObligationStrength::Permitted { true }
+        _ { false }
+    }
+}
+
+procedure obligationStrengthIsInformative(value: ObligationStrength) -> bool {
+    return if value is {
+        ObligationStrength::Informative { true }
+        _ { false }
+    }
+}
+
+procedure obligationKindIsOutsideConformance(value: ObligationKind) -> bool {
+    return if value is {
+        ObligationKind::OutsideConformanceUnit { true }
+        _ { false }
+    }
+}
+
+procedure obligationKindIsFormalRule(value: ObligationKind) -> bool {
+    return if value is {
+        ObligationKind::FormalRule { true }
+        _ { false }
+    }
+}
+
+procedure obligationKindIsGrammarProduction(value: ObligationKind) -> bool {
+    return if value is {
+        ObligationKind::GrammarProduction { true }
+        _ { false }
+    }
+}
+
+procedure obligationKindIsDiagnosticTableRow(value: ObligationKind) -> bool {
+    return if value is {
+        ObligationKind::DiagnosticTableRow { true }
+        _ { false }
+    }
+}
+
+procedure obligationKindIsNormativeSentence(value: ObligationKind) -> bool {
+    return if value is {
+        ObligationKind::NormativeSentence { true }
+        _ { false }
+    }
+}
+
+procedure obligationKindIsConformanceStatement(value: ObligationKind) -> bool {
+    return if value is {
+        ObligationKind::ConformanceStatement { true }
+        _ { false }
+    }
+}
+
+procedure obligationStateIsParsed(value: ObligationState) -> bool {
+    return if value is {
+        ObligationState::Parsed { true }
+        _ { false }
+    }
+}
+
+procedure obligationStateIsClassified(value: ObligationState) -> bool {
+    return if value is {
+        ObligationState::Classified { true }
+        _ { false }
+    }
+}
+
+procedure boolCount(value: bool) -> i32 {
+    if (value == true) {
+        return 1
+    }
+    return 0
+}
+
+procedure obligationBlockerKindIsBlocking(value: ObligationBlockerKind) -> bool {
+    return if value is {
+        ObligationBlockerKind::NoBlocker { false }
+        _ { true }
+    }
+}
+
+procedure countWithObligationRecord(
+    counts: ObligationCounts,
+    obligation_record: ObligationRecord
+) -> ObligationCounts {
+    return obligationCounts(
+        counts.total_count + 1,
+        counts.required_count + boolCount(obligationStrengthIsRequired(obligation_record.strength)),
+        counts.recommended_count + boolCount(
+            obligationStrengthIsRecommended(obligation_record.strength)
+        ),
+        counts.permitted_count + boolCount(
+            obligationStrengthIsPermitted(obligation_record.strength)
+        ),
+        counts.informative_count + boolCount(
+            obligationStrengthIsInformative(obligation_record.strength)
+        ),
+        counts.outside_conformance_count + boolCount(
+            obligationKindIsOutsideConformance(obligation_record.kind)
+        ),
+        counts.formal_rule_count + boolCount(obligationKindIsFormalRule(obligation_record.kind)),
+        counts.grammar_production_count + boolCount(
+            obligationKindIsGrammarProduction(obligation_record.kind)
+        ),
+        counts.diagnostic_table_row_count + boolCount(
+            obligationKindIsDiagnosticTableRow(obligation_record.kind)
+        ),
+        counts.normative_sentence_count + boolCount(
+            obligationKindIsNormativeSentence(obligation_record.kind)
+        ),
+        counts.conformance_statement_count + boolCount(
+            obligationKindIsConformanceStatement(obligation_record.kind)
+        ),
+        counts.parsed_count + boolCount(obligationStateIsParsed(obligation_record.state)),
+        counts.classified_count + boolCount(obligationStateIsClassified(obligation_record.state)),
+        counts.blocked_count + boolCount(obligationBlockerKindIsBlocking(obligation_record.blocker))
+    )
+}
+
+procedure sourceUnitRecordReadIsReadable(value: Source::SpecUnitRecordReadState) -> bool {
+    return if value is {
+        Source::SpecUnitRecordReadState::Readable { true }
+        _ { false }
+    }
+}
+
+procedure sourceUnitRecordReadIsEndOfLedger(value: Source::SpecUnitRecordReadState) -> bool {
+    return if value is {
+        Source::SpecUnitRecordReadState::EndOfLedger { true }
+        _ { false }
+    }
+}
+
+procedure sourceUnitRecordReadIsMalformed(value: Source::SpecUnitRecordReadState) -> bool {
+    return if value is {
+        Source::SpecUnitRecordReadState::Malformed { true }
+        _ { false }
+    }
+}
+
+procedure ledgerByteAt(slice: const [u8], index: i32, length: i32) -> u8 {
+    if ((index < 0) || (index >= length)) {
+        return 0
+    }
+    return slice[index as usize]
+}
+
+procedure ledgerDigitValue(byte: u8) -> i32 {
+    if ((byte >= 48) && (byte <= 57)) {
+        return (byte as i32) - 48
+    }
+    return -1
+}
+
+procedure readLedgerIntegerUntil(
+    slice: const [u8],
+    length: i32,
+    offset: i32,
+    terminator: u8
+) -> LedgerIntegerRead {
+    if (offset >= length) {
+        return LedgerIntegerRead { valid: false, value: 0, next_offset: offset }
+    }
+
+    var index: i32 = offset
+    var sign: i32 = 1
+    if (ledgerByteAt(slice, index, length) == 45) {
+        sign = -1
+        index = index + 1
+    }
+
+    var value: i32 = 0
+    var digit_count: i32 = 0
+    loop {
+        if (index >= length) {
+            break
+        }
+        let byte: u8 = ledgerByteAt(slice, index, length)
+        if (byte == terminator) {
+            return LedgerIntegerRead {
+                valid: digit_count > 0,
+                value: value * sign,
+                next_offset: index + 1
+            }
+        }
+        let digit: i32 = ledgerDigitValue(byte)
+        if (digit < 0) {
+            return LedgerIntegerRead { valid: false, value: 0, next_offset: index }
+        }
+        value = (value * 10) + digit
+        digit_count = digit_count + 1
+        index = index + 1
+    }
+    return LedgerIntegerRead { valid: false, value: 0, next_offset: index }
+}
+
+procedure readLedgerField(
+    slice: const [u8],
+    length: i32,
+    offset: i32
+) -> LedgerIntegerRead {
+    return readLedgerIntegerUntil(slice, length, offset, 9)
+}
+
+procedure readLedgerBytesField(
+    slice: const [u8],
+    length: i32,
+    offset: i32,
+    terminator: u8
+) -> LedgerBytesRead {
+    let size_read: LedgerIntegerRead = readLedgerIntegerUntil(slice, length, offset, 58)
+    if (size_read.valid == false) {
+        return LedgerBytesRead {
+            valid: false,
+            value: bytes::view_string(""),
+            next_offset: size_read.next_offset
+        }
+    }
+    if ((size_read.value < 0) || ((size_read.next_offset + size_read.value) > length)) {
+        return LedgerBytesRead {
+            valid: false,
+            value: bytes::view_string(""),
+            next_offset: size_read.next_offset
+        }
+    }
+
+    let start_index: usize = size_read.next_offset as usize
+    let end_index: usize = (size_read.next_offset + size_read.value) as usize
+    let window: const [u8] = slice[start_index..end_index]
+    let terminator_offset: i32 = size_read.next_offset + size_read.value
+    if ((terminator_offset >= length) ||
+        (ledgerByteAt(slice, terminator_offset, length) != terminator)) {
+        return LedgerBytesRead {
+            valid: false,
+            value: bytes::view_string(""),
+            next_offset: terminator_offset
+        }
+    }
+    return LedgerBytesRead {
+        valid: true,
+        value: bytes::view(window),
+        next_offset: terminator_offset + 1
+    }
+}
+
+procedure readLedgerTextField(
+    slice: const [u8],
+    length: i32,
+    offset: i32
+) -> LedgerBytesRead {
+    return readLedgerBytesField(slice, length, offset, 9)
+}
+
+procedure readLedgerFinalTextField(
+    slice: const [u8],
+    length: i32,
+    offset: i32
+) -> LedgerBytesRead {
+    return readLedgerBytesField(slice, length, offset, 10)
+}
+
+public procedure readObligationRecordFromSlice(
+    slice: const [u8],
+    length: i32,
+    offset: i32
+) -> ObligationRecordRead {
+    if (offset >= length) {
+        return ObligationRecordRead {
+            state: ObligationRecordReadState::EndOfLedger,
+            next_offset: offset,
+            obligation: emptyObligationRecord()
+        }
+    }
+
+    let ordinal: LedgerIntegerRead = readLedgerField(slice, length, offset)
+    let source_start: LedgerIntegerRead = readLedgerField(slice, length, ordinal.next_offset)
+    let source_end: LedgerIntegerRead = readLedgerField(slice, length, source_start.next_offset)
+    let source_line: LedgerIntegerRead = readLedgerField(slice, length, source_end.next_offset)
+    let source_column: LedgerIntegerRead = readLedgerField(slice, length, source_line.next_offset)
+    let content_identity: LedgerIntegerRead =
+        readLedgerField(slice, length, source_column.next_offset)
+    let kind_tag: LedgerIntegerRead = readLedgerField(slice, length, content_identity.next_offset)
+    let strength_tag: LedgerIntegerRead = readLedgerField(slice, length, kind_tag.next_offset)
+    let state_tag: LedgerIntegerRead = readLedgerField(slice, length, strength_tag.next_offset)
+    let blocker_tag: LedgerIntegerRead = readLedgerField(slice, length, state_tag.next_offset)
+    let parse_defect_count: LedgerIntegerRead =
+        readLedgerField(slice, length, blocker_tag.next_offset)
+    let source_unit_id: LedgerBytesRead =
+        readLedgerTextField(slice, length, parse_defect_count.next_offset)
+    let owner: LedgerBytesRead = readLedgerTextField(slice, length, source_unit_id.next_offset)
+    let phase: LedgerBytesRead = readLedgerTextField(slice, length, owner.next_offset)
+    let applies_to: LedgerBytesRead = readLedgerTextField(slice, length, phase.next_offset)
+    let summary: LedgerBytesRead = readLedgerTextField(slice, length, applies_to.next_offset)
+    let labels: LedgerBytesRead = readLedgerFinalTextField(slice, length, summary.next_offset)
+
+    let valid: bool = ordinal.valid &&
+        source_start.valid &&
+        source_end.valid &&
+        source_line.valid &&
+        source_column.valid &&
+        content_identity.valid &&
+        kind_tag.valid &&
+        strength_tag.valid &&
+        state_tag.valid &&
+        blocker_tag.valid &&
+        parse_defect_count.valid &&
+        source_unit_id.valid &&
+        owner.valid &&
+        phase.valid &&
+        applies_to.valid &&
+        summary.valid &&
+        labels.valid
+    if (valid == false) {
+        return ObligationRecordRead {
+            state: ObligationRecordReadState::Malformed,
+            next_offset: labels.next_offset,
+            obligation: emptyObligationRecord()
+        }
+    }
+
+    return ObligationRecordRead {
+        state: ObligationRecordReadState::Readable,
+        next_offset: labels.next_offset,
+        obligation: ObligationRecord {
+            ordinal: ordinal.value,
+            source_start: source_start.value,
+            source_end: source_end.value,
+            source_line: source_line.value,
+            source_column: source_column.value,
+            content_identity: content_identity.value,
+            kind: obligationKindFromTag(kind_tag.value),
+            strength: obligationStrengthFromTag(strength_tag.value),
+            state: obligationStateFromTag(state_tag.value),
+            blocker: obligationBlockerFromTag(blocker_tag.value),
+            parse_defect_count: parse_defect_count.value,
+            source_unit_id: source_unit_id.value,
+            owner: owner.value,
+            phase: phase.value,
+            applies_to: applies_to.value,
+            summary: summary.value,
+            labels: labels.value
+        }
+    }
+}
+
+public procedure readObligationRecord(
+    ledger: bytes@View,
+    offset: i32
+) -> ObligationRecordRead {
+    let length: i32 = bytes::length(ledger) as i32
+    let slice: const [u8] = bytes::as_slice(ledger)
+    return readObligationRecordFromSlice(slice, length, offset)
+}
+
+procedure emitPrimaryObligation(
+    ctx: Reporting::OutputContext,
+    obligation: SpecObligation
+) -> Reporting::OutputContext {
+    let event: Reporting::OutputEvent = Reporting::eventWithSourceContext(
+        Reporting::eventWithEvidence(
+            Reporting::eventWithExpectedObserved(
+                Reporting::eventBase(
+                    Reporting::ReportEventKind::Evidence,
+                    Reporting::ReportSeverity::Info,
+                    Reporting::ReportPhase::ObligationExtraction,
+                    Reporting::ReportSubjectKind::Obligation,
+                    obligation.obligation_id,
+                    "Spec::Obligations",
+                    Reporting::ReportStatus::Parsed,
+                    "obligation_extracted"
+                ),
+                obligation.source.spec_unit_id,
+                renderObligationStrength(obligation.strength)
+            ),
+            Reporting::ReportEvidenceKind::ObligationId,
+            obligation.obligation_id
+        ),
+        obligation.source.source_start,
+        obligation.source.source_end,
+        obligation.source.source_line,
+        obligation.source.source_column,
+        obligation.source.content_identity
+    )
+    return Reporting::emitEvent(ctx, event)
+}
+
+procedure finishObligationExtractionBuild(
+    output: Reporting::OutputContext,
+    counts: ObligationCounts,
+    record_count: i32,
+    storage_failure_count: i32,
+    malformed_count: i32,
+    primary_obligation: SpecObligation,
+    writer: unique File@Write
+) -> ObligationExtractionBuild {
+    let checkpointed_output: Reporting::OutputContext =
+        emitObligationCheckpoint(output, "obligation_ledger_flush_start")
+    let flush_result: () | IoError = writer~>flush()
+    let closed: File@Closed = writer~>close()
+    let _ = closed
+    let obligation_ledger_written: bool = if flush_result is {
+        _: () { true }
+        _: IoError { false }
+    }
+    let obligation_ledger_storage_failure_count: i32 = if (obligation_ledger_written == false) {
+        1
+    } else {
+        0
+    }
+    return ObligationExtractionBuild {
+        output: emitObligationCheckpoint(checkpointed_output, "obligation_ledger_flush_complete"),
+        counts: counts,
+        ledger: obligationLedgerSummary(
+            obligationLedgerPath(),
+            record_count,
+            storage_failure_count + obligation_ledger_storage_failure_count,
+            malformed_count
+        ),
+        primary_obligation: primary_obligation
+    }
+}
+
+procedure buildObligationsFromSourceLedger(
+    ctx: Reporting::OutputContext,
+    path: string@View,
+    source: Source::SpecIngestionResult,
+    source_ledger: bytes@View,
+    writer: unique File@Write
+) -> ObligationExtractionBuild {
+    var counts: ObligationCounts = obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    var record_count: i32 = 0
+    var malformed_count: i32 = 0
+    var storage_failure_count: i32 = source.unit_ledger_storage_failure_count
+    var output: Reporting::OutputContext =
+        emitObligationCheckpoint(ctx, "obligation_source_ledger_parse_start")
+    var primary_obligation: SpecObligation = absentSpecObligation(path)
+    var offset: i32 = 0
+    let source_ledger_length: i32 = bytes::length(source_ledger) as i32
+    let source_ledger_slice: const [u8] = bytes::as_slice(source_ledger)
+
+    loop {
+        let record_read: Source::SpecUnitRecordRead =
+            Source::readSpecUnitRecordFromSlice(source_ledger_slice, source_ledger_length, offset)
+        let read_state: Source::SpecUnitRecordReadState = record_read.state
+        if (sourceUnitRecordReadIsEndOfLedger(read_state) == true) {
+            break
+        }
+        if (sourceUnitRecordReadIsMalformed(read_state) == true) {
+            malformed_count = malformed_count + 1
+            break
+        }
+        if (sourceUnitRecordReadIsReadable(read_state) == false) {
+            malformed_count = malformed_count + 1
+            break
+        }
+
+        let obligation_record: ObligationRecord = obligationRecordFromSourceUnit(record_read.unit)
+        if (appendObligationRecord(writer, obligation_record) == false) {
+            storage_failure_count = storage_failure_count + 1
+        }
+        counts = countWithObligationRecord(counts, obligation_record)
+        if (record_count == 0) {
+            primary_obligation = primaryObligationFromUnit(path, record_read.unit)
+        }
+        record_count = record_count + 1
+        if (record_count == 1000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_1000")
+        }
+        if (record_count == 2000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_2000")
+        }
+        if (record_count == 3000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_3000")
+        }
+        if (record_count == 4000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_4000")
+        }
+        if (record_count == 5000) {
+            output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_5000")
+        }
+        offset = record_read.next_offset
+    }
+
+    output = emitObligationCheckpoint(output, "obligation_source_ledger_parse_complete")
+    return finishObligationExtractionBuild(
+        output,
+        counts,
+        record_count,
+        storage_failure_count,
+        malformed_count,
+        primary_obligation,
+        writer
+    )
+}
+
+procedure emitObligationSource(
+    ctx: Reporting::OutputContext,
+    path: string@View,
+    source: Source::SpecIngestionResult,
+    source_ledger: bytes@View,
+    writer: unique File@Write
+) -> ObligationSummary {
+    let extracted: ObligationExtractionBuild =
+        buildObligationsFromSourceLedger(ctx, path, source, source_ledger, writer)
+    let primary_obligation: SpecObligation = if extracted.counts.total_count == 0 {
+        primaryObligationFromSource(path, source)
+    } else {
+        extracted.primary_obligation
+    }
+    var output: Reporting::OutputContext = emitObligationMetric(
+        extracted.output,
+        "kind.formal_rule",
+        Reporting::ReportMetricKind::ObligationCount,
+        extracted.counts.formal_rule_count,
+        "obligation_count_by_kind"
+    )
+    output = emitObligationMetric(
+        output,
+        "kind.grammar",
+        Reporting::ReportMetricKind::ObligationCount,
+        extracted.counts.grammar_production_count,
+        "obligation_count_by_kind"
+    )
+    output = emitObligationMetric(
+        output,
+        "kind.diagnostic",
+        Reporting::ReportMetricKind::ObligationCount,
+        extracted.counts.diagnostic_table_row_count,
+        "obligation_count_by_kind"
+    )
+    output = emitObligationMetric(
+        output,
+        "kind.normative",
+        Reporting::ReportMetricKind::ObligationCount,
+        extracted.counts.normative_sentence_count,
+        "obligation_count_by_kind"
+    )
+    output = emitObligationMetric(
+        output,
+        "kind.conformance",
+        Reporting::ReportMetricKind::ObligationCount,
+        extracted.counts.conformance_statement_count,
+        "obligation_count_by_kind"
+    )
+    output = emitObligationMetric(
+        output,
+        "strength.required",
+        Reporting::ReportMetricKind::RequiredObligationCount,
+        extracted.counts.required_count,
+        "obligation_count_by_strength"
+    )
+    output = emitObligationMetric(
+        output,
+        "strength.recommended",
+        Reporting::ReportMetricKind::ObligationCount,
+        extracted.counts.recommended_count,
+        "obligation_count_by_strength"
+    )
+    output = emitObligationMetric(
+        output,
+        "strength.permitted",
+        Reporting::ReportMetricKind::InformativeObligationCount,
+        extracted.counts.permitted_count,
+        "obligation_count_by_strength"
+    )
+    output = emitObligationMetric(
+        output,
+        "status.parsed",
+        Reporting::ReportMetricKind::TotalObligationCount,
+        extracted.counts.total_count,
+        "obligation_count_by_status"
+    )
+    output = emitObligationMetric(
+        output,
+        primary_obligation.source.section_path,
+        Reporting::ReportMetricKind::ObligationCount,
+        extracted.counts.total_count,
+        "obligation_count_by_section"
+    )
+    output = emitPrimaryObligation(output, primary_obligation)
+    return obligationSummary(
+        output,
+        if ((extracted.ledger.storage_failure_count != 0) ||
+            (extracted.ledger.malformed_record_count != 0)) {
+            75
+        } else {
+            0
+        },
+        extracted.counts,
+        extracted.ledger,
+        primary_obligation
+    )
+}
+
+public procedure runObligationExtraction(
+    ctx: Reporting::OutputContext,
+    source: Source::SpecIngestionResult
+) -> ObligationSummary {
+    let path: string@View = Source::canonicalSpecPath()
+    var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
+        ctx,
+        Reporting::ReportPhase::ObligationExtraction,
+        "obligation_extraction",
+        "Spec::Obligations"
+    )
+    output = emitObligationCheckpoint(output, "obligation_ledger_open_start")
+    let summary: ObligationSummary = if (ensureObligationLedgerDirectory(output.fs)) {
+        let stale_ledger_cleanup: () | IoError =
+            output.fs~>remove(obligationLedgerPath())
+        let _ = stale_ledger_cleanup
+        if output.fs~>create_write(obligationLedgerPath()) is {
+            writer: unique File@Write {
+                output = emitObligationCheckpoint(output, "obligation_ledger_open_complete")
+                output = emitObligationCheckpoint(output, "obligation_source_ledger_read_start")
+                if output.fs~>read_bytes(source.unit_ledger_path) is {
+                    source_ledger: unique bytes@Managed {
+                        output = emitObligationCheckpoint(output, "obligation_source_ledger_read_complete")
+                        emitObligationSource(
+                            output,
+                            path,
+                            source,
+                            bytes::as_view(source_ledger),
+                            writer
+                        )
+                    }
+                    _: IoError {
+                        output = emitObligationCheckpoint(
+                            output,
+                            "obligation_source_ledger_read_failed"
+                        )
+                        let closed: File@Closed = writer~>close()
+                        let _ = closed
+                        obligationSummary(
+                            output,
+                            75,
+                            obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+                            obligationLedgerSummary(obligationLedgerPath(), 0, 1, 0),
+                            absentSpecObligation(path)
+                        )
+                    }
+                }
+            }
+            _: IoError {
+                output = emitObligationCheckpoint(output, "obligation_ledger_open_failed")
+                let write_failed: bool = writeEmptyObligationLedger(output.fs) == false
+                obligationSummary(
+                    output,
+                    75,
+                    obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+                    obligationLedgerSummary(obligationLedgerPath(), 0, if write_failed { 2 } else { 1 }, 0),
+                    absentSpecObligation(path)
+                )
+            }
+        }
+    } else {
+        output = emitObligationCheckpoint(output, "obligation_ledger_open_failed")
+        let write_failed: bool =
+            writeEmptyObligationLedger(output.fs) == false
+        obligationSummary(
+            output,
+            75,
+            obligationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+            obligationLedgerSummary(obligationLedgerPath(), 0, if write_failed { 2 } else { 1 }, 0),
+            absentSpecObligation(path)
+        )
+    }
+    output = Reporting::emitPhaseEnd(
+        summary.ctx,
+        Reporting::ReportPhase::ObligationExtraction,
+        "obligation_extraction",
+        "Spec::Obligations",
+        Reporting::ReportStatus::Parsed
+    )
+    return obligationSummary(
+        output,
+        summary.status,
+        summary.counts,
+        summary.ledger,
+        summary.primary_obligation
+    )
+}

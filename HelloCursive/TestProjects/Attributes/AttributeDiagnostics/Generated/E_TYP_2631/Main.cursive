@@ -1,8 +1,0 @@
-[[mangle("catch_non_zeroable"), export("C-unwind"), unwind("catch")]]
-public procedure CatchNonZeroable() -> string@Managed {
-    return "hello"
-}
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

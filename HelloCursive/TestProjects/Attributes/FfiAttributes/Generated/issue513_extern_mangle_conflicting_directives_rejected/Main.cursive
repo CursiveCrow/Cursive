@@ -1,9 +1,0 @@
-extern "C" {
-    [[mangle(none), mangle("conflicting_extern_symbol")]]
-    procedure conflicting_extern_mangle() -> i32
-}
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

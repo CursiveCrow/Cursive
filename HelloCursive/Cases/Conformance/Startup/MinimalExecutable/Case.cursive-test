@@ -1,0 +1,8 @@
+case_id = "case.minimal_executable"
+source = "src/Main.cursive"
+mode = "check"
+expected_compile_status = "pass"
+obligations = [
+    "def.Conforming",
+    "def.CompilableProgram"
+]

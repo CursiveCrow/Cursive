@@ -1,9 +1,0 @@
-[[library(kind: "dylib")]]
-extern "C" {
-    procedure missing_library_name() -> i32
-}
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

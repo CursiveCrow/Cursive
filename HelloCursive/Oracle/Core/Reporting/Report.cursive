@@ -1,0 +1,182 @@
+public record PhaseRunResult {
+    public ctx: OutputContext
+    public status: i32
+    public passed_count: i32
+    public failed_count: i32
+}
+
+public procedure phaseRunResult(
+    ctx: OutputContext,
+    status: i32,
+    passed_count: i32,
+    failed_count: i32
+) -> PhaseRunResult {
+    return PhaseRunResult {
+        ctx: ctx,
+        status: status,
+        passed_count: passed_count,
+        failed_count: failed_count
+    }
+}
+
+public procedure emitPhaseBegin(
+    ctx: OutputContext,
+    phase: ReportPhase,
+    subject_id: string@View,
+    owner: string@View
+) -> OutputContext {
+    return emitEvent(
+        ctx,
+        eventBase(
+            ReportEventKind::PhaseBegin,
+            ReportSeverity::Info,
+            phase,
+            ReportSubjectKind::Phase,
+            subject_id,
+            owner,
+            ReportStatus::Started,
+            "phase_begin"
+        )
+    )
+}
+
+public procedure emitPhaseEnd(
+    ctx: OutputContext,
+    phase: ReportPhase,
+    subject_id: string@View,
+    owner: string@View,
+    status: ReportStatus
+) -> OutputContext {
+    return emitEvent(
+        ctx,
+        eventBase(
+            ReportEventKind::PhaseEnd,
+            ReportSeverity::Info,
+            phase,
+            ReportSubjectKind::Phase,
+            subject_id,
+            owner,
+            status,
+            "phase_end"
+        )
+    )
+}
+
+public procedure emitCheckpoint(
+    ctx: OutputContext,
+    phase: ReportPhase,
+    subject_kind: ReportSubjectKind,
+    subject_id: string@View,
+    owner: string@View
+) -> OutputContext {
+    return emitEvent(
+        ctx,
+        eventBase(
+            ReportEventKind::Checkpoint,
+            ReportSeverity::Info,
+            phase,
+            subject_kind,
+            subject_id,
+            owner,
+            ReportStatus::Running,
+            "checkpoint"
+        )
+    )
+}
+
+public procedure emitFinalSummary(
+    ctx: OutputContext,
+    status: ReportStatus,
+    event_count: i32
+) -> OutputContext {
+    let event: OutputEvent = eventBase(
+        ReportEventKind::FinalSummary,
+        ReportSeverity::Info,
+        ReportPhase::Shutdown,
+        ReportSubjectKind::OracleRun,
+        "main.default",
+        "HelloCursive::Oracle",
+        status,
+        "final_summary"
+    )
+    return emitEvent(
+        ctx,
+        OutputEvent {
+            event_kind: event.event_kind,
+            severity: event.severity,
+            phase: event.phase,
+            subject_kind: event.subject_kind,
+            subject_id: event.subject_id,
+            owner: event.owner,
+            status: event.status,
+            failure_kind: event.failure_kind,
+            evidence_kind: event.evidence_kind,
+            expected: event.expected,
+            observed: event.observed,
+            evidence_path: event.evidence_path,
+            source_start: event.source_start,
+            source_end: event.source_end,
+            source_line: event.source_line,
+            source_column: event.source_column,
+            content_identity: event.content_identity,
+            metric_kind: ReportMetricKind::EventCount,
+            metric_value: ReportTextValue::Integer(event_count),
+            message: event.message
+        }
+    )
+}
+
+public procedure emitFinalMetric(
+    ctx: OutputContext,
+    status: ReportStatus,
+    metric_kind: ReportMetricKind,
+    value: i32,
+    message: string@View
+) -> OutputContext {
+    let event: OutputEvent = eventWithMetricInteger(
+        eventBase(
+            ReportEventKind::FinalSummary,
+            ReportSeverity::Info,
+            ReportPhase::Shutdown,
+            ReportSubjectKind::OracleRun,
+            "main.default",
+            "HelloCursive::Oracle",
+            status,
+            message
+        ),
+        metric_kind,
+        value
+    )
+    return emitEvent(ctx, event)
+}
+
+public procedure emitFinalEvidence(
+    ctx: OutputContext,
+    status: ReportStatus,
+    evidence_kind: ReportEvidenceKind,
+    evidence_path: string@View,
+    message: string@View
+) -> OutputContext {
+    let event: OutputEvent = eventWithEvidence(
+        eventBase(
+            ReportEventKind::FinalSummary,
+            ReportSeverity::Info,
+            ReportPhase::Shutdown,
+            ReportSubjectKind::OracleRun,
+            "main.default",
+            "HelloCursive::Oracle",
+            status,
+            message
+        ),
+        evidence_kind,
+        evidence_path
+    )
+    return emitEvent(ctx, event)
+}
+
+public procedure statusFromCode(status: i32) -> ReportStatus {
+    if (status == 0) {
+        return ReportStatus::Passed
+    }
+    return ReportStatus::Failed
+}

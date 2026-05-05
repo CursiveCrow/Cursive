@@ -1,3 +1,0 @@
-public record ExternalBox<T> {
-    public value: T
-}

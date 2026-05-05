@@ -1,8 +1,0 @@
-[[layout]]
-public record MissingLayoutArgs {
-    value: i32
-}
-public procedure main(move ctx: Context) -> i32 {
-    let _ = MissingLayoutArgs { value: 1 }
-    return 0
-}

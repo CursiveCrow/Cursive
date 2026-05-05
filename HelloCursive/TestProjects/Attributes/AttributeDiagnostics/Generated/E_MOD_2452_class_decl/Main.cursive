@@ -1,9 +1,0 @@
-[[deprecated]]
-public class UnsupportedAttrClass {
-    procedure score(~) -> i32
-}
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

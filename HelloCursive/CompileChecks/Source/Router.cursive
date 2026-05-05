@@ -1,3 +1,0 @@
-public procedure run(ctx: Context) -> i32 {
-    return runCompileChecks(ctx)
-}

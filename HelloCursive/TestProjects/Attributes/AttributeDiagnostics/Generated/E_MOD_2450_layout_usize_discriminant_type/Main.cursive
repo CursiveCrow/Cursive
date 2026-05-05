@@ -1,9 +1,0 @@
-[[layout(usize)]]
-public enum LayoutUsizeDiscriminantProbe {
-    Value
-}
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    let _ = LayoutUsizeDiscriminantProbe::Value
-    return 0
-}

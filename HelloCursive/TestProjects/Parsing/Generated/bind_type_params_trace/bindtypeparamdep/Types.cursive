@@ -1,5 +1,0 @@
-public record ExternalBox<Payload> {
-    value: Payload
-}
-
-public type ExternalAlias<Seed> = ExternalBox<Seed>

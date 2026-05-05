@@ -1,8 +1,0 @@
-[[align(8)]]
-public record AlignStandalone {
-    value: i32
-}
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

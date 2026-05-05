@@ -1,0 +1,85 @@
+import core::Reporting
+import runner::Contract
+
+procedure emitRuntimeEvidence(
+    ctx: Reporting::OutputContext,
+    evidence_kind: Reporting::ReportEvidenceKind,
+    evidence_path: string@View,
+    result: Contract::ImplementationResult,
+    message: string@View
+) -> Reporting::OutputContext {
+    let event: Reporting::OutputEvent = Reporting::eventWithExpectedObserved(
+        Reporting::evidenceEvent(
+            Reporting::ReportPhase::RuntimeRun,
+            Reporting::ReportSubjectKind::ImplementationResult,
+            result.case_id,
+            "Runner",
+            Reporting::ReportStatus::Skipped,
+            evidence_kind,
+            evidence_path,
+            message
+        ),
+        result.obligation_id,
+        Contract::renderRunnerCommandMode(result.command_mode)
+    )
+    return Reporting::emitEvent(ctx, event)
+}
+
+public procedure recordRuntimeSkipped(
+    ctx: Reporting::OutputContext,
+    compiler_result: Contract::ImplementationResult
+) -> Reporting::PhaseRunResult {
+    var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
+        ctx,
+        Reporting::ReportPhase::RuntimeRun,
+        "runtime_run",
+        "Runner"
+    )
+    let runtime_result: Contract::ImplementationResult = Contract::implementationResult(
+        compiler_result.case_id,
+        compiler_result.obligation_id,
+        Contract::RunnerCommandMode::RuntimeSkipped,
+        "runtime_not_launched_no_executable_artifact",
+        compiler_result.exit_status,
+        "HelloCursive/build/oracle/runner/case_minimal_executable/runtime.stdout",
+        "HelloCursive/build/oracle/runner/case_minimal_executable/runtime.stderr",
+        compiler_result.diagnostic_path,
+        compiler_result.artifact_path
+    )
+    output = emitRuntimeEvidence(
+        output,
+        Reporting::ReportEvidenceKind::CommandText,
+        runtime_result.command_text,
+        runtime_result,
+        "runtime_command"
+    )
+    output = emitRuntimeEvidence(
+        output,
+        Reporting::ReportEvidenceKind::RuntimeStatus,
+        "skipped_no_executable_artifact",
+        runtime_result,
+        "runtime_exit_status"
+    )
+    output = emitRuntimeEvidence(
+        output,
+        Reporting::ReportEvidenceKind::StdoutPath,
+        runtime_result.stdout_path,
+        runtime_result,
+        "runtime_stdout_path"
+    )
+    output = emitRuntimeEvidence(
+        output,
+        Reporting::ReportEvidenceKind::StderrPath,
+        runtime_result.stderr_path,
+        runtime_result,
+        "runtime_stderr_path"
+    )
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::RuntimeRun,
+        "runtime_run",
+        "Runner",
+        Reporting::ReportStatus::Skipped
+    )
+    return Reporting::phaseRunResult(output, 0, 1, 0)
+}

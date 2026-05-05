@@ -1,6 +1,0 @@
-public procedure main(move ctx: Context) -> i32 {
-    let a: Async<(), (), (), !>@Completed =
-        Async<(), (), (), !>@Completed { value: () }
-    let _ = a
-    return 0
-}

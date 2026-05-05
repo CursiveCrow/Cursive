@@ -1,6 +1,0 @@
-public record FieldBox<T; Mirror = T> {
-    public value: T
-    public mirror: Mirror
-}
-
-public type NamedBox<T> = FieldBox<T>

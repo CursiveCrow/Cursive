@@ -1,9 +1,0 @@
-[[trust]]
-extern "C" {
-    procedure unknown_verification_probe(value: i32) -> i32
-}
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

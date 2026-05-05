@@ -1,6 +1,0 @@
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    let range_value: Range<usize> = 0usize..4usize
-    let _ = range_value
-    return 0
-}

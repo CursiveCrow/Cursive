@@ -1,0 +1,178 @@
+import core::Reporting
+import runner::Contract as RunnerContract
+import spec::Obligations
+
+public enum ComparisonMismatchKind {
+    None
+    MissingRequiredDiagnostic
+    UnexpectedDiagnostic
+    WrongDiagnosticSeverity
+    WrongDiagnosticCode
+    WrongDiagnosticSpan
+    MalformedDiagnosticJson
+    CompileStatusMismatch
+    RuntimeExitMismatch
+    RuntimeStdoutMismatch
+    RuntimeStderrMismatch
+    RuntimeEffectMismatch
+    OutsideConformance
+}
+
+public record ComparisonResult {
+    public comparison_id: string@View
+    public case_id: string@View
+    public obligation_id: string@View
+    public rule_id: string@View
+    public status: Reporting::ReportStatus
+    public mismatch_kind: ComparisonMismatchKind
+    public expected_summary: string@View
+    public observed_summary: string@View
+    public evidence_path: string@View
+    public source_start: i32
+    public source_end: i32
+    public source_line: i32
+    public source_column: i32
+    public content_identity: i32
+}
+
+public record ComparisonSummary {
+    public ctx: Reporting::OutputContext
+    public status: i32
+    public passed_count: i32
+    public failed_count: i32
+    public blocked_count: i32
+    public unsupported_count: i32
+    public outside_conformance_count: i32
+    public result: ComparisonResult
+}
+
+public procedure renderComparisonMismatchKind(value: ComparisonMismatchKind) -> string@View {
+    return if value is {
+        ComparisonMismatchKind::None { "none" }
+        ComparisonMismatchKind::MissingRequiredDiagnostic { "missing_required_diagnostic" }
+        ComparisonMismatchKind::UnexpectedDiagnostic { "unexpected_diagnostic" }
+        ComparisonMismatchKind::WrongDiagnosticSeverity { "wrong_diagnostic_severity" }
+        ComparisonMismatchKind::WrongDiagnosticCode { "wrong_diagnostic_code" }
+        ComparisonMismatchKind::WrongDiagnosticSpan { "wrong_diagnostic_span" }
+        ComparisonMismatchKind::MalformedDiagnosticJson { "malformed_diagnostic_json" }
+        ComparisonMismatchKind::CompileStatusMismatch { "compile_status_mismatch" }
+        ComparisonMismatchKind::RuntimeExitMismatch { "runtime_exit_mismatch" }
+        ComparisonMismatchKind::RuntimeStdoutMismatch { "runtime_stdout_mismatch" }
+        ComparisonMismatchKind::RuntimeStderrMismatch { "runtime_stderr_mismatch" }
+        ComparisonMismatchKind::RuntimeEffectMismatch { "runtime_effect_mismatch" }
+        ComparisonMismatchKind::OutsideConformance { "outside_conformance" }
+    }
+}
+
+public procedure expectedStatusSummary(value: Reporting::ReportStatus) -> string@View {
+    return if value is {
+        Reporting::ReportStatus::Passed { "expected_compile_accept" }
+        Reporting::ReportStatus::Failed { "expected_compile_reject" }
+        Reporting::ReportStatus::OutsideConformance { "expected_outside_conformance" }
+        _ { "expected_status_not_modeled" }
+    }
+}
+
+public procedure observedCompilerSummary(value: RunnerContract::ImplementationResult) -> string@View {
+    if (value.exit_status == 0) {
+        return "observed_compile_accept"
+    }
+    return "observed_compile_reject"
+}
+
+public procedure reportStatusIsPassed(value: Reporting::ReportStatus) -> bool {
+    return if value is {
+        Reporting::ReportStatus::Passed { true }
+        _ { false }
+    }
+}
+
+public procedure reportStatusIsFailed(value: Reporting::ReportStatus) -> bool {
+    return if value is {
+        Reporting::ReportStatus::Failed { true }
+        _ { false }
+    }
+}
+
+public procedure reportStatusIsBlocked(value: Reporting::ReportStatus) -> bool {
+    return if value is {
+        Reporting::ReportStatus::Blocked { true }
+        _ { false }
+    }
+}
+
+public procedure reportStatusIsUnsupportedByReference(value: Reporting::ReportStatus) -> bool {
+    return if value is {
+        Reporting::ReportStatus::UnsupportedByReference { true }
+        _ { false }
+    }
+}
+
+public procedure reportStatusIsOutsideConformance(value: Reporting::ReportStatus) -> bool {
+    return if value is {
+        Reporting::ReportStatus::OutsideConformance { true }
+        _ { false }
+    }
+}
+
+public procedure reportStatusIsBlockedByOracleLanguageSupport(
+    value: Reporting::ReportStatus
+) -> bool {
+    return if value is {
+        Reporting::ReportStatus::BlockedByOracleLanguageSupport { true }
+        _ { false }
+    }
+}
+
+public procedure comparisonResult(
+    comparison_id: string@View,
+    case_id: string@View,
+    obligation_id: string@View,
+    rule_id: string@View,
+    implementation: RunnerContract::ImplementationResult,
+    obligation: Obligations::SpecObligation,
+    status: Reporting::ReportStatus,
+    mismatch_kind: ComparisonMismatchKind,
+    expected_summary: string@View,
+    observed_summary: string@View,
+    evidence_path: string@View
+) -> ComparisonResult {
+    return ComparisonResult {
+        comparison_id: comparison_id,
+        case_id: case_id,
+        obligation_id: obligation_id,
+        rule_id: rule_id,
+        status: status,
+        mismatch_kind: mismatch_kind,
+        expected_summary: expected_summary,
+        observed_summary: observed_summary,
+        evidence_path: evidence_path,
+        source_start: obligation.source.source_start,
+        source_end: obligation.source.source_end,
+        source_line: obligation.source.source_line,
+        source_column: obligation.source.source_column,
+        content_identity: obligation.source.content_identity
+    }
+}
+
+public procedure comparisonSummary(
+    ctx: Reporting::OutputContext,
+    result: ComparisonResult,
+    status: i32,
+    passed_count: i32,
+    failed_count: i32,
+    blocked_count: i32,
+    unsupported_count: i32,
+    outside_conformance_count: i32
+) -> ComparisonSummary {
+    return ComparisonSummary {
+        ctx: ctx,
+        status: status,
+        passed_count: passed_count,
+        failed_count: failed_count,
+        blocked_count: blocked_count,
+        unsupported_count: unsupported_count,
+        outside_conformance_count: outside_conformance_count,
+        result: result
+    }
+}

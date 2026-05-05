@@ -1,0 +1,227 @@
+public record OutputRegressionScenario {
+    public run_scope: string@View
+    public stdout_path: string@View
+    public stderr_path: string@View
+    public event: OutputEvent
+}
+
+public procedure outputRegressionScenario(
+    run_scope: string@View,
+    stdout_path: string@View,
+    stderr_path: string@View,
+    event: OutputEvent
+) -> OutputRegressionScenario {
+    return OutputRegressionScenario {
+        run_scope: run_scope,
+        stdout_path: stdout_path,
+        stderr_path: stderr_path,
+        event: event
+    }
+}
+
+procedure outputRegressionEvent(
+    event_kind: ReportEventKind,
+    severity: ReportSeverity,
+    phase: ReportPhase,
+    subject_kind: ReportSubjectKind,
+    subject_id: ReportTextValue,
+    owner: ReportTextValue,
+    status: ReportStatus,
+    failure_kind: ReportFailureKind,
+    evidence_kind: ReportEvidenceKind,
+    expected: ReportTextValue,
+    observed: ReportTextValue,
+    evidence_path: ReportTextValue,
+    has_source: bool,
+    source_start: i32,
+    source_end: i32,
+    source_line: i32,
+    source_column: i32,
+    content_identity: i32,
+    metric_kind: ReportMetricKind,
+    metric_value: ReportTextValue,
+    message: ReportTextValue
+) -> OutputEvent {
+    return OutputEvent {
+        event_kind: event_kind,
+        severity: severity,
+        phase: phase,
+        subject_kind: subject_kind,
+        subject_id: subject_id,
+        owner: owner,
+        status: status,
+        failure_kind: failure_kind,
+        evidence_kind: evidence_kind,
+        expected: expected,
+        observed: observed,
+        evidence_path: evidence_path,
+        source_start: if has_source { integerValue(source_start) } else { omittedText() },
+        source_end: if has_source { integerValue(source_end) } else { omittedText() },
+        source_line: if has_source { integerValue(source_line) } else { omittedText() },
+        source_column: if has_source { integerValue(source_column) } else { omittedText() },
+        content_identity: if has_source { integerValue(content_identity) } else { omittedText() },
+        metric_kind: metric_kind,
+        metric_value: metric_value,
+        message: message
+    }
+}
+
+public procedure successProgressScenario() -> OutputRegressionScenario {
+    let event: OutputEvent = outputRegressionEvent(
+        ReportEventKind::Progress,
+        ReportSeverity::Info,
+        ReportPhase::FoundationSelftest,
+        ReportSubjectKind::OutputRegression,
+        textValue("success_progress"),
+        textValue("Core::Reporting"),
+        ReportStatus::Passed,
+        ReportFailureKind::Absent,
+        ReportEvidenceKind::EmittedArtifactPath,
+        textValue("stdout_line"),
+        textValue("validated"),
+        textValue(successProgressStdoutPath()),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::PassedCount,
+        integerValue(1),
+        textValue("synthetic_success_progress")
+    )
+    return outputRegressionScenario(
+        "output_regression.success_progress",
+        successProgressStdoutPath(),
+        successProgressStderrPath(),
+        event
+    )
+}
+
+public procedure successCheckpointScenario() -> OutputRegressionScenario {
+    let event: OutputEvent = outputRegressionEvent(
+        ReportEventKind::Checkpoint,
+        ReportSeverity::Info,
+        ReportPhase::CompilerRun,
+        ReportSubjectKind::ImplementationResult,
+        textValue("case.minimal_executable"),
+        textValue("Runner"),
+        ReportStatus::ExecutedPass,
+        ReportFailureKind::Absent,
+        ReportEvidenceKind::CaseId,
+        textValue("hand_case"),
+        textValue("case.minimal_executable"),
+        textValue("HelloCursive/Cases/Conformance/Startup/MinimalExecutable/Case.cursive-test"),
+        true,
+        11715,
+        11737,
+        233,
+        1,
+        149731,
+        ReportMetricKind::ExecutedPassCount,
+        integerValue(1),
+        textValue("synthetic_success_checkpoint")
+    )
+    return outputRegressionScenario(
+        "output_regression.success_checkpoint",
+        successCheckpointStdoutPath(),
+        successCheckpointStderrPath(),
+        event
+    )
+}
+
+public procedure successFinalSummaryScenario() -> OutputRegressionScenario {
+    let event: OutputEvent = outputRegressionEvent(
+        ReportEventKind::FinalSummary,
+        ReportSeverity::Info,
+        ReportPhase::Shutdown,
+        ReportSubjectKind::OracleRun,
+        textValue("main.default"),
+        textValue("HelloCursive::Oracle"),
+        ReportStatus::Completed,
+        ReportFailureKind::Absent,
+        ReportEvidenceKind::EmittedArtifactPath,
+        textValue("no_failure_events"),
+        textValue("completed"),
+        textValue(successFinalSummaryStdoutPath()),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::EventCount,
+        integerValue(3),
+        textValue("synthetic_success_final_summary")
+    )
+    return outputRegressionScenario(
+        "output_regression.success_final_summary",
+        successFinalSummaryStdoutPath(),
+        successFinalSummaryStderrPath(),
+        event
+    )
+}
+
+public procedure escapedValueScenario() -> OutputRegressionScenario {
+    let event: OutputEvent = outputRegressionEvent(
+        ReportEventKind::Evidence,
+        ReportSeverity::Info,
+        ReportPhase::ReportWrite,
+        ReportSubjectKind::Report,
+        textValue("escaped subject"),
+        textValue("Core::Reporting"),
+        ReportStatus::Rendered,
+        ReportFailureKind::Absent,
+        ReportEvidenceKind::EmittedArtifactPath,
+        textValue("value=with reserved"),
+        textValue("value=with reserved"),
+        textValue(escapedValueStdoutPath()),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::EventCount,
+        integerValue(1),
+        textValue("contains space=equals|pipe[bracket]")
+    )
+    return outputRegressionScenario(
+        "output_regression.escaped_value",
+        escapedValueStdoutPath(),
+        escapedValueStderrPath(),
+        event
+    )
+}
+
+public procedure listValueScenario() -> OutputRegressionScenario {
+    let event: OutputEvent = outputRegressionEvent(
+        ReportEventKind::Evidence,
+        ReportSeverity::Info,
+        ReportPhase::FoundationSelftest,
+        ReportSubjectKind::OutputRegression,
+        ReportTextValue::ListTwo("output_regression", "list_value"),
+        textValue("Core::Reporting"),
+        ReportStatus::Rendered,
+        ReportFailureKind::Absent,
+        ReportEvidenceKind::EmittedArtifactPath,
+        ReportTextValue::ListTwo("stdout", "stderr"),
+        ReportTextValue::ListTwo("validated", "empty"),
+        textValue(listValueStdoutPath()),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::EventCount,
+        integerValue(1),
+        textValue("synthetic_list_value")
+    )
+    return outputRegressionScenario(
+        "output_regression.list_value",
+        listValueStdoutPath(),
+        listValueStderrPath(),
+        event
+    )
+}

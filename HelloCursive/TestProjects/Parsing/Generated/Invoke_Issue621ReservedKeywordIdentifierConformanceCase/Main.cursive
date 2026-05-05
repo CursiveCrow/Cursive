@@ -1,7 +1,0 @@
-using foo::procedure
-
-public procedure record(move ctx: Context) -> i32 {
-    let _ = ctx
-    let if: i32 = 0
-    return 0
-}

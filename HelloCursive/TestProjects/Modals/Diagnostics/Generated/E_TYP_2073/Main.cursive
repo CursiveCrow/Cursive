@@ -1,5 +1,0 @@
-public procedure main(move ctx: Context) -> i32 {
-    let file: File@Read = File@Read { handle: 1usize }
-    let _ = file
-    return 0
-}

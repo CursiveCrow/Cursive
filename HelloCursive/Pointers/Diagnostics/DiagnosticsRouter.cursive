@@ -1,8 +1,0 @@
-public procedure runGroup(ctx: Context) -> i32 {
-    let status_matrix: i32 = RunPointerDiagnosticMatrix(ctx)
-    if (status_matrix != 0) {
-        return status_matrix
-    }
-
-    return 0
-}

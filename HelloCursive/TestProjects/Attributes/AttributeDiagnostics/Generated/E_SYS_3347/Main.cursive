@@ -1,8 +1,0 @@
-[[library(name: "./missing/does_not_exist_for_3347", kind: "static")]]
-extern "C" {
-    procedure MissingLibraryProbe() -> i32
-}
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

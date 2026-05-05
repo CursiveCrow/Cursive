@@ -1,0 +1,226 @@
+procedure diagnosticMismatchKind(
+    implementation: RunnerContract::ImplementationResult,
+    expected_status: Reporting::ReportStatus
+) -> ComparisonMismatchKind {
+    if (reportStatusIsPassed(expected_status) == true) {
+        if (implementation.exit_status != 0) {
+            return ComparisonMismatchKind::UnexpectedDiagnostic
+        }
+    }
+    if (reportStatusIsFailed(expected_status) == true) {
+        if (implementation.exit_status == 0) {
+            return ComparisonMismatchKind::MissingRequiredDiagnostic
+        }
+    }
+    return ComparisonMismatchKind::CompileStatusMismatch
+}
+
+procedure compareDiagnosticResult(
+    implementation: RunnerContract::ImplementationResult,
+    obligation: Obligations::SpecObligation,
+    expected_status: Reporting::ReportStatus
+) -> ComparisonResult {
+    if (reportStatusIsOutsideConformance(expected_status) == true) {
+        return comparisonResult(
+            "comparison.case.minimal_executable",
+            implementation.case_id,
+            implementation.obligation_id,
+            "case.manual.minimal_executable",
+            implementation,
+            obligation,
+            Reporting::ReportStatus::OutsideConformance,
+            ComparisonMismatchKind::OutsideConformance,
+            expectedStatusSummary(expected_status),
+            observedCompilerSummary(implementation),
+            implementation.diagnostic_path
+        )
+    }
+    if (implementation.exit_status == 0) {
+        return comparisonResult(
+            "comparison.case.minimal_executable",
+            implementation.case_id,
+            implementation.obligation_id,
+            "case.manual.minimal_executable",
+            implementation,
+            obligation,
+            Reporting::ReportStatus::Passed,
+            ComparisonMismatchKind::None,
+            expectedStatusSummary(expected_status),
+            observedCompilerSummary(implementation),
+            implementation.diagnostic_path
+        )
+    }
+    return comparisonResult(
+        "comparison.case.minimal_executable",
+        implementation.case_id,
+        implementation.obligation_id,
+        "case.manual.minimal_executable",
+        implementation,
+        obligation,
+        Reporting::ReportStatus::Failed,
+        diagnosticMismatchKind(implementation, expected_status),
+        expectedStatusSummary(expected_status),
+        observedCompilerSummary(implementation),
+        implementation.diagnostic_path
+    )
+}
+
+procedure emitComparisonResult(
+    ctx: Reporting::OutputContext,
+    result: ComparisonResult
+) -> Reporting::OutputContext {
+    let event: Reporting::OutputEvent = Reporting::eventWithSourceContext(
+        Reporting::eventWithEvidence(
+            Reporting::eventWithExpectedObserved(
+                Reporting::eventBase(
+                    Reporting::ReportEventKind::Evidence,
+                    Reporting::ReportSeverity::Info,
+                    Reporting::ReportPhase::Comparison,
+                    Reporting::ReportSubjectKind::ComparisonResult,
+                    result.comparison_id,
+                    "Oracle::Compare",
+                    result.status,
+                    renderComparisonMismatchKind(result.mismatch_kind)
+                ),
+                result.expected_summary,
+                result.observed_summary
+            ),
+            Reporting::ReportEvidenceKind::ComparisonResultId,
+            result.evidence_path
+        ),
+        result.source_start,
+        result.source_end,
+        result.source_line,
+        result.source_column,
+        result.content_identity
+    )
+    return Reporting::emitEvent(ctx, event)
+}
+
+procedure emitDiagnosticFailure(
+    ctx: Reporting::OutputContext,
+    result: ComparisonResult
+) -> Reporting::OutputContext {
+    if (reportStatusIsFailed(result.status) == true) {
+        let event: Reporting::OutputEvent = Reporting::eventWithSourceContext(
+            Reporting::eventWithEvidence(
+                Reporting::failureEvent(
+                    Reporting::ReportPhase::Comparison,
+                    Reporting::ReportSubjectKind::ComparisonResult,
+                    result.comparison_id,
+                    "Oracle::Compare",
+                    Reporting::ReportFailureKind::DiagnosticMismatch,
+                    result.expected_summary,
+                    result.observed_summary,
+                    renderComparisonMismatchKind(result.mismatch_kind)
+                ),
+                Reporting::ReportEvidenceKind::ComparisonResultId,
+                result.evidence_path
+            ),
+            result.source_start,
+            result.source_end,
+            result.source_line,
+            result.source_column,
+            result.content_identity
+        )
+        return Reporting::emitEvent(ctx, event)
+    }
+    return ctx
+}
+
+procedure emitComparisonMetric(
+    ctx: Reporting::OutputContext,
+    subject_id: string@View,
+    metric_kind: Reporting::ReportMetricKind,
+    value: i32,
+    status: Reporting::ReportStatus
+) -> Reporting::OutputContext {
+    return Reporting::emitEvent(
+        ctx,
+        Reporting::metricIntegerEvent(
+            Reporting::ReportPhase::Comparison,
+            Reporting::ReportSubjectKind::ComparisonResult,
+            subject_id,
+            "Oracle::Compare",
+            status,
+            metric_kind,
+            value,
+            "comparison_count_by_status"
+        )
+    )
+}
+
+procedure comparisonExitStatus(result: ComparisonResult) -> i32 {
+    if (reportStatusIsFailed(result.status) == true) {
+        return 1
+    }
+    return 0
+}
+
+procedure comparisonPassedCount(result: ComparisonResult) -> i32 {
+    if (reportStatusIsPassed(result.status) == true) {
+        return 1
+    }
+    return 0
+}
+
+procedure comparisonFailedCount(result: ComparisonResult) -> i32 {
+    if (reportStatusIsFailed(result.status) == true) {
+        return 1
+    }
+    return 0
+}
+
+public procedure runComparison(
+    ctx: Reporting::OutputContext,
+    implementation: RunnerContract::ImplementationResult,
+    obligation: Obligations::ObligationSummary
+) -> ComparisonSummary {
+    var output: Reporting::OutputContext = Reporting::emitPhaseBegin(
+        ctx,
+        Reporting::ReportPhase::Comparison,
+        "comparison",
+        "Oracle::Compare"
+    )
+    let result: ComparisonResult = compareDiagnosticResult(
+        implementation,
+        obligation.primary_obligation,
+        Reporting::ReportStatus::Passed
+    )
+    output = emitComparisonResult(output, result)
+    output = emitDiagnosticFailure(output, result)
+
+    let passed_count: i32 = comparisonPassedCount(result)
+    let failed_count: i32 = comparisonFailedCount(result)
+    output = emitComparisonMetric(
+        output,
+        "status.passed",
+        Reporting::ReportMetricKind::PassedCount,
+        passed_count,
+        Reporting::ReportStatus::Passed
+    )
+    output = emitComparisonMetric(
+        output,
+        "status.failed",
+        Reporting::ReportMetricKind::FailedCount,
+        failed_count,
+        Reporting::ReportStatus::Failed
+    )
+    output = Reporting::emitPhaseEnd(
+        output,
+        Reporting::ReportPhase::Comparison,
+        "comparison",
+        "Oracle::Compare",
+        result.status
+    )
+    return comparisonSummary(
+        output,
+        result,
+        comparisonExitStatus(result),
+        passed_count,
+        failed_count,
+        0,
+        0,
+        0
+    )
+}

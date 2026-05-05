@@ -1,5 +1,0 @@
-public procedure runSuiteIntegrityChecks(ctx: Context) -> i32 {
-    let command: string@View =
-        "cmd.exe /C if not exist Cursive.toml exit /b 1 & if not exist ..\\TestProjects\\Parsing\\Generated exit /b 1 & if not exist ..\\TestProjects\\Diagnostics\\Generated exit /b 1 & if not exist ..\\TestProjects\\Operations\\Generated exit /b 1 & if not exist ..\\TestProjects\\Permissions\\Generated exit /b 1 & if not exist ..\\TestProjects\\Types\\CoreSystem\\Generated exit /b 1 & if not exist ..\\TestProjects\\Attributes\\FfiAttributes\\Generated exit /b 1 & if not exist ..\\TestProjects\\Modals\\Diagnostics\\Generated exit /b 1 & exit /b 0"
-    return runCompileCheckCommand(ctx, command, "suite-integrity/hard-cutover")
-}

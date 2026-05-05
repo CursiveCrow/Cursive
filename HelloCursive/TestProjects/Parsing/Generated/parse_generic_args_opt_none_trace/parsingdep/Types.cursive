@@ -1,3 +1,0 @@
-public record ParseGenericArgsOptExternalBox<T> {
-    public value: T
-}

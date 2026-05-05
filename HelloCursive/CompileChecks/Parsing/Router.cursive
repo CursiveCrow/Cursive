@@ -1,7 +1,0 @@
-public procedure run(ctx: Context) -> i32 {
-    let status_seed: i32 = runCompileChecks(ctx)
-    if (status_seed != 0) {
-        return status_seed
-    }
-    return runGeneratedCompileChecks(ctx)
-}

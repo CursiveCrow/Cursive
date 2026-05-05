@@ -1,5 +1,0 @@
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    let values: (i32, i32) = (1, 2)
-    return values.0 + values.1
-}

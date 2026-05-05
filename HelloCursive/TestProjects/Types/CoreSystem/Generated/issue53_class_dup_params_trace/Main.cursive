@@ -1,8 +1,0 @@
-class BadClassDupParams {
-    procedure f(~, x: i32, x: i32) -> i32;
-}
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

@@ -1,0 +1,15 @@
+coverage_ledger=coverage.ledger.main
+source=docs/CursiveSpecification.md
+obligation_ledger=HelloCursive/build/oracle/obligations/obligations.bin
+status=uncovered
+total_obligation_count=5953
+required_obligation_count=5933
+uncovered_count=5932
+state.parsed_only=5951
+state.executed_pass=1
+state.executed_fail=0
+state.outside_conformance=0
+state.informative_only=1
+obligation_ledger_read_failure_count=0
+malformed_obligation_record_count=0
+top_uncovered_obligation=front-matter.feature-section-template source_start=1943 source_end=3251 source_line=65 source_column=1 content_identity=2603 state=parsed_only reason=hand_case_not_yet_mapped_to_required_obligation

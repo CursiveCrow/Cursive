@@ -1,9 +1,0 @@
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    var gate: shared i32 = 0
-    [[relaxed]]
-    # gate speculative write {
-        gate = gate + 1
-    }
-    return 0
-}

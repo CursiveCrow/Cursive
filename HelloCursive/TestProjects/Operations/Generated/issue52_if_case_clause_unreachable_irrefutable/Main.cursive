@@ -1,9 +1,0 @@
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    let value: i32 = 1
-    let observed: i32 = if value is {
-        _ { 0 }
-        1 { 1 }
-    }
-    return observed
-}

@@ -1,9 +1,0 @@
-class Row1176FieldMethodConflict {
-    collide: i32
-    procedure collide(~) -> i32;
-}
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

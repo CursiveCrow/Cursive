@@ -1,9 +1,0 @@
-[[library(name: "kernel32", kind: "raw-dylib")]]
-extern "C" {
-    procedure GetCurrentProcessId() -> u32
-}
-
-public procedure ProbeRawDylibImport() -> u32 {
-    return unsafe { GetCurrentProcessId() }
-}
-

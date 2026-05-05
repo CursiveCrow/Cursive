@@ -1,0 +1,414 @@
+procedure writeTextFile(fs: $FileSystem, path: string@View, text: string@View) -> bool {
+    return if fs~>write_file(path, bytes::view_string(text)) is {
+        _: () { true }
+        _: IoError { false }
+    }
+}
+
+procedure ensureOutputRegressionDirectory(fs: $FileSystem) -> bool {
+    return if fs~>create_dir("build") is {
+        _: () { true }
+        _: IoError { fs~>exists("build") }
+    } && if fs~>create_dir("build/main") is {
+        _: () { true }
+        _: IoError { fs~>exists("build/main") }
+    } && if fs~>create_dir(outputRegressionDirectory()) is {
+        _: () { true }
+        _: IoError { fs~>exists(outputRegressionDirectory()) }
+    }
+}
+
+procedure writeOutputRegressionScenario(
+    ctx: OutputContext,
+    scenario: OutputRegressionScenario
+) -> bool {
+    let writes_stderr: bool = eventWritesStderr(scenario.event)
+    let stdout_ok: bool = if writes_stderr == true {
+        writeTextFile(ctx.fs, scenario.stdout_path, "")
+    } else {
+        writeEventArtifact(ctx.fs, scenario.stdout_path, scenario.run_scope, 0, scenario.event)
+    }
+    let stderr_ok: bool = if writes_stderr == true {
+        writeEventArtifact(ctx.fs, scenario.stderr_path, scenario.run_scope, 0, scenario.event)
+    } else {
+        writeTextFile(ctx.fs, scenario.stderr_path, "")
+    }
+    return stdout_ok && stderr_ok
+}
+
+public procedure writeOutputRegressionArtifacts(ctx: OutputContext) -> bool {
+    if (ensureOutputRegressionDirectory(ctx.fs) == false) {
+        return false
+    }
+    let success_progress: OutputRegressionScenario = successProgressScenario()
+    let success_checkpoint: OutputRegressionScenario = successCheckpointScenario()
+    let success_final_summary: OutputRegressionScenario = successFinalSummaryScenario()
+    let escaped_value: OutputRegressionScenario = escapedValueScenario()
+    let list_value: OutputRegressionScenario = listValueScenario()
+    let oracle_internal: OutputRegressionScenario = oracleInternalFailureScenario()
+    let spec_parse: OutputRegressionScenario = specParseErrorFailureScenario()
+    let reference_gap: OutputRegressionScenario = referenceModelGapFailureScenario()
+    let compiler_block: OutputRegressionScenario = currentCompilerFailureScenario()
+    let oracle_language: OutputRegressionScenario = oracleLanguageFailureScenario()
+    let compiler_invocation: OutputRegressionScenario = compilerInvocationFailureScenario()
+    let runtime_invocation: OutputRegressionScenario = runtimeInvocationFailureScenario()
+    let diagnostic_mismatch: OutputRegressionScenario = diagnosticMismatchFailureScenario()
+    let runtime_mismatch: OutputRegressionScenario = runtimeMismatchFailureScenario()
+    let coverage_incomplete: OutputRegressionScenario = coverageIncompleteFailureScenario()
+    let report_write: OutputRegressionScenario = reportWriteFailureScenario()
+
+    let success_progress_ok: bool =
+        writeOutputRegressionScenario(ctx, success_progress)
+    let success_checkpoint_ok: bool =
+        writeOutputRegressionScenario(ctx, success_checkpoint)
+    let success_final_summary_ok: bool =
+        writeOutputRegressionScenario(ctx, success_final_summary)
+    let escaped_value_ok: bool =
+        writeOutputRegressionScenario(ctx, escaped_value)
+    let list_value_ok: bool =
+        writeOutputRegressionScenario(ctx, list_value)
+    let oracle_internal_ok: bool =
+        writeOutputRegressionScenario(ctx, oracle_internal)
+    let spec_parse_ok: bool =
+        writeOutputRegressionScenario(ctx, spec_parse)
+    let reference_gap_ok: bool =
+        writeOutputRegressionScenario(ctx, reference_gap)
+    let compiler_block_ok: bool =
+        writeOutputRegressionScenario(ctx, compiler_block)
+    let oracle_language_ok: bool =
+        writeOutputRegressionScenario(ctx, oracle_language)
+    let compiler_invocation_ok: bool =
+        writeOutputRegressionScenario(ctx, compiler_invocation)
+    let runtime_invocation_ok: bool =
+        writeOutputRegressionScenario(ctx, runtime_invocation)
+    let diagnostic_mismatch_ok: bool =
+        writeOutputRegressionScenario(ctx, diagnostic_mismatch)
+    let runtime_mismatch_ok: bool =
+        writeOutputRegressionScenario(ctx, runtime_mismatch)
+    let coverage_incomplete_ok: bool =
+        writeOutputRegressionScenario(ctx, coverage_incomplete)
+    let report_write_ok: bool =
+        writeOutputRegressionScenario(ctx, report_write)
+    return success_progress_ok && success_checkpoint_ok && success_final_summary_ok &&
+        escaped_value_ok && list_value_ok &&
+        oracle_internal_ok && spec_parse_ok && reference_gap_ok &&
+        compiler_block_ok && oracle_language_ok && compiler_invocation_ok &&
+        runtime_invocation_ok && diagnostic_mismatch_ok && runtime_mismatch_ok &&
+        coverage_incomplete_ok && report_write_ok
+}
+
+procedure fileIsEmpty(fs: $FileSystem, path: string@View) -> bool {
+    return if fs~>read_bytes(path) is {
+        content: unique bytes@Managed {
+            bytes::length(bytes::as_view(content)) == 0usize
+        }
+        _: IoError { false }
+    }
+}
+
+procedure fileHasValidNonFailureLine(
+    fs: $FileSystem,
+    path: string@View,
+    required_text: string@View
+) -> bool {
+    return if fs~>read_bytes(path) is {
+        content: unique bytes@Managed {
+            let view: bytes@View = bytes::as_view(content)
+            validateEventLineBytes(view) &&
+                (eventLineBytesContain(view, " event_kind=failure ") == false) &&
+                eventLineBytesContain(view, required_text)
+        }
+        _: IoError { false }
+    }
+}
+
+procedure fileHasValidFailureLine(
+    fs: $FileSystem,
+    path: string@View,
+    failure_text: string@View
+) -> bool {
+    return if fs~>read_bytes(path) is {
+        content: unique bytes@Managed {
+            validateFailureLineBytes(bytes::as_view(content), failure_text)
+        }
+        _: IoError { false }
+    }
+}
+
+procedure fileContainsText(fs: $FileSystem, path: string@View, text: string@View) -> bool {
+    return if fs~>read_bytes(path) is {
+        content: unique bytes@Managed {
+            eventLineBytesContain(bytes::as_view(content), text)
+        }
+        _: IoError { false }
+    }
+}
+
+public procedure outputRegressionArtifactFilesPass(fs: $FileSystem) -> bool {
+    if (fileHasValidNonFailureLine(fs, successProgressStdoutPath(), "event_kind=progress") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, successProgressStderrPath()) == false) {
+        return false
+    }
+    if (fileHasValidNonFailureLine(fs, successCheckpointStdoutPath(), "event_kind=checkpoint") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, successCheckpointStderrPath()) == false) {
+        return false
+    }
+    if (fileHasValidNonFailureLine(fs, successFinalSummaryStdoutPath(), "event_kind=final_summary") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, successFinalSummaryStderrPath()) == false) {
+        return false
+    }
+    if (fileHasValidNonFailureLine(
+        fs,
+        escapedValueStdoutPath(),
+        "message=contains%20space%3Dequals%7Cpipe%5Bbracket%5D"
+    ) == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, escapedValueStderrPath()) == false) {
+        return false
+    }
+    if (fileHasValidNonFailureLine(fs, listValueStdoutPath(), "expected=[stdout,stderr]") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, listValueStderrPath()) == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, oracleInternalStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, oracleInternalStderrPath(), "failure_kind=oracle_internal") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, specParseErrorStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, specParseErrorStderrPath(), "failure_kind=spec_parse_error") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, referenceModelGapStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, referenceModelGapStderrPath(), "failure_kind=reference_model_gap") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, currentCompilerStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, currentCompilerStderrPath(), "failure_kind=blocked_by_current_compiler") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, oracleLanguageStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(
+        fs,
+        oracleLanguageStderrPath(),
+        "failure_kind=blocked_by_oracle_language_support"
+    ) == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, compilerInvocationStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, compilerInvocationStderrPath(), "failure_kind=compiler_invocation") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, runtimeInvocationStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, runtimeInvocationStderrPath(), "failure_kind=runtime_invocation") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, diagnosticMismatchStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, diagnosticMismatchStderrPath(), "failure_kind=diagnostic_mismatch") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, runtimeMismatchStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, runtimeMismatchStderrPath(), "failure_kind=runtime_mismatch") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, coverageIncompleteStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, coverageIncompleteStderrPath(), "failure_kind=coverage_incomplete") == false) {
+        return false
+    }
+    if (fileIsEmpty(fs, reportWriteStdoutPath()) == false) {
+        return false
+    }
+    if (fileHasValidFailureLine(fs, reportWriteStderrPath(), "failure_kind=report_write_failure") == false) {
+        return false
+    }
+    return fileContainsText(fs, reportWriteStderrPath(), "status=report_write_failed")
+}
+
+public procedure outputRegressionLinesPass() -> bool {
+    let success_progress: OutputRegressionScenario = successProgressScenario()
+    let success_checkpoint: OutputRegressionScenario = successCheckpointScenario()
+    let success_final_summary: OutputRegressionScenario = successFinalSummaryScenario()
+    let escaped_value: OutputRegressionScenario = escapedValueScenario()
+    let list_value: OutputRegressionScenario = listValueScenario()
+    let oracle_internal: OutputRegressionScenario = oracleInternalFailureScenario()
+    let spec_parse: OutputRegressionScenario = specParseErrorFailureScenario()
+    let reference_gap: OutputRegressionScenario = referenceModelGapFailureScenario()
+    let compiler_block: OutputRegressionScenario = currentCompilerFailureScenario()
+    let oracle_language: OutputRegressionScenario = oracleLanguageFailureScenario()
+    let compiler_invocation: OutputRegressionScenario = compilerInvocationFailureScenario()
+    let runtime_invocation: OutputRegressionScenario = runtimeInvocationFailureScenario()
+    let diagnostic_mismatch: OutputRegressionScenario = diagnosticMismatchFailureScenario()
+    let runtime_mismatch: OutputRegressionScenario = runtimeMismatchFailureScenario()
+    let coverage_incomplete: OutputRegressionScenario = coverageIncompleteFailureScenario()
+    let report_write: OutputRegressionScenario = reportWriteFailureScenario()
+
+    return (eventWritesStderr(success_progress.event) == false) &&
+        (eventWritesStderr(success_checkpoint.event) == false) &&
+        (eventWritesStderr(success_final_summary.event) == false) &&
+        (eventWritesStderr(escaped_value.event) == false) &&
+        (eventWritesStderr(list_value.event) == false) &&
+        eventWritesStderr(oracle_internal.event) &&
+        eventWritesStderr(spec_parse.event) &&
+        eventWritesStderr(reference_gap.event) &&
+        eventWritesStderr(compiler_block.event) &&
+        eventWritesStderr(oracle_language.event) &&
+        eventWritesStderr(compiler_invocation.event) &&
+        eventWritesStderr(runtime_invocation.event) &&
+        eventWritesStderr(diagnostic_mismatch.event) &&
+        eventWritesStderr(runtime_mismatch.event) &&
+        eventWritesStderr(coverage_incomplete.event) &&
+        eventWritesStderr(report_write.event)
+}
+
+procedure firstOutputRegressionFailurePath(fs: $FileSystem) -> string@View {
+    if (fileHasValidNonFailureLine(fs, successProgressStdoutPath(), "event_kind=progress") == false) {
+        return successProgressStdoutPath()
+    }
+    if (fileIsEmpty(fs, successProgressStderrPath()) == false) {
+        return successProgressStderrPath()
+    }
+    if (fileHasValidNonFailureLine(fs, successCheckpointStdoutPath(), "event_kind=checkpoint") == false) {
+        return successCheckpointStdoutPath()
+    }
+    if (fileIsEmpty(fs, successCheckpointStderrPath()) == false) {
+        return successCheckpointStderrPath()
+    }
+    if (fileHasValidNonFailureLine(fs, successFinalSummaryStdoutPath(), "event_kind=final_summary") == false) {
+        return successFinalSummaryStdoutPath()
+    }
+    if (fileIsEmpty(fs, successFinalSummaryStderrPath()) == false) {
+        return successFinalSummaryStderrPath()
+    }
+    if (fileHasValidNonFailureLine(
+        fs,
+        escapedValueStdoutPath(),
+        "message=contains%20space%3Dequals%7Cpipe%5Bbracket%5D"
+    ) == false) {
+        return escapedValueStdoutPath()
+    }
+    if (fileIsEmpty(fs, escapedValueStderrPath()) == false) {
+        return escapedValueStderrPath()
+    }
+    if (fileHasValidNonFailureLine(fs, listValueStdoutPath(), "expected=[stdout,stderr]") == false) {
+        return listValueStdoutPath()
+    }
+    if (fileIsEmpty(fs, listValueStderrPath()) == false) {
+        return listValueStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, oracleInternalStderrPath(), "failure_kind=oracle_internal") == false) {
+        return oracleInternalStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, specParseErrorStderrPath(), "failure_kind=spec_parse_error") == false) {
+        return specParseErrorStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, referenceModelGapStderrPath(), "failure_kind=reference_model_gap") == false) {
+        return referenceModelGapStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, currentCompilerStderrPath(), "failure_kind=blocked_by_current_compiler") == false) {
+        return currentCompilerStderrPath()
+    }
+    if (fileHasValidFailureLine(
+        fs,
+        oracleLanguageStderrPath(),
+        "failure_kind=blocked_by_oracle_language_support"
+    ) == false) {
+        return oracleLanguageStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, compilerInvocationStderrPath(), "failure_kind=compiler_invocation") == false) {
+        return compilerInvocationStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, runtimeInvocationStderrPath(), "failure_kind=runtime_invocation") == false) {
+        return runtimeInvocationStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, diagnosticMismatchStderrPath(), "failure_kind=diagnostic_mismatch") == false) {
+        return diagnosticMismatchStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, runtimeMismatchStderrPath(), "failure_kind=runtime_mismatch") == false) {
+        return runtimeMismatchStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, coverageIncompleteStderrPath(), "failure_kind=coverage_incomplete") == false) {
+        return coverageIncompleteStderrPath()
+    }
+    if (fileHasValidFailureLine(fs, reportWriteStderrPath(), "failure_kind=report_write_failure") == false) {
+        return reportWriteStderrPath()
+    }
+    if (fileContainsText(fs, reportWriteStderrPath(), "status=report_write_failed") == false) {
+        return reportWriteStderrPath()
+    }
+    return outputRegressionDirectory()
+}
+
+public procedure runOutputRegressionChecks(ctx: OutputContext) -> PhaseRunResult {
+    let definitions_ok: bool = outputRegressionLinesPass()
+    let artifacts_ok: bool = writeOutputRegressionArtifacts(ctx)
+    let artifact_files_ok: bool = if (artifacts_ok == true) {
+        outputRegressionArtifactFilesPass(ctx.fs)
+    } else {
+        false
+    }
+
+    if ((definitions_ok == true) && (artifacts_ok == true) && (artifact_files_ok == true)) {
+        let output: OutputContext = emitEvent(
+            ctx,
+            eventBase(
+                ReportEventKind::Evidence,
+                ReportSeverity::Info,
+                ReportPhase::FoundationSelftest,
+                ReportSubjectKind::OutputRegression,
+                "output_regression",
+                "Core::Reporting",
+                ReportStatus::Rendered,
+                "output_regression_artifacts"
+            )
+        )
+        return phaseRunResult(output, 0, 1, 0)
+    }
+
+    let observed_path: string@View = if definitions_ok == false {
+        "typed_scenario_stream_definition"
+    } else {
+        firstOutputRegressionFailurePath(ctx.fs)
+    }
+    let output: OutputContext = emitEvent(
+        ctx,
+        failureEvent(
+            ReportPhase::FoundationSelftest,
+            ReportSubjectKind::OutputRegression,
+            "output_regression",
+            "Core::Reporting",
+            ReportFailureKind::OracleInternal,
+            "valid_output_regression_artifacts",
+            observed_path,
+            "output_regression_failed"
+        )
+    )
+    return phaseRunResult(output, 70, 0, 1)
+}

@@ -1,8 +1,0 @@
-[[mangle(none, "extra_symbol"), export("C")]]
-public procedure MangleExtraArgs() -> i32 {
-    return 0
-}
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return MangleExtraArgs()
-}

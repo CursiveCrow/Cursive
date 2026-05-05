@@ -1,7 +1,0 @@
-[[dynamic]]
-type Alias = i32
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    let value: Alias = 1
-    return value
-}

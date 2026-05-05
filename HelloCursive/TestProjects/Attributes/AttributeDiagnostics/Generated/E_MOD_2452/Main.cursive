@@ -1,4 +1,0 @@
-[[layout(C)]]
-public procedure main(move ctx: Context) -> i32 {
-    return 0
-}

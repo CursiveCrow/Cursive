@@ -1,3 +1,0 @@
-public record ParseGenericParamsExternalBox<T> {
-    public value: T
-}

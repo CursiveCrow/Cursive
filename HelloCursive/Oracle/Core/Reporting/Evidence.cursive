@@ -1,0 +1,139 @@
+public procedure outputRegressionDirectory() -> string@View {
+    return "HelloCursive/build/oracle/output-regression"
+}
+
+public procedure oracleStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/oracle.stdout"
+}
+
+public procedure oracleStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/oracle.stderr"
+}
+
+public procedure oracleInternalStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/oracle_internal.stdout"
+}
+
+public procedure oracleInternalStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/oracle_internal.stderr"
+}
+
+public procedure successProgressStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/success_progress.stdout"
+}
+
+public procedure successProgressStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/success_progress.stderr"
+}
+
+public procedure successCheckpointStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/success_checkpoint.stdout"
+}
+
+public procedure successCheckpointStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/success_checkpoint.stderr"
+}
+
+public procedure successFinalSummaryStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/success_final_summary.stdout"
+}
+
+public procedure successFinalSummaryStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/success_final_summary.stderr"
+}
+
+public procedure escapedValueStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/escaped_value.stdout"
+}
+
+public procedure escapedValueStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/escaped_value.stderr"
+}
+
+public procedure listValueStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/list_value.stdout"
+}
+
+public procedure listValueStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/list_value.stderr"
+}
+
+public procedure specParseErrorStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/spec_parse_error.stdout"
+}
+
+public procedure specParseErrorStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/spec_parse_error.stderr"
+}
+
+public procedure referenceModelGapStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/reference_model_gap.stdout"
+}
+
+public procedure referenceModelGapStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/reference_model_gap.stderr"
+}
+
+public procedure currentCompilerStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/blocked_by_current_compiler.stdout"
+}
+
+public procedure currentCompilerStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/blocked_by_current_compiler.stderr"
+}
+
+public procedure oracleLanguageStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/blocked_by_oracle_language_support.stdout"
+}
+
+public procedure oracleLanguageStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/blocked_by_oracle_language_support.stderr"
+}
+
+public procedure compilerInvocationStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/compiler_invocation.stdout"
+}
+
+public procedure compilerInvocationStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/compiler_invocation.stderr"
+}
+
+public procedure runtimeInvocationStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/runtime_invocation.stdout"
+}
+
+public procedure runtimeInvocationStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/runtime_invocation.stderr"
+}
+
+public procedure diagnosticMismatchStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/diagnostic_mismatch.stdout"
+}
+
+public procedure diagnosticMismatchStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/diagnostic_mismatch.stderr"
+}
+
+public procedure runtimeMismatchStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/runtime_mismatch.stdout"
+}
+
+public procedure runtimeMismatchStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/runtime_mismatch.stderr"
+}
+
+public procedure coverageIncompleteStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/coverage_incomplete.stdout"
+}
+
+public procedure coverageIncompleteStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/coverage_incomplete.stderr"
+}
+
+public procedure reportWriteStdoutPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/report_write_failure.stdout"
+}
+
+public procedure reportWriteStderrPath() -> string@View {
+    return "HelloCursive/build/oracle/output-regression/report_write_failure.stderr"
+}

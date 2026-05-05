@@ -1,8 +1,0 @@
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    var gate: shared [i32; 1] = [1]
-    # gate write {
-        gate[0usize] = gate[0usize] + 1
-    }
-    return gate[0usize]
-}

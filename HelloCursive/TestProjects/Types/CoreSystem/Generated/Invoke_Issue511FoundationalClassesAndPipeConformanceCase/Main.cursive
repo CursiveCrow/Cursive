@@ -1,9 +1,0 @@
-procedure requires_eq<T <: Eq>(value: T) -> i32 {
-    let _ = value
-    return 0
-}
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return requires_eq<i32>(1)
-}

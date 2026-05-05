@@ -1,9 +1,0 @@
-[[layout(i128)]]
-public enum LayoutInvalidIntTypeProbe {
-    Value
-}
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    let _ = LayoutInvalidIntTypeProbe::Value
-    return 0
-}

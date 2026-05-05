@@ -1,0 +1,408 @@
+procedure failureOutputRegressionEvent(
+    phase: ReportPhase,
+    subject_kind: ReportSubjectKind,
+    subject_id: string@View,
+    owner: string@View,
+    status: ReportStatus,
+    failure_kind: ReportFailureKind,
+    evidence_kind: ReportEvidenceKind,
+    expected: string@View,
+    observed: string@View,
+    evidence_path: string@View,
+    has_source: bool,
+    source_start: i32,
+    source_end: i32,
+    source_line: i32,
+    source_column: i32,
+    content_identity: i32,
+    metric_kind: ReportMetricKind,
+    metric_value: ReportTextValue,
+    message: string@View
+) -> OutputEvent {
+    return outputRegressionEvent(
+        ReportEventKind::Failure,
+        ReportSeverity::Error,
+        phase,
+        subject_kind,
+        textValue(subject_id),
+        textValue(owner),
+        status,
+        failure_kind,
+        evidence_kind,
+        textValue(expected),
+        textValue(observed),
+        textValue(evidence_path),
+        has_source,
+        source_start,
+        source_end,
+        source_line,
+        source_column,
+        content_identity,
+        metric_kind,
+        metric_value,
+        textValue(message)
+    )
+}
+
+public procedure oracleInternalFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::FoundationSelftest,
+        ReportSubjectKind::OutputRegression,
+        "oracle_internal",
+        "Core::Reporting",
+        ReportStatus::Failed,
+        ReportFailureKind::OracleInternal,
+        ReportEvidenceKind::EmittedArtifactPath,
+        "passed",
+        "failed",
+        oracleInternalStderrPath(),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_oracle_internal_failure"
+    )
+}
+
+public procedure specParseErrorFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::SpecIngestion,
+        ReportSubjectKind::SpecUnit,
+        "formal_rule",
+        "Spec::Source",
+        ReportStatus::ParseError,
+        ReportFailureKind::SpecParseError,
+        ReportEvidenceKind::SpecSpan,
+        "parseable_spec_unit",
+        "parse_error_blocked_obligation",
+        "docs/CursiveSpecification.md",
+        true,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_spec_parse_error"
+    )
+}
+
+public procedure referenceModelGapFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::ReferenceModeling,
+        ReportSubjectKind::ReferenceRule,
+        "reference_model_gap",
+        "Reference",
+        ReportStatus::Unmodeled,
+        ReportFailureKind::ReferenceModelGap,
+        ReportEvidenceKind::ObligationId,
+        "modeled",
+        "unmodeled",
+        "obligation.formal_rule.1",
+        true,
+        11715,
+        11737,
+        233,
+        1,
+        149731,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_reference_model_gap"
+    )
+}
+
+public procedure currentCompilerFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::CompilerRun,
+        ReportSubjectKind::Command,
+        "compiler",
+        "Runner",
+        ReportStatus::BlockedByCurrentCompiler,
+        ReportFailureKind::BlockedByCurrentCompiler,
+        ReportEvidenceKind::CompilerStatus,
+        "0",
+        "1",
+        currentCompilerStderrPath(),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_current_compiler_block"
+    )
+}
+
+public procedure oracleLanguageFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::CaseGeneration,
+        ReportSubjectKind::GeneratedCase,
+        "oracle_language_support",
+        "Generators",
+        ReportStatus::BlockedByOracleLanguageSupport,
+        ReportFailureKind::BlockedByOracleLanguageSupport,
+        ReportEvidenceKind::CaseId,
+        "case_ready",
+        "blocked",
+        "case.minimal_executable",
+        true,
+        11715,
+        11737,
+        233,
+        1,
+        149731,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_oracle_language_support_block"
+    )
+}
+
+public procedure compilerInvocationFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::CompilerRun,
+        ReportSubjectKind::Command,
+        "compiler_invocation",
+        "Runner",
+        ReportStatus::Failed,
+        ReportFailureKind::CompilerInvocation,
+        ReportEvidenceKind::CommandText,
+        "compiler_run",
+        "compiler_failed",
+        compilerInvocationStderrPath(),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_compiler_invocation_failure"
+    )
+}
+
+public procedure runtimeInvocationFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::RuntimeRun,
+        ReportSubjectKind::Command,
+        "runtime_invocation",
+        "Runner",
+        ReportStatus::Failed,
+        ReportFailureKind::RuntimeInvocation,
+        ReportEvidenceKind::RuntimeStatus,
+        "0",
+        "1",
+        runtimeInvocationStderrPath(),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_runtime_invocation_failure"
+    )
+}
+
+public procedure diagnosticMismatchFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::Comparison,
+        ReportSubjectKind::ComparisonResult,
+        "diagnostic_mismatch",
+        "Oracle::Compare",
+        ReportStatus::ExecutedFail,
+        ReportFailureKind::DiagnosticMismatch,
+        ReportEvidenceKind::DiagnosticJsonPath,
+        "expected_diagnostic",
+        "observed_diagnostic",
+        diagnosticMismatchStderrPath(),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_diagnostic_mismatch"
+    )
+}
+
+public procedure runtimeMismatchFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::Comparison,
+        ReportSubjectKind::ComparisonResult,
+        "runtime_mismatch",
+        "Oracle::Compare",
+        ReportStatus::ExecutedFail,
+        ReportFailureKind::RuntimeMismatch,
+        ReportEvidenceKind::ComparisonResultId,
+        "expected_runtime",
+        "observed_runtime",
+        runtimeMismatchStderrPath(),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::Absent,
+        omittedText(),
+        "synthetic_runtime_mismatch"
+    )
+}
+
+public procedure coverageIncompleteFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::Coverage,
+        ReportSubjectKind::CoverageLedger,
+        "coverage",
+        "Oracle::Coverage",
+        ReportStatus::Uncovered,
+        ReportFailureKind::CoverageIncomplete,
+        ReportEvidenceKind::CoverageLedgerPath,
+        "covered",
+        "uncovered",
+        coverageIncompleteStderrPath(),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::UncoveredCount,
+        integerValue(1),
+        "synthetic_coverage_incomplete"
+    )
+}
+
+public procedure reportWriteFailureEvent() -> OutputEvent {
+    return failureOutputRegressionEvent(
+        ReportPhase::ReportWrite,
+        ReportSubjectKind::Report,
+        "report_write",
+        "Core::Reporting",
+        ReportStatus::ReportWriteFailed,
+        ReportFailureKind::ReportWriteFailure,
+        ReportEvidenceKind::StderrPath,
+        "written",
+        "failed",
+        reportWriteStderrPath(),
+        false,
+        0,
+        0,
+        1,
+        1,
+        0,
+        ReportMetricKind::ReportWriteFailureCount,
+        integerValue(1),
+        "synthetic_report_write_failure"
+    )
+}
+
+public procedure oracleInternalFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.oracle_internal",
+        oracleInternalStdoutPath(),
+        oracleInternalStderrPath(),
+        oracleInternalFailureEvent()
+    )
+}
+
+public procedure specParseErrorFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.spec_parse_error",
+        specParseErrorStdoutPath(),
+        specParseErrorStderrPath(),
+        specParseErrorFailureEvent()
+    )
+}
+
+public procedure referenceModelGapFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.reference_model_gap",
+        referenceModelGapStdoutPath(),
+        referenceModelGapStderrPath(),
+        referenceModelGapFailureEvent()
+    )
+}
+
+public procedure currentCompilerFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.blocked_by_current_compiler",
+        currentCompilerStdoutPath(),
+        currentCompilerStderrPath(),
+        currentCompilerFailureEvent()
+    )
+}
+
+public procedure oracleLanguageFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.blocked_by_oracle_language_support",
+        oracleLanguageStdoutPath(),
+        oracleLanguageStderrPath(),
+        oracleLanguageFailureEvent()
+    )
+}
+
+public procedure compilerInvocationFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.compiler_invocation",
+        compilerInvocationStdoutPath(),
+        compilerInvocationStderrPath(),
+        compilerInvocationFailureEvent()
+    )
+}
+
+public procedure runtimeInvocationFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.runtime_invocation",
+        runtimeInvocationStdoutPath(),
+        runtimeInvocationStderrPath(),
+        runtimeInvocationFailureEvent()
+    )
+}
+
+public procedure diagnosticMismatchFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.diagnostic_mismatch",
+        diagnosticMismatchStdoutPath(),
+        diagnosticMismatchStderrPath(),
+        diagnosticMismatchFailureEvent()
+    )
+}
+
+public procedure runtimeMismatchFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.runtime_mismatch",
+        runtimeMismatchStdoutPath(),
+        runtimeMismatchStderrPath(),
+        runtimeMismatchFailureEvent()
+    )
+}
+
+public procedure coverageIncompleteFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.coverage_incomplete",
+        coverageIncompleteStdoutPath(),
+        coverageIncompleteStderrPath(),
+        coverageIncompleteFailureEvent()
+    )
+}
+
+public procedure reportWriteFailureScenario() -> OutputRegressionScenario {
+    return outputRegressionScenario(
+        "output_regression.report_write_failure",
+        reportWriteStdoutPath(),
+        reportWriteStderrPath(),
+        reportWriteFailureEvent()
+    )
+}

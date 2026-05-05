@@ -1,7 +1,0 @@
-[[export("C")]]
-public let bad_static: i32 = 1
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}

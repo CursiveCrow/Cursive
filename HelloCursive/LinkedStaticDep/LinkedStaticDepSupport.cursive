@@ -1,3 +1,0 @@
-public procedure contribution() -> i32 {
-    return 29
-}

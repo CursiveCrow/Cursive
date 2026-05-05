@@ -1,9 +1,0 @@
-record ParseGenericParamsCommaBad<T, U> {
-    left: T
-    right: U
-}
-
-public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
-    return 0
-}
