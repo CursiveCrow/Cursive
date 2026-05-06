@@ -10,6 +10,7 @@ namespace cursive::ast {
 
 ParseItemResult ParseProcedureLikeDeclImpl(Parser parser, Visibility vis,
                                            AttributeList attrs,
+                                           bool visibility_explicit,
                                            bool comptime_prefix);
 
 bool IsKw(const Parser& parser, std::string_view kw);
@@ -22,6 +23,7 @@ ParseItemResult ParseComptimeProcedureDecl(Parser parser, AttributeList attrs) {
   Parser start = parser;
   Advance(parser);  // consume "comptime"
   ParseElemResult<Visibility> vis = ParseVis(parser);
+  const bool visibility_explicit = vis.parser.index != parser.index;
   Parser cur = vis.parser;
   if (!IsKw(cur, "procedure")) {
     EmitParseSyntaxErr(cur, TokSpan(cur));
@@ -29,7 +31,8 @@ ParseItemResult ParseComptimeProcedureDecl(Parser parser, AttributeList attrs) {
     SyncItem(next);
     return {next, ErrorItem{SpanBetween(start, next), {}}};
   }
-  ParseItemResult parsed = ParseProcedureLikeDeclImpl(cur, vis.elem, attrs, true);
+  ParseItemResult parsed =
+      ParseProcedureLikeDeclImpl(cur, vis.elem, attrs, visibility_explicit, true);
   if (auto* decl = std::get_if<ComptimeProcedureDecl>(&parsed.item)) {
     decl->span = SpanBetween(start, parsed.parser);
   }

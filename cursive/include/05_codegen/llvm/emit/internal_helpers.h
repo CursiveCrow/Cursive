@@ -16,6 +16,7 @@
 #include "00_core/process_config.h"
 #include "00_core/host/services.h"
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/llvm/llvm_emit.h"
 #include "05_codegen/llvm/llvm_module.h"
@@ -30,26 +31,86 @@
 
 namespace cursive::codegen::emit_detail {
 
-inline constexpr const char* kLibraryEntrySym = "__cursive_library_entry";
-inline constexpr const char* kLibraryCtorSym = "__cursive_library_ctor";
-inline constexpr const char* kLibraryDtorSym = "__cursive_library_dtor";
-inline constexpr const char* kImagePanicRecordSym = "__cursive_image_panic_record";
-inline constexpr const char* kHostAbiVersionSym = "__cursive_host_abi_version";
-inline constexpr const char* kHostSessionCreateSym = "__cursive_host_session_create";
-inline constexpr const char* kHostSessionDestroySym = "__cursive_host_session_destroy";
-inline constexpr const char* kHostSessionOwnerTokenSym = "__cursive_host_session_owner_token";
-inline constexpr const char* kHostRuntimeAllocSym = "cursive_host_alloc";
-inline constexpr const char* kHostRuntimeFreeSym = "cursive_host_free";
-inline constexpr const char* kHostRuntimeRegisterSym = "cursive_host_session_register";
-inline constexpr const char* kHostRuntimeTryEnterSym = "cursive_host_session_try_enter";
-inline constexpr const char* kHostRuntimeLeaveSym = "cursive_host_session_leave";
-inline constexpr const char* kHostRuntimeTryRetireSym = "cursive_host_session_try_retire";
-inline constexpr const char* kHostRuntimeAbortLiveSym = "cursive_host_session_abort_live";
-inline constexpr const char* kHostRuntimeCurrentEnvSym = "cursive_host_session_current_env";
-inline constexpr const char* kHostRuntimeEnterRetiredSym = "cursive_host_session_enter_retired";
-inline constexpr const char* kHostRuntimeLeaveRetiredSym = "cursive_host_session_leave_retired";
-inline constexpr const char* kHostRuntimeAbortRetiredSym = "cursive_host_session_abort_retired";
-inline constexpr const char* kRawDylibResolveSym = "cursive_raw_dylib_resolve";
+inline const char* LibraryEntrySym() {
+  return project::ActiveLanguageProfile().library_entry_symbol.data();
+}
+
+inline const char* LibraryCtorSym() {
+  return project::ActiveLanguageProfile().library_ctor_symbol.data();
+}
+
+inline const char* LibraryDtorSym() {
+  return project::ActiveLanguageProfile().library_dtor_symbol.data();
+}
+
+inline const char* ImagePanicRecordSym() {
+  return project::ActiveLanguageProfile().image_panic_record_symbol.data();
+}
+
+inline const char* HostAbiVersionSym() {
+  return project::ActiveLanguageProfile().host_abi_version_symbol.data();
+}
+
+inline const char* HostSessionCreateSym() {
+  return project::ActiveLanguageProfile().host_session_create_symbol.data();
+}
+
+inline const char* HostSessionDestroySym() {
+  return project::ActiveLanguageProfile().host_session_destroy_symbol.data();
+}
+
+inline const char* HostSessionOwnerTokenSym() {
+  return project::ActiveLanguageProfile().host_session_owner_token_symbol.data();
+}
+
+inline const char* HostRuntimeAllocSym() {
+  return project::ActiveLanguageProfile().host_runtime_alloc_symbol.data();
+}
+
+inline const char* HostRuntimeFreeSym() {
+  return project::ActiveLanguageProfile().host_runtime_free_symbol.data();
+}
+
+inline const char* HostRuntimeRegisterSym() {
+  return project::ActiveLanguageProfile().host_runtime_register_symbol.data();
+}
+
+inline const char* HostRuntimeTryEnterSym() {
+  return project::ActiveLanguageProfile().host_runtime_try_enter_symbol.data();
+}
+
+inline const char* HostRuntimeLeaveSym() {
+  return project::ActiveLanguageProfile().host_runtime_leave_symbol.data();
+}
+
+inline const char* HostRuntimeTryRetireSym() {
+  return project::ActiveLanguageProfile().host_runtime_try_retire_symbol.data();
+}
+
+inline const char* HostRuntimeAbortLiveSym() {
+  return project::ActiveLanguageProfile().host_runtime_abort_live_symbol.data();
+}
+
+inline const char* HostRuntimeCurrentEnvSym() {
+  return project::ActiveLanguageProfile().host_runtime_current_env_symbol.data();
+}
+
+inline const char* HostRuntimeEnterRetiredSym() {
+  return project::ActiveLanguageProfile().host_runtime_enter_retired_symbol.data();
+}
+
+inline const char* HostRuntimeLeaveRetiredSym() {
+  return project::ActiveLanguageProfile().host_runtime_leave_retired_symbol.data();
+}
+
+inline const char* HostRuntimeAbortRetiredSym() {
+  return project::ActiveLanguageProfile().host_runtime_abort_retired_symbol.data();
+}
+
+inline const char* RawDylibResolveSym() {
+  return project::ActiveLanguageProfile().raw_dylib_resolve_symbol.data();
+}
+
 inline constexpr std::uint32_t kHostAbiVersion = 1u;
 
 inline unsigned CallingConvForAbi(const std::optional<std::string>& abi_opt) {
@@ -76,14 +137,14 @@ inline llvm::GlobalVariable* EnsureHostedOwnerTokenGlobal(llvm::Module* module,
     return nullptr;
   }
   llvm::Type* i8_ty = llvm::Type::getInt8Ty(context);
-  llvm::GlobalVariable* gv = module->getNamedGlobal(kHostSessionOwnerTokenSym);
+  llvm::GlobalVariable* gv = module->getNamedGlobal(HostSessionOwnerTokenSym());
   if (!gv) {
     gv = new llvm::GlobalVariable(*module,
                                   i8_ty,
                                   false,
                                   llvm::GlobalValue::ExternalLinkage,
                                   define_symbol ? llvm::ConstantInt::get(i8_ty, 0) : nullptr,
-                                  kHostSessionOwnerTokenSym);
+                                  HostSessionOwnerTokenSym());
   } else if (define_symbol && gv->isDeclaration()) {
     gv->setInitializer(llvm::ConstantInt::get(i8_ty, 0));
     gv->setLinkage(llvm::GlobalValue::ExternalLinkage);
@@ -102,17 +163,18 @@ inline llvm::GlobalValue::LinkageTypes LLVMLinkageFor(LinkageKind linkage) {
 }
 
 inline bool IsRuntimeLifecycleSymbol(std::string_view symbol) {
-  return symbol.rfind("cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3a", 0) == 0 ||
-         symbol.rfind("cursive_x3a_x3aruntime_x3a_x3adeinit_x3a_x3a", 0) == 0;
+  const auto& language = project::ActiveLanguageProfile();
+  return symbol.rfind(language.runtime_init_mangle_prefix, 0) == 0 ||
+         symbol.rfind(language.runtime_deinit_mangle_prefix, 0) == 0;
 }
 
 inline bool IsGeneratedProcSymbol(std::string_view symbol) {
   return symbol == "main" ||
-         symbol == kLibraryEntrySym ||
-         symbol == kLibraryCtorSym ||
-         symbol == kLibraryDtorSym ||
-         symbol == kHostSessionCreateSym ||
-         symbol == kHostSessionDestroySym ||
+         symbol == LibraryEntrySym() ||
+         symbol == LibraryCtorSym() ||
+         symbol == LibraryDtorSym() ||
+         symbol == HostSessionCreateSym() ||
+         symbol == HostSessionDestroySym() ||
          IsRuntimeLifecycleSymbol(symbol) ||
          IsDropGlueSymbol(symbol);
 }

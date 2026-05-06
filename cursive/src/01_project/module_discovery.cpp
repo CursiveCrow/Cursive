@@ -167,6 +167,7 @@
 #include "00_core/ident.h"
 #include "00_core/path.h"
 #include "01_project/deterministic_order.h"
+#include "01_project/language_profile.h"
 
 namespace cursive::project {
 
@@ -227,6 +228,7 @@ struct ModuleDirCheck {
 };
 
 ModuleDirCheck CheckModuleDir(const std::filesystem::path& dir,
+                              const LanguageProfile& language,
                               core::DiagnosticStream& diags) {
   ModuleDirCheck result;
   std::error_code ec;
@@ -256,7 +258,7 @@ ModuleDirCheck CheckModuleDir(const std::filesystem::path& dir,
       continue;
     }
     const std::string file_str = it->path().generic_string();
-    if (core::FileExt(file_str) == ".cursive") {
+    if (core::FileExt(file_str) == language.source_extension) {
       result.is_module = true;
       break;
     }
@@ -353,6 +355,11 @@ bool ValidateModulePath(const std::vector<std::string>& components,
 }  // namespace
 
 CompilationUnitResult CompilationUnit(const std::filesystem::path& module_dir) {
+  return CompilationUnit(module_dir, ActiveLanguageProfile());
+}
+
+CompilationUnitResult CompilationUnit(const std::filesystem::path& module_dir,
+                                      const LanguageProfile& language) {
   CompilationUnitResult result;
   if (const auto force = core::HostGetEnvUtf8("CURSIVE_TEST_COMPILATION_UNIT_FAIL");
       force.has_value() && !force->empty()) {
@@ -391,7 +398,7 @@ CompilationUnitResult CompilationUnit(const std::filesystem::path& module_dir) {
       continue;
     }
     const std::string file_str = it->path().generic_string();
-    if (core::FileExt(file_str) != ".cursive") {
+    if (core::FileExt(file_str) != language.source_extension) {
       continue;
     }
 
@@ -417,6 +424,12 @@ CompilationUnitResult CompilationUnit(const std::filesystem::path& module_dir) {
 
 ModulesResult Modules(const std::filesystem::path& source_root,
                       std::string_view assembly_name) {
+  return Modules(source_root, assembly_name, ActiveLanguageProfile());
+}
+
+ModulesResult Modules(const std::filesystem::path& source_root,
+                      std::string_view assembly_name,
+                      const LanguageProfile& language) {
   ModulesResult result;
 
   SPEC_RULE("Disc-Start");
@@ -438,7 +451,8 @@ ModulesResult Modules(const std::filesystem::path& source_root,
 
   std::unordered_map<std::string, std::string> seen;
   for (const auto& dir : dir_seq.dirs) {
-    const ModuleDirCheck module_check = CheckModuleDir(dir, result.diags);
+    const ModuleDirCheck module_check =
+        CheckModuleDir(dir, language, result.diags);
     if (!module_check.ok) {
       SPEC_RULE("Modules-Err");
       return result;

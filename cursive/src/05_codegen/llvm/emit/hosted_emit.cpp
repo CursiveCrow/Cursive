@@ -52,7 +52,7 @@ using namespace emit_detail;
     {
       return nullptr;
     }
-    llvm::Function *fn = module_->getFunction(kHostRuntimeCurrentEnvSym);
+    llvm::Function *fn = module_->getFunction(HostRuntimeCurrentEnvSym());
     if (!fn)
     {
       llvm::FunctionType *fn_ty =
@@ -60,7 +60,7 @@ using namespace emit_detail;
       fn = llvm::Function::Create(
           fn_ty,
           llvm::GlobalValue::ExternalLinkage,
-          kHostRuntimeCurrentEnvSym,
+          HostRuntimeCurrentEnvSym(),
           module_.get());
       fn->setCallingConv(llvm::CallingConv::C);
     }
@@ -83,7 +83,7 @@ using namespace emit_detail;
     }
 
     llvm::GlobalVariable *panic_gv =
-        module_->getNamedGlobal(kImagePanicRecordSym);
+        module_->getNamedGlobal(ImagePanicRecordSym());
     if (!panic_gv)
     {
       panic_gv = new llvm::GlobalVariable(
@@ -92,7 +92,7 @@ using namespace emit_detail;
           false,
           llvm::GlobalValue::CommonLinkage,
           llvm::Constant::getNullValue(panic_ty),
-          kImagePanicRecordSym);
+          ImagePanicRecordSym());
       panic_gv->setAlignment(llvm::Align(4));
     }
     return panic_gv ? static_cast<llvm::Value *>(panic_gv) : fallback_ptr;
@@ -490,7 +490,7 @@ using namespace emit_detail;
       return builder.CreateBitCast(slot_i8, llvm::PointerType::get(target_ty, 0));
     };
 
-    llvm::Function *abi_fn = ensure_runtime_fn(kHostAbiVersionSym, i32_ty, {});
+    llvm::Function *abi_fn = ensure_runtime_fn(HostAbiVersionSym(), i32_ty, {});
     if (abi_fn->empty())
     {
       llvm::BasicBlock *entry = llvm::BasicBlock::Create(context_, "entry", abi_fn);
@@ -499,7 +499,7 @@ using namespace emit_detail;
       builder->CreateRet(llvm::ConstantInt::get(i32_ty, kHostAbiVersion));
     }
 
-    llvm::Function *create_fn = ensure_runtime_fn(kHostSessionCreateSym, usize_ty, {});
+    llvm::Function *create_fn = ensure_runtime_fn(HostSessionCreateSym(), usize_ty, {});
     if (create_fn->empty())
     {
       llvm::BasicBlock *entry = llvm::BasicBlock::Create(context_, "entry", create_fn);
@@ -507,27 +507,27 @@ using namespace emit_detail;
       builder->SetInsertPoint(entry);
 
       llvm::Function *alloc_fn =
-          ensure_runtime_fn(kHostRuntimeAllocSym, opaque_ptr_ty, {usize_ty});
+          ensure_runtime_fn(HostRuntimeAllocSym(), opaque_ptr_ty, {usize_ty});
       llvm::Function *free_fn =
-          ensure_runtime_fn(kHostRuntimeFreeSym,
+          ensure_runtime_fn(HostRuntimeFreeSym(),
                             llvm::Type::getVoidTy(context_),
                             {opaque_ptr_ty});
       llvm::Function *register_fn =
-          ensure_runtime_fn(kHostRuntimeRegisterSym,
+          ensure_runtime_fn(HostRuntimeRegisterSym(),
                             usize_ty,
                             {opaque_ptr_ty, opaque_ptr_ty});
       llvm::Function *try_enter_fn = ensure_runtime_fn(
-          kHostRuntimeTryEnterSym,
+          HostRuntimeTryEnterSym(),
           i32_ty,
           {usize_ty, opaque_ptr_ty, opaque_ptr_ptr_ty});
       llvm::Function *leave_fn = ensure_runtime_fn(
-          kHostRuntimeLeaveSym, i32_ty, {usize_ty, opaque_ptr_ty});
+          HostRuntimeLeaveSym(), i32_ty, {usize_ty, opaque_ptr_ty});
       llvm::Function *retire_fn = ensure_runtime_fn(
-          kHostRuntimeTryRetireSym,
+          HostRuntimeTryRetireSym(),
           i32_ty,
           {usize_ty, opaque_ptr_ty, opaque_ptr_ptr_ty});
       llvm::Function *abort_live_fn = ensure_runtime_fn(
-          kHostRuntimeAbortLiveSym,
+          HostRuntimeAbortLiveSym(),
           i32_ty,
           {usize_ty, opaque_ptr_ty, opaque_ptr_ptr_ty});
 
@@ -920,7 +920,7 @@ using namespace emit_detail;
     }
 
     llvm::Function *destroy_fn =
-        ensure_runtime_fn(kHostSessionDestroySym, i32_ty, {usize_ty});
+        ensure_runtime_fn(HostSessionDestroySym(), i32_ty, {usize_ty});
     if (destroy_fn->empty())
     {
       llvm::BasicBlock *entry = llvm::BasicBlock::Create(context_, "entry", destroy_fn);
@@ -928,21 +928,21 @@ using namespace emit_detail;
       builder->SetInsertPoint(entry);
 
       llvm::Function *free_fn =
-          ensure_runtime_fn(kHostRuntimeFreeSym,
+          ensure_runtime_fn(HostRuntimeFreeSym(),
                             llvm::Type::getVoidTy(context_),
                             {opaque_ptr_ty});
       llvm::Function *retire_fn = ensure_runtime_fn(
-          kHostRuntimeTryRetireSym,
+          HostRuntimeTryRetireSym(),
           i32_ty,
           {usize_ty, opaque_ptr_ty, opaque_ptr_ptr_ty});
       llvm::Function *enter_retired_fn = ensure_runtime_fn(
-          kHostRuntimeEnterRetiredSym,
+          HostRuntimeEnterRetiredSym(),
           i32_ty,
           {usize_ty, opaque_ptr_ty, opaque_ptr_ty});
       llvm::Function *leave_retired_fn = ensure_runtime_fn(
-          kHostRuntimeLeaveRetiredSym, i32_ty, {usize_ty, opaque_ptr_ty});
+          HostRuntimeLeaveRetiredSym(), i32_ty, {usize_ty, opaque_ptr_ty});
       llvm::Function *abort_retired_fn = ensure_runtime_fn(
-          kHostRuntimeAbortRetiredSym,
+          HostRuntimeAbortRetiredSym(),
           i32_ty,
           {usize_ty, opaque_ptr_ty, opaque_ptr_ty});
 
@@ -1430,11 +1430,11 @@ using namespace emit_detail;
     };
 
     llvm::Function *try_enter_fn = ensure_runtime_fn(
-        kHostRuntimeTryEnterSym,
+        HostRuntimeTryEnterSym(),
         i32_ty,
         {usize_ty, opaque_ptr_ty, opaque_ptr_ptr_ty});
     llvm::Function *leave_fn = ensure_runtime_fn(
-        kHostRuntimeLeaveSym, i32_ty, {usize_ty, opaque_ptr_ty});
+        HostRuntimeLeaveSym(), i32_ty, {usize_ty, opaque_ptr_ty});
 
     for (const auto &info : current_ctx_->hosted_exports)
     {
@@ -1445,9 +1445,11 @@ using namespace emit_detail;
       }
 
       std::vector<IRParam> thunk_params;
+      const std::string hosted_session_param(
+          project::ActiveLanguageProfile().hosted_session_param_name);
       thunk_params.push_back(IRParam{analysis::ParamMode::Move,
-                                     "__cursive_session",
-                                     "__cursive_session",
+                                     hosted_session_param,
+                                     hosted_session_param,
                                      analysis::MakeTypePrim("usize")});
       thunk_params.insert(thunk_params.end(),
                           info.visible_params.begin(),

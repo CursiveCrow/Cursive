@@ -11218,6 +11218,7 @@ StringBuiltinTable =
 {
  ⟨`string::from`, [⟨⊥, `source`, TypeString(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
  ⟨`string::as_view`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@Managed`))⟩], TypeString(`@View`)⟩,
+ ⟨`string::slice`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩, ⟨⊥, `start`, TypePrim("usize")⟩, ⟨⊥, `end`, TypePrim("usize")⟩], TypeString(`@View`)⟩,
  ⟨`string::to_managed`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
  ⟨`string::clone_with`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@Managed`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
  ⟨`string::append`, [⟨⊥, `self`, TypePerm(`unique`, TypeString(`@Managed`))⟩, ⟨⊥, `data`, TypeString(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypePrim("()"), TypePath(["AllocationError"])])⟩,
@@ -11264,6 +11265,7 @@ ValueType(v) = TypeString(⊥) ⇔ ValueType(v) = TypeString(`@View`) ∨ ValueT
 StringBytesJudg_string = {
  StringFrom(SB, source, heap) ⇓ (r, SB'),
  StringAsView(SB, self) ⇓ v,
+ StringSlice(SB, self, start, end) ⇓ v,
  StringToManaged(SB, self, heap) ⇓ (r, SB'),
  StringCloneWith(SB, self, heap) ⇓ (r, SB'),
  StringAppend(SB, self, data, heap) ⇓ (r, SB'),
@@ -11289,6 +11291,11 @@ AllocErrorVal(r)    SB' = SB
 ByteSeqOf(SB, v) = ByteSeqOf(SB, self)
 ──────────────────────────────────────────────
 Γ ⊢ StringAsView(SB, self) ⇓ v
+
+**(StringSlice-Ok)**
+0 ≤ start ≤ end ≤ ByteLen(SB, self)    start and end are valid UTF-8 byte boundaries of ByteSeqOf(SB, self)    ByteSeqOf(SB, v) = ByteSeqOf(SB, self)[start..end)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ StringSlice(SB, self, start, end) ⇓ v
 
 **(StringToManaged-Ok)**
 r = v    SB' = ⟨StrBuf[v ↦ ByteSeqOf(SB, self)], BytesBuf, BytesCap⟩
@@ -28364,13 +28371,14 @@ BuiltinModalSymMap = [
 
 BuiltinSymJudg = {BuiltinSym(method) ⇓ sym}
 
-StringBuiltins = {`string::from`, `string::as_view`, `string::to_managed`, `string::clone_with`, `string::append`, `string::length`, `string::is_empty`}
+StringBuiltins = {`string::from`, `string::as_view`, `string::slice`, `string::to_managed`, `string::clone_with`, `string::append`, `string::length`, `string::is_empty`}
 BytesBuiltins = {`bytes::with_capacity`, `bytes::from_slice`, `bytes::as_view`, `bytes::as_slice`, `bytes::to_managed`, `bytes::view`, `bytes::view_string`, `bytes::append`, `bytes::length`, `bytes::is_empty`}
 StringMethod(method) ⇔ ∃ name. method = `string::`name
 BytesMethod(method) ⇔ ∃ name. method = `bytes::`name
 
 BuiltinSym(`string::from`) = PathSig(["ultraviolet", "runtime", "string", "from"])
 BuiltinSym(`string::as_view`) = PathSig(["ultraviolet", "runtime", "string", "as_view"])
+BuiltinSym(`string::slice`) = PathSig(["ultraviolet", "runtime", "string", "slice"])
 BuiltinSym(`string::to_managed`) = PathSig(["ultraviolet", "runtime", "string", "to_managed"])
 BuiltinSym(`string::clone_with`) = PathSig(["ultraviolet", "runtime", "string", "clone_with"])
 BuiltinSym(`string::append`) = PathSig(["ultraviolet", "runtime", "string", "append"])

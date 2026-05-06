@@ -71,6 +71,7 @@ namespace attrs {
   constexpr std::string_view kDerive = "derive";
   constexpr std::string_view kEmit = "emit";
   constexpr std::string_view kFiles = "files";
+  constexpr std::string_view kTest = "test";
   
   // Diagnostic control
   constexpr std::string_view kAllow = "allow";
@@ -78,11 +79,6 @@ namespace attrs {
   constexpr std::string_view kDeny = "deny";
   constexpr std::string_view kForbid = "forbid";
   
-  // Testing
-  constexpr std::string_view kTest = "test";
-  constexpr std::string_view kBench = "bench";
-  constexpr std::string_view kIgnore = "ignore";
-
   // Visibility/linking
   constexpr std::string_view kDeprecated = "deprecated";
   constexpr std::string_view kStaleOk = "stale_ok";

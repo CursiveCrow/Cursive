@@ -160,6 +160,7 @@
 // =============================================================================
 
 #include "01_project/project.h"
+#include "01_project/language_profile.h"
 
 #include <string_view>
 #include <system_error>
@@ -624,7 +625,8 @@ ManifestValidationResult ValidateManifest(const std::filesystem::path& project_r
 
 bool IsProjectRoot(const std::filesystem::path& root) {
   std::error_code ec;
-  const bool exists = std::filesystem::exists(root / "Cursive.toml", ec);
+  const bool exists = std::filesystem::exists(
+      root / std::string(ActiveLanguageProfile().manifest_name), ec);
   if (ec) {
     core::HostPrimFail(core::HostPrim::FSExists, true);
     return false;

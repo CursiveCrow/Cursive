@@ -53,7 +53,7 @@
 //      - "DiagnosticStream" -> "1.6.3"
 //      - "HasError" -> "1.6.3"
 //      - "CompileStatus" -> "1.6.3"
-//   6. SpecTrace integration for conformance testing
+//   6. SpecTrace integration for conformance tracing
 //   7. Consider making DiagPayload format match spec observable format
 //
 // =============================================================================

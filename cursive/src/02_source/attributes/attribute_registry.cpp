@@ -19,10 +19,15 @@
 #include <string>
 
 #include "00_core/assert_spec.h"
+#include "01_project/language_profile.h"
 
 namespace cursive::analysis {
 
 namespace {
+
+std::string ReservedAttributePrefix() {
+  return std::string(project::ActiveLanguageProfile().runtime_root) + "::";
+}
 
 static inline void SpecDefsAttributes() {
   SPEC_DEF("Attribute", "C0X.6.A");
@@ -31,8 +36,14 @@ static inline void SpecDefsAttributes() {
   SPEC_DEF("AttrRegistry", "C0X.6.A");
 }
 
+static std::string NormalizeAttrLiteral(std::string value);
+
 static bool IsStringLiteralToken(const ast::Token& tok) {
   return tok.kind == lexer::TokenKind::StringLiteral;
+}
+
+static bool IsNonEmptyStringLiteralToken(const ast::Token& tok) {
+  return IsStringLiteralToken(tok) && !NormalizeAttrLiteral(tok.lexeme).empty();
 }
 
 static bool IsIdentifierToken(const ast::Token& tok) {
@@ -90,6 +101,82 @@ static bool ValidateDeriveAttributeArgs(const ast::AttributeItem& attr,
       return false;
     }
     seen_targets.push_back(token->lexeme);
+  }
+
+  return true;
+}
+
+static bool LooksLikeCoverageReference(std::string_view value) {
+  const std::size_t marker = value.rfind("@L");
+  if (marker == std::string_view::npos || marker == 0 ||
+      marker + 2 >= value.size()) {
+    return false;
+  }
+  for (std::size_t i = marker + 2; i < value.size(); ++i) {
+    if (value[i] < '0' || value[i] > '9') {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool ValidateTestAttributeArgs(const ast::AttributeItem& attr,
+                                      AttributeValidationResult& result) {
+  if (attr.name != attrs::kTest) {
+    return true;
+  }
+
+  bool saw_name = false;
+  for (const auto& arg : attr.args) {
+    if (arg.key.has_value() && *arg.key == "name") {
+      if (saw_name) {
+        result.ok = false;
+        result.diag_id = "E-TST-0102";
+        result.span = attr.span;
+        result.message = "Duplicate [[test]] name argument";
+        return false;
+      }
+
+      const auto* token = GetTokenArg(arg);
+      if (!token || !IsNonEmptyStringLiteralToken(*token)) {
+        result.ok = false;
+        result.diag_id = "E-TST-0101";
+        result.span = attr.span;
+        result.message = "Malformed [[test]] argument";
+        return false;
+      }
+      saw_name = true;
+      continue;
+    }
+
+    if (arg.key.has_value() && *arg.key == "covers") {
+      const auto* nested =
+          std::get_if<std::vector<ast::AttributeArg>>(&arg.value);
+      if (!nested || nested->size() != 1 || (*nested)[0].key.has_value()) {
+        result.ok = false;
+        result.diag_id = "E-TST-0103";
+        result.span = attr.span;
+        result.message = "Malformed covers(...) argument";
+        return false;
+      }
+
+      const auto* token = GetTokenArg((*nested)[0]);
+      if (!token || !IsNonEmptyStringLiteralToken(*token) ||
+          !LooksLikeCoverageReference(NormalizeAttrLiteral(token->lexeme))) {
+        result.ok = false;
+        result.diag_id = "E-TST-0103";
+        result.span = attr.span;
+        result.message = "Malformed covers(...) argument";
+        return false;
+      }
+      continue;
+    }
+
+    result.ok = false;
+    result.diag_id = "E-TST-0101";
+    result.span = attr.span;
+    result.message = "Malformed [[test]] argument";
+    return false;
   }
 
   return true;
@@ -250,6 +337,12 @@ AttributeRegistry InitializeRegistry() {
     spec.valid_targets = {AttributeTarget::Statement, AttributeTarget::Expression};
     registry.Register(spec);
   }
+  {
+    AttributeSpec spec;
+    spec.name = attrs::kTest;
+    spec.valid_targets = {AttributeTarget::Procedure};
+    registry.Register(spec);
+  }
 
   // [[deprecated]] - Deprecated declaration
   {
@@ -394,11 +487,11 @@ AttributeValidationResult ValidateAttributes(
     const auto* spec = registry.Lookup(attr.name);
 
     // Unknown attributes use the generic §9.1.7 diagnostic unless the
-    // miss falls into the reserved `cursive::...` vendor namespace, which
-    // §9.2.7 assigns to E-CNF-0402 instead.
+    // miss falls into the active language's reserved vendor namespace,
+    // which §9.2.7 assigns to E-CNF-0402 instead.
     if (!spec) {
       result.ok = false;
-      if (attr.name.rfind("cursive::", 0) == 0) {
+      if (attr.name.rfind(ReservedAttributePrefix(), 0) == 0) {
         result.diag_id = "E-CNF-0402";
       } else {
         result.diag_id = "E-MOD-2451";  // Unknown attribute name
@@ -436,6 +529,10 @@ AttributeValidationResult ValidateAttributes(
     }
 
     if (!ValidateDeriveAttributeArgs(attr, result)) {
+      return result;
+    }
+
+    if (!ValidateTestAttributeArgs(attr, result)) {
       return result;
     }
 
@@ -836,7 +933,7 @@ AttributeValidationResult ValidateUnsupportedAttributeTarget(
     const auto* spec = registry.Lookup(attr.name);
     if (!spec) {
       result.ok = false;
-      if (attr.name.rfind("cursive::", 0) == 0) {
+      if (attr.name.rfind(ReservedAttributePrefix(), 0) == 0) {
         result.diag_id = "E-CNF-0402";
       } else {
         result.diag_id = "E-MOD-2451";

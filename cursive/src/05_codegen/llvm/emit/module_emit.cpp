@@ -179,7 +179,10 @@ using namespace emit_detail;
 
       for (const auto &module_key : ctx.hosted_project_modules)
       {
-        std::vector<std::string> full = {"cursive", "runtime", "poison"};
+        std::vector<std::string> full = {
+            std::string(project::ActiveLanguageProfile().runtime_root),
+            "runtime",
+            "poison"};
         const auto path = SplitModulePathKey(module_key);
         full.insert(full.end(), path.begin(), path.end());
         const std::string poison_sym = core::Mangle(core::StringOfPath(full));
@@ -609,7 +612,7 @@ using namespace emit_detail;
     builder.CreateCondBr(cache_miss, resolve_block, call_block);
 
     builder.SetInsertPoint(resolve_block);
-    llvm::Function *resolve_fn = module_->getFunction(kRawDylibResolveSym);
+    llvm::Function *resolve_fn = module_->getFunction(RawDylibResolveSym());
     if (!resolve_fn)
     {
       llvm::FunctionType *resolve_ty = llvm::FunctionType::get(
@@ -619,7 +622,7 @@ using namespace emit_detail;
       resolve_fn = llvm::Function::Create(
           resolve_ty,
           llvm::GlobalValue::ExternalLinkage,
-          kRawDylibResolveSym,
+          RawDylibResolveSym(),
           module_.get());
       resolve_fn->setCallingConv(llvm::CallingConv::C);
     }

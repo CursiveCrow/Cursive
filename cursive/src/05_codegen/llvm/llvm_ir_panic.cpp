@@ -52,10 +52,15 @@ namespace cursive::codegen {
 
 namespace {
 
-constexpr const char* kDeinitPanicSeenSlot = "__cursive_deinit_panic_seen";
-constexpr const char* kDeinitPanicCodeSlot = "__cursive_deinit_panic_code";
-
 using emit_detail::BuildScope;
+
+const char* DeinitPanicSeenSlot() {
+  return project::ActiveLanguageProfile().deinit_panic_seen_slot.data();
+}
+
+const char* DeinitPanicCodeSlot() {
+  return project::ActiveLanguageProfile().deinit_panic_code_slot.data();
+}
 
 // Helper for byte-level GEP
 llvm::Value* ByteGEP(LLVMEmitter& emitter,
@@ -139,9 +144,9 @@ std::pair<llvm::AllocaInst*, llvm::AllocaInst*> GetOrCreateDeinitPanicSlots(
   }
 
   auto* seen_slot =
-      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(kDeinitPanicSeenSlot));
+      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(DeinitPanicSeenSlot()));
   auto* code_slot =
-      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(kDeinitPanicCodeSlot));
+      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(DeinitPanicCodeSlot()));
   if (seen_slot && seen_slot->getFunction() != func) {
     seen_slot = nullptr;
   }
@@ -154,20 +159,20 @@ std::pair<llvm::AllocaInst*, llvm::AllocaInst*> GetOrCreateDeinitPanicSlots(
 
   llvm::IRBuilder<> entry_builder(&func->getEntryBlock(),
                                   func->getEntryBlock().begin());
-  if (!seen_slot) {
-    seen_slot = entry_builder.CreateAlloca(
-        llvm::Type::getInt1Ty(emitter.GetContext()), nullptr, kDeinitPanicSeenSlot);
+	if (!seen_slot) {
+	  seen_slot = entry_builder.CreateAlloca(
+	      llvm::Type::getInt1Ty(emitter.GetContext()), nullptr, DeinitPanicSeenSlot());
     entry_builder.CreateStore(llvm::ConstantInt::getFalse(emitter.GetContext()),
                               seen_slot);
-    emitter.SetLocal(kDeinitPanicSeenSlot, seen_slot);
+	    emitter.SetLocal(DeinitPanicSeenSlot(), seen_slot);
   }
   if (!code_slot) {
-    code_slot = entry_builder.CreateAlloca(
-        llvm::Type::getInt32Ty(emitter.GetContext()), nullptr, kDeinitPanicCodeSlot);
+	  code_slot = entry_builder.CreateAlloca(
+	      llvm::Type::getInt32Ty(emitter.GetContext()), nullptr, DeinitPanicCodeSlot());
     entry_builder.CreateStore(
         llvm::ConstantInt::get(llvm::Type::getInt32Ty(emitter.GetContext()), 0),
         code_slot);
-    emitter.SetLocal(kDeinitPanicCodeSlot, code_slot);
+	    emitter.SetLocal(DeinitPanicCodeSlot(), code_slot);
   }
 
   return {seen_slot, code_slot};
@@ -348,8 +353,7 @@ bool IsInitFunction(LLVMEmitter& emitter, llvm::Function* func) {
   if (!func) {
     return false;
   }
-  const std::string prefix =
-      core::Mangle(core::StringOfPath({"cursive", "runtime", "init"}));
+  const std::string prefix = project::RuntimePathSig({"init"});
   return func->getName().starts_with(prefix);
 }
 
@@ -374,7 +378,10 @@ std::vector<std::string> SplitModulePathString(const std::string& module) {
 llvm::GlobalVariable* GetOrCreatePoisonFlag(LLVMEmitter& emitter,
                                             const std::vector<std::string>& module_path) {
   SPEC_RULE("PoisonFlag-Decl");
-  std::vector<std::string> full = {"cursive", "runtime", "poison"};
+  std::vector<std::string> full = {
+      std::string(project::ActiveLanguageProfile().runtime_root),
+      "runtime",
+      "poison"};
   full.insert(full.end(), module_path.begin(), module_path.end());
   const std::string sym = core::Mangle(core::StringOfPath(full));
   bool define_flag = true;
@@ -436,7 +443,10 @@ llvm::Value* GetPoisonFlagPtr(LLVMEmitter& emitter,
 
   llvm::Value* global_flag = GetOrCreatePoisonFlag(emitter, module_path);
   if (emitter.IsHostedLibraryBuild()) {
-    std::vector<std::string> full = {"cursive", "runtime", "poison"};
+    std::vector<std::string> full = {
+        std::string(project::ActiveLanguageProfile().runtime_root),
+        "runtime",
+        "poison"};
     full.insert(full.end(), module_path.begin(), module_path.end());
     const std::string sym = core::Mangle(core::StringOfPath(full));
     if (llvm::Value* ptr = emitter.GetHostedStatePtr(sym, bool_ty, global_flag)) {

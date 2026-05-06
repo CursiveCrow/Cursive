@@ -16,6 +16,7 @@
 #include <utility>
 
 #include "00_core/assert_spec.h"
+#include "01_project/language_profile.h"
 #include "00_core/symbols.h"
 #include "04_analysis/language_service/facts.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
@@ -42,7 +43,8 @@ static inline void SpecDefsResolveQual() {
 }
 
 bool IsRuntimePanicPath(const ast::Path& path, std::string_view name) {
-  return path.size() == 2 && IdEq(path[0], "cursive") &&
+  return path.size() == 2 &&
+         IdEq(path[0], project::ActiveLanguageProfile().runtime_root) &&
          IdEq(path[1], "runtime") && name == "panic";
 }
 

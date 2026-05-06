@@ -983,14 +983,14 @@ using namespace emit_detail;
       return;
     }
 
-    llvm::Function *entry_fn = module_->getFunction(kLibraryEntrySym);
+    llvm::Function *entry_fn = module_->getFunction(LibraryEntrySym());
     if (!entry_fn)
     {
       llvm::FunctionType *entry_ty = llvm::FunctionType::get(
           i32_ty, {opaque_ptr_ty, i32_ty, opaque_ptr_ty}, false);
       entry_fn = llvm::Function::Create(entry_ty,
                                         llvm::GlobalValue::ExternalLinkage,
-                                        kLibraryEntrySym,
+                                        LibraryEntrySym(),
                                         module_.get());
       entry_fn->setCallingConv(llvm::CallingConv::C);
     }
@@ -999,7 +999,9 @@ using namespace emit_detail;
       return;
     }
 
-    llvm::GlobalVariable *attached_gv = module_->getNamedGlobal("__cursive_library_attached");
+    const auto attached_symbol =
+        std::string(project::ActiveLanguageProfile().library_attached_symbol);
+    llvm::GlobalVariable *attached_gv = module_->getNamedGlobal(attached_symbol);
     if (!attached_gv)
     {
       attached_gv = new llvm::GlobalVariable(*module_,
@@ -1007,7 +1009,7 @@ using namespace emit_detail;
                                              false,
                                              llvm::GlobalValue::InternalLinkage,
                                              llvm::ConstantInt::getFalse(context_),
-                                             "__cursive_library_attached");
+                                             attached_symbol);
     }
 
     llvm::BasicBlock *entry_bb = llvm::BasicBlock::Create(context_, "entry", entry_fn);
@@ -1248,7 +1250,7 @@ using namespace emit_detail;
       return;
     }
 
-    llvm::Function *entry_fn = module_->getFunction(kLibraryEntrySym);
+    llvm::Function *entry_fn = module_->getFunction(LibraryEntrySym());
     llvm::Type *opaque_ptr_ty = GetOpaquePtr();
     if (!entry_fn || !opaque_ptr_ty)
     {
@@ -1293,7 +1295,7 @@ using namespace emit_detail;
       return fn;
     };
 
-    llvm::Function *ctor_fn = ensure_hook(kLibraryCtorSym);
+    llvm::Function *ctor_fn = ensure_hook(LibraryCtorSym());
     if (ctor_fn && ctor_fn->empty())
     {
       llvm::BasicBlock *entry_bb =
@@ -1328,7 +1330,7 @@ using namespace emit_detail;
       builder->CreateRetVoid();
     }
 
-    llvm::Function *dtor_fn = ensure_hook(kLibraryDtorSym);
+    llvm::Function *dtor_fn = ensure_hook(LibraryDtorSym());
     if (dtor_fn && dtor_fn->empty())
     {
       llvm::BasicBlock *entry_bb =

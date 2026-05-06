@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "00_core/diagnostics.h"
+#include "01_project/language_profile.h"
 
 namespace cursive::project {
 
@@ -25,8 +26,13 @@ struct CompilationUnitResult {
 };
 
 CompilationUnitResult CompilationUnit(const std::filesystem::path& module_dir);
+CompilationUnitResult CompilationUnit(const std::filesystem::path& module_dir,
+                                      const LanguageProfile& language);
 
 ModulesResult Modules(const std::filesystem::path& source_root,
                       std::string_view assembly_name);
+ModulesResult Modules(const std::filesystem::path& source_root,
+                      std::string_view assembly_name,
+                      const LanguageProfile& language);
 
 }  // namespace cursive::project

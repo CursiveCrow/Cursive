@@ -23,6 +23,7 @@
 #include "00_core/compiler_support.h"
 #include "01_project/assemblies.h"
 #include "01_project/compiler_support_paths.h"
+#include "01_project/language_profile.h"
 #include "01_project/outputs.h"
 #include "01_project/project.h"
 #include "01_project/target_profile.h"
@@ -32,17 +33,8 @@ namespace cursive::project {
 
 namespace {
 
-constexpr std::string_view kLibraryEntrySym = "__cursive_library_entry";
 constexpr std::uint64_t kWindowsExeStackReserveBytes = 1ull << 20;
 constexpr std::uint64_t kWindowsExeStackCommitBytes = 64ull << 10;
-constexpr std::string_view kRuntimeInitPrefix =
-    "cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3a";
-constexpr std::string_view kRuntimeDeinitPrefix =
-    "cursive_x3a_x3aruntime_x3a_x3adeinit_x3a_x3a";
-constexpr std::string_view kLinuxStartupObjectX86_64SysV =
-    "cursive0_start_x86_64_sysv.o";
-constexpr std::string_view kLinuxRuntimeSupportSidecar =
-    "libCursiveRTSupport.so";
 constexpr std::string_view kLinuxIcuI18nSidecar = "libicui18n.so.72";
 constexpr std::string_view kLinuxIcuUcSidecar = "libicuuc.so.72";
 constexpr std::string_view kLinuxIcuDataSidecar = "libicudata.so.72";
@@ -113,10 +105,11 @@ std::string CommandLineForDebug(const std::vector<std::string>& argv) {
 }
 
 bool IsHiddenSharedLibraryExportSymbolImpl(std::string_view symbol) {
-  return symbol == kLibraryEntrySym ||
+  const auto& language = ActiveLanguageProfile();
+  return symbol == language.library_entry_symbol ||
          symbol.rfind("__cx_", 0) == 0 ||
-         symbol.rfind(kRuntimeInitPrefix, 0) == 0 ||
-         symbol.rfind(kRuntimeDeinitPrefix, 0) == 0 ||
+         symbol.rfind(language.runtime_init_mangle_prefix, 0) == 0 ||
+         symbol.rfind(language.runtime_deinit_mangle_prefix, 0) == 0 ||
          symbol.ends_with("$resume");
 }
 
@@ -1117,7 +1110,9 @@ std::vector<std::filesystem::path> LinuxBundledRuntimeSidecars(
   }
 
   std::vector<std::filesystem::path> out;
-  for (const auto* name : {kLinuxRuntimeSupportSidecar.data(),
+  const std::string runtime_support_sidecar(
+      ActiveLanguageProfile().linux_runtime_support_sidecar);
+  for (const auto* name : {runtime_support_sidecar.c_str(),
                            kLinuxIcuI18nSidecar.data(),
                            kLinuxIcuUcSidecar.data(),
                            kLinuxIcuDataSidecar.data(),
@@ -1297,7 +1292,8 @@ std::vector<std::string> BuildWindowsLinkArgs(
     if (plan.shared_library_lifecycle_mode ==
         SharedLibraryLifecycleMode::WindowsEntry) {
       const std::string entry_symbol =
-          plan.entry_symbol.value_or(std::string(kLibraryEntrySym));
+          plan.entry_symbol.value_or(
+              std::string(ActiveLanguageProfile().library_entry_symbol));
       args.push_back("/ENTRY:" + entry_symbol);
     }
     if (import_lib.has_value()) {
@@ -1461,7 +1457,8 @@ std::optional<std::filesystem::path> RuntimeStartupObjectPath(
     return std::nullopt;
   }
 
-  const std::filesystem::path startup_name(kLinuxStartupObjectX86_64SysV);
+  const std::filesystem::path startup_name(
+      std::string(ActiveLanguageProfile().linux_startup_object_x86_64_sysv));
   std::vector<std::filesystem::path> candidates;
   candidates.reserve(6);
 
@@ -1496,7 +1493,7 @@ std::optional<std::filesystem::path> RuntimeStartupObjectPath(
 }
 
 std::vector<std::string> RuntimeRequiredSyms() {
-  return core::RuntimeLinkRequiredSyms();
+  return core::RuntimeLinkRequiredSyms(ActiveLanguageProfile().runtime_root);
 }
 
 bool IsHiddenSharedLibraryExportSymbol(std::string_view symbol) {
@@ -1722,7 +1719,9 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
     if (auto diag = core::MakeExternalDiagnostic("E-OUT-0405")) {
       core::SubDiagnostic guidance_note;
       guidance_note.kind = core::SubDiagnosticKind::Note;
-      guidance_note.message = "set llvm_bin in [toolchain] in Cursive.toml";
+      guidance_note.message =
+          "set llvm_bin in [toolchain] in " +
+          std::string(ActiveLanguageProfile().manifest_name);
       diag->children.push_back(std::move(guidance_note));
 
       core::SubDiagnostic search_note;
@@ -1748,7 +1747,7 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
       guidance_note.kind = core::SubDiagnosticKind::Note;
       guidance_note.message =
           "set --runtime-lib <path> or add runtime_lib to [toolchain] in "
-          "Cursive.toml";
+          + std::string(ActiveLanguageProfile().manifest_name);
       diag->children.push_back(std::move(guidance_note));
 
       // Collect runtime lib search locations
@@ -1820,7 +1819,8 @@ LinkResult Link(const std::vector<std::filesystem::path>& objs,
         note.kind = core::SubDiagnosticKind::Note;
         note.message =
             "missing Linux runtime startup object `" +
-            std::string(kLinuxStartupObjectX86_64SysV) + "`";
+            std::string(ActiveLanguageProfile().linux_startup_object_x86_64_sysv) +
+            "`";
         diag->children.push_back(std::move(note));
         core::Emit(result.diags, *diag);
       } else {
@@ -2016,7 +2016,9 @@ LinkResult Archive(const std::vector<std::filesystem::path>& objs,
     if (auto diag = core::MakeExternalDiagnostic("E-OUT-0405")) {
       core::SubDiagnostic guidance_note;
       guidance_note.kind = core::SubDiagnosticKind::Note;
-      guidance_note.message = "set llvm_bin in [toolchain] in Cursive.toml";
+      guidance_note.message =
+          "set llvm_bin in [toolchain] in " +
+          std::string(ActiveLanguageProfile().manifest_name);
       diag->children.push_back(std::move(guidance_note));
 
       core::SubDiagnostic search_note;

@@ -19,6 +19,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 #include "05_codegen/globals/globals.h"
 #include "05_codegen/globals/literal_emit.h"
 #include "05_codegen/intrinsics/builtins.h"
@@ -72,7 +73,10 @@ std::string BuiltinSymDirIterOpenClose() {
 }
 
 std::string PoisonFlagSymForModule(std::string_view module_name) {
-  std::vector<std::string> full = {"cursive", "runtime", "poison"};
+  std::vector<std::string> full = {
+      std::string(project::ActiveLanguageProfile().runtime_root),
+      "runtime",
+      "poison"};
   std::string segment;
   for (std::size_t i = 0; i < module_name.size();) {
     if (i + 1 < module_name.size() &&
@@ -151,6 +155,7 @@ RuntimeCategoryMap BuildRuntimeCategoryMap() {
   // String
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::String, BuiltinSymStringFrom());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::String, BuiltinSymStringAsView());
+  AddRuntimeSymbol(categories, RuntimeSymbolCategory::String, BuiltinSymStringSlice());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::String, BuiltinSymStringToManaged());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::String, BuiltinSymStringCloneWith());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::String, BuiltinSymStringAppend());
@@ -278,14 +283,32 @@ RuntimeCategoryMap BuildRuntimeCategoryMap() {
 }
 
 const RuntimeCategoryMap& GetRuntimeCategoryMap() {
-  static const RuntimeCategoryMap categories = BuildRuntimeCategoryMap();
-  return categories;
+  struct Cache {
+    project::SourceLanguage language = project::SourceLanguage::Cursive;
+    RuntimeCategoryMap categories;
+    bool initialized = false;
+  };
+
+  static Cache cache;
+  const auto active_language = project::ActiveLanguageProfile().language;
+  if (!cache.initialized || cache.language != active_language) {
+    cache.language = active_language;
+    cache.categories = BuildRuntimeCategoryMap();
+    cache.initialized = true;
+  }
+  return cache.categories;
 }
 
 void AddRefSym(std::set<std::string>& out, const std::string& symbol) {
   if (!symbol.empty()) {
     out.insert(symbol);
   }
+}
+
+std::string ConcurrencySym(std::string_view name) {
+  std::string symbol(project::ActiveLanguageProfile().concurrency_symbol_prefix);
+  symbol.append(name);
+  return symbol;
 }
 
 void AddRefSymsFromValue(std::set<std::string>& out, const IRValue& value) {
@@ -497,11 +520,13 @@ RuntimeSymbolCategory CategorizeRuntimeSymbol(const std::string& symbol) {
 
   // Preserve prefix-based fallback categorization for runtime symbols not
   // explicitly registered in the map.
-  if (symbol.rfind(kConcurrencyPrefix, 0) == 0) {
+  const auto& language = project::ActiveLanguageProfile();
+  if (symbol.rfind(language.concurrency_symbol_prefix, 0) == 0) {
     return RuntimeSymbolCategory::Concurrency;
   }
-  if (symbol.rfind(kRuntimePrefix, 0) == 0) {
-    std::string suffix = symbol.substr(std::string(kRuntimePrefix).length());
+  if (symbol.rfind(language.runtime_symbol_prefix, 0) == 0) {
+    std::string suffix =
+        symbol.substr(std::string(language.runtime_symbol_prefix).length());
     if (suffix.rfind("panic", 0) == 0 || suffix.rfind("context", 0) == 0) {
       return RuntimeSymbolCategory::Core;
     }
@@ -557,8 +582,20 @@ std::unordered_set<std::string> BuildRuntimeSymbolSet() {
 }
 
 const std::unordered_set<std::string>& GetRuntimeSymbolSet() {
-  static const std::unordered_set<std::string> symbols = BuildRuntimeSymbolSet();
-  return symbols;
+  struct Cache {
+    project::SourceLanguage language = project::SourceLanguage::Cursive;
+    std::unordered_set<std::string> symbols;
+    bool initialized = false;
+  };
+
+  static Cache cache;
+  const auto active_language = project::ActiveLanguageProfile().language;
+  if (!cache.initialized || cache.language != active_language) {
+    cache.language = active_language;
+    cache.symbols = BuildRuntimeSymbolSet();
+    cache.initialized = true;
+  }
+  return cache.symbols;
 }
 
 }  // namespace
@@ -1221,6 +1258,13 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
     info.ret = t_string_view;
     return info;
   }
+  if (symbol == BuiltinSymStringSlice()) {
+    info.params.push_back(make_param("self", t_const_string_view));
+    info.params.push_back(make_param("start", t_usize));
+    info.params.push_back(make_param("end", t_usize));
+    info.ret = t_string_view;
+    return info;
+  }
   if (symbol == BuiltinSymStringToManaged()) {
     info.params.push_back(make_param("self", t_const_string_view));
     info.params.push_back(make_param("heap", t_heap_alloc));
@@ -1433,75 +1477,75 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
 // =============================================================================
 
 std::string ConcurrencySymParallelBegin() {
-  return "cursive_parallel_begin";
+  return ConcurrencySym("parallel_begin");
 }
 
 std::string ConcurrencySymParallelJoin() {
-  return "cursive_parallel_join";
+  return ConcurrencySym("parallel_join");
 }
 
 std::string ConcurrencySymSpawnCreate() {
-  return "cursive_spawn_create";
+  return ConcurrencySym("spawn_create");
 }
 
 std::string ConcurrencySymSpawnWait() {
-  return "cursive_spawn_wait";
+  return ConcurrencySym("spawn_wait");
 }
 
 std::string ConcurrencySymDispatchRun() {
-  return "cursive_dispatch_run";
+  return ConcurrencySym("dispatch_run");
 }
 
 std::string ConcurrencySymCancelTokenNew() {
-  return "cursive_cancel_token_new";
+  return ConcurrencySym("cancel_token_new");
 }
 
 std::string ConcurrencySymCancelTokenCancel() {
-  return "cursive_cancel_token_cancel";
+  return ConcurrencySym("cancel_token_cancel");
 }
 
 std::string ConcurrencySymCancelTokenIsCancelled() {
-  return "cursive_cancel_token_is_cancelled";
+  return ConcurrencySym("cancel_token_is_cancelled");
 }
 
 std::string ConcurrencySymParallelWorkPanic() {
-  return "cursive_parallel_work_panic";
+  return ConcurrencySym("parallel_work_panic");
 }
 
 std::string ConcurrencySymKeyScopeEnter() {
-  return "cursive_key_scope_enter";
+  return ConcurrencySym("key_scope_enter");
 }
 
 std::string ConcurrencySymKeyScopeExit() {
-  return "cursive_key_scope_exit";
+  return ConcurrencySym("key_scope_exit");
 }
 
 std::string ConcurrencySymKeyCheckConflict() {
-  return "cursive_key_check_conflict";
+  return ConcurrencySym("key_check_conflict");
 }
 
 std::string ConcurrencySymKeyAcquire() {
-  return "cursive_key_acquire";
+  return ConcurrencySym("key_acquire");
 }
 
 std::string ConcurrencySymKeyReleaseOne() {
-  return "cursive_key_release_one";
+  return ConcurrencySym("key_release_one");
 }
 
 std::string ConcurrencySymKeyReleaseAll() {
-  return "cursive_key_release_all";
+  return ConcurrencySym("key_release_all");
 }
 
 std::string ConcurrencySymKeyReacquireOne() {
-  return "cursive_key_reacquire_one";
+  return ConcurrencySym("key_reacquire_one");
 }
 
 std::string ConcurrencySymKeyReacquire() {
-  return "cursive_key_reacquire";
+  return ConcurrencySym("key_reacquire");
 }
 
 std::string ConcurrencySymKeyReleaseSnapshotDiscard() {
-  return "cursive_key_release_snapshot_discard";
+  return ConcurrencySym("key_release_snapshot_discard");
 }
 
 // =============================================================================
@@ -1622,5 +1666,3 @@ void AnchorRuntimeInterfaceRules() {
 }
 
 }  // namespace cursive::codegen
-
-

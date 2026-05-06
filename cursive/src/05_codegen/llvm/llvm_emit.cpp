@@ -4,6 +4,10 @@
 // =============================================================================
 #include "05_codegen/llvm/llvm_emit.h"
 
+#include "01_project/language_profile.h"
+
+#include <string>
+
 #include "llvm/IR/Module.h"
 
 namespace cursive::codegen {
@@ -14,7 +18,10 @@ llvm::Module *EmitLLVM(const IRDecls &decls,
                        project::TargetProfile profile)
 {
   auto emitter =
-      std::make_unique<LLVMEmitter>(llvm_ctx, "cursive_module", profile);
+      std::make_unique<LLVMEmitter>(
+          llvm_ctx,
+          std::string(project::ActiveLanguageProfile().lower_name) + "_module",
+          profile);
   llvm::Module *m = emitter->EmitModule(decls, ctx);
   (void)emitter->ReleaseModule();
   return m;

@@ -368,6 +368,43 @@ static std::vector<std::pair<std::string, TypeRef>> TypedPatternBindings(
 // Pattern Typing Implementation
 // -----------------------------------------------------------------------------
 
+static bool IsWholeValueUnionPattern(const ast::PatternPtr& pattern) {
+  if (!pattern) {
+    return false;
+  }
+  return std::holds_alternative<ast::WildcardPattern>(pattern->node) ||
+         std::holds_alternative<ast::IdentifierPattern>(pattern->node);
+}
+
+static PatternTypeResult MergeUnionPatternBindings(
+    std::vector<std::pair<std::string, TypeRef>>& bindings,
+    const std::vector<std::pair<std::string, TypeRef>>& member_bindings) {
+  PatternTypeResult result;
+  if (bindings.size() != member_bindings.size()) {
+    return result;
+  }
+
+  for (std::size_t i = 0; i < bindings.size(); ++i) {
+    if (bindings[i].first != member_bindings[i].first) {
+      return result;
+    }
+    const auto equiv = TypeEquivIgnorePerm(bindings[i].second,
+                                           member_bindings[i].second);
+    if (!equiv.ok) {
+      result.diag_id = equiv.diag_id;
+      return result;
+    }
+    if (!equiv.equiv) {
+      bindings[i].second =
+          MakeTypeUnion({bindings[i].second, member_bindings[i].second});
+    }
+  }
+
+  result.ok = true;
+  result.bindings = bindings;
+  return result;
+}
+
 static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
                                               const ast::PatternPtr& pattern,
                                               const TypeRef& expected) {
@@ -382,6 +419,48 @@ static PatternTypeResult TypePatternAgainstTypeImpl(const ScopeContext& ctx,
     SPEC_RULE("Pat-Dup-R-Err");
     result.diag_id = "Pat-Dup-Err";
     return result;
+  }
+
+  const TypeRef expected_base = StripPermOnce(expected);
+  if (expected_base && !IsWholeValueUnionPattern(pattern)) {
+    if (const auto* union_type = std::get_if<TypeUnion>(&expected_base->node)) {
+      bool matched = false;
+      std::optional<std::string_view> first_diag;
+      std::vector<std::pair<std::string, TypeRef>> merged_bindings;
+
+      for (const auto& member : union_type->members) {
+        const auto member_result = TypePatternAgainstTypeImpl(ctx, pattern, member);
+        if (!member_result.ok) {
+          if (member_result.diag_id.has_value() && !first_diag.has_value()) {
+            first_diag = member_result.diag_id;
+          }
+          continue;
+        }
+
+        if (!matched) {
+          merged_bindings = member_result.bindings;
+          matched = true;
+          continue;
+        }
+
+        auto merge_result =
+            MergeUnionPatternBindings(merged_bindings, member_result.bindings);
+        if (!merge_result.ok) {
+          return merge_result;
+        }
+        merged_bindings = std::move(merge_result.bindings);
+      }
+
+      if (matched) {
+        result.ok = true;
+        result.bindings = std::move(merged_bindings);
+        return result;
+      }
+      if (first_diag.has_value()) {
+        result.diag_id = first_diag;
+      }
+      return result;
+    }
   }
 
   return std::visit(

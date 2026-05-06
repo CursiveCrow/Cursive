@@ -25,7 +25,6 @@
 #include "04_analysis/typing/type_wf.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/types.h"
-#include "04_analysis/typing/subtyping.h"
 #include "00_core/diagnostic_messages.h"
 #include "02_source/ast/ast.h"
 
@@ -138,7 +137,7 @@ StaticDeclResult TypeStaticDecl(
     }
     SPEC_RULE("WF-StaticDecl-MissingType");
     result.ok = false;
-    result.diag_id = "WF-StaticDecl-MissingType";
+    result.diag_id = "E-TYP-1505";
     return result;
   }
 
@@ -146,7 +145,7 @@ StaticDeclResult TypeStaticDecl(
   if (vis_error) {
     SPEC_RULE("StaticVisOk-Err");
     result.ok = false;
-    result.diag_id = "StaticVisOk-Err";
+    result.diag_id = "E-MOD-2433";
     return result;
   }
 
@@ -165,24 +164,14 @@ StaticDeclResult TypeStaticDecl(
     StmtTypeContext type_ctx;
     type_ctx.return_type = MakeTypePrim("()");
 
-    const auto init_result = TypeExpr(ctx, type_ctx, decl.binding.init, env);
+    const auto init_result =
+        CheckExprAgainst(ctx, type_ctx, decl.binding.init, lowered.type, env);
     if (!init_result.ok) {
-      result.ok = false;
-      result.diag_id = init_result.diag_id;
-      return result;
-    }
-
-    // Check initializer type matches annotation
-    const auto sub = Subtyping(ctx, init_result.type, lowered.type);
-    if (!sub.ok) {
-      result.ok = false;
-      result.diag_id = sub.diag_id;
-      return result;
-    }
-    if (!sub.subtype) {
       SPEC_RULE("WF-StaticDecl-Ann-Mismatch");
       result.ok = false;
-      result.diag_id = "WF-StaticDecl-Ann-Mismatch";
+      result.diag_id =
+          init_result.diag_id.has_value() ? init_result.diag_id
+                                          : std::optional<std::string_view>("E-MOD-2402");
       return result;
     }
   } else {
@@ -231,7 +220,7 @@ StaticDeclResult TypeStaticDeclSignature(
   if (!ann_type) {
     SPEC_RULE("WF-StaticDecl-MissingType");
     result.ok = false;
-    result.diag_id = "WF-StaticDecl-MissingType";
+    result.diag_id = "E-TYP-1505";
     return result;
   }
 
@@ -239,7 +228,7 @@ StaticDeclResult TypeStaticDeclSignature(
   if (!StaticVisOk(decl.vis, decl.mut)) {
     SPEC_RULE("StaticVisOk-Err");
     result.ok = false;
-    result.diag_id = "StaticVisOk-Err";
+    result.diag_id = "E-MOD-2433";
     return result;
   }
 

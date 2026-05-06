@@ -54,6 +54,7 @@
 #include <vector>
 
 #include "04_analysis/layout/layout.h"
+#include "01_project/language_profile.h"
 #include "01_project/target_profile.h"
 #include "05_codegen/lower/lower_proc.h"
 #include "05_codegen/symbols/mangle.h"
@@ -134,8 +135,7 @@ std::string LiteralSymBytes(const std::vector<std::uint8_t>& content) {
 }
 
 bool IsLiteralSymbol(const std::string& symbol) {
-  static const std::string kLiteralPrefix =
-      core::Mangle(core::StringOfPath({"cursive", "runtime", "literal"}));
+  const std::string kLiteralPrefix = project::RuntimePathSig({"literal"});
   return symbol.rfind(kLiteralPrefix, 0) == 0;
 }
 

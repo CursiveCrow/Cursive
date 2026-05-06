@@ -1,6 +1,7 @@
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 #include "04_analysis/caps/builtin_paths.h"
 
 #include <array>
@@ -107,7 +108,7 @@ BuiltinModalMemberSig RegionAllocSig() {
   sig.ret_from_first_arg = true;
   sig.lowering = BuiltinModalLoweringOp::AllocInReceiver;
   sig.allocates_in_receiver = true;
-  sig.runtime_symbol = core::PathSig({"cursive", "runtime", "region", "alloc"});
+  sig.runtime_symbol = project::RuntimePathSig({"region", "alloc"});
   return sig;
 }
 
@@ -125,7 +126,7 @@ std::optional<BuiltinModalMemberSig> LookupRegionMemberSig(
     sig.requires_unsafe = true;
     sig.unsafe_diag = "E-MEM-3030";
     sig.runtime_symbol =
-        core::PathSig({"cursive", "runtime", "region", "reset_unchecked"});
+        project::RuntimePathSig({"region", "reset_unchecked"});
     sig.consumes_receiver = true;
     return sig;
   }
@@ -134,7 +135,7 @@ std::optional<BuiltinModalMemberSig> LookupRegionMemberSig(
     BuiltinModalMemberSig sig;
     sig.recv_perm = Permission::Unique;
     sig.ret = TypeRegionState("Frozen");
-    sig.runtime_symbol = core::PathSig({"cursive", "runtime", "region", "freeze"});
+    sig.runtime_symbol = project::RuntimePathSig({"region", "freeze"});
     sig.consumes_receiver = true;
     return sig;
   }
@@ -143,7 +144,7 @@ std::optional<BuiltinModalMemberSig> LookupRegionMemberSig(
     BuiltinModalMemberSig sig;
     sig.recv_perm = Permission::Unique;
     sig.ret = TypeRegionState("Active");
-    sig.runtime_symbol = core::PathSig({"cursive", "runtime", "region", "thaw"});
+    sig.runtime_symbol = project::RuntimePathSig({"region", "thaw"});
     sig.consumes_receiver = true;
     return sig;
   }
@@ -156,7 +157,7 @@ std::optional<BuiltinModalMemberSig> LookupRegionMemberSig(
     sig.requires_unsafe = true;
     sig.unsafe_diag = "E-MEM-3030";
     sig.runtime_symbol =
-        core::PathSig({"cursive", "runtime", "region", "free_unchecked"});
+        project::RuntimePathSig({"region", "free_unchecked"});
     sig.consumes_receiver = true;
     return sig;
   }
@@ -230,7 +231,7 @@ std::optional<std::string> LookupRegionRuntimeSymbolFor(
     std::string_view member_name) {
   if (!state.has_value()) {
     if (IdEq(member_name, "new_scoped")) {
-      return core::PathSig({"cursive", "runtime", "region", "new_scoped"});
+      return project::RuntimePathSig({"region", "new_scoped"});
     }
     return std::nullopt;
   }
@@ -238,10 +239,10 @@ std::optional<std::string> LookupRegionRuntimeSymbolFor(
   // These are not part of the source-level Region procedure surface (§5.4.1).
   if (IdEq(*state, "Active")) {
     if (IdEq(member_name, "mark")) {
-      return core::PathSig({"cursive", "runtime", "region", "mark"});
+      return project::RuntimePathSig({"region", "mark"});
     }
     if (IdEq(member_name, "reset_to")) {
-      return core::PathSig({"cursive", "runtime", "region", "reset_to"});
+      return project::RuntimePathSig({"region", "reset_to"});
     }
   }
   const auto sig = LookupRegionMemberSig(*state, member_name);
@@ -272,14 +273,13 @@ std::optional<std::string> LookupAsyncRuntimeSymbolFor(
     std::string_view member_name) {
   if (state.has_value()) {
     if (IdEq(*state, "Suspended") && IdEq(member_name, "resume")) {
-      return core::PathSig({"cursive", "runtime", "async", "resume"});
+      return project::RuntimePathSig({"async", "resume"});
     }
     return std::nullopt;
   }
 
   if (IsAsyncCombinatorName(member_name)) {
-    return core::PathSig(
-        {"cursive", "runtime", "async", "combinator", member_name});
+    return project::RuntimePathSig({"async", "combinator", member_name});
   }
 
   return std::nullopt;

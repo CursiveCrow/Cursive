@@ -122,8 +122,9 @@ AnalysisSnapshot AnalyzeWorkspace(
     overlay_text_by_path[PathKey(overlay.path)] = overlay.text_utf8;
   }
 
-  frontend::ParseModuleDeps deps;
-  deps.compilation_unit = project::CompilationUnit;
+	  frontend::ParseModuleDeps deps;
+	  deps.compilation_unit = static_cast<project::CompilationUnitResult (*)(
+	      const std::filesystem::path&)>(project::CompilationUnit);
   deps.read_bytes = ReadBytesOverlayAware;
   deps.load_source = core::LoadSource;
   deps.parse_file = ast::ParseFile;

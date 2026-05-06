@@ -257,6 +257,7 @@ add_library(cursive_project STATIC
   01_project/compiler_support_paths.cpp
   01_project/deterministic_order.cpp
   01_project/ir_assembly.cpp
+  01_project/language_profile.cpp
   01_project/link.cpp
   01_project/load_project.cpp
   01_project/manifest.cpp

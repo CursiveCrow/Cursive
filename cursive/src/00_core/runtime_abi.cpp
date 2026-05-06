@@ -25,16 +25,16 @@ std::string RuntimeSym(std::initializer_list<std::string_view> path) {
 
 }  // namespace
 
-std::vector<std::string> RuntimeLinkRequiredSyms() {
+std::vector<std::string> RuntimeLinkRequiredSyms(std::string_view runtime_root) {
   std::vector<std::string> syms;
 
-  AppendRuntimeSymbol(syms, RuntimeSym({"cursive", "runtime", "panic"}));
+  AppendRuntimeSymbol(syms, RuntimeSym({runtime_root, "runtime", "panic"}));
   AppendRuntimeSymbol(syms,
-                      RuntimeSym({"cursive", "runtime", "string", "drop_managed"}));
+                      RuntimeSym({runtime_root, "runtime", "string", "drop_managed"}));
   AppendRuntimeSymbol(syms,
-                      RuntimeSym({"cursive", "runtime", "bytes", "drop_managed"}));
+                      RuntimeSym({runtime_root, "runtime", "bytes", "drop_managed"}));
   AppendRuntimeSymbol(syms,
-                      RuntimeSym({"cursive", "runtime", "context_init"}));
+                      RuntimeSym({runtime_root, "runtime", "context_init"}));
 
   for (const auto* name : {
            "emit",
@@ -52,7 +52,7 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
            "set_min_level",
        }) {
     AppendRuntimeSymbol(
-        syms, RuntimeSym({"cursive", "runtime", "conformance", name}));
+        syms, RuntimeSym({runtime_root, "runtime", "conformance", name}));
   }
 
   for (const auto* name : {
@@ -71,12 +71,13 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
            "addr_tag_scope",
        }) {
     AppendRuntimeSymbol(syms,
-                        RuntimeSym({"cursive", "runtime", "region", name}));
+                        RuntimeSym({runtime_root, "runtime", "region", name}));
   }
 
   for (const auto* name : {
            "from",
            "as_view",
+           "slice",
            "to_managed",
            "clone_with",
            "append",
@@ -84,7 +85,7 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
            "is_empty",
        }) {
     AppendRuntimeSymbol(syms,
-                        RuntimeSym({"cursive", "runtime", "string", name}));
+                        RuntimeSym({runtime_root, "runtime", "string", name}));
   }
 
   for (const auto* name : {
@@ -100,7 +101,7 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
            "is_empty",
        }) {
     AppendRuntimeSymbol(syms,
-                        RuntimeSym({"cursive", "runtime", "bytes", name}));
+                        RuntimeSym({runtime_root, "runtime", "bytes", name}));
   }
 
   for (const auto* name : {
@@ -121,11 +122,11 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
            "kind",
            "restrict",
        }) {
-    AppendRuntimeSymbol(syms, RuntimeSym({"cursive", "runtime", "fs", name}));
+    AppendRuntimeSymbol(syms, RuntimeSym({runtime_root, "runtime", "fs", name}));
   }
 
   AppendRuntimeSymbol(
-      syms, RuntimeSym({"cursive", "runtime", "net", "restrict_to_host"}));
+      syms, RuntimeSym({runtime_root, "runtime", "net", "restrict_to_host"}));
 
   for (const auto* name : {
            "with_quota",
@@ -133,7 +134,7 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
            "dealloc_raw",
        }) {
     AppendRuntimeSymbol(syms,
-                        RuntimeSym({"cursive", "runtime", "heap", name}));
+                        RuntimeSym({runtime_root, "runtime", "heap", name}));
   }
 
   for (const auto* name : {
@@ -142,11 +143,15 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
            "run",
        }) {
     AppendRuntimeSymbol(syms,
-                        RuntimeSym({"cursive", "runtime", "system", name}));
+                        RuntimeSym({runtime_root, "runtime", "system", name}));
   }
 
   SortUniqueSymbols(syms);
   return syms;
+}
+
+std::vector<std::string> RuntimeLinkRequiredSyms() {
+  return RuntimeLinkRequiredSyms("cursive");
 }
 
 }  // namespace cursive::core

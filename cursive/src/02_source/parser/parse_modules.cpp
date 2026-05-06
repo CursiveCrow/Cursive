@@ -185,8 +185,9 @@ std::filesystem::path DirOf(std::string_view module_path,
 // =============================================================================
 
 ParseModuleDeps DefaultDeps() {
-  ParseModuleDeps deps;
-  deps.compilation_unit = project::CompilationUnit;
+	  ParseModuleDeps deps;
+	  deps.compilation_unit = static_cast<project::CompilationUnitResult (*)(
+	      const std::filesystem::path&)>(project::CompilationUnit);
   deps.read_bytes = ReadBytesDefault;
   deps.load_source = core::LoadSource;
   deps.parse_file = ast::ParseFile;

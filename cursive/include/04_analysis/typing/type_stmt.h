@@ -238,6 +238,7 @@ struct StmtTypeContext {
   bool require_pure = false;
   const ast::ContractClause* contract = nullptr;
   bool contract_dynamic = false;
+  bool test_postcondition_runtime = false;
   std::shared_ptr<StaticProofContext> proof_ctx;
 };
 

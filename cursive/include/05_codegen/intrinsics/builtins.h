@@ -149,6 +149,7 @@ std::string BuiltinSymAsyncFreeFrame();
 
 std::string BuiltinSymStringFrom();
 std::string BuiltinSymStringAsView();
+std::string BuiltinSymStringSlice();
 std::string BuiltinSymStringToManaged();
 std::string BuiltinSymStringCloneWith();
 std::string BuiltinSymStringAppend();

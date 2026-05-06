@@ -201,6 +201,26 @@ C0StringView cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3aas_x5fview(
   return view;
 }
 
+C0StringView cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3aslice(
+    const C0StringView* self,
+    const uint64_t* start,
+    const uint64_t* end) {
+  C0StringView view;
+  view.data = NULL;
+  view.len = 0;
+
+  if (!self || !start || !end) {
+    return view;
+  }
+  if (*start > *end || *end > self->len) {
+    return view;
+  }
+
+  view.data = self->data ? self->data + *start : NULL;
+  view.len = *end - *start;
+  return view;
+}
+
 void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3ato_x5fmanaged(
     C0Union_StringManaged_AllocError* out,
     const C0StringView* self,

@@ -4,8 +4,8 @@
 //
 // PURPOSE:
 //   AST pretty-printing and debugging utilities. Provides functions to
-//   serialize AST nodes to human-readable text format for debugging,
-//   testing, and diagnostic output.
+//   serialize AST nodes to human-readable text format for debugging and
+//   diagnostic output.
 //
 // ===========================================================================
 // SPEC REFERENCE: CursiveSpecification.md Section 3.3.2 (AST Node Catalog)

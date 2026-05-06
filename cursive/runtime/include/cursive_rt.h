@@ -398,6 +398,11 @@ void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3afrom(
 C0StringView cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3aas_x5fview(
   const C0StringManaged* self);
 
+C0StringView cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3aslice(
+  const C0StringView* self,
+  const uint64_t* start,
+  const uint64_t* end);
+
 void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3ato_x5fmanaged(
   C0Union_StringManaged_AllocError* out,
   const C0StringView* self,

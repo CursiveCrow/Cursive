@@ -358,8 +358,6 @@ namespace cursive::analysis
     bool is_hot = false;
     bool is_export = false;
     bool has_mangle = false;
-    bool is_test = false;
-    bool is_bench = false;
     bool is_deprecated = false;
     bool is_dynamic = false;
     bool has_layout_c = false;
@@ -424,14 +422,6 @@ namespace cursive::analysis
         {
           effects.mangle_mode = *mode;
         }
-      }
-      else if (attr.name == attrs::kTest)
-      {
-        effects.is_test = true;
-      }
-      else if (attr.name == attrs::kBench)
-      {
-        effects.is_bench = true;
       }
       else if (attr.name == attrs::kDeprecated)
       {

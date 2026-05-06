@@ -94,7 +94,7 @@ void IRInstructionVisitor::operator()(const IRRegion &region) const
   std::optional<std::string> alias = region.alias;
   if (!alias.has_value() || alias->empty())
   {
-    alias = "__cursive_region_active";
+    alias = std::string(project::ActiveLanguageProfile().region_active_alias);
   }
 
   llvm::Value *previous_local = emitter.GetLocal(*alias);

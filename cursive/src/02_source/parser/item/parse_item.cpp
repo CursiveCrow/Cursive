@@ -50,7 +50,10 @@ ParseItemResult ParseUsingDecl(Parser item_start,
                                Visibility vis,
                                AttrOpt attrs_opt);
 ParseItemResult ParseStaticDecl(Parser parser, Visibility vis, AttrOpt attrs_opt);
-ParseItemResult ParseProcedureDecl(Parser parser, Visibility vis, AttributeList attrs);
+ParseItemResult ParseProcedureDecl(Parser parser,
+                                   Visibility vis,
+                                   AttributeList attrs,
+                                   bool visibility_explicit);
 ParseItemResult ParseComptimeProcedureDecl(Parser parser, AttributeList attrs);
 ParseItemResult ParseRecordDecl(Parser parser, Visibility vis, AttributeList attrs);
 ParseItemResult ParseEnumDecl(Parser parser, Visibility vis, AttributeList attrs);
@@ -269,6 +272,7 @@ ParseItemResult ParseItem(Parser parser) {
 
   // Parse visibility modifier
   ParseElemResult<Visibility> vis = ParseVis(parser);
+  const bool visibility_explicit = vis.parser.index != parser.index;
   Parser cur = vis.parser;
 
   if (IsLexemeToken(cur, "derive")) {
@@ -318,7 +322,7 @@ ParseItemResult ParseItem(Parser parser) {
 
   if (IsKw(cur, "procedure")) {
     SPEC_RULE("Parse-Procedure");
-    return ParseProcedureDecl(cur, vis.elem, attrs_list);
+    return ParseProcedureDecl(cur, vis.elem, attrs_list, visibility_explicit);
   }
 
   // record declaration

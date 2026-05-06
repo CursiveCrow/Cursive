@@ -81,6 +81,7 @@
 #include "00_core/assert_spec.h"
 #include "00_core/process_config.h"
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_expr.h"
@@ -1528,7 +1529,10 @@ IRPtr EmitDropFields(const analysis::TypeRef& type,
 std::string DropGlueSym(const analysis::TypeRef& type, LowerCtx& ctx) {
   SPEC_RULE("DropGlueSym");
 
-  std::vector<std::string> path = {"cursive", "runtime", "drop"};
+  std::vector<std::string> path = {
+      std::string(project::ActiveLanguageProfile().runtime_root),
+      "runtime",
+      "drop"};
 
   analysis::TypeRef drop_type = type;
   if (HoldsType<analysis::TypePerm>(drop_type)) {

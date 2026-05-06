@@ -62,6 +62,7 @@
 #include "05_codegen/symbols/mangle.h"
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 
 namespace cursive::codegen {
 
@@ -79,7 +80,10 @@ std::string ModulePathString(const ast::ModulePath& path) {
 }
 
 std::string InitItemSym(const ast::ModulePath& module_path, std::size_t index) {
-  std::vector<std::string> path = {"cursive", "runtime", "init_item"};
+  std::vector<std::string> path = {
+      std::string(project::ActiveLanguageProfile().runtime_root),
+      "runtime",
+      "init_item"};
   path.insert(path.end(), module_path.begin(), module_path.end());
   path.push_back(std::to_string(index));
   return core::Mangle(core::StringOfPath(path));
@@ -250,7 +254,10 @@ std::string InitSym(const ast::ModulePath& module_path) {
   SPEC_DEF("InitSym", "");
 
   // InitSym(m) = PathSig(["cursive", "runtime", "init"] ++ PathOfModule(m))
-  std::vector<std::string> path = {"cursive", "runtime", "init"};
+  std::vector<std::string> path = {
+      std::string(project::ActiveLanguageProfile().runtime_root),
+      "runtime",
+      "init"};
   path.insert(path.end(), module_path.begin(), module_path.end());
   return core::Mangle(core::StringOfPath(path));
 }
@@ -259,7 +266,10 @@ std::string DeinitSym(const ast::ModulePath& module_path) {
   SPEC_DEF("DeinitSym", "");
 
   // DeinitSym(m) = PathSig(["cursive", "runtime", "deinit"] ++ PathOfModule(m))
-  std::vector<std::string> path = {"cursive", "runtime", "deinit"};
+  std::vector<std::string> path = {
+      std::string(project::ActiveLanguageProfile().runtime_root),
+      "runtime",
+      "deinit"};
   path.insert(path.end(), module_path.begin(), module_path.end());
   return core::Mangle(core::StringOfPath(path));
 }

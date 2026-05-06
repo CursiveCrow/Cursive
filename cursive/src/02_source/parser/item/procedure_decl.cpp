@@ -55,6 +55,7 @@ namespace cursive::ast
 
     ParseItemResult ParseProcedureLikeDeclImpl(Parser parser, Visibility vis,
                                                AttributeList attrs,
+                                               bool visibility_explicit,
                                                bool comptime_prefix)
     {
         Parser start = parser;
@@ -109,6 +110,7 @@ namespace cursive::ast
         ProcedureDecl decl;
         decl.attrs = attrs;
         decl.vis = vis;
+        decl.visibility_explicit = visibility_explicit;
         decl.name = name.elem;
         decl.generic_params = gen_params.elem;
         decl.predicate_clause_opt = predicate_clause_opt;
@@ -141,10 +143,12 @@ namespace cursive::ast
     //       body, SpanBetween(P, P_7), []⟩)
 
     ParseItemResult ParseProcedureDecl(Parser parser, Visibility vis,
-                                       AttributeList attrs)
+                                       AttributeList attrs,
+                                       bool visibility_explicit)
     {
         SPEC_RULE("Parse-Procedure");
-        return ParseProcedureLikeDeclImpl(parser, vis, attrs, false);
+        return ParseProcedureLikeDeclImpl(parser, vis, attrs,
+                                          visibility_explicit, false);
     }
 
 } // namespace cursive::ast

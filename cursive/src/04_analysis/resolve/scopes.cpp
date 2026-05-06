@@ -98,6 +98,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/unicode.h"
+#include "01_project/language_profile.h"
 #include "02_source/lexer/keyword_policy.h"
 
 namespace cursive::analysis {
@@ -214,7 +215,8 @@ bool ReservedGen(std::string_view x) {
 
 bool ReservedModulePath(const ast::ModulePath& path) {
   SpecDefsReserved();
-  if (!path.empty() && IdEq(path[0], "cursive")) {
+  if (!path.empty() &&
+      IdEq(path[0], project::ActiveLanguageProfile().runtime_root)) {
     return true;
   }
   for (const auto& comp : path) {
@@ -278,16 +280,17 @@ bool KeywordKey(std::string_view idkey) {
 Scope UniverseBindings() {
   SpecDefsReserved();
   Scope scope;
-  const ast::ModulePath cursive_module_path{"cursive"};
+  const std::string language_root(project::ActiveLanguageProfile().runtime_root);
+  const ast::ModulePath language_module_path{language_root};
   for (const auto name : UniverseProtectedNames()) {
     scope.emplace(IdKeyOf(name),
                   Entity{EntityKind::Type, std::nullopt, std::nullopt,
                          EntitySource::Decl});
   }
-  scope.emplace(IdKey{"cursive"},
-                Entity{EntityKind::ModuleAlias,
-                       cursive_module_path, std::nullopt,
-                       EntitySource::Decl});
+  scope.emplace(IdKey{language_root},
+	                Entity{EntityKind::ModuleAlias,
+	                       language_module_path, std::nullopt,
+	                       EntitySource::Decl});
   return scope;
 }
 

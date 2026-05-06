@@ -26887,7 +26887,8 @@ R_spec = {
   static,
   mangle, library, unwind,
   reflect, derive, emit, files,
-  export, host_export, ffi_pass_by_value
+  export, host_export, ffi_pass_by_value,
+  test
 }
 
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -26924,6 +26925,7 @@ AttrTargets(files) = {Statement, Expression}
 AttrTargets(export) = {Procedure}
 AttrTargets(host_export) = {Procedure}
 AttrTargets(ffi_pass_by_value) = {Record, Enum}
+AttrTargets(test) = {Procedure}
 
 <!-- /CURSIVE-SPEC-UNIT -->
 
@@ -27005,7 +27007,7 @@ applies-to: semantic-analysis, attributes, diagnostics, oracle.reference-model, 
 summary: Defines attribute-argument well-formedness through owning sections or vendor schemas.
 -->
 
-AttrArgsOk(name, args) ⇔ args satisfy the attribute-specific grammar and constraints in §§9.3–9.5, §19.7, §23.4, and §23.6, or the vendor-defined schema for name ∈ R_vendor.
+AttrArgsOk(name, args) ⇔ args satisfy the attribute-specific grammar and constraints in §§9.3–9.6, §19.7, §23.4, and §23.6, or the vendor-defined schema for name ∈ R_vendor.
 
 <!-- /CURSIVE-SPEC-UNIT -->
 
@@ -27078,7 +27080,7 @@ applies-to: runtime, attributes, oracle.behavior, oracle.coverage
 summary: Requires attribute lists to produce no runtime values and delegates any runtime effects to owning attribute families.
 -->
 
-Attribute lists do not evaluate to runtime values. Runtime effects, when any, are defined by the owning attribute families in §§9.3–9.5, §19.7, and §23.
+Attribute lists do not evaluate to runtime values. Runtime effects, when any, are defined by the owning attribute families in §§9.3–9.6, §19.7, and §23.
 
 <!-- /CURSIVE-SPEC-UNIT -->
 
@@ -28242,6 +28244,291 @@ summary: Defines diagnostics for deprecated references, invalid dynamic targets,
 
 <!-- /CURSIVE-SPEC-UNIT -->
 
+
+### 9.6 Source-Native Test Attributes
+
+#### 9.6.1 Syntax
+
+<!-- CURSIVE-SPEC-UNIT
+id: grammar.TestAttribute
+kind: grammar
+phase: parsing
+strength: required
+owner: parser.attributes
+applies-to: parsing, attributes, testing, oracle.grammar, oracle.coverage
+summary: Defines the source-native test attribute grammar.
+labels: test_attribute, test_attribute_args, test_attribute_arg
+-->
+```ebnf
+test_attribute      ::= "[[" "test" ("(" test_attribute_args ")")? "]]"
+test_attribute_args ::= test_attribute_arg ("," test_attribute_arg)*
+test_attribute_arg  ::= "name" ":" string_literal
+                      | "covers" "(" string_literal ")"
+```
+<!-- /CURSIVE-SPEC-UNIT -->
+
+#### 9.6.2 Parsing
+
+<!-- CURSIVE-SPEC-UNIT
+id: parse.TestAttributeByOrdinaryAttributeParser
+kind: semantic-requirement
+phase: parsing
+strength: required
+owner: parser.attributes
+applies-to: parsing, attributes, testing, oracle.parser, oracle.coverage
+summary: Requires test attributes to use the ordinary attribute parser representation.
+-->
+
+`[[test]]` is parsed by the ordinary attribute parser from §9.1.2. The `name`
+argument is represented as `⟨name, string_literal⟩`. Each `covers(...)` argument
+is represented as `⟨covers, [string_literal]⟩`.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+#### 9.6.3 AST Representation / Form
+
+<!-- CURSIVE-SPEC-UNIT
+id: ast.TestProcedureClassification
+kind: formal-definition
+phase: semantic-analysis
+strength: required
+owner: checker.attributes
+applies-to: attributes, testing, procedures, oracle.reference-model, oracle.coverage
+summary: Defines source-native tests as ordinary procedure declarations carrying the test attribute.
+-->
+
+A source-native test is an ordinary `ProcedureDecl` whose `AttrByName(proc,
+test)` set is non-empty.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: def.TestName
+kind: formal-definition
+phase: semantic-analysis
+strength: required
+owner: checker.attributes
+applies-to: attributes, testing, diagnostics, oracle.reference-model, oracle.coverage
+summary: Defines stable and display names for source-native tests.
+-->
+
+TestName(proc) = s when the unique `name: s` argument is present.
+TestName(proc) = FullyQualifiedProcPath(proc) when no `name` argument is present.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: def.TestCoverage
+kind: formal-definition
+phase: semantic-analysis
+strength: required
+owner: checker.attributes
+applies-to: attributes, testing, conformance, obligation-ledger, oracle.coverage
+summary: Defines coverage references carried by source-native tests.
+-->
+
+TestCoverage(proc) = [r_1, …, r_n] where each r_i is the string argument of one
+`covers(r_i)` entry in source order.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+#### 9.6.4 Static Semantics
+
+<!-- CURSIVE-SPEC-UNIT
+id: req.TestAttributeProcedureTarget
+kind: semantic-requirement
+phase: semantic-analysis
+strength: required
+owner: checker.attributes
+applies-to: attributes, testing, procedures, diagnostics, oracle.coverage
+summary: Requires test attributes to apply only to ordinary source procedures.
+-->
+
+`[[test]]` is valid only on ordinary source procedures.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: def.TestAttributeArgsOk
+kind: formal-definition
+phase: semantic-analysis
+strength: required
+owner: checker.attributes
+applies-to: attributes, testing, conformance, obligation-ledger, diagnostics, oracle.reference-model, oracle.coverage
+summary: Defines well-formed argument rules for the test attribute.
+-->
+
+`AttrArgsOk(test, args)` holds exactly when:
+
+1. every argument is either `name: string_literal` or `covers(string_literal)`;
+2. at most one `name` argument is present;
+3. every `covers` argument has exactly one non-empty string literal argument;
+4. every coverage reference names one row in the obligation ledger using
+   `obligation-id@Linternal_spec_line`.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: req.TestProcedureShape
+kind: semantic-requirement
+phase: semantic-analysis
+strength: required
+owner: checker.procedures
+applies-to: attributes, testing, procedures, contracts, diagnostics, oracle.coverage
+summary: Defines required procedure shape for source-native tests.
+-->
+
+A `[[test]]` procedure MUST:
+
+1. have a body;
+2. be non-generic;
+3. have explicit visibility;
+4. have an explicit return type;
+5. have a contract clause containing a postcondition;
+6. have either no parameters or exactly one parameter whose type is the
+   toolchain-provided `TestContext` type.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: req.TestContextAuthority
+kind: semantic-requirement
+phase: semantic-analysis
+strength: required
+owner: checker.procedures
+applies-to: testing, authority, procedures, oracle.behavior, oracle.coverage
+summary: Defines TestContext as the only runner-injected authority value for source-native tests.
+-->
+
+The `TestContext` parameter is the only runner-injected value. It carries the
+filesystem, process, temporary-directory, target-profile, and compiler-invocation
+authority needed by effectful compiler tests.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+#### 9.6.5 Dynamic Semantics
+
+<!-- CURSIVE-SPEC-UNIT
+id: conformance.TestAttributeDynamicSemantics
+kind: semantic-requirement
+phase: runtime
+strength: required
+owner: driver.tests
+applies-to: testing, procedures, contracts, runtime, diagnostics, oracle.behavior, oracle.coverage
+summary: Defines source-native test pass, fail, and error categories through ordinary procedure execution and postconditions.
+-->
+
+`[[test]]` does not change ordinary procedure execution. During test execution,
+the runner calls each discovered test procedure. A test passes when the procedure
+returns normally and its postcondition is satisfied. A test fails when the
+procedure returns normally and its postcondition is violated. A test errors when
+the procedure is ill-formed for test execution, panics, requires unavailable
+authority, or cannot be invoked by the generated harness.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+#### 9.6.6 Lowering
+
+<!-- CURSIVE-SPEC-UNIT
+id: lowering.TestHarnessGeneration
+kind: lowering-rule
+phase: lowering
+strength: required
+owner: driver.tests
+applies-to: testing, lowering, build-output, procedures, oracle.behavior, oracle.coverage
+summary: Defines source-native test target resolution, discovery, and ephemeral harness generation for uv test.
+-->
+
+`[[test]]` does not lower into production program artifacts.
+
+TestArg = ⊥ | s where s is the optional positional argument to `uv test`.
+
+HostPath(s) ⇔ ResolveHostPath(CurrentDirectory, s) ⇓ p ∧ exists(p)
+
+TestInput(⊥) = CurrentDirectory
+TestInput(s) = p  if HostPath(s) ∧ ResolveHostPath(CurrentDirectory, s) ⇓ p
+TestInput(s) = CurrentDirectory  if ¬ HostPath(s)
+
+TestRoot(arg) = FindProjectRoot(TestInput(arg))
+
+TestsPrefix(A) = A.name :: `Tests`
+TestBearing(A) ⇔ ∃ m ∈ A.modules. Prefix(path(m), TestsPrefix(A))
+TestAssemblies(P) = [A ∈ P.assemblies | TestBearing(A)]
+
+TestScope ::= AllTests | AssemblyTests(A) | ModuleTests(q) | SourceFileTests(f) | DirectoryTests(d)
+
+ResolveTestTarget(P, ⊥) = AllTests
+ResolveTestTarget(P, s) = SourceFileTests(p)
+  if HostPath(s) ∧ ResolveHostPath(CurrentDirectory, s) ⇓ p ∧ File(p)
+ResolveTestTarget(P, s) = AllTests
+  if HostPath(s) ∧ ResolveHostPath(CurrentDirectory, s) ⇓ p ∧ Dir(p) ∧ p = P.root
+ResolveTestTarget(P, s) = DirectoryTests(p)
+  if HostPath(s) ∧ ResolveHostPath(CurrentDirectory, s) ⇓ p ∧ Dir(p) ∧ p ≠ P.root
+ResolveTestTarget(P, s) = AssemblyTests(A)
+  if ¬ HostPath(s) ∧ A ∈ P.assemblies ∧ A.name = s
+ResolveTestTarget(P, s) = ModuleTests(q)
+  if ¬ HostPath(s) ∧ ParseModulePath(s) ⇓ q ∧ ∃ m ∈ ModuleList(P). path(m) = q
+ResolveTestTarget(P, s) ⇑ Code(Test-Target-Err) otherwise
+
+SelectedTests(P, AllTests) =
+  [proc | A ∈ TestAssemblies(P), proc ∈ TestProceduresUnder(A, TestsPrefix(A))]
+SelectedTests(P, AssemblyTests(A)) =
+  [proc | proc ∈ TestProceduresUnder(A, TestsPrefix(A))]
+SelectedTests(P, ModuleTests(q)) =
+  [proc | proc ∈ TestProceduresUnder(OwnerAssembly(P, q), q)]
+SelectedTests(P, SourceFileTests(f)) =
+  [proc | proc ∈ TestProceduresInFile(P, f) ∧ InTestsSubtree(P, proc)]
+SelectedTests(P, DirectoryTests(d)) =
+  [proc | proc ∈ TestProceduresUnderDirectory(P, d) ∧ InTestsSubtree(P, proc)]
+
+For each selected assembly A represented in SelectedTests(P, scope), `uv test`
+generates an ephemeral harness in A's build output directory, compiles
+AssemblyProject(P, A) with that harness entrypoint, and invokes the selected
+tests for A in deterministic order.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: def.TestDiscoveryOrder
+kind: formal-definition
+phase: lowering
+strength: required
+owner: driver.tests
+applies-to: testing, deterministic-order, modules, procedures, oracle.behavior, oracle.coverage
+summary: Defines deterministic discovery order and stable identity for source-native tests.
+-->
+
+Discovery order is module path, file order, declaration span, then
+fully-qualified procedure symbol. The fully-qualified procedure path is the
+stable test identity. `name: "..."` is a display label.
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+#### 9.6.7 Diagnostics
+
+<!-- CURSIVE-SPEC-UNIT
+id: diagnostics.TestAttributes
+kind: diagnostics
+phase: diagnostics
+strength: required
+owner: diagnostics.attributes
+applies-to: attributes, testing, procedures, conformance, diagnostics, oracle.coverage
+summary: Defines diagnostics for source-native test attributes and test procedure shape.
+-->
+
+| Code         | Severity | Detection    | Condition                                        |
+| ------------ | -------- | ------------ | ------------------------------------------------ |
+| `E-MOD-2452` | Error    | Compile-time | `[[test]]` applied outside an ordinary procedure |
+| `E-TST-0101` | Error    | Compile-time | Malformed `[[test]]` argument                    |
+| `E-TST-0102` | Error    | Compile-time | Duplicate `[[test]]` name argument               |
+| `E-TST-0103` | Error    | Compile-time | Malformed `covers(...)` argument                 |
+| `E-TST-0104` | Error    | Compile-time | Invalid `[[test]]` procedure shape               |
+| `E-TST-0105` | Error    | Compile-time | Invalid `TestContext` parameter                  |
+| `E-TST-0106` | Error    | Compile-time | `[[test]]` procedure missing postcondition       |
+| `E-TST-0107` | Error    | Compile-time | Unknown audit coverage reference                 |
+| `E-TST-0108` | Error    | Compile-time | Unknown `uv test` target                         |
+
+<!-- /CURSIVE-SPEC-UNIT -->
 
 ## 10. Permissions and Binding State
 
@@ -43741,6 +44028,7 @@ StringBuiltinTable =
 {
  ⟨`string::from`, [⟨⊥, `source`, TypeString(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
  ⟨`string::as_view`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@Managed`))⟩], TypeString(`@View`)⟩,
+ ⟨`string::slice`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩, ⟨⊥, `start`, TypePrim("usize")⟩, ⟨⊥, `end`, TypePrim("usize")⟩], TypeString(`@View`)⟩,
  ⟨`string::to_managed`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
  ⟨`string::clone_with`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@Managed`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
  ⟨`string::append`, [⟨⊥, `self`, TypePerm(`unique`, TypeString(`@Managed`))⟩, ⟨⊥, `data`, TypeString(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypePrim("()"), TypePath(["AllocationError"])])⟩,
@@ -43900,6 +44188,7 @@ summary: Defines the runtime judgement set for built-in string operations.
 StringBytesJudg_string = {
  StringFrom(SB, source, heap) ⇓ (r, SB'),
  StringAsView(SB, self) ⇓ v,
+ StringSlice(SB, self, start, end) ⇓ v,
  StringToManaged(SB, self, heap) ⇓ (r, SB'),
  StringCloneWith(SB, self, heap) ⇓ (r, SB'),
  StringAppend(SB, self, data, heap) ⇓ (r, SB'),
@@ -43968,6 +44257,22 @@ labels: StringAsView-Ok
 ByteSeqOf(SB, v) = ByteSeqOf(SB, self)
 ──────────────────────────────────────────────
 Γ ⊢ StringAsView(SB, self) ⇓ v
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.13.StringSlice-Ok
+kind: formal-rule
+phase: runtime
+strength: required
+owner: spec.modal-special
+applies-to: runtime, oracle.reference-model, oracle.coverage
+summary: Defines formal rule StringSlice-Ok from Chapter 13 modal and special types.
+labels: StringSlice-Ok
+-->
+**(StringSlice-Ok)**
+0 ≤ start ≤ end ≤ ByteLen(SB, self)    start and end are valid UTF-8 byte boundaries of ByteSeqOf(SB, self)    ByteSeqOf(SB, v) = ByteSeqOf(SB, self)[start..end)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ StringSlice(SB, self, start, end) ⇓ v
 <!-- /CURSIVE-SPEC-UNIT -->
 
 <!-- CURSIVE-SPEC-UNIT
@@ -95019,7 +95324,7 @@ applies-to: compiler.lowering, compiler.backend, compiler.runtime, oracle.refere
 summary: Defines recognized managed string and bytes built-in method sets and method classifiers.
 labels: StringBuiltins, BytesBuiltins, StringMethod, BytesMethod
 -->
-StringBuiltins = {`string::from`, `string::as_view`, `string::to_managed`, `string::clone_with`, `string::append`, `string::length`, `string::is_empty`}
+StringBuiltins = {`string::from`, `string::as_view`, `string::slice`, `string::to_managed`, `string::clone_with`, `string::append`, `string::length`, `string::is_empty`}
 BytesBuiltins = {`bytes::with_capacity`, `bytes::from_slice`, `bytes::as_view`, `bytes::as_slice`, `bytes::to_managed`, `bytes::view`, `bytes::view_string`, `bytes::append`, `bytes::length`, `bytes::is_empty`}
 StringMethod(method) ⇔ ∃ name. method = `string::`name
 BytesMethod(method) ⇔ ∃ name. method = `bytes::`name
@@ -95033,10 +95338,11 @@ strength: required
 owner: spec.runtime-interface
 applies-to: compiler.lowering, compiler.backend, compiler.runtime, oracle.reference-model, oracle.coverage
 summary: Defines managed string built-in runtime symbols.
-labels: BuiltinSym, string::from, string::as_view, string::to_managed, string::clone_with, string::append, string::length, string::is_empty, PathSig
+labels: BuiltinSym, string::from, string::as_view, string::slice, string::to_managed, string::clone_with, string::append, string::length, string::is_empty, PathSig
 -->
 BuiltinSym(`string::from`) = PathSig(["cursive", "runtime", "string", "from"])
 BuiltinSym(`string::as_view`) = PathSig(["cursive", "runtime", "string", "as_view"])
+BuiltinSym(`string::slice`) = PathSig(["cursive", "runtime", "string", "slice"])
 BuiltinSym(`string::to_managed`) = PathSig(["cursive", "runtime", "string", "to_managed"])
 BuiltinSym(`string::clone_with`) = PathSig(["cursive", "runtime", "string", "clone_with"])
 BuiltinSym(`string::append`) = PathSig(["cursive", "runtime", "string", "append"])
@@ -98671,6 +98977,7 @@ Only sections that define named diagnostics are listed below.
 - `§9.3.7 Layout Attributes`: `E-MOD-2453`, `E-MOD-2454`, `E-MOD-2455`, `E-TYP-2105`, `W-MOD-2451`
 - `§9.4.7 Optimization Attributes`: `W-MOD-2452`
 - `§9.5.7 Diagnostics and Metadata Attributes`: `W-CNF-0601`, `E-CON-0410`, `E-CON-0411`, `E-CON-0412`, `W-CON-0401`
+- `§9.6.7 Source-Native Test Attributes`: `E-MOD-2452`, `E-TST-0101`, `E-TST-0102`, `E-TST-0103`, `E-TST-0104`, `E-TST-0105`, `E-TST-0106`, `E-TST-0107`, `E-TST-0108`
 - `§10.4.7 Permission Admissibility`: `E-TYP-1601`, `E-TYP-1602`, `E-TYP-1603`, `E-TYP-1604`, `E-TYP-1605`
 - `§11.1.7 Import Declarations`: `E-MOD-1202`
 - `§11.2.7 Using Declarations`: `E-MOD-1204`, `E-MOD-1205`, `E-MOD-1206`, `W-MOD-1201`
@@ -99188,7 +99495,7 @@ strength: required
 owner: spec.grammar
 applies-to: compiler.parser, oracle.grammar, oracle.coverage
 summary: Defines the consolidated attribute grammar.
-labels: attribute_list, attribute, attribute_spec, attribute_name, vendor_prefix, attribute_args, attribute_arg, layout_attribute, inline_attribute, cold_attribute, deprecated_attribute, reflect_attribute, dynamic_attribute, stale_ok_attribute, emit_attribute, files_attribute, mangle_attribute, library_attribute, unwind_attribute, export_attribute, host_export_attribute, ffi_pass_by_value_attribute, derive_attribute, derive_target_list
+labels: attribute_list, attribute, attribute_spec, attribute_name, vendor_prefix, attribute_args, attribute_arg, layout_attribute, inline_attribute, cold_attribute, deprecated_attribute, reflect_attribute, dynamic_attribute, stale_ok_attribute, emit_attribute, files_attribute, test_attribute, test_attribute_args, test_attribute_arg, mangle_attribute, library_attribute, unwind_attribute, export_attribute, host_export_attribute, ffi_pass_by_value_attribute, derive_attribute, derive_target_list
 -->
 ```ebnf
 attribute_list ::= attribute+
@@ -99220,6 +99527,9 @@ dynamic_attribute             ::= "[[" "dynamic" "]]"
 stale_ok_attribute            ::= "[[" "stale_ok" "]]"
 emit_attribute                ::= "[[" "emit" "]]"
 files_attribute               ::= "[[" "files" "]]"
+test_attribute                ::= "[[" "test" ("(" test_attribute_args ")")? "]]"
+test_attribute_args           ::= test_attribute_arg ("," test_attribute_arg)*
+test_attribute_arg            ::= "name" ":" string_literal | "covers" "(" string_literal ")"
 mangle_attribute              ::= "[[" "mangle" "(" ("none" | string_literal) ")" "]]"
 library_attribute             ::= "[[" "library" "(" "name" ":" string_literal ("," "kind" ":" string_literal)? ")" "]]"
 unwind_attribute              ::= "[[" "unwind" "(" string_literal ")" "]]"

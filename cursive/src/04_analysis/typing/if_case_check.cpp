@@ -599,6 +599,170 @@ static IntroResult IntroAll(const TypeEnv& env,
   return {true, std::nullopt, std::move(current)};
 }
 
+struct PatternMatchedTypeResult {
+  bool ok = true;
+  std::optional<std::string_view> diag_id;
+  bool matched = false;
+  TypeRef type;
+};
+
+static TypeRef ApplyBindingPermission(const TypeRef& binding_type,
+                                      const TypeRef& refined_type) {
+  if (!binding_type || !refined_type) {
+    return refined_type;
+  }
+  if (const auto* perm = std::get_if<TypePerm>(&binding_type->node)) {
+    return MakeTypePerm(perm->perm, refined_type);
+  }
+  return refined_type;
+}
+
+static std::optional<IdKey> ScrutineeIdentifier(
+    const ast::ExprPtr& scrutinee) {
+  if (!scrutinee) {
+    return std::nullopt;
+  }
+  if (const auto* ident = std::get_if<ast::IdentifierExpr>(&scrutinee->node)) {
+    return IdKeyOf(ident->name);
+  }
+  return std::nullopt;
+}
+
+static TypeEnv RefineScrutineeEnv(const ast::ExprPtr& scrutinee,
+                                  const TypeEnv& env,
+                                  const TypeRef& refined_type) {
+  const auto ident = ScrutineeIdentifier(scrutinee);
+  if (!ident.has_value() || !refined_type) {
+    return env;
+  }
+
+  TypeEnv out = env;
+  for (auto scope_it = out.scopes.rbegin(); scope_it != out.scopes.rend();
+       ++scope_it) {
+    auto binding_it = scope_it->find(*ident);
+    if (binding_it == scope_it->end()) {
+      continue;
+    }
+    binding_it->second.type =
+        ApplyBindingPermission(binding_it->second.type, refined_type);
+    return out;
+  }
+  return out;
+}
+
+static PatternMatchedTypeResult ConcreteModalPatternType(
+    const ScopeContext& ctx,
+    const ast::PatternPtr& pattern,
+    const TypeRef& expected) {
+  PatternMatchedTypeResult result;
+  if (!pattern || !expected) {
+    return result;
+  }
+  const auto* modal_pattern = std::get_if<ast::ModalPattern>(&pattern->node);
+  if (!modal_pattern) {
+    result.matched = true;
+    result.type = expected;
+    return result;
+  }
+
+  const TypeRef expected_base = StripPermOnceLocal(expected);
+  if (!expected_base) {
+    return result;
+  }
+
+  if (const auto* modal_state =
+          std::get_if<TypeModalState>(&expected_base->node)) {
+    result.matched = true;
+    result.type = expected;
+    return result;
+  }
+
+  const auto* path_type = AppliedTypePath(*expected_base);
+  const auto* path_args = AppliedTypeArgs(*expected_base);
+  if (!path_type) {
+    return result;
+  }
+
+  ast::TypePath ast_path;
+  ast_path.reserve(path_type->size());
+  for (const auto& comp : *path_type) {
+    ast_path.push_back(comp);
+  }
+  const ast::ModalDecl* modal_decl = LookupModalDecl(ctx, ast_path);
+  if (!modal_decl || !HasState(*modal_decl, modal_pattern->state)) {
+    return result;
+  }
+
+  result.matched = true;
+  result.type = MakeTypeModalState(*path_type, modal_pattern->state,
+                                   path_args ? *path_args
+                                             : std::vector<TypeRef>{});
+  return result;
+}
+
+static PatternMatchedTypeResult PatternMatchedType(
+    const ScopeContext& ctx,
+    const ast::PatternPtr& pattern,
+    const TypeRef& expected) {
+  PatternMatchedTypeResult result;
+  if (!pattern || !expected) {
+    return result;
+  }
+
+  const TypeRef expected_base = StripPermOnceLocal(expected);
+  if (!expected_base) {
+    return result;
+  }
+
+  if (const auto* union_type = std::get_if<TypeUnion>(&expected_base->node)) {
+    std::vector<TypeRef> matched_members;
+    std::optional<std::string_view> first_diag;
+    for (const auto& member : union_type->members) {
+      const auto member_pattern = TypePatternAgainstType(ctx, pattern, member);
+      if (!member_pattern.ok) {
+        if (member_pattern.diag_id.has_value() && !first_diag.has_value()) {
+          first_diag = member_pattern.diag_id;
+        }
+        continue;
+      }
+      matched_members.push_back(member);
+    }
+
+    if (matched_members.empty()) {
+      result.ok = !first_diag.has_value();
+      result.diag_id = first_diag;
+      return result;
+    }
+
+    result.matched = true;
+    result.type = matched_members.size() == 1
+                      ? matched_members.front()
+                      : MakeTypeUnion(std::move(matched_members));
+    return result;
+  }
+
+  const auto pattern_result = TypePatternAgainstType(ctx, pattern, expected);
+  if (!pattern_result.ok) {
+    result.ok = false;
+    result.diag_id = pattern_result.diag_id;
+    return result;
+  }
+
+  if (const auto* typed = std::get_if<ast::TypedPattern>(&pattern->node)) {
+    const auto lowered = LocalLowerType(ctx, typed->type);
+    if (!lowered.ok) {
+      result.ok = false;
+      result.diag_id = lowered.diag_id;
+      return result;
+    }
+    result.matched = true;
+    result.type = lowered.type;
+    return result;
+  }
+
+  return ConcreteModalPatternType(ctx, pattern, expected);
+}
+
 static std::unordered_set<IdKey> VariantNames(const ast::EnumDecl& decl) {
   SpecDefsIfCase();
   std::unordered_set<IdKey> out;
@@ -694,12 +858,52 @@ static IfCaseClauseLabelResult ArmCaseLabelOf(const ScopeContext& ctx,
         using T = std::decay_t<decltype(node)>;
 
         if constexpr (std::is_same_v<T, ast::EnumPattern>) {
+          if (const auto* union_type =
+                  std::get_if<TypeUnion>(&scrutinee_base->node)) {
+            for (const auto& member : union_type->members) {
+              const auto member_pattern =
+                  TypePatternAgainstType(ctx, pattern, member);
+              if (!member_pattern.ok) {
+                if (member_pattern.diag_id.has_value()) {
+                  result.ok = false;
+                  result.diag_id = member_pattern.diag_id;
+                  return;
+                }
+                continue;
+              }
+              IfCaseClauseLabel label;
+              label.kind = IfCaseClauseLabel::Kind::Union;
+              label.type = member;
+              result.label = std::move(label);
+              return;
+            }
+          }
           IfCaseClauseLabel label;
           label.kind = IfCaseClauseLabel::Kind::Enum;
           label.path = node.path;
           label.name = IdKeyOf(node.name);
           result.label = std::move(label);
         } else if constexpr (std::is_same_v<T, ast::ModalPattern>) {
+          if (const auto* union_type =
+                  std::get_if<TypeUnion>(&scrutinee_base->node)) {
+            for (const auto& member : union_type->members) {
+              const auto member_pattern =
+                  TypePatternAgainstType(ctx, pattern, member);
+              if (!member_pattern.ok) {
+                if (member_pattern.diag_id.has_value()) {
+                  result.ok = false;
+                  result.diag_id = member_pattern.diag_id;
+                  return;
+                }
+                continue;
+              }
+              IfCaseClauseLabel label;
+              label.kind = IfCaseClauseLabel::Kind::Union;
+              label.type = member;
+              result.label = std::move(label);
+              return;
+            }
+          }
           IfCaseClauseLabel label;
           label.kind = IfCaseClauseLabel::Kind::Modal;
           label.name = IdKeyOf(node.state);
@@ -880,21 +1084,15 @@ static ExhaustiveResult UnionTypesExhaustive(
       if (!arm.pattern) {
         continue;
       }
-      if (const auto* typed =
-              std::get_if<ast::TypedPattern>(&arm.pattern->node)) {
-        const auto lowered = LocalLowerType(ctx, typed->type);
-        if (!lowered.ok) {
-          return {false, lowered.diag_id, false};
+      const auto pattern = TypePatternAgainstType(ctx, arm.pattern, member);
+      if (!pattern.ok) {
+        if (pattern.diag_id.has_value()) {
+          return {false, pattern.diag_id, false};
         }
-        const auto equiv = TypeEquivIgnorePerm(lowered.type, member);
-        if (!equiv.ok) {
-          return {false, equiv.diag_id, false};
-        }
-        if (equiv.equiv) {
-          found = true;
-          break;
-        }
+        continue;
       }
+      found = true;
+      break;
     }
     if (!found) {
       return {true, std::nullopt, false};
@@ -1043,12 +1241,21 @@ ExprTypeResult TypeIfIsExpr(const ScopeContext& ctx,
     result.diag_id = intro.diag_id;
     return result;
   }
+  const auto matched_type = PatternMatchedType(ctx, expr.pattern, scrutinee_base);
+  if (!matched_type.ok) {
+    result.diag_id = matched_type.diag_id;
+    return result;
+  }
+  const TypeEnv then_env = matched_type.matched
+                                ? RefineScrutineeEnv(expr.scrutinee, intro.env,
+                                                     matched_type.type)
+                                : intro.env;
 
   const bool has_else = static_cast<bool>(expr.else_expr);
   const TypeRef unit_type = MakeTypePrim("()");
   if (!has_else) {
     const auto unit_check =
-        CheckArmBody(ctx, type_ctx, expr.then_expr, intro.env, unit_type);
+        CheckArmBody(ctx, type_ctx, expr.then_expr, then_env, unit_type);
     if (!unit_check.ok) {
       result.diag_id = unit_check.diag_id;
       return result;
@@ -1059,7 +1266,7 @@ ExprTypeResult TypeIfIsExpr(const ScopeContext& ctx,
     return result;
   }
 
-  const auto then_typed = TypeArmBody(ctx, type_ctx, expr.then_expr, intro.env);
+  const auto then_typed = TypeArmBody(ctx, type_ctx, expr.then_expr, then_env);
   if (!then_typed.ok) {
     result.diag_id = then_typed.diag_id;
     return result;
@@ -1149,7 +1356,17 @@ ExprTypeResult TypeIfCaseExpr(const ScopeContext& ctx,
       result.diag_id = intro.diag_id;
       return result;
     }
-    const auto body = TypeArmBody(ctx, type_ctx, arm.body, intro.env);
+    const auto matched_type =
+        PatternMatchedType(ctx, arm.pattern, scrutinee_match_type);
+    if (!matched_type.ok) {
+      result.diag_id = matched_type.diag_id;
+      return result;
+    }
+    const TypeEnv arm_env = matched_type.matched
+                                ? RefineScrutineeEnv(expr.scrutinee, intro.env,
+                                                     matched_type.type)
+                                : intro.env;
+    const auto body = TypeArmBody(ctx, type_ctx, arm.body, arm_env);
     if (!body.ok) {
       result.diag_id = body.diag_id;
       return result;
@@ -1302,7 +1519,17 @@ CheckResult CheckIfCaseExpr(const ScopeContext& ctx,
       result.diag_id = intro.diag_id;
       return result;
     }
-    const auto check = CheckArmBody(ctx, type_ctx, arm.body, intro.env, expected);
+    const auto matched_type =
+        PatternMatchedType(ctx, arm.pattern, scrutinee_match_type);
+    if (!matched_type.ok) {
+      result.diag_id = matched_type.diag_id;
+      return result;
+    }
+    const TypeEnv arm_env = matched_type.matched
+                                ? RefineScrutineeEnv(expr.scrutinee, intro.env,
+                                                     matched_type.type)
+                                : intro.env;
+    const auto check = CheckArmBody(ctx, type_ctx, arm.body, arm_env, expected);
     if (!check.ok) {
       result.diag_id = check.diag_id;
       return result;

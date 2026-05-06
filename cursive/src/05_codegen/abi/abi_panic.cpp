@@ -12,6 +12,7 @@
 
 #include "05_codegen/abi/abi.h"
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 #include "04_analysis/caps/cap_system.h"
 #include "04_analysis/typing/types.h"
 #include "05_codegen/intrinsics/builtins.h"
@@ -26,33 +27,41 @@ namespace {
 // Known runtime symbols that do NOT need a panic out-parameter.
 // This includes the panic handler itself, context init, and other runtime-defined symbols.
 const std::unordered_set<std::string>& RuntimeSymbols() {
-  static const std::unordered_set<std::string> syms = [] {
-    std::unordered_set<std::string> out;
-    auto add = [&out](std::string sym) {
+  struct Cache {
+    project::SourceLanguage language = project::SourceLanguage::Cursive;
+    std::unordered_set<std::string> syms;
+    bool initialized = false;
+  };
+
+  static Cache cache;
+  const auto active_language = project::ActiveLanguageProfile().language;
+  if (!cache.initialized || cache.language != active_language) {
+    cache.language = active_language;
+    cache.syms.clear();
+    auto add = [](std::unordered_set<std::string>& out, std::string sym) {
       if (!sym.empty()) {
         out.insert(std::move(sym));
       }
     };
 
     for (const auto& sym : RuntimeBuiltinNoPanicOutSyms()) {
-      add(sym);
+      add(cache.syms, sym);
     }
 
     // Structured concurrency runtime symbols.
-    add(ConcurrencySymParallelBegin());
-    add(ConcurrencySymParallelJoin());
-    add(ConcurrencySymSpawnCreate());
-    add(ConcurrencySymSpawnWait());
-    add(ConcurrencySymDispatchRun());
-    add(ConcurrencySymCancelTokenNew());
-    add(ConcurrencySymCancelTokenCancel());
-    add(ConcurrencySymCancelTokenIsCancelled());
-    add(ConcurrencySymParallelWorkPanic());
-    add("cursive_panic");
-
-    return out;
-  }();
-  return syms;
+    add(cache.syms, ConcurrencySymParallelBegin());
+    add(cache.syms, ConcurrencySymParallelJoin());
+    add(cache.syms, ConcurrencySymSpawnCreate());
+    add(cache.syms, ConcurrencySymSpawnWait());
+    add(cache.syms, ConcurrencySymDispatchRun());
+    add(cache.syms, ConcurrencySymCancelTokenNew());
+    add(cache.syms, ConcurrencySymCancelTokenCancel());
+    add(cache.syms, ConcurrencySymCancelTokenIsCancelled());
+    add(cache.syms, ConcurrencySymParallelWorkPanic());
+    add(cache.syms, std::string(project::ActiveLanguageProfile().lower_name) + "_panic");
+    cache.initialized = true;
+  }
+  return cache.syms;
 }
 
 // EntrySym is the program entry point.

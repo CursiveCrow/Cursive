@@ -59,8 +59,9 @@
 #include "05_codegen/llvm/llvm_module.h"
 #include "05_codegen/ir/ir_model.h"
 
-#include "01_project/target_profile.h"
 #include "00_core/spec_trace.h"
+#include "01_project/language_profile.h"
+#include "01_project/target_profile.h"
 
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -119,7 +120,10 @@ bool CompileModule(const IRDecls& decls,
 
   // Step 1: Create emitter and emit LLVM IR
   auto emitter =
-      std::make_unique<LLVMEmitter>(llvm_ctx, "cursive_module", profile);
+      std::make_unique<LLVMEmitter>(
+          llvm_ctx,
+          std::string(project::ActiveLanguageProfile().lower_name) + "_module",
+          profile);
   llvm::Module* module = emitter->EmitModule(decls, ctx);
 
   if (!module) {
@@ -284,7 +288,10 @@ llvm::Module* CompileToLLVM(const IRDecls& decls,
 
   // Create emitter and emit module
   auto emitter =
-      std::make_unique<LLVMEmitter>(llvm_ctx, "cursive_module", profile);
+      std::make_unique<LLVMEmitter>(
+          llvm_ctx,
+          std::string(project::ActiveLanguageProfile().lower_name) + "_module",
+          profile);
   llvm::Module* module = emitter->EmitModule(decls, ctx);
 
   if (!module) {

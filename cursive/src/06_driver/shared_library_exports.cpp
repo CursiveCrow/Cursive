@@ -8,6 +8,7 @@
 #include "00_core/symbols.h"
 #include "01_project/assemblies.h"
 #include "01_project/deterministic_order.h"
+#include "01_project/language_profile.h"
 #include "01_project/link.h"
 #include "05_codegen/globals/globals.h"
 #include "06_driver/pipeline.h"
@@ -101,9 +102,10 @@ std::vector<std::string> ComputeSharedLibraryExportSymbols(
   }
 
   if (cache.ctx.hosted_library && !hosted_exports.empty()) {
-    exported_symbols.insert("__cursive_host_abi_version");
-    exported_symbols.insert("__cursive_host_session_create");
-    exported_symbols.insert("__cursive_host_session_destroy");
+    const auto& language = project::ActiveLanguageProfile();
+    exported_symbols.insert(std::string(language.host_abi_version_symbol));
+    exported_symbols.insert(std::string(language.host_session_create_symbol));
+    exported_symbols.insert(std::string(language.host_session_destroy_symbol));
   }
 
   std::vector<std::string> out(exported_symbols.begin(), exported_symbols.end());
@@ -119,9 +121,11 @@ std::vector<std::string> ComputeSharedLibraryDataExportSymbols(
   }
 
   std::unordered_set<std::string> exported_symbols;
+  const auto& language = project::ActiveLanguageProfile();
   for (const auto& module_info : project.modules) {
     exported_symbols.insert(
-        core::Mangle("cursive::runtime::poison::" + module_info.path));
+        core::Mangle(std::string(language.runtime_root) + "::runtime::poison::" +
+                     module_info.path));
 
     const auto module_it = cache.ast_modules.find(module_info.path);
     if (module_it == cache.ast_modules.end() || module_it->second == nullptr) {

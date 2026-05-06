@@ -62,6 +62,7 @@
 #include "02_source/attributes/attribute_registry.h"
 #include "00_core/hash.h"
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 
 #include "02_source/ast/nodes/ast_attributes.h"
 #include "02_source/ast/nodes/ast_items.h"
@@ -473,7 +474,7 @@ std::string MangleLiteral(const std::string& kind,
 
   // Mangle(LiteralData(kind, contents)) = PathSig(["cursive", "runtime", "literal", LiteralID(kind, contents)])
   const std::string literal_id = core::LiteralID(kind, contents);
-  return ScopedSym({"cursive", "runtime", "literal", literal_id});
+  return project::RuntimePathSig({"literal", literal_id});
 }
 
 std::string MangleDefaultImpl(const analysis::TypeRef& type,

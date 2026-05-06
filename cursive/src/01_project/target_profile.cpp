@@ -2,6 +2,8 @@
 
 #include <cstdlib>
 
+#include "01_project/language_profile.h"
+
 namespace cursive::project {
 
 namespace {
@@ -132,9 +134,9 @@ std::string_view RuntimeLibNameFor(TargetProfile profile) {
   switch (profile) {
     case TargetProfile::X86_64SysV:
     case TargetProfile::AArch64AAPCS64:
-      return "CursiveRT.a";
+      return ActiveLanguageProfile().runtime_static_lib_elf;
     case TargetProfile::X86_64Win64:
-      return "CursiveRT.lib";
+      return ActiveLanguageProfile().runtime_static_lib_coff;
   }
   UnreachableTargetProfile();
 }

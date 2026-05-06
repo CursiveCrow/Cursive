@@ -22,6 +22,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
+#include "01_project/language_profile.h"
 #include "04_analysis/typing/context.h"
 #include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/resolve/visibility.h"
@@ -52,8 +53,7 @@ static bool IsReservedModulePath(const ast::ModulePath& path) {
   if (path.empty()) {
     return false;
   }
-  // Reserved namespace prefix: cursive
-  return path[0] == "cursive";
+  return IdEq(path[0], project::ActiveLanguageProfile().runtime_root);
 }
 
 // Find a module in the sigma by path
@@ -258,7 +258,7 @@ static UsingItemResult ResolveUsingItem(
     if (!IsItemVisible(ctx, item_path, current_module)) {
       SPEC_RULE("Using-Vis-Err");
       result.ok = false;
-      result.diag_id = "Access-Err";
+      result.diag_id = "E-MOD-1207";
       return result;
     }
   }
@@ -647,6 +647,8 @@ bool IsItemVisible(const ScopeContext& ctx,
     if (found) {
       return IsModuleVisible(ctx, module_path, from_module) &&
              (vis == ast::Visibility::Public ||
+              (vis == ast::Visibility::Internal &&
+               SameAssembly(module_path, from_module)) ||
               module_path == from_module);
     }
   }

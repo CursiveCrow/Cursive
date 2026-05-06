@@ -9,8 +9,8 @@
 //     - ObsComp(C, P) for compiler observable behavior
 //   - Section 0.3.1 "Bootstrap Milestones" (lines 155-179)
 //     - Bootstrap equivalence verification requirements
-//   - General: Conformance tracing is implementation infrastructure for
-//     testing, not directly specified but supports verification of spec rules
+//   - General: Conformance tracing is implementation infrastructure, not
+//     directly specified but supports verification of spec rules
 //
 // SOURCE FILE: cursive-bootstrap/src/00_core/spec_trace.cpp
 //   - Lines 1-134 (entire file)
@@ -58,7 +58,7 @@
 //   5. File defaults to "-" if span is nullopt
 //   6. Payload encoding prevents field delimiter conflicts
 //   7. This is infrastructure code - not directly from spec but supports
-//      conformance testing via SPEC_DEF and SPEC_RULE macros
+//      conformance tracing via SPEC_DEF and SPEC_RULE macros
 //   8. Consider buffering for performance if trace volume is high
 //
 // =============================================================================

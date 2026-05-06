@@ -25,6 +25,7 @@
 
 #include "00_core/assert_spec.h"
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 
 namespace cursive::codegen {
@@ -125,64 +126,64 @@ RegionLayoutInfo RegionLayout() {
 
 std::string BuiltinModalSymRegionNewScoped() {
   SPEC_RULE("BuiltinModalSym-NewScoped");
-  return core::PathSig({"cursive", "runtime", "region", "new_scoped"});
+  return project::RuntimePathSig({"region", "new_scoped"});
 }
 
 std::string BuiltinModalSymRegionAlloc() {
   SPEC_RULE("BuiltinModalSym-Alloc");
-  return core::PathSig({"cursive", "runtime", "region", "alloc"});
+  return project::RuntimePathSig({"region", "alloc"});
 }
 
 std::string BuiltinModalSymRegionMark() {
   SPEC_RULE("BuiltinModalSym-Mark");
-  return core::PathSig({"cursive", "runtime", "region", "mark"});
+  return project::RuntimePathSig({"region", "mark"});
 }
 
 std::string BuiltinModalSymRegionResetTo() {
   SPEC_RULE("BuiltinModalSym-ResetTo");
-  return core::PathSig({"cursive", "runtime", "region", "reset_to"});
+  return project::RuntimePathSig({"region", "reset_to"});
 }
 
 std::string BuiltinModalSymRegionResetUnchecked() {
   SPEC_RULE("BuiltinModalSym-ResetUnchecked");
-  return core::PathSig({"cursive", "runtime", "region", "reset_unchecked"});
+  return project::RuntimePathSig({"region", "reset_unchecked"});
 }
 
 std::string BuiltinModalSymRegionFreeze() {
   SPEC_RULE("BuiltinModalSym-Freeze");
-  return core::PathSig({"cursive", "runtime", "region", "freeze"});
+  return project::RuntimePathSig({"region", "freeze"});
 }
 
 std::string BuiltinModalSymRegionThaw() {
   SPEC_RULE("BuiltinModalSym-Thaw");
-  return core::PathSig({"cursive", "runtime", "region", "thaw"});
+  return project::RuntimePathSig({"region", "thaw"});
 }
 
 std::string BuiltinModalSymRegionFreeUnchecked() {
   SPEC_RULE("BuiltinModalSym-FreeUnchecked");
-  return core::PathSig({"cursive", "runtime", "region", "free_unchecked"});
+  return project::RuntimePathSig({"region", "free_unchecked"});
 }
 
 std::string BuiltinModalSymRegionAddrIsActive() {
   SPEC_RULE("BuiltinModalSym-AddrIsActive");
-  return core::PathSig({"cursive", "runtime", "region", "addr_is_active"});
+  return project::RuntimePathSig({"region", "addr_is_active"});
 }
 
 std::string BuiltinModalSymRegionAddrTagFrom() {
   SPEC_RULE("BuiltinModalSym-AddrTagFrom");
-  return core::PathSig({"cursive", "runtime", "region", "addr_tag_from"});
+  return project::RuntimePathSig({"region", "addr_tag_from"});
 }
 
 std::string BuiltinModalSymRegionScopeEnter() {
-  return core::PathSig({"cursive", "runtime", "region", "scope_enter"});
+  return project::RuntimePathSig({"region", "scope_enter"});
 }
 
 std::string BuiltinModalSymRegionScopeExit() {
-  return core::PathSig({"cursive", "runtime", "region", "scope_exit"});
+  return project::RuntimePathSig({"region", "scope_exit"});
 }
 
 std::string BuiltinModalSymRegionAddrTagScope() {
-  return core::PathSig({"cursive", "runtime", "region", "addr_tag_scope"});
+  return project::RuntimePathSig({"region", "addr_tag_scope"});
 }
 
 std::string BuiltinModalSym(const std::string& method) {
@@ -209,82 +210,82 @@ std::string BuiltinModalSym(const std::string& method) {
 
 std::string BuiltinSymFileSystemOpenRead() {
   SPEC_RULE("BuiltinSym-FileSystem-OpenRead");
-  return core::PathSig({"cursive", "runtime", "fs", "open_read"});
+  return project::RuntimePathSig({"fs", "open_read"});
 }
 
 std::string BuiltinSymFileSystemOpenWrite() {
   SPEC_RULE("BuiltinSym-FileSystem-OpenWrite");
-  return core::PathSig({"cursive", "runtime", "fs", "open_write"});
+  return project::RuntimePathSig({"fs", "open_write"});
 }
 
 std::string BuiltinSymFileSystemOpenAppend() {
   SPEC_RULE("BuiltinSym-FileSystem-OpenAppend");
-  return core::PathSig({"cursive", "runtime", "fs", "open_append"});
+  return project::RuntimePathSig({"fs", "open_append"});
 }
 
 std::string BuiltinSymFileSystemCreateWrite() {
   SPEC_RULE("BuiltinSym-FileSystem-CreateWrite");
-  return core::PathSig({"cursive", "runtime", "fs", "create_write"});
+  return project::RuntimePathSig({"fs", "create_write"});
 }
 
 std::string BuiltinSymFileSystemReadFile() {
   SPEC_RULE("BuiltinSym-FileSystem-ReadFile");
-  return core::PathSig({"cursive", "runtime", "fs", "read_file"});
+  return project::RuntimePathSig({"fs", "read_file"});
 }
 
 std::string BuiltinSymFileSystemReadBytes() {
   SPEC_RULE("BuiltinSym-FileSystem-ReadBytes");
-  return core::PathSig({"cursive", "runtime", "fs", "read_bytes"});
+  return project::RuntimePathSig({"fs", "read_bytes"});
 }
 
 std::string BuiltinSymFileSystemWriteFile() {
   SPEC_RULE("BuiltinSym-FileSystem-WriteFile");
-  return core::PathSig({"cursive", "runtime", "fs", "write_file"});
+  return project::RuntimePathSig({"fs", "write_file"});
 }
 
 std::string BuiltinSymFileSystemWriteStdout() {
   SPEC_RULE("BuiltinSym-FileSystem-WriteStdout");
-  return core::PathSig({"cursive", "runtime", "fs", "write_stdout"});
+  return project::RuntimePathSig({"fs", "write_stdout"});
 }
 
 std::string BuiltinSymFileSystemWriteStderr() {
   SPEC_RULE("BuiltinSym-FileSystem-WriteStderr");
-  return core::PathSig({"cursive", "runtime", "fs", "write_stderr"});
+  return project::RuntimePathSig({"fs", "write_stderr"});
 }
 
 std::string BuiltinSymFileSystemExists() {
   SPEC_RULE("BuiltinSym-FileSystem-Exists");
-  return core::PathSig({"cursive", "runtime", "fs", "exists"});
+  return project::RuntimePathSig({"fs", "exists"});
 }
 
 std::string BuiltinSymFileSystemRemove() {
   SPEC_RULE("BuiltinSym-FileSystem-Remove");
-  return core::PathSig({"cursive", "runtime", "fs", "remove"});
+  return project::RuntimePathSig({"fs", "remove"});
 }
 
 std::string BuiltinSymFileSystemOpenDir() {
   SPEC_RULE("BuiltinSym-FileSystem-OpenDir");
-  return core::PathSig({"cursive", "runtime", "fs", "open_dir"});
+  return project::RuntimePathSig({"fs", "open_dir"});
 }
 
 std::string BuiltinSymFileSystemCreateDir() {
   SPEC_RULE("BuiltinSym-FileSystem-CreateDir");
-  return core::PathSig({"cursive", "runtime", "fs", "create_dir"});
+  return project::RuntimePathSig({"fs", "create_dir"});
 }
 
 std::string BuiltinSymFileSystemEnsureDir() {
   SPEC_RULE("BuiltinSym-FileSystem-EnsureDir");
-  return core::PathSig({"cursive", "runtime", "fs", "ensure_dir"});
+  return project::RuntimePathSig({"fs", "ensure_dir"});
 }
 
 std::string BuiltinSymFileSystemKind() {
   SPEC_RULE("BuiltinSym-FileSystem-Kind");
-  return core::PathSig({"cursive", "runtime", "fs", "kind"});
+  return project::RuntimePathSig({"fs", "kind"});
 }
 
 std::string BuiltinSymFileSystemRestrict() {
   SPEC_RULE("BuiltinSym-FileSystem-Restrict");
-  return core::PathSig({"cursive", "runtime", "fs", "restrict"});
+  return project::RuntimePathSig({"fs", "restrict"});
 }
 
 // =============================================================================
@@ -293,7 +294,7 @@ std::string BuiltinSymFileSystemRestrict() {
 
 std::string BuiltinSymNetworkRestrictHost() {
   SPEC_RULE("BuiltinSym-Network-RestrictHost");
-  return core::PathSig({"cursive", "runtime", "net", "restrict_to_host"});
+  return project::RuntimePathSig({"net", "restrict_to_host"});
 }
 
 // =============================================================================
@@ -302,17 +303,17 @@ std::string BuiltinSymNetworkRestrictHost() {
 
 std::string BuiltinSymHeapAllocatorWithQuota() {
   SPEC_RULE("BuiltinSym-HeapAllocator-WithQuota");
-  return core::PathSig({"cursive", "runtime", "heap", "with_quota"});
+  return project::RuntimePathSig({"heap", "with_quota"});
 }
 
 std::string BuiltinSymHeapAllocatorAllocRaw() {
   SPEC_RULE("BuiltinSym-HeapAllocator-AllocRaw");
-  return core::PathSig({"cursive", "runtime", "heap", "alloc_raw"});
+  return project::RuntimePathSig({"heap", "alloc_raw"});
 }
 
 std::string BuiltinSymHeapAllocatorDeallocRaw() {
   SPEC_RULE("BuiltinSym-HeapAllocator-DeallocRaw");
-  return core::PathSig({"cursive", "runtime", "heap", "dealloc_raw"});
+  return project::RuntimePathSig({"heap", "dealloc_raw"});
 }
 
 // =============================================================================
@@ -321,17 +322,17 @@ std::string BuiltinSymHeapAllocatorDeallocRaw() {
 
 std::string BuiltinSymSystemExit() {
   SPEC_RULE("BuiltinSym-System-Exit");
-  return core::PathSig({"cursive", "runtime", "system", "exit"});
+  return project::RuntimePathSig({"system", "exit"});
 }
 
 std::string BuiltinSymSystemGetEnv() {
   SPEC_RULE("BuiltinSym-System-GetEnv");
-  return core::PathSig({"cursive", "runtime", "system", "get_env"});
+  return project::RuntimePathSig({"system", "get_env"});
 }
 
 std::string BuiltinSymSystemRun() {
   SPEC_RULE("BuiltinSym-System-Run");
-  return core::PathSig({"cursive", "runtime", "system", "run"});
+  return project::RuntimePathSig({"system", "run"});
 }
 
 // =============================================================================
@@ -340,12 +341,12 @@ std::string BuiltinSymSystemRun() {
 
 std::string BuiltinSymExecutionDomainName() {
   SPEC_DEF("BuiltinSym-ExecutionDomain-Name", "Section 18.2.4");
-  return core::PathSig({"cursive", "runtime", "execution_domain", "name"});
+  return project::RuntimePathSig({"execution_domain", "name"});
 }
 
 std::string BuiltinSymExecutionDomainMaxConcurrency() {
   SPEC_DEF("BuiltinSym-ExecutionDomain-MaxConcurrency", "Section 18.2.4");
-  return core::PathSig({"cursive", "runtime", "execution_domain", "max_concurrency"});
+  return project::RuntimePathSig({"execution_domain", "max_concurrency"});
 }
 
 // =============================================================================
@@ -354,17 +355,17 @@ std::string BuiltinSymExecutionDomainMaxConcurrency() {
 
 std::string BuiltinSymContextCpu() {
   SPEC_DEF("BuiltinSym-Context-Cpu", "Section 18.2.1");
-  return core::PathSig({"cursive", "runtime", "context", "cpu"});
+  return project::RuntimePathSig({"context", "cpu"});
 }
 
 std::string BuiltinSymContextGpu() {
   SPEC_DEF("BuiltinSym-Context-Gpu", "Section 18.2.2");
-  return core::PathSig({"cursive", "runtime", "context", "gpu"});
+  return project::RuntimePathSig({"context", "gpu"});
 }
 
 std::string BuiltinSymContextInline() {
   SPEC_DEF("BuiltinSym-Context-Inline", "Section 18.2.3");
-  return core::PathSig({"cursive", "runtime", "context", "inline"});
+  return project::RuntimePathSig({"context", "inline"});
 }
 
 // =============================================================================
@@ -374,52 +375,52 @@ std::string BuiltinSymContextInline() {
 
 std::string BuiltinSymGpuGlobalId() {
   SPEC_DEF("BuiltinSym-Gpu-GlobalId", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "global_id"});
+  return project::RuntimePathSig({"gpu", "global_id"});
 }
 
 std::string BuiltinSymGpuLocalId() {
   SPEC_DEF("BuiltinSym-Gpu-LocalId", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "local_id"});
+  return project::RuntimePathSig({"gpu", "local_id"});
 }
 
 std::string BuiltinSymGpuWorkgroupId() {
   SPEC_DEF("BuiltinSym-Gpu-WorkgroupId", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "workgroup_id"});
+  return project::RuntimePathSig({"gpu", "workgroup_id"});
 }
 
 std::string BuiltinSymGpuWorkgroupSize() {
   SPEC_DEF("BuiltinSym-Gpu-WorkgroupSize", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "workgroup_size"});
+  return project::RuntimePathSig({"gpu", "workgroup_size"});
 }
 
 std::string BuiltinSymGpuGlobalSize() {
   SPEC_DEF("BuiltinSym-Gpu-GlobalSize", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "global_size"});
+  return project::RuntimePathSig({"gpu", "global_size"});
 }
 
 std::string BuiltinSymGpuNumWorkgroups() {
   SPEC_DEF("BuiltinSym-Gpu-NumWorkgroups", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "num_workgroups"});
+  return project::RuntimePathSig({"gpu", "num_workgroups"});
 }
 
 std::string BuiltinSymGpuLinearId() {
   SPEC_DEF("BuiltinSym-Gpu-LinearId", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "linear_id"});
+  return project::RuntimePathSig({"gpu", "linear_id"});
 }
 
 std::string BuiltinSymGpuBarrier() {
   SPEC_DEF("BuiltinSym-Gpu-Barrier", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "barrier"});
+  return project::RuntimePathSig({"gpu", "barrier"});
 }
 
 std::string BuiltinSymGpuMemoryBarrier() {
   SPEC_DEF("BuiltinSym-Gpu-MemoryBarrier", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "memory_barrier"});
+  return project::RuntimePathSig({"gpu", "memory_barrier"});
 }
 
 std::string BuiltinSymGpuWorkgroupBarrier() {
   SPEC_DEF("BuiltinSym-Gpu-WorkgroupBarrier", "Section 18.2.2.4");
-  return core::PathSig({"cursive", "runtime", "gpu", "workgroup_barrier"});
+  return project::RuntimePathSig({"gpu", "workgroup_barrier"});
 }
 
 
@@ -456,43 +457,48 @@ std::string BuiltinSymCancelTokenActiveWaitCancelled() {
 
 std::string BuiltinSymStringFrom() {
   SPEC_DEF("BuiltinSym-string-from", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "string", "from"});
+  return project::RuntimePathSig({"string", "from"});
 }
 
 std::string BuiltinSymStringAsView() {
   SPEC_DEF("BuiltinSym-string-as_view", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "string", "as_view"});
+  return project::RuntimePathSig({"string", "as_view"});
+}
+
+std::string BuiltinSymStringSlice() {
+  SPEC_DEF("BuiltinSym-string-slice", "Section 6.12.14");
+  return project::RuntimePathSig({"string", "slice"});
 }
 
 std::string BuiltinSymStringToManaged() {
   SPEC_DEF("BuiltinSym-string-to_managed", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "string", "to_managed"});
+  return project::RuntimePathSig({"string", "to_managed"});
 }
 
 std::string BuiltinSymStringCloneWith() {
   SPEC_DEF("BuiltinSym-string-clone_with", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "string", "clone_with"});
+  return project::RuntimePathSig({"string", "clone_with"});
 }
 
 std::string BuiltinSymStringAppend() {
   SPEC_DEF("BuiltinSym-string-append", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "string", "append"});
+  return project::RuntimePathSig({"string", "append"});
 }
 
 std::string BuiltinSymStringLength() {
   SPEC_DEF("BuiltinSym-string-length", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "string", "length"});
+  return project::RuntimePathSig({"string", "length"});
 }
 
 std::string BuiltinSymStringIsEmpty() {
   SPEC_DEF("BuiltinSym-string-is_empty", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "string", "is_empty"});
+  return project::RuntimePathSig({"string", "is_empty"});
 }
 
 std::string BuiltinSymStringDropManaged() {
   SPEC_RULE("StringDropSym-Decl");
   SPEC_DEF("BuiltinSym-string-drop_managed", "Section 6.12.14");
-  std::string sym = core::PathSig({"cursive", "runtime", "string", "drop_managed"});
+  std::string sym = project::RuntimePathSig({"string", "drop_managed"});
   if (sym.empty()) {
     SPEC_RULE("StringDropSym-Err");
   }
@@ -501,58 +507,58 @@ std::string BuiltinSymStringDropManaged() {
 
 std::string BuiltinSymBytesWithCapacity() {
   SPEC_DEF("BuiltinSym-bytes-with_capacity", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "with_capacity"});
+  return project::RuntimePathSig({"bytes", "with_capacity"});
 }
 
 std::string BuiltinSymBytesFromSlice() {
   SPEC_DEF("BuiltinSym-bytes-from_slice", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "from_slice"});
+  return project::RuntimePathSig({"bytes", "from_slice"});
 }
 
 std::string BuiltinSymBytesAsView() {
   SPEC_DEF("BuiltinSym-bytes-as_view", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "as_view"});
+  return project::RuntimePathSig({"bytes", "as_view"});
 }
 
 std::string BuiltinSymBytesAsSlice() {
   SPEC_DEF("BuiltinSym-bytes-as_slice", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "as_slice"});
+  return project::RuntimePathSig({"bytes", "as_slice"});
 }
 
 std::string BuiltinSymBytesToManaged() {
   SPEC_DEF("BuiltinSym-bytes-to_managed", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "to_managed"});
+  return project::RuntimePathSig({"bytes", "to_managed"});
 }
 
 std::string BuiltinSymBytesView() {
   SPEC_DEF("BuiltinSym-bytes-view", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "view"});
+  return project::RuntimePathSig({"bytes", "view"});
 }
 
 std::string BuiltinSymBytesViewString() {
   SPEC_DEF("BuiltinSym-bytes-view_string", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "view_string"});
+  return project::RuntimePathSig({"bytes", "view_string"});
 }
 
 std::string BuiltinSymBytesAppend() {
   SPEC_DEF("BuiltinSym-bytes-append", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "append"});
+  return project::RuntimePathSig({"bytes", "append"});
 }
 
 std::string BuiltinSymBytesLength() {
   SPEC_DEF("BuiltinSym-bytes-length", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "length"});
+  return project::RuntimePathSig({"bytes", "length"});
 }
 
 std::string BuiltinSymBytesIsEmpty() {
   SPEC_DEF("BuiltinSym-bytes-is_empty", "Section 6.12.14");
-  return core::PathSig({"cursive", "runtime", "bytes", "is_empty"});
+  return project::RuntimePathSig({"bytes", "is_empty"});
 }
 
 std::string BuiltinSymBytesDropManaged() {
   SPEC_RULE("BytesDropSym-Decl");
   SPEC_DEF("BuiltinSym-bytes-drop_managed", "Section 6.12.14");
-  std::string sym = core::PathSig({"cursive", "runtime", "bytes", "drop_managed"});
+  std::string sym = project::RuntimePathSig({"bytes", "drop_managed"});
   if (sym.empty()) {
     SPEC_RULE("BytesDropSym-Err");
   }
@@ -565,17 +571,17 @@ std::string BuiltinSymBytesDropManaged() {
 
 std::string BuiltinSymEqEq() {
   SPEC_DEF("BuiltinSym-Eq-eq", "Section 14.10.6");
-  return core::PathSig({"cursive", "intrinsic", "eq", "eq"});
+  return project::LanguagePathSig({"intrinsic", "eq", "eq"});
 }
 
 std::string BuiltinSymStepSuccessor() {
   SPEC_DEF("BuiltinSym-Step-successor", "Section 14.10.6");
-  return core::PathSig({"cursive", "intrinsic", "step", "successor"});
+  return project::LanguagePathSig({"intrinsic", "step", "successor"});
 }
 
 std::string BuiltinSymStepPredecessor() {
   SPEC_DEF("BuiltinSym-Step-predecessor", "Section 14.10.6");
-  return core::PathSig({"cursive", "intrinsic", "step", "predecessor"});
+  return project::LanguagePathSig({"intrinsic", "step", "predecessor"});
 }
 
 // =============================================================================
@@ -584,12 +590,12 @@ std::string BuiltinSymStepPredecessor() {
 
 std::string BuiltinSymReactorRun() {
   SPEC_DEF("BuiltinSym-Reactor-Run", "Section 19");
-  return core::PathSig({"cursive", "runtime", "reactor", "run"});
+  return project::RuntimePathSig({"reactor", "run"});
 }
 
 std::string BuiltinSymReactorRegister() {
   SPEC_DEF("BuiltinSym-Reactor-Register", "Section 19");
-  return core::PathSig({"cursive", "runtime", "reactor", "register"});
+  return project::RuntimePathSig({"reactor", "register"});
 }
 
 // =============================================================================
@@ -598,52 +604,52 @@ std::string BuiltinSymReactorRegister() {
 
 std::string BuiltinSymAsyncResume() {
   SPEC_DEF("BuiltinSym-Async-Resume", "Section 19.2.2");
-  return core::PathSig({"cursive", "runtime", "async", "resume"});
+  return project::RuntimePathSig({"async", "resume"});
 }
 
 std::string BuiltinSymAsyncGetDiscriminant() {
   SPEC_DEF("BuiltinSym-Async-GetDiscriminant", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "get_discriminant"});
+  return project::RuntimePathSig({"async", "get_discriminant"});
 }
 
 std::string BuiltinSymAsyncGetSuspendedOutput() {
   SPEC_DEF("BuiltinSym-Async-GetSuspendedOutput", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "get_suspended_output"});
+  return project::RuntimePathSig({"async", "get_suspended_output"});
 }
 
 std::string BuiltinSymAsyncGetCompletedValue() {
   SPEC_DEF("BuiltinSym-Async-GetCompletedValue", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "get_completed_value"});
+  return project::RuntimePathSig({"async", "get_completed_value"});
 }
 
 std::string BuiltinSymAsyncGetFailedError() {
   SPEC_DEF("BuiltinSym-Async-GetFailedError", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "get_failed_error"});
+  return project::RuntimePathSig({"async", "get_failed_error"});
 }
 
 std::string BuiltinSymAsyncCreateCompleted() {
   SPEC_DEF("BuiltinSym-Async-CreateCompleted", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "create_completed"});
+  return project::RuntimePathSig({"async", "create_completed"});
 }
 
 std::string BuiltinSymAsyncCreateFailed() {
   SPEC_DEF("BuiltinSym-Async-CreateFailed", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "create_failed"});
+  return project::RuntimePathSig({"async", "create_failed"});
 }
 
 std::string BuiltinSymAsyncCreateSuspended() {
   SPEC_DEF("BuiltinSym-Async-CreateSuspended", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "create_suspended"});
+  return project::RuntimePathSig({"async", "create_suspended"});
 }
 
 std::string BuiltinSymAsyncAllocFrame() {
   SPEC_DEF("BuiltinSym-Async-AllocFrame", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "alloc_frame"});
+  return project::RuntimePathSig({"async", "alloc_frame"});
 }
 
 std::string BuiltinSymAsyncFreeFrame() {
   SPEC_DEF("BuiltinSym-Async-FreeFrame", "Section 19");
-  return core::PathSig({"cursive", "runtime", "async", "free_frame"});
+  return project::RuntimePathSig({"async", "free_frame"});
 }
 
 // =============================================================================
@@ -652,7 +658,7 @@ std::string BuiltinSymAsyncFreeFrame() {
 
 std::string RuntimePanicSym() {
   SPEC_RULE("PanicSym");
-  return core::PathSig({"cursive", "runtime", "panic"});
+  return project::RuntimePathSig({"panic"});
 }
 
 // =============================================================================
@@ -662,7 +668,7 @@ std::string RuntimePanicSym() {
 std::string ContextInitSym() {
   SPEC_RULE("ContextInitSym-Decl");
   SPEC_DEF("ContextInitSym", "Section 6.12.5");
-  return core::PathSig({"cursive", "runtime", "context_init"});
+  return project::RuntimePathSig({"context_init"});
 }
 
 // =============================================================================
@@ -670,55 +676,55 @@ std::string ContextInitSym() {
 // =============================================================================
 
 std::string RuntimeConformanceEmitSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit"});
+  return project::RuntimePathSig({"conformance", "emit"});
 }
 
 std::string RuntimeConformanceEmitIntSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit_int"});
+  return project::RuntimePathSig({"conformance", "emit_int"});
 }
 
 std::string RuntimeConformanceEmitBoolSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit_bool"});
+  return project::RuntimePathSig({"conformance", "emit_bool"});
 }
 
 std::string RuntimeConformanceEmitFloatSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit_float"});
+  return project::RuntimePathSig({"conformance", "emit_float"});
 }
 
 std::string RuntimeConformanceEmitPtrSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit_ptr"});
+  return project::RuntimePathSig({"conformance", "emit_ptr"});
 }
 
 std::string RuntimeConformanceEmitStringSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit_string"});
+  return project::RuntimePathSig({"conformance", "emit_string"});
 }
 
 std::string RuntimeConformanceEmitStringManagedSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit_string_managed"});
+  return project::RuntimePathSig({"conformance", "emit_string_managed"});
 }
 
 std::string RuntimeConformanceEmitBytesSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit_bytes"});
+  return project::RuntimePathSig({"conformance", "emit_bytes"});
 }
 
 std::string RuntimeConformanceEmitBytesManagedSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "emit_bytes_managed"});
+  return project::RuntimePathSig({"conformance", "emit_bytes_managed"});
 }
 
 std::string RuntimeConformanceSetSinkSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "set_sink"});
+  return project::RuntimePathSig({"conformance", "set_sink"});
 }
 
 std::string RuntimeConformanceSetRootSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "set_root"});
+  return project::RuntimePathSig({"conformance", "set_root"});
 }
 
 std::string RuntimeConformanceSetLogFilterSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "set_log_filter"});
+  return project::RuntimePathSig({"conformance", "set_log_filter"});
 }
 
 std::string RuntimeConformanceSetMinLevelSym() {
-  return core::PathSig({"cursive", "runtime", "conformance", "set_min_level"});
+  return project::RuntimePathSig({"conformance", "set_min_level"});
 }
 
 std::vector<std::string> RuntimeSpecSyms() {
@@ -746,9 +752,10 @@ std::vector<std::string> RuntimeSpecSyms() {
   }};
   AppendRuntimeSymbols(syms, kRegionSymbols);
 
-  static const std::array<BuiltinSymbolFactory, 7> kStringSymbols = {{
+  static const std::array<BuiltinSymbolFactory, 8> kStringSymbols = {{
       &BuiltinSymStringFrom,
       &BuiltinSymStringAsView,
+      &BuiltinSymStringSlice,
       &BuiltinSymStringToManaged,
       &BuiltinSymStringCloneWith,
       &BuiltinSymStringAppend,
@@ -880,9 +887,10 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
   }};
   AppendRuntimeSymbols(syms, kRegionSymbols);
 
-  static const std::array<BuiltinSymbolFactory, 7> kStringSymbols = {{
+  static const std::array<BuiltinSymbolFactory, 8> kStringSymbols = {{
       &BuiltinSymStringFrom,
       &BuiltinSymStringAsView,
+      &BuiltinSymStringSlice,
       &BuiltinSymStringToManaged,
       &BuiltinSymStringCloneWith,
       &BuiltinSymStringAppend,
@@ -1057,9 +1065,10 @@ std::string BuiltinSym(const std::string& qualified_name) {
       {"Reactor::run", &BuiltinSymReactorRun},
       {"Reactor::register", &BuiltinSymReactorRegister},
   }};
-  static const std::array<BuiltinSymbolEntry, 7> kStringBuiltins = {{
+  static const std::array<BuiltinSymbolEntry, 8> kStringBuiltins = {{
       {"string::from", &BuiltinSymStringFrom},
       {"string::as_view", &BuiltinSymStringAsView},
+      {"string::slice", &BuiltinSymStringSlice},
       {"string::to_managed", &BuiltinSymStringToManaged},
       {"string::clone_with", &BuiltinSymStringCloneWith},
       {"string::append", &BuiltinSymStringAppend},
@@ -1233,4 +1242,3 @@ void AnchorBuiltinSymRules() {
 }
 
 }  // namespace cursive::codegen
-

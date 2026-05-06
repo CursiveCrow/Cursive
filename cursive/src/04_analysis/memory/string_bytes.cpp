@@ -193,6 +193,14 @@ static std::optional<TypeRef> StringBuiltinType(std::string_view name) {
     };
     return MakeFunc(std::move(params), StringViewType());
   }
+  if (IdEq(name, "slice")) {
+    std::vector<TypeFuncParam> params = {
+        {std::nullopt, ConstType(StringViewType())},
+        {std::nullopt, MakeTypePrim("usize")},
+        {std::nullopt, MakeTypePrim("usize")},
+    };
+    return MakeFunc(std::move(params), StringViewType());
+  }
   if (IdEq(name, "to_managed")) {
     std::vector<TypeFuncParam> params = {
         {std::nullopt, ConstType(StringViewType())},
@@ -315,9 +323,9 @@ bool IsStringBytesBuiltinPath(const ast::ModulePath& path) {
 
 bool IsStringBuiltinName(std::string_view name) {
   SpecDefsStringBytes();
-  static constexpr std::array<std::string_view, 7> names = {
+  static constexpr std::array<std::string_view, 8> names = {
       "from", "as_view", "to_managed", "clone_with",
-      "append", "length", "is_empty",
+      "append", "slice", "length", "is_empty",
   };
   for (const auto& entry : names) {
     if (IdEq(name, entry)) {
@@ -381,6 +389,14 @@ std::optional<StringBytesBuiltinMethodSig> LookupStringBytesBuiltinMethodSig(
     }
     if (IdEq(name, "as_view") && str->state == StringState::Managed) {
       return MakeMethodSig(Permission::Const, managed_string, {}, view_string);
+    }
+    if (IdEq(name, "slice") && str->state == StringState::View) {
+      std::vector<TypeFuncParam> params = {
+          {std::nullopt, MakeTypePrim("usize")},
+          {std::nullopt, MakeTypePrim("usize")},
+      };
+      return MakeMethodSig(Permission::Const, view_string, std::move(params),
+                           view_string);
     }
     if (IdEq(name, "to_managed") && str->state == StringState::View) {
       std::vector<TypeFuncParam> params = {

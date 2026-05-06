@@ -993,13 +993,12 @@ OPTIONS
   --dump                     Dump project structure
   --dump-ast                 Dump parsed AST for project modules
   --emit-ir                  Emit textual IR to stdout
-
   --build-progress <on|off>  Enable/disable build progress display
   --incremental <on|off>     Enable/disable incremental compilation
   --max-errors <N|inf>       Abort compilation after N errors (default: 100)
   --no-crash-report          Disable built-in crash report generation
 
-  --runtime-lib <path>       Path to Cursive runtime library
+  --runtime-lib <path>       Path to active language runtime library
   --link-debug               Enable linker debug output
   --no-link-debug            Disable linker debug output
 

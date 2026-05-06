@@ -504,6 +504,7 @@ namespace cursive::ast
     {
         AttributeList attrs;
         Visibility vis;
+        bool visibility_explicit = false;
         Identifier name;
         std::optional<GenericParams> generic_params;
         std::optional<PredicateClause> predicate_clause_opt;

@@ -9,6 +9,7 @@
 #include "00_core/process_config.h"
 #include "00_core/symbols.h"
 #include "01_project/assemblies.h"
+#include "01_project/language_profile.h"
 #include "01_project/link.h"
 #include "01_project/outputs.h"
 #include "06_driver/fingerprints.h"
@@ -59,7 +60,8 @@ bool IncrementalEnabled() {
 }
 
 std::filesystem::path IncrementalDirPath(const project::Project& project) {
-  return project.outputs.root / ".cursive-incremental";
+  return project.outputs.root /
+         std::string(project::LanguageProfileFor(project.language).incremental_dir_name);
 }
 
 std::filesystem::path IncrementalManifestPath(

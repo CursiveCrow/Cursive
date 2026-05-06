@@ -38,6 +38,7 @@
 
 #include "00_core/spec_trace.h"
 #include "00_core/symbols.h"
+#include "01_project/language_profile.h"
 #include "05_codegen/globals/literal_emit.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/llvm/llvm_emit.h"
@@ -165,16 +166,26 @@ llvm::GlobalVariable* CreateZeroInitGlobal(llvm::Module& module,
 
 bool IsDropGlueSymbol(std::string_view symbol) {
   // Check if symbol is a drop glue symbol (starts with mangled drop prefix)
-  static const std::string prefix =
-      core::Mangle(core::StringOfPath({"cursive", "runtime", "drop"}));
+  const std::string prefix = project::RuntimePathSig({"drop"});
   return symbol.size() >= prefix.size() &&
          symbol.compare(0, prefix.size(), prefix) == 0;
 }
 
 std::string_view GetDropGluePrefix() {
-  static const std::string prefix =
-      core::Mangle(core::StringOfPath({"cursive", "runtime", "drop"}));
-  return prefix;
+  struct Cache {
+    project::SourceLanguage language = project::SourceLanguage::Cursive;
+    std::string prefix;
+    bool initialized = false;
+  };
+
+  static Cache cache;
+  const auto active_language = project::ActiveLanguageProfile().language;
+  if (!cache.initialized || cache.language != active_language) {
+    cache.language = active_language;
+    cache.prefix = project::RuntimePathSig({"drop"});
+    cache.initialized = true;
+  }
+  return cache.prefix;
 }
 
 std::optional<std::string> EmitKey(const IRDecl& decl) {

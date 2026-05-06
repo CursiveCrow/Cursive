@@ -37,6 +37,7 @@
 #include "00_core/symbols.h"
 #include "01_project/assemblies.h"
 #include "01_project/ir_assembly.h"
+#include "01_project/language_profile.h"
 #include "01_project/project.h"
 #include "01_project/tool_resolution.h"
 #include "02_source/lexer.h"
@@ -751,10 +752,12 @@ std::optional<LLVMModuleBundle> EmitLLVMModule(
 
   LLVMModuleBundle bundle;
   bundle.ctx = std::make_unique<llvm::LLVMContext>();
-  codegen::LLVMEmitter emitter(
-      *bundle.ctx,
-      module.path_key.empty() ? "cursive_module" : module.path_key,
-      target_profile);
+	  codegen::LLVMEmitter emitter(
+	      *bundle.ctx,
+	      module.path_key.empty()
+	          ? std::string(project::ActiveLanguageProfile().lower_name) + "_module"
+	          : module.path_key,
+	      target_profile);
   llvm::Module* raw = emitter.EmitModule(module.decls, emit_ctx);
   bundle.module = emitter.ReleaseModule();
   bundle.codegen_failed = emit_ctx.codegen_failed;

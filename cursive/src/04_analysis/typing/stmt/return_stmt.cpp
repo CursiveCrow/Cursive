@@ -268,6 +268,9 @@ static std::optional<std::string_view> VerifyPostconditionAtReturn(
   if (!type_ctx.contract || !type_ctx.contract->postcondition) {
     return std::nullopt;
   }
+  if (type_ctx.test_postcondition_runtime) {
+    return std::nullopt;
+  }
   const auto result_expr = return_value ? return_value
       : MakeUnitExpr(type_ctx.contract->postcondition->span);
   const auto pred =

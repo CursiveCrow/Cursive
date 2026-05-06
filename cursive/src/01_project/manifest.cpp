@@ -103,6 +103,7 @@
 #include "00_core/diagnostic_messages.h"
 #include "00_core/diagnostics.h"
 #include "00_core/host_primitives.h"
+#include "01_project/language_profile.h"
 
 namespace cursive::project {
 
@@ -140,15 +141,38 @@ std::filesystem::path StartDirForInput(const std::filesystem::path& input_path) 
   return dir;
 }
 
+void EmitManifestDiagnostic(core::DiagnosticStream& diags,
+                            std::string_view code,
+                            const LanguageProfile& language) {
+  auto diag = core::MakeExternalDiagnostic(code);
+  if (!diag.has_value()) {
+    core::EmitExternalDiagnostic(diags, code);
+    return;
+  }
+  if (language.language == SourceLanguage::Ultraviolet) {
+    if (code == "E-PRJ-0101") {
+      diag->message = "`Ultraviolet.toml` not found at project root";
+    } else if (code == "E-PRJ-0102") {
+      diag->message = "`Ultraviolet.toml` is not valid TOML";
+    }
+  }
+  core::Emit(diags, *diag);
+}
+
 }  // namespace
 
 std::filesystem::path FindProjectRoot(const std::filesystem::path& input_path) {
+  return FindProjectRoot(input_path, ActiveLanguageProfile());
+}
+
+std::filesystem::path FindProjectRoot(const std::filesystem::path& input_path,
+                                      const LanguageProfile& language) {
   const std::filesystem::path start = StartDirForInput(input_path);
   std::filesystem::path current = start;
 
   for (;;) {
     std::error_code ec;
-    const auto manifest_path = current / "Cursive.toml";
+    const auto manifest_path = current / std::string(language.manifest_name);
     const bool exists = std::filesystem::exists(manifest_path, ec);
     if (ec) {
       return current;
@@ -167,21 +191,26 @@ std::filesystem::path FindProjectRoot(const std::filesystem::path& input_path) {
 }
 
 ManifestParseResult ParseManifest(const std::filesystem::path& project_root) {
+  return ParseManifest(project_root, ActiveLanguageProfile());
+}
+
+ManifestParseResult ParseManifest(const std::filesystem::path& project_root,
+                                  const LanguageProfile& language) {
   ManifestParseResult result;
-  const auto manifest_path = project_root / "Cursive.toml";
+  const auto manifest_path = project_root / std::string(language.manifest_name);
 
   std::error_code ec;
   const bool exists = std::filesystem::exists(manifest_path, ec);
-  if (ec) {
-    SPEC_RULE("Parse-Manifest-Err");
-    core::EmitExternalDiagnostic(result.diags, "E-PRJ-0102");
+	  if (ec) {
+	    SPEC_RULE("Parse-Manifest-Err");
+	    EmitManifestDiagnostic(result.diags, "E-PRJ-0102", language);
     core::HostPrimFail(core::HostPrim::ParseTOML, true);
     return result;
   }
 
-  if (!exists) {
-    SPEC_RULE("Parse-Manifest-Missing");
-    core::EmitExternalDiagnostic(result.diags, "E-PRJ-0101");
+	  if (!exists) {
+	    SPEC_RULE("Parse-Manifest-Missing");
+	    EmitManifestDiagnostic(result.diags, "E-PRJ-0101", language);
     return result;
   }
 
@@ -195,8 +224,8 @@ ManifestParseResult ParseManifest(const std::filesystem::path& project_root) {
     // Fall through to error handling.
   }
 
-  SPEC_RULE("Parse-Manifest-Err");
-  core::EmitExternalDiagnostic(result.diags, "E-PRJ-0102");
+	  SPEC_RULE("Parse-Manifest-Err");
+	  EmitManifestDiagnostic(result.diags, "E-PRJ-0102", language);
   core::HostPrimFail(core::HostPrim::ParseTOML, true);
   return result;
 }

@@ -8,6 +8,7 @@
 
 #include "00_core/diagnostics.h"
 #include "00_core/path.h"
+#include "01_project/language_profile.h"
 #include "01_project/manifest.h"
 #include "01_project/module_discovery.h"
 #include "01_project/outputs.h"
@@ -61,6 +62,7 @@ ManifestValidationResult ValidateManifest(
 bool IsProjectRoot(const std::filesystem::path& root);
 
 struct Project {
+  SourceLanguage language = SourceLanguage::Cursive;
   std::filesystem::path root;
   std::vector<Assembly> assemblies;
   Assembly assembly;

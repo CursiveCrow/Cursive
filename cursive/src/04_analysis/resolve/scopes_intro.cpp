@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "00_core/assert_spec.h"
+#include "01_project/language_profile.h"
 
 namespace cursive::analysis {
 
@@ -32,6 +33,10 @@ bool IsModuleScopeCurrent(const ScopeList& scopes) {
     return false;
   }
   return &scopes.front() == &ModuleScope(scopes);
+}
+
+bool ReservedLanguageRoot(std::string_view name) {
+  return IdEq(name, project::ActiveLanguageProfile().runtime_root);
 }
 
 std::optional<core::Span> SpanForKey(
@@ -67,7 +72,7 @@ bool InOuter(const ScopeContext& ctx, std::string_view name) {
 
 IntroResult Intro(ScopeContext& ctx, std::string_view name, const Entity& ent) {
   SpecDefsIntro();
-  if (ReservedGen(name) || IdEq(name, "cursive")) {
+  if (ReservedGen(name) || ReservedLanguageRoot(name)) {
     SPEC_RULE("Intro-Reserved-Id-Err");
     return {false, "Intro-Reserved-Id-Err"};
   }
@@ -112,7 +117,7 @@ IntroResult ShadowIntro(ScopeContext& ctx,
                         std::string_view name,
                         const Entity& ent) {
   SpecDefsIntro();
-  if (ReservedGen(name) || IdEq(name, "cursive")) {
+  if (ReservedGen(name) || ReservedLanguageRoot(name)) {
     SPEC_RULE("Shadow-Reserved-Id-Err");
     return {false, "Shadow-Reserved-Id-Err"};
   }
@@ -166,7 +171,7 @@ ValidateModuleNamesResult ValidateModuleNames(
   std::sort(keys.begin(), keys.end());
 
   for (const auto& key : keys) {
-    if (ReservedGen(key) || IdEq(key, "cursive")) {
+    if (ReservedGen(key) || ReservedLanguageRoot(key)) {
       SPEC_RULE("Intro-Reserved-Id-Err");
       return {false, "Intro-Reserved-Id-Err", SpanForKey(name_spans, key)};
     }

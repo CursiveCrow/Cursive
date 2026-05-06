@@ -72,6 +72,7 @@
 #include "01_project/ir_assembly.h"
 #include "01_project/assemblies.h"
 #include "01_project/ffi_library.h"
+#include "01_project/language_profile.h"
 #include "01_project/link.h"
 #include "01_project/manifest.h"
 #include "01_project/deterministic_order.h"
@@ -2005,6 +2006,10 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
     return 2;
   }
   const auto& opts = parse_result.options;
+  const auto detected_language =
+      project::DetectSourceLanguageForInput(opts->input_path);
+  project::SetActiveLanguageProfile(
+      detected_language.value_or(project::SourceLanguage::Cursive));
   core::SetCrashEnabled(!opts->no_crash_report);
   core::SetCrashJsonStdout(opts->diag_json);
   core::MaybeTriggerCrashFixtureFromEnv();
@@ -2059,12 +2064,13 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
   // ========================================================================
   if (opts->do_init) {
     namespace fs = std::filesystem;
+    const auto& language = project::ActiveLanguageProfile();
     const fs::path project_dir = fs::absolute(fs::path(opts->input_path));
-    const auto toml_path = project_dir / "Cursive.toml";
+    const auto toml_path = project_dir / std::string(language.manifest_name);
 
     std::error_code ec;
     if (fs::exists(toml_path, ec) && !ec) {
-      std::cerr << "error: Cursive.toml already exists in "
+      std::cerr << "error: " << language.manifest_name << " already exists in "
                 << project_dir.string() << "\n";
       return 1;
     }
@@ -2086,11 +2092,12 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
       }
     }
 
-    // Create Cursive.toml
+    // Create manifest
     {
       std::ofstream out(toml_path, std::ios::binary);
       if (!out) {
-        std::cerr << "error: could not create Cursive.toml\n";
+        std::cerr << "error: could not create " << language.manifest_name
+                  << "\n";
         return 1;
       }
       out << "[assembly]\n"
@@ -2107,11 +2114,15 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
       return 1;
     }
 
-    // Create src/main.cursive
+    // Create source entry file
     {
-      std::ofstream out(src_dir / "main.cursive", std::ios::binary);
+      const std::filesystem::path main_path =
+          src_dir / ("main" + std::string(language.source_extension));
+      std::ofstream out(main_path, std::ios::binary);
       if (!out) {
-        std::cerr << "error: could not create src/main.cursive\n";
+        std::cerr << "error: could not create "
+                  << main_path.lexically_relative(project_dir).generic_string()
+                  << "\n";
         return 1;
       }
       out << "public procedure main(move ctx: Context) -> i32 {\n"
@@ -2127,9 +2138,10 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
               << core::Colorize(label, core::Color::BoldGreen, init_color)
               << "  " << project_label;
     if (project_name != project_label) {
-      std::cerr << " (cursive project, assembly " << project_name << ")\n";
+      std::cerr << " (" << language.lower_name << " project, assembly "
+                << project_name << ")\n";
     } else {
-      std::cerr << " (cursive project)\n";
+      std::cerr << " (" << language.lower_name << " project)\n";
     }
     return 0;
   }
@@ -2343,7 +2355,8 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
       EnsureRuntimeLogDirectory(proj, *opts);
 
     frontend::ParseModuleDeps deps;
-    deps.compilation_unit = project::CompilationUnit;
+    deps.compilation_unit = static_cast<project::CompilationUnitResult (*)(
+        const std::filesystem::path&)>(project::CompilationUnit);
     deps.read_bytes = frontend::ReadBytesDefault;
     deps.load_source = core::LoadSource;
     deps.parse_file = ast::ParseFile;

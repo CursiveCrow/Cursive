@@ -95,8 +95,8 @@
 // REFACTORING NOTES
 // =============================================================================
 //
-// 1. The LoadProjectDeps struct enables dependency injection for testing
-//    RECOMMENDATION: Maintain this pattern for testability
+// 1. The LoadProjectDeps struct enables dependency injection.
+//    RECOMMENDATION: Maintain this pattern for controlled project-loading seams.
 //
 // 2. Module sorting logic (lines 73-81) duplicates ordering logic
 //    RECOMMENDATION: Extract to deterministic_order module
@@ -411,6 +411,7 @@ LoadProjectResult LoadProjectImpl(const std::filesystem::path& project_root,
   }
 
   Project project;
+  project.language = ActiveLanguageProfile().language;
   project.root = project_root;
   project.assemblies = std::move(assemblies);
   project.assembly = *selected;
@@ -458,11 +459,13 @@ LoadProjectResult LoadProjectWithDeps(const std::filesystem::path& project_root,
 LoadProjectResult LoadProject(const std::filesystem::path& project_root,
                               const AssemblyTarget& target) {
   const LoadProjectDeps deps = {
-      ParseManifest,
+      static_cast<ManifestParseResult (*)(const std::filesystem::path&)>(
+          ParseManifest),
       ValidateManifest,
       core::Resolve,
       IsDirDefault,
-      Modules,
+      static_cast<ModulesResult (*)(
+          const std::filesystem::path&, std::string_view)>(Modules),
       ComputeOutputPaths,
   };
   return LoadProjectImpl(project_root, target, deps);

@@ -27,6 +27,7 @@
 #include "01_project/assemblies.h"
 #include "01_project/deterministic_order.h"
 #include "01_project/ffi_library.h"
+#include "01_project/language_profile.h"
 #include "01_project/link.h"
 #include "01_project/project.h"
 #include "01_project/target_profile.h"
@@ -339,7 +340,8 @@ LinkPlan BaseLinkPlan(const Project& project, TargetProfile target_profile) {
     if (ObjectFormatOf(target_profile) == ObjectFormat::Coff) {
       plan.shared_library_lifecycle_mode =
           SharedLibraryLifecycleMode::WindowsEntry;
-      plan.entry_symbol = "__cursive_library_entry";
+      plan.entry_symbol =
+          std::string(ActiveLanguageProfile().library_entry_symbol);
     } else {
       plan.shared_library_lifecycle_mode =
           SharedLibraryLifecycleMode::PosixCtorDtor;

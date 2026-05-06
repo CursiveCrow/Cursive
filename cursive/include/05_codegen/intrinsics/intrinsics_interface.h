@@ -41,12 +41,6 @@ struct LowerCtx;
 // Runtime Symbol Constants
 // =============================================================================
 
-/// Runtime symbol prefix for Cursive runtime functions.
-constexpr const char* kRuntimePrefix = "__cursive_";
-
-/// Runtime symbol prefix for Cursive0 structured concurrency.
-constexpr const char* kConcurrencyPrefix = "cursive0_";
-
 // =============================================================================
 // Runtime Symbol Categories
 // =============================================================================

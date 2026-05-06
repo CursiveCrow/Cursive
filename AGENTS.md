@@ -1,5 +1,10 @@
 The cursive spec is the source of truth. You will NOT make changes that cause the compiler to deviate from the specification. You will NOT make changes to the spec with express user approval.
 
+When explaining or planning, avoid negative framing by default. Do not repeatedly say what a concept is not, what alternatives
+  are rejected, or what should not be done unless the distinction is necessary to prevent a likely mistake. Prefer direct
+  affirmative descriptions of the intended design, behavior, and next action. If a constraint matters, state it once in the
+  relevant decision record or plan section, then proceed using the approved design without re-litigating rejected options.
+
 # **CRITICAL UTF-8 SPEC WARNING: DO NOT IGNORE**
 
 # **`docs/CursiveSpecification.md` INTENTIONALLY USES UTF-8 UNICODE JUDGEMENT / INFERENCE / TYPE-THEORY SYMBOLS AS NORMATIVE CONTENT.**
@@ -52,6 +57,16 @@ A conforming design change SHOULD preserve the following principles:
 - When fixing a bug, fix the root cause, not the symptom.
 - If reliable behavior requires error handling, validation, diagnostics, or edge-case handling, include it without asking.
 - Do not weaken tests, delete assertions, or alter expected behavior to match an incomplete implementation.
+
+## Spec-Valid Source Preservation
+
+Spec-valid source is authoritative evidence. When the current compiler rejects,
+misparses, mischecks, mislowers, or miscompiles source that conforms to the
+authoritative specification, repair the canonical compiler implementation:
+parser, resolver, typechecker, lowering, runtime, diagnostics, or whichever path
+owns the defect. Preserve the source form unless the source itself violates the
+specification, has an independent code-quality defect, or the user explicitly
+requests a source rewrite.
 
 ## No Shortcut Implementations
 

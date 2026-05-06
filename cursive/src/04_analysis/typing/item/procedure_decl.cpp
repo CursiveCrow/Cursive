@@ -205,6 +205,38 @@ static bool MainGeneric(const ast::ProcedureDecl& decl) {
   return !ast::TypeParamsOpt(decl.generic_params).empty();
 }
 
+static bool IsBareTestContextType(const std::shared_ptr<ast::Type>& type) {
+  if (!type) {
+    return false;
+  }
+  const auto* path = std::get_if<ast::TypePathType>(&type->node);
+  return path && path->generic_args.empty() &&
+         path->path == ast::TypePath{"TestContext"};
+}
+
+static std::optional<std::string_view> ValidateTestProcedureShape(
+    const ast::ProcedureDecl& decl) {
+  if (!HasAttribute(decl.attrs, attrs::kTest)) {
+    return std::nullopt;
+  }
+
+  if (!decl.body || !ast::TypeParamsOpt(decl.generic_params).empty() ||
+      !decl.visibility_explicit || !ReturnAnnOk(decl.return_type_opt) ||
+      decl.params.size() > 1) {
+    return "E-TST-0104";
+  }
+
+  if (!decl.contract.has_value() || !decl.contract->postcondition) {
+    return "E-TST-0106";
+  }
+
+  if (decl.params.size() == 1 && !IsBareTestContextType(decl.params[0].type)) {
+    return "E-TST-0105";
+  }
+
+  return std::nullopt;
+}
+
 static core::Span SpanOfStmt(const ast::Stmt& stmt) {
   return std::visit(
       [](const auto& node) -> core::Span { return node.span; },
@@ -1772,6 +1804,12 @@ ProcedureDeclResult TypeProcedureDecl(
     return result;
   }
 
+  if (const auto test_diag = ValidateTestProcedureShape(decl)) {
+    result.ok = false;
+    result.diag_id = *test_diag;
+    return result;
+  }
+
   // Check return type annotation is present
   if (!ReturnAnnOk(decl.return_type_opt)) {
     SPEC_RULE("WF-ProcedureDecl-MissingReturnType");
@@ -2019,6 +2057,7 @@ ProcedureDeclResult TypeProcedureDecl(
         MakeDynamicScopeAncestor(decl.attrs, decl.span)};
     type_ctx.contract_dynamic =
         ComputeDynamicContext(decl.body->span, ancestors);
+    type_ctx.test_postcondition_runtime = HasAttribute(decl.attrs, attrs::kTest);
     OpaqueReturnState opaque_return_state;
     if (type_ctx.return_type &&
         std::holds_alternative<TypeOpaque>(type_ctx.return_type->node)) {
@@ -2162,6 +2201,12 @@ ProcedureDeclResult TypeProcedureDeclSignature(
     return result;
   }
 
+  if (const auto test_diag = ValidateTestProcedureShape(decl)) {
+    result.ok = false;
+    result.diag_id = *test_diag;
+    return result;
+  }
+
   // Check return type annotation
   if (!ReturnAnnOk(decl.return_type_opt)) {
     SPEC_RULE("WF-ProcedureDecl-MissingReturnType");
@@ -2295,6 +2340,7 @@ ProcedureDeclResult TypeProcedureDeclBody(
       MakeDynamicScopeAncestor(decl.attrs, decl.span)};
   type_ctx.contract_dynamic =
       ComputeDynamicContext(decl.body->span, ancestors);
+  type_ctx.test_postcondition_runtime = HasAttribute(decl.attrs, attrs::kTest);
   OpaqueReturnState opaque_return_state;
   if (type_ctx.return_type &&
       std::holds_alternative<TypeOpaque>(type_ctx.return_type->node)) {
