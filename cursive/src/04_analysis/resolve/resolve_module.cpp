@@ -35,6 +35,7 @@
 #include "04_analysis/caps/cap_heap.h"
 #include "04_analysis/caps/cap_concurrency.h"
 #include "04_analysis/memory/region_type.h"
+#include "04_analysis/typing/outcome.h"
 
 namespace cursive::analysis {
 
@@ -570,6 +571,11 @@ void PopulateSigma(ScopeContext& ctx) {
     ast::Path path;
     path.emplace_back("Async");
     ctx.sigma.types[PathKeyOf(path)] = BuildAsyncModalDecl();
+  }
+  {
+    ast::Path path;
+    path.emplace_back("Outcome");
+    ctx.sigma.types[PathKeyOf(path)] = BuildOutcomeModalDecl();
   }
   {
     ast::Path path;

@@ -621,7 +621,7 @@ _Static_assert(sizeof(C0Union_File_IoError) == 16, "file|IoError layout");
 _Static_assert(sizeof(C0Union_DirIter_IoError) == 16, "diriter|IoError layout");
 _Static_assert(sizeof(C0Union_Unit_IoError) == 2, "unit|IoError layout");
 _Static_assert(sizeof(C0Union_FileKind_IoError) == 2, "filekind|IoError layout");
-_Static_assert(sizeof(C0Union_DirEntry_Unit_IoError) == 64, "direntry|unit|IoError layout");
+_Static_assert(sizeof(C0Union_DirEntry_Unit_IoError) == 72, "Outcome<DirEntry|(), IoError> layout");
 
 #endif  // CURSIVE0_RT_INTERNAL_H
 

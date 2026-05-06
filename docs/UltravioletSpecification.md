@@ -3257,29 +3257,36 @@ HostPrimFail(p) ∧ ¬ MapsToDiagOrRuntime(p) ⇒ IllFormed(p)
 Feature-local runtime behavior for capability-bearing filesystem operations is owned here. The built-in capability and modal declarations in Chapters 13 and 14 define the type surface; this section defines the runtime relations they invoke.
 
 FSJudg = {FSOpenRead(fs, path) ⇓ r, FSOpenWrite(fs, path) ⇓ r, FSOpenAppend(fs, path) ⇓ r, FSCreateWrite(fs, path) ⇓ r, FSReadFile(fs, path) ⇓ r, FSReadBytes(fs, path) ⇓ r, FSWriteFile(fs, path, data) ⇓ r, FSWriteStdout(fs, data) ⇓ r, FSWriteStderr(fs, data) ⇓ r, FSExists(fs, path) ⇓ b, FSRemove(fs, path) ⇓ r, FSOpenDir(fs, path) ⇓ r, FSCreateDir(fs, path) ⇓ r, FSEnsureDir(fs, path) ⇓ r, FSKind(fs, path) ⇓ r, FSRestrict(fs, path) ⇓ fs', FileReadAll(handle) ⇓ r, FileReadAllBytes(handle) ⇓ r, FileWrite(handle, data) ⇓ r, FileFlush(handle) ⇓ r, FileClose(handle) ⇓ ok, DirNext(handle) ⇓ r, DirClose(handle) ⇓ ok}
-FSResType(FSOpenRead) = `File@Read` | `IoError`
-FSResType(FSOpenWrite) = `File@Write` | `IoError`
-FSResType(FSOpenAppend) = `File@Append` | `IoError`
-FSResType(FSCreateWrite) = `File@Write` | `IoError`
-FSResType(FSReadFile) = `string@Managed` | `IoError`
-FSResType(FSReadBytes) = `bytes@Managed` | `IoError`
-FSResType(FSWriteFile) = `()` | `IoError`
-FSResType(FSWriteStdout) = `()` | `IoError`
-FSResType(FSWriteStderr) = `()` | `IoError`
+FSResType(FSOpenRead) = `Outcome<File@Read, IoError>`
+FSResType(FSOpenWrite) = `Outcome<File@Write, IoError>`
+FSResType(FSOpenAppend) = `Outcome<File@Append, IoError>`
+FSResType(FSCreateWrite) = `Outcome<File@Write, IoError>`
+FSResType(FSReadFile) = `Outcome<unique string@Managed, IoError>`
+FSResType(FSReadBytes) = `Outcome<unique bytes@Managed, IoError>`
+FSResType(FSWriteFile) = `Outcome<(), IoError>`
+FSResType(FSWriteStdout) = `Outcome<(), IoError>`
+FSResType(FSWriteStderr) = `Outcome<(), IoError>`
 FSResType(FSExists) = `bool`
-FSResType(FSRemove) = `()` | `IoError`
-FSResType(FSOpenDir) = `DirIter@Open` | `IoError`
-FSResType(FSCreateDir) = `()` | `IoError`
-FSResType(FSEnsureDir) = `()` | `IoError`
-FSResType(FSKind) = `FileKind` | `IoError`
+FSResType(FSRemove) = `Outcome<(), IoError>`
+FSResType(FSOpenDir) = `Outcome<DirIter@Open, IoError>`
+FSResType(FSCreateDir) = `Outcome<(), IoError>`
+FSResType(FSEnsureDir) = `Outcome<(), IoError>`
+FSResType(FSKind) = `Outcome<FileKind, IoError>`
 FSResType(FSRestrict) = `$FileSystem`
-FSResType(FileReadAll) = `string@Managed` | `IoError`
-FSResType(FileReadAllBytes) = `bytes@Managed` | `IoError`
-FSResType(FileWrite) = `()` | `IoError`
-FSResType(FileFlush) = `()` | `IoError`
+FSResType(FileReadAll) = `Outcome<unique string@Managed, IoError>`
+FSResType(FileReadAllBytes) = `Outcome<unique bytes@Managed, IoError>`
+FSResType(FileWrite) = `Outcome<(), IoError>`
+FSResType(FileFlush) = `Outcome<(), IoError>`
 FSResType(FileClose) = `ok`
-FSResType(DirNext) = `DirEntry` | `()` | `IoError`
+FSResType(DirNext) = `Outcome<DirEntry | (), IoError>`
 FSResType(DirClose) = `ok`
+
+When `FSResType(Op) = Outcome<T, E>`, a primitive relation in this section that
+returns a successful payload `v` denotes `Outcome<T, E>@Value{value: v}`.
+A primitive relation that returns an `IoError` value `e` denotes
+`Outcome<T, IoError>@Error{error: e}`. For `DirNext`, the successful payload
+type is `DirEntry | ()`, so exhausted iteration returns the `()` member inside
+`Outcome<DirEntry | (), IoError>@Value`.
 
 Handle = ℕ
 Entry ::= FileEntry(bytes) | DirEntry(names) | OtherEntry
@@ -10506,7 +10513,7 @@ StateMembers(M, S) = b.members ⇔ StateBlockOf(M, S) = b
 
 Payload(M, S) = [⟨f, T⟩ | StateFieldDecl(_, _, _, f, T, _, _) ∈ StateMembers(M, S)]
 
-BuiltinModal = {`Region`, `File`, `DirIter`, `CancelToken`, `Spawned`, `Tracked`, `Async`}
+BuiltinModal = {`Region`, `File`, `DirIter`, `CancelToken`, `Spawned`, `Tracked`, `Async`, `Outcome`}
 ModalPath(M) = [M.name]    if M.name ∈ BuiltinModal
 ModalPath(M) = FullPath(ModuleOf(M), M.name)    otherwise
 
@@ -10706,9 +10713,36 @@ TrackedDecl = ModalDecl(⊥, `public`, `Tracked`, TrackedParams, ⊥, [], Tracke
 
 Σ.Types["Tracked"] = `modal` TrackedDecl
 
+["Outcome"] ∈ dom(Σ.Types)
+States(`Outcome`) = { `@Value`, `@Error` }
+
+OutcomeParams = [⟨`TValue`, [], ⊥, ⊥⟩, ⟨`TError`, [], ⊥, ⊥⟩]
+OutcomeValueFields = [⟨`value`, TypePath(["TValue"])⟩]
+OutcomeErrorFields = [⟨`error`, TypePath(["TError"])⟩]
+
+Payload(`Outcome`, `@Value`) = OutcomeValueFields
+Payload(`Outcome`, `@Error`) = OutcomeErrorFields
+
+OutcomeValueMembers = [
+  StateFieldDecl(⊥, `public`, false, `value`, TypePath(["TValue"]), ⊥, ⊥)
+]
+OutcomeErrorMembers = [
+  StateFieldDecl(⊥, `public`, false, `error`, TypePath(["TError"]), ⊥, ⊥)
+]
+OutcomeStates = [
+  StateBlock(`@Value`, OutcomeValueMembers, ⊥, ⊥),
+  StateBlock(`@Error`, OutcomeErrorMembers, ⊥, ⊥)
+]
+OutcomeDecl = ModalDecl(⊥, `public`, `Outcome`, OutcomeParams, ⊥, [], OutcomeStates, ⊥, ⊥, ⊥)
+
+Σ.Types["Outcome"] = `modal` OutcomeDecl
+
+OutcomeSig(T) = ⟨TValue, TError⟩ ⇔ AliasNorm(T) = TypeApply(["Outcome"], [TValue, TError])
+OutcomeSig(T) = ⊥ otherwise
+
 DirIterOpenMembers = [
   StateFieldDecl(⊥, `public`, false, `handle`, TypePrim("usize"), ⊥, ⊥),
-  StateMethodDecl(⊥, `public`, "next", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypePath(["DirEntry"]), TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "next", ⊥, ReceiverShorthand(`const`), [], TypeApply(["Outcome"], [TypeUnion([TypePath(["DirEntry"]), TypePrim("()")]), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
   TransitionDecl(⊥, `public`, "close", [], `@Closed`, ⊥, ⊥, ⊥)
 ]
 DirIterClosedMembers = []
@@ -10720,20 +10754,20 @@ DirIterDecl = ModalDecl(⊥, `public`, `DirIter`, ⊥, ⊥, [], DirIterStates, �
 
 FileReadMembers = [
   StateFieldDecl(⊥, `public`, false, `handle`, TypePrim("usize"), ⊥, ⊥),
-  StateMethodDecl(⊥, `public`, "read_all", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypeString(`@Managed`), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
-  StateMethodDecl(⊥, `public`, "read_all_bytes", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypeBytes(`@Managed`), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "read_all", ⊥, ReceiverShorthand(`const`), [], TypeApply(["Outcome"], [TypePerm(`unique`, TypeString(`@Managed`)), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "read_all_bytes", ⊥, ReceiverShorthand(`const`), [], TypeApply(["Outcome"], [TypePerm(`unique`, TypeBytes(`@Managed`)), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
   TransitionDecl(⊥, `public`, "close", [], `@Closed`, ⊥, ⊥, ⊥)
 ]
 FileWriteMembers = [
   StateFieldDecl(⊥, `public`, false, `handle`, TypePrim("usize"), ⊥, ⊥),
-  StateMethodDecl(⊥, `public`, "write", ⊥, ReceiverShorthand(`const`), [⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
-  StateMethodDecl(⊥, `public`, "flush", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "write", ⊥, ReceiverShorthand(`const`), [⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "flush", ⊥, ReceiverShorthand(`const`), [], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
   TransitionDecl(⊥, `public`, "close", [], `@Closed`, ⊥, ⊥, ⊥)
 ]
 FileAppendMembers = [
   StateFieldDecl(⊥, `public`, false, `handle`, TypePrim("usize"), ⊥, ⊥),
-  StateMethodDecl(⊥, `public`, "write", ⊥, ReceiverShorthand(`const`), [⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
-  StateMethodDecl(⊥, `public`, "flush", ⊥, ReceiverShorthand(`const`), [], TypeUnion([TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "write", ⊥, ReceiverShorthand(`const`), [⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
+  StateMethodDecl(⊥, `public`, "flush", ⊥, ReceiverShorthand(`const`), [], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])]), ⊥, ⊥, ⊥, ⊥),
   TransitionDecl(⊥, `public`, "close", [], `@Closed`, ⊥, ⊥, ⊥)
 ]
 FileClosedMembers = []
@@ -10835,7 +10869,7 @@ ValueBits(ModalRefType(modal_ref), v) = bits ⇔ ModalDeclOf(modal_ref) = M ∧ 
 
 #### 13.1.7 Diagnostics
 
-Diagnostics are defined for modal declarations with zero states, duplicate state names, state names equal to the modal name, duplicate payload field names, state-member visibility that exceeds modal visibility, bad generic-argument count on modal-state references, and direct record construction of built-in modal states. Match exhaustiveness for general modal values is defined in Chapter 17.
+Diagnostics are defined for modal declarations with zero states, duplicate state names, state names equal to the modal name, duplicate payload field names, state-member visibility that exceeds modal visibility, bad generic-argument count on modal-state references, and direct record construction of runtime-backed built-in modal states. Match exhaustiveness for general modal values is defined in Chapter 17.
 
 ### 13.2 State Fields
 
@@ -11216,12 +11250,12 @@ States(`string`) = { `@Managed`, `@View` }
 
 StringBuiltinTable =
 {
- ⟨`string::from`, [⟨⊥, `source`, TypeString(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
+ ⟨`string::from`, [⟨⊥, `source`, TypeString(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeString(`@Managed`)), TypePath(["AllocationError"])])⟩,
  ⟨`string::as_view`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@Managed`))⟩], TypeString(`@View`)⟩,
  ⟨`string::slice`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩, ⟨⊥, `start`, TypePrim("usize")⟩, ⟨⊥, `end`, TypePrim("usize")⟩], TypeString(`@View`)⟩,
- ⟨`string::to_managed`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
- ⟨`string::clone_with`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@Managed`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["AllocationError"])])⟩,
- ⟨`string::append`, [⟨⊥, `self`, TypePerm(`unique`, TypeString(`@Managed`))⟩, ⟨⊥, `data`, TypeString(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypePrim("()"), TypePath(["AllocationError"])])⟩,
+ ⟨`string::to_managed`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeString(`@Managed`)), TypePath(["AllocationError"])])⟩,
+ ⟨`string::clone_with`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@Managed`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeString(`@Managed`)), TypePath(["AllocationError"])])⟩,
+ ⟨`string::append`, [⟨⊥, `self`, TypePerm(`unique`, TypeString(`@Managed`))⟩, ⟨⊥, `data`, TypeString(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["AllocationError"])])⟩,
  ⟨`string::length`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩], TypePrim("usize")⟩,
  ⟨`string::is_empty`, [⟨⊥, `self`, TypePerm(`const`, TypeString(`@View`))⟩], TypePrim("bool")⟩
 }
@@ -11442,14 +11476,14 @@ States(`bytes`) = { `@Managed`, `@View` }
 
 BytesBuiltinTable =
 {
- ⟨`bytes::with_capacity`, [⟨⊥, `cap`, TypePrim("usize")⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeBytes(`@Managed`), TypePath(["AllocationError"])])⟩,
- ⟨`bytes::from_slice`, [⟨⊥, `data`, TypePerm(`const`, TypeSlice(TypePrim("u8")))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeBytes(`@Managed`), TypePath(["AllocationError"])])⟩,
+ ⟨`bytes::with_capacity`, [⟨⊥, `cap`, TypePrim("usize")⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeBytes(`@Managed`)), TypePath(["AllocationError"])])⟩,
+ ⟨`bytes::from_slice`, [⟨⊥, `data`, TypePerm(`const`, TypeSlice(TypePrim("u8")))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeBytes(`@Managed`)), TypePath(["AllocationError"])])⟩,
  ⟨`bytes::as_view`, [⟨⊥, `self`, TypePerm(`const`, TypeBytes(`@Managed`))⟩], TypeBytes(`@View`)⟩,
  ⟨`bytes::as_slice`, [⟨⊥, `self`, TypePerm(`const`, TypeBytes(`@View`))⟩], TypePerm(`const`, TypeSlice(TypePrim("u8")))⟩,
- ⟨`bytes::to_managed`, [⟨⊥, `self`, TypePerm(`const`, TypeBytes(`@View`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypeBytes(`@Managed`), TypePath(["AllocationError"])])⟩,
+ ⟨`bytes::to_managed`, [⟨⊥, `self`, TypePerm(`const`, TypeBytes(`@View`))⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeBytes(`@Managed`)), TypePath(["AllocationError"])])⟩,
  ⟨`bytes::view`, [⟨⊥, `data`, TypePerm(`const`, TypeSlice(TypePrim("u8")))⟩], TypeBytes(`@View`)⟩,
  ⟨`bytes::view_string`, [⟨⊥, `data`, TypeString(`@View`)⟩], TypeBytes(`@View`)⟩,
- ⟨`bytes::append`, [⟨⊥, `self`, TypePerm(`unique`, TypeBytes(`@Managed`))⟩, ⟨⊥, `data`, TypeBytes(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeUnion([TypePrim("()"), TypePath(["AllocationError"])])⟩,
+ ⟨`bytes::append`, [⟨⊥, `self`, TypePerm(`unique`, TypeBytes(`@Managed`))⟩, ⟨⊥, `data`, TypeBytes(`@View`)⟩, ⟨⊥, `heap`, TypeDynamic(`HeapAllocator`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["AllocationError"])])⟩,
  ⟨`bytes::length`, [⟨⊥, `self`, TypePerm(`const`, TypeBytes(`@View`))⟩], TypePrim("usize")⟩,
  ⟨`bytes::is_empty`, [⟨⊥, `self`, TypePerm(`const`, TypeBytes(`@View`))⟩], TypePrim("bool")⟩
 }
@@ -13437,16 +13471,16 @@ FileSystemInterface =
  ⟨"open_write", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeModalState(["File"], `@Write`), TypePath(["IoError"])])⟩,
  ⟨"open_append", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeModalState(["File"], `@Append`), TypePath(["IoError"])])⟩,
  ⟨"create_write", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeModalState(["File"], `@Write`), TypePath(["IoError"])])⟩,
- ⟨"read_file", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["IoError"])])⟩,
- ⟨"read_bytes", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeBytes(`@Managed`), TypePath(["IoError"])])⟩,
- ⟨"write_file", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩, ⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
- ⟨"write_stdout", `const`, [⟨⊥, `data`, TypeString(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
- ⟨"write_stderr", `const`, [⟨⊥, `data`, TypeString(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
+ ⟨"read_file", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeString(`@Managed`)), TypePath(["IoError"])])⟩,
+ ⟨"read_bytes", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeBytes(`@Managed`)), TypePath(["IoError"])])⟩,
+ ⟨"write_file", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩, ⟨⊥, `data`, TypeBytes(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])])⟩,
+ ⟨"write_stdout", `const`, [⟨⊥, `data`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])])⟩,
+ ⟨"write_stderr", `const`, [⟨⊥, `data`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])])⟩,
  ⟨"exists", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypePrim("bool")⟩,
- ⟨"remove", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
+ ⟨"remove", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])])⟩,
  ⟨"open_dir", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeModalState(["DirIter"], `@Open`), TypePath(["IoError"])])⟩,
- ⟨"create_dir", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
- ⟨"ensure_dir", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypePrim("()"), TypePath(["IoError"])])⟩,
+ ⟨"create_dir", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])])⟩,
+ ⟨"ensure_dir", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("()"), TypePath(["IoError"])])⟩,
  ⟨"kind", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypePath(["FileKind"]), TypePath(["IoError"])])⟩,
  ⟨"restrict", `const`, [⟨⊥, `path`, TypeString(`@View`)⟩], TypeDynamic(`FileSystem`)⟩
 }
@@ -16980,12 +17014,22 @@ InnermostActiveRegion(Γ) = r    Γ; R; L ⊢ e : T
 
 SuccessMember(R, U) = T_s ⇔ U = TypeUnion([T_1, …, T_n]) ∧ ¬(Γ ⊢ T_s <: R) ∧ ∀ i ≠ s. Γ ⊢ T_i <: R
 
+**(T-Propagate-Outcome)**
+AsyncSig(R) = ⊥    Γ; R; L ⊢ e : U    OutcomeSig(U) = ⟨T_s, E_s⟩    OutcomeSig(R) = ⟨T_r, E_r⟩    Γ ⊢ E_s <: E_r
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Propagate(e) : T_s
+
 **(T-Propagate)**
 AsyncSig(R) = ⊥    Γ; R; L ⊢ e : U    SuccessMember(R, U) = T_s
 ────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ Propagate(e) : T_s
 
 SuccessMemberAsync(E, U) = T_s ⇔ U = TypeUnion([T_1, …, T_n]) ∧ ¬(Γ ⊢ T_s <: E) ∧ ∀ i ≠ s. Γ ⊢ T_i <: E
+
+**(T-Async-Try-Outcome)**
+AsyncSig(R) = ⟨Out, In, Result, E⟩    E ≠ TypePrim("!")    Γ; R; L ⊢ e : U    OutcomeSig(U) = ⟨T_s, E_s⟩    Γ ⊢ E_s <: E
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ; R; L ⊢ Propagate(e) : T_s
 
 **(T-Async-Try)**
 AsyncSig(R) = ⟨Out, In, Result, E⟩    E ≠ TypePrim("!")    Γ; R; L ⊢ e : U    SuccessMemberAsync(E, U) = T_s
@@ -17039,22 +17083,44 @@ AsyncSig(R) = ⟨Out, In, Result, E⟩    E = TypePrim("!")    Γ; R; L ⊢ e : 
 ────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EvalSigma(AllocExpr(r, e), σ) ⇓ (Ctrl(κ), σ_1)
 
-**(EvalSigma-Propagate-Success)**
+**(EvalSigma-Propagate-Success-Outcome)**
+Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    U = ExprType(e)    AsyncSig(RetType(Γ)) = ⊥    OutcomeSig(U) = ⟨T_s, E_s⟩    OutcomeSig(RetType(Γ)) = ⟨T_r, E_r⟩    ModalCase(v) = ⟨`@Value`, v_s⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(Propagate(e), σ) ⇓ (Val(FieldValue(v_s, `value`)), σ_1)
+
+**(EvalSigma-Propagate-Success-Async-Outcome)**
+Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    U = ExprType(e)    AsyncSig(RetType(Γ)) = ⟨Out, In, Result, E⟩    OutcomeSig(U) = ⟨T_s, E_s⟩    ModalCase(v) = ⟨`@Value`, v_s⟩
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(Propagate(e), σ) ⇓ (Val(FieldValue(v_s, `value`)), σ_1)
+
+**(EvalSigma-Propagate-Error-Outcome)**
+Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    U = ExprType(e)    AsyncSig(RetType(Γ)) = ⊥    OutcomeSig(U) = ⟨T_s, E_s⟩    OutcomeSig(RetType(Γ)) = ⟨T_r, E_r⟩    ModalCase(v) = ⟨`@Error`, v_e⟩
+out = `Outcome`<T_r, E_r>`@Error`{`error`: FieldValue(v_e, `error`)}
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(Propagate(e), σ) ⇓ (Ctrl(Return(out)), σ_1)
+
+**(EvalSigma-Propagate-Error-Async-Outcome)**
+Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    U = ExprType(e)    AsyncSig(RetType(Γ)) = ⟨Out, In, Result, E⟩    E ≠ TypePrim("!")    OutcomeSig(U) = ⟨T_s, E_s⟩    ModalCase(v) = ⟨`@Error`, v_e⟩
+async_failed = RecordValue(ModalStateRef([`Async`], `@Failed`), [⟨`error`, FieldValue(v_e, `error`)⟩])
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ EvalSigma(Propagate(e), σ) ⇓ (Ctrl(Fail(async_failed)), σ_1)
+
+**(EvalSigma-Propagate-Success-Union)**
 Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    U = ExprType(e)    AsyncSig(RetType(Γ)) = ⊥    SuccessMember(RetType(Γ), U) = T_s    UnionCase(v) = ⟨T_s, v_s⟩
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EvalSigma(Propagate(e), σ) ⇓ (Val(v_s), σ_1)
 
-**(EvalSigma-Propagate-Success-Async)**
+**(EvalSigma-Propagate-Success-Async-Union)**
 Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    U = ExprType(e)    AsyncSig(RetType(Γ)) = ⟨Out, In, Result, E⟩    SuccessMemberAsync(E, U) = T_s    UnionCase(v) = ⟨T_s, v_s⟩
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EvalSigma(Propagate(e), σ) ⇓ (Val(v_s), σ_1)
 
-**(EvalSigma-Propagate-Error)**
+**(EvalSigma-Propagate-Error-Union)**
 Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    U = ExprType(e)    AsyncSig(RetType(Γ)) = ⊥    SuccessMember(RetType(Γ), U) = T_s    UnionCase(v) = ⟨T_e, v_e⟩    T_e ≠ T_s
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ EvalSigma(Propagate(e), σ) ⇓ (Ctrl(Return(v_e)), σ_1)
 
-**(EvalSigma-Propagate-Error-Async)**
+**(EvalSigma-Propagate-Error-Async-Union)**
 Γ ⊢ EvalSigma(e, σ) ⇓ (Val(v), σ_1)    U = ExprType(e)    AsyncSig(RetType(Γ)) = ⟨Out, In, Result, E⟩    E ≠ TypePrim("!")    SuccessMemberAsync(E, U) = T_s    UnionCase(v) = ⟨T_e, v_e⟩    T_e ≠ T_s
 async_failed = RecordValue(ModalStateRef([`Async`], `@Failed`), [⟨`error`, v_e⟩])
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -17141,12 +17207,22 @@ TerminalExpr(⟨Ctrl(κ), σ⟩)
 ────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerExpr(AllocExpr(r_opt, e)) ⇓ ⟨SeqIR(IR_e, AllocIR(r_opt, v)), v_alloc⟩
 
-**(Lower-Expr-Propagate-Success)**
+**(Lower-Expr-Propagate-Success-Outcome)**
+Γ ⊢ LowerExpr(e) ⇓ ⟨IR_e, v⟩    U = ExprType(e)    OutcomeSig(U) = ⟨T_s, E_s⟩    OutcomeState(v) = `@Value`    OutcomeField(v, `value`) = v_s
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerExpr(Propagate(e)) ⇓ ⟨IR_e, v_s⟩
+
+**(Lower-Expr-Propagate-Return-Outcome)**
+Γ ⊢ LowerExpr(e) ⇓ ⟨IR_e, v⟩    U = ExprType(e)    OutcomeSig(U) = ⟨T_s, E_s⟩    OutcomeState(v) = `@Error`    OutcomeField(v, `error`) = v_e
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ LowerExpr(Propagate(e)) ⇓ ⟨SeqIR(IR_e, ReturnIR(`Outcome@Error`{`error`: v_e})), v_unreach⟩
+
+**(Lower-Expr-Propagate-Success-Union)**
 Γ ⊢ LowerExpr(e) ⇓ ⟨IR_e, v⟩    U = ExprType(e)    SuccessMember(RetType(Γ), U) = T_s    UnionCase(v) = ⟨T_s, v_s⟩
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerExpr(Propagate(e)) ⇓ ⟨IR_e, v_s⟩
 
-**(Lower-Expr-Propagate-Return)**
+**(Lower-Expr-Propagate-Return-Union)**
 Γ ⊢ LowerExpr(e) ⇓ ⟨IR_e, v⟩    U = ExprType(e)    SuccessMember(RetType(Γ), U) = T_s    UnionCase(v) = ⟨T_e, v_e⟩    T_e ≠ T_s
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerExpr(Propagate(e)) ⇓ ⟨SeqIR(IR_e, ReturnIR(v_e)), v_unreach⟩
@@ -18613,7 +18689,7 @@ ExecJudg = {Γ ⊢ ExecSigma(s, σ) ⇓ (sout, σ'), Γ ⊢ ExecSeqSigma(ss, σ)
 
 Ctrl = {Return(v), Result(v), Break(v_opt), Continue, Panic, Abort}
 StmtOut = {ok} ∪ {Ctrl(κ) | κ ∈ Ctrl}
-Outcome = {Val(v)} ∪ {Ctrl(κ) | κ ∈ Ctrl}
+EvalOutcome = {Val(v)} ∪ {Ctrl(κ) | κ ∈ Ctrl}
 StmtOutOf(Val(v)) = ok
 StmtOutOf(Ctrl(κ)) = Ctrl(κ)
 BreakVal(⊥) = ()
@@ -18629,8 +18705,8 @@ BlockExit(σ, scope, out) ⇓ (out', σ') ⇔ Γ ⊢ CleanupScope(scope, σ) ⇓
 EvalBlockBodySigma(BlockExpr(stmts, tail_opt), σ) ⇓ (out, σ') ⇔ Γ ⊢ ExecSeqSigma(stmts, σ) ⇓ (sout, σ_1) ∧ (
  (sout = ok ∧ tail_opt = e ∧ Γ ⊢ EvalSigma(e, σ_1) ⇓ (out, σ')) ∨
  (sout = ok ∧ tail_opt = ⊥ ∧ out = Val(()) ∧ σ' = σ_1) ∨
- (sout = Ctrl(Result(v)) ∧ out = Val(v) ∧ σ' = σ_1) ∨
- (sout = Ctrl(κ) ∧ κ ≠ Result(_) ∧ out = Ctrl(κ) ∧ σ' = σ_1)
+ (sout = Ctrl(TailValue(v)) ∧ out = Val(v) ∧ σ' = σ_1) ∨
+ (sout = Ctrl(κ) ∧ κ ≠ TailValue(_) ∧ out = Ctrl(κ) ∧ σ' = σ_1)
 )
 
 EvalBlockSigma(b, σ) ⇓ (out', σ'') ⇔ BlockEnter(σ, []) ⇓ (σ_1, scope) ∧ EvalBlockBodySigma(b, σ_1) ⇓ (out, σ_2) ∧ BlockExit(σ_2, scope, out) ⇓ (out', σ'')
@@ -24311,6 +24387,7 @@ CtLiteralize(CtString(v)) ⇓ Literal(ℓ) ⇔ LiteralValue(ℓ, TypeString(`@Vi
 CtLiteralize(CtTuple([v_1, …, v_n])) ⇓ TupleExpr([e_1, …, e_n]) ⇔ ∀ i. Γ ⊢ CtLiteralize(v_i) ⇓ e_i
 CtLiteralize(CtArray([v_1, …, v_n])) ⇓ ArrayExpr([e_1, …, e_n]) ⇔ ∀ i. Γ ⊢ CtLiteralize(v_i) ⇓ e_i
 CtLiteralize(CtRecord(path, [⟨f_1, v_1⟩, …, ⟨f_n, v_n⟩])) ⇓ RecordExpr(TypePath(path), [⟨f_1, e_1⟩, …, ⟨f_n, e_n⟩]) ⇔ ∀ i. Γ ⊢ CtLiteralize(v_i) ⇓ e_i
+CtLiteralize(CtModalState(modal_ref, state, [⟨f_1, v_1⟩, …, ⟨f_n, v_n⟩])) ⇓ RecordExpr(ModalStateRef(modal_ref, state), [⟨f_1, e_1⟩, …, ⟨f_n, e_n⟩]) ⇔ ∀ i. Γ ⊢ CtLiteralize(v_i) ⇓ e_i
 CtLiteralize(CtEnum(path, variant, ⊥)) ⇓ EnumLiteral(path ++ [variant], ⊥)
 CtLiteralize(CtEnum(path, variant, CtTuplePayload([v_1, …, v_n]))) ⇓ EnumLiteral(path ++ [variant], Paren([e_1, …, e_n])) ⇔ ∀ i. Γ ⊢ CtLiteralize(v_i) ⇓ e_i
 CtLiteralize(CtEnum(path, variant, CtRecordPayload([⟨f_1, v_1⟩, …, ⟨f_n, v_n⟩]))) ⇓ EnumLiteral(path ++ [variant], Brace([⟨f_1, e_1⟩, …, ⟨f_n, e_n⟩])) ⇔ ∀ i. Γ ⊢ CtLiteralize(v_i) ⇓ e_i
@@ -24366,9 +24443,13 @@ VariantInfoFields = [⟨`name`, TypeString(`@Managed`)⟩, ⟨`payload_kind`, Ty
 StateInfoFields = [⟨`name`, TypeString(`@Managed`)⟩, ⟨`field_names`, TypeSlice(TypeString(`@Managed`))⟩, ⟨`method_names`, TypeSlice(TypeString(`@Managed`))⟩, ⟨`transition_names`, TypeSlice(TypeString(`@Managed`))⟩, ⟨`span`, TypePath(["SourceSpan"])⟩]
 
 ModulePathText(path) = StringOfPath(path)
-CtFileResult(r) = CtString(r)    if r ∈ String
-CtFileResult(r) = CtBytes(r)    if r ∈ Bytes
-CtFileResult(r) = CtEnum([`IoError`], IoErrorVariant(r), ⊥)    if r ∈ IoError
+CtOutcomeValue(T, v) = CtModalState(TypeApply(["Outcome"], [T, TypePath(["IoError"])]), `@Value`, [⟨`value`, v⟩])
+CtOutcomeError(T, e) = CtModalState(TypeApply(["Outcome"], [T, TypePath(["IoError"])]), `@Error`, [⟨`error`, CtEnum([`IoError`], IoErrorVariant(e), ⊥)⟩])
+CtFileResult(r, T) = CtOutcomeValue(T, CtString(r))    if r ∈ String
+CtFileResult(r, T) = CtOutcomeValue(T, CtBytes(r))    if r ∈ Bytes
+CtFileResult(r, T) = CtOutcomeValue(T, CtPrim(r))    if r ∈ Bool
+CtFileResult(r, T) = CtOutcomeValue(T, CtSlice([CtString(x) | x ∈ r]))    if r ∈ List(String)
+CtFileResult(r, T) = CtOutcomeError(T, r)    if r ∈ IoError
 IoErrorVariant(IoError::NotFound) = `NotFound`
 IoErrorVariant(IoError::PermissionDenied) = `PermissionDenied`
 IoErrorVariant(IoError::AlreadyExists) = `AlreadyExists`
@@ -24398,10 +24479,10 @@ IntrospectInterface =
 
 ProjectFilesInterface =
 {
- ⟨"read", [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeString(`@Managed`), TypePath(["IoError"])])⟩,
- ⟨"read_bytes", [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeBytes(`@Managed`), TypePath(["IoError"])])⟩,
- ⟨"exists", [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypePrim("bool"), TypePath(["IoError"])])⟩,
- ⟨"list_dir", [⟨⊥, `path`, TypeString(`@View`)⟩], TypeUnion([TypeSlice(TypeString(`@Managed`)), TypePath(["IoError"])])⟩,
+ ⟨"read", [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeString(`@Managed`)), TypePath(["IoError"])])⟩,
+ ⟨"read_bytes", [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePerm(`unique`, TypeBytes(`@Managed`)), TypePath(["IoError"])])⟩,
+ ⟨"exists", [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypePrim("bool"), TypePath(["IoError"])])⟩,
+ ⟨"list_dir", [⟨⊥, `path`, TypeString(`@View`)⟩], TypeApply(["Outcome"], [TypeSlice(TypeString(`@Managed`)), TypePath(["IoError"])])⟩,
  ⟨"project_root", [], TypeString(`@Managed`)⟩
 }
 
@@ -24461,42 +24542,42 @@ owner = `files`    name = `project_root`
 **(CtBuiltin-Read)**
 owner = `files`    name = `read`    args = [CtString(path)]    CtProjectPath(Φ, path) = q    FSReadFile(CtFiles(Φ), q) ⇓ r
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtFileResult(r), Φ)
+Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtFileResult(r, TypePerm(`unique`, TypeString(`@Managed`))), Φ)
 
 **(CtBuiltin-Read-InvalidPath)**
 owner = `files`    name = `read`    args = [CtString(path)]    CtProjectPath(Φ, path) = ⊥
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtEnum([`IoError`], `InvalidPath`, ⊥), Φ)
+Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtOutcomeError(TypePerm(`unique`, TypeString(`@Managed`)), IoError::InvalidPath), Φ)
 
 **(CtBuiltin-ReadBytes)**
 owner = `files`    name = `read_bytes`    args = [CtString(path)]    CtProjectPath(Φ, path) = q    FSReadBytes(CtFiles(Φ), q) ⇓ r
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtFileResult(r), Φ)
+Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtFileResult(r, TypePerm(`unique`, TypeBytes(`@Managed`))), Φ)
 
 **(CtBuiltin-ReadBytes-InvalidPath)**
 owner = `files`    name = `read_bytes`    args = [CtString(path)]    CtProjectPath(Φ, path) = ⊥
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtEnum([`IoError`], `InvalidPath`, ⊥), Φ)
+Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtOutcomeError(TypePerm(`unique`, TypeBytes(`@Managed`)), IoError::InvalidPath), Φ)
 
 **(CtBuiltin-Exists)**
 owner = `files`    name = `exists`    args = [CtString(path)]    CtProjectPath(Φ, path) = q    CtExistsResult(CtFiles(Φ), q) = v
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (v, Φ)
+Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtFileResult(v, TypePrim("bool")), Φ)
 
 **(CtBuiltin-Exists-InvalidPath)**
 owner = `files`    name = `exists`    args = [CtString(path)]    CtProjectPath(Φ, path) = ⊥
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtEnum([`IoError`], `InvalidPath`, ⊥), Φ)
+Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtOutcomeError(TypePrim("bool"), IoError::InvalidPath), Φ)
 
 **(CtBuiltin-ListDir)**
 owner = `files`    name = `list_dir`    args = [CtString(path)]    CtProjectPath(Φ, path) = q    CtListDirResult(CtFiles(Φ), q) = v
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (v, Φ)
+Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtFileResult(v, TypeSlice(TypeString(`@Managed`))), Φ)
 
 **(CtBuiltin-ListDir-InvalidPath)**
 owner = `files`    name = `list_dir`    args = [CtString(path)]    CtProjectPath(Φ, path) = ⊥
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtEnum([`IoError`], `InvalidPath`, ⊥), Φ)
+Γ ⊢ CtBuiltinCall(Ξ, Φ, owner, name, args) ⇓ (CtOutcomeError(TypeSlice(TypeString(`@Managed`)), IoError::InvalidPath), Φ)
 
 **(CtBuiltin-Diagnostics-Error)**
 owner = `diagnostics`    name = `error`    args = [CtString(msg)]    CtUserErrorDiag(Ξ, msg) = d    CtDiagAppend(Ξ, Φ, d) = Φ'
@@ -26466,7 +26547,7 @@ PlaceRoot(p) = x    FieldHead(p) = f    LookupBind(σ, x) = b    BindState(σ, b
 ExecIRSigma(MoveStateIR(p), σ) ⇓ (ok, σ')
 
 ExecIRSigma(ReturnIR(v), σ) ⇓ (Ctrl(Return(v)), σ)
-ExecIRSigma(ResultIR(v), σ) ⇓ (Ctrl(Result(v)), σ)
+ExecIRSigma(TailValueIR(v), σ) ⇓ (Ctrl(TailValue(v)), σ)
 ExecIRSigma(BreakIR(v_opt), σ) ⇓ (Ctrl(Break(v_opt)), σ)
 ExecIRSigma(ContinueIR, σ) ⇓ (Ctrl(Continue), σ)
 
@@ -26475,7 +26556,7 @@ AppendCleanup(σ, DeferBlock(b)) ⇓ σ'
 ──────────────────────────────────────────────────────────────
 ExecIRSigma(DeferIR(b), σ) ⇓ (ok, σ')
 
-ExecBlockBodyIRSigma(IR_s, IR_t, σ) ⇓ (out, σ') ⇔ ExecIRSigma(IR_s, σ) ⇓ (sout, σ_1) ∧ ((sout = ok ∧ IR_t = ε ∧ out = Val(()) ∧ σ' = σ_1) ∨ (sout = ok ∧ ExecIRSigma(IR_t, σ_1) ⇓ (out, σ')) ∨ (sout = Ctrl(Result(v)) ∧ out = Val(v) ∧ σ' = σ_1) ∨ (sout = Ctrl(κ) ∧ κ ≠ Result(_) ∧ out = Ctrl(κ) ∧ σ' = σ_1))
+ExecBlockBodyIRSigma(IR_s, IR_t, σ) ⇓ (out, σ') ⇔ ExecIRSigma(IR_s, σ) ⇓ (sout, σ_1) ∧ ((sout = ok ∧ IR_t = ε ∧ out = Val(()) ∧ σ' = σ_1) ∨ (sout = ok ∧ ExecIRSigma(IR_t, σ_1) ⇓ (out, σ')) ∨ (sout = Ctrl(TailValue(v)) ∧ out = Val(v) ∧ σ' = σ_1) ∨ (sout = Ctrl(κ) ∧ κ ≠ TailValue(_) ∧ out = Ctrl(κ) ∧ σ' = σ_1))
 Γ ⊢ ExecInScopeIRSigma(IR_b, σ, scope) ⇓ (out, σ') ⇔ CurrentScopeId(σ) = scope ∧ ExecIRSigma(IR_b, σ) ⇓ (out, σ')
 Γ ⊢ ExecBlockBindIRSigma(pat, v, IR_b, σ) ⇓ (out', σ'') ⇔ BindPatternVal(pat, v) ⇓ B ∧ BindOrder(pat, B) = binds ∧ BlockEnter(σ, binds) ⇓ (σ_1, scope) ∧ ExecIRSigma(IR_b, σ_1) ⇓ (out, σ_2) ∧ BlockExit(σ_2, scope, out) ⇓ (out', σ'')
 
@@ -26649,7 +26730,7 @@ RefSyms(WritePtrIR(_, _)) = ∅
 RefSyms(AllocIR(_, _)) = ∅
 RefSyms(MoveStateIR(_)) = ∅
 RefSyms(ReturnIR(_)) = ∅
-RefSyms(ResultIR(_)) = ∅
+RefSyms(TailValueIR(_)) = ∅
 RefSyms(BreakIR(_)) = ∅
 RefSyms(ContinueIR) = ∅
 RefSyms(DeferIR(_)) = ∅

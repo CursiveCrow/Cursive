@@ -5,6 +5,7 @@
 #include "00_core/assert_spec.h"
 #include "04_analysis/caps/builtin_paths.h"
 #include "04_analysis/resolve/scopes.h"
+#include "04_analysis/typing/outcome.h"
 
 namespace cursive::analysis {
 
@@ -55,6 +56,15 @@ static std::shared_ptr<ast::Type> MakeTypeBytesAst(
   return MakeTypeNode(node);
 }
 
+static std::shared_ptr<ast::Type> MakeTypePermAst(
+    ast::TypePerm perm,
+    std::shared_ptr<ast::Type> base) {
+  ast::TypePermType node;
+  node.perm = perm;
+  node.base = std::move(base);
+  return MakeTypeNode(std::move(node));
+}
+
 static std::shared_ptr<ast::Type> MakeTypeModalStateAst(
     std::initializer_list<std::string_view> comps,
     std::string_view state) {
@@ -73,6 +83,15 @@ static std::shared_ptr<ast::Type> MakeTypeUnionAst(
   ast::TypeUnion node;
   node.types = std::move(members);
   return MakeTypeNode(node);
+}
+
+static std::shared_ptr<ast::Type> MakeOutcomeAst(
+    std::shared_ptr<ast::Type> value_type,
+    std::shared_ptr<ast::Type> error_type) {
+  ast::TypePathType node;
+  node.path = {"Outcome"};
+  node.generic_args = {std::move(value_type), std::move(error_type)};
+  return MakeTypeNode(std::move(node));
 }
 
 static ast::Param MakeParam(std::string_view name,
@@ -183,21 +202,8 @@ static TypeRef TypeBool() {
   return MakeTypePrim("bool");
 }
 
-static TypeRef Union2(TypeRef a, TypeRef b) {
-  std::vector<TypeRef> members;
-  members.reserve(2);
-  members.push_back(std::move(a));
-  members.push_back(std::move(b));
-  return MakeTypeUnion(std::move(members));
-}
-
-static TypeRef Union3(TypeRef a, TypeRef b, TypeRef c) {
-  std::vector<TypeRef> members;
-  members.reserve(3);
-  members.push_back(std::move(a));
-  members.push_back(std::move(b));
-  members.push_back(std::move(c));
-  return MakeTypeUnion(std::move(members));
+static TypeRef Outcome(TypeRef value, TypeRef error) {
+  return MakeOutcomeType(std::move(value), std::move(error));
 }
 
 }  // namespace
@@ -224,32 +230,32 @@ std::optional<FileSystemMethodSig> LookupFileSystemMethodSig(
 
   if (IdEq(name, "open_read")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeFileState("Read"), TypeIoError());
+    sig.ret = Outcome(TypeFileState("Read"), TypeIoError());
     return sig;
   }
   if (IdEq(name, "open_write")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeFileState("Write"), TypeIoError());
+    sig.ret = Outcome(TypeFileState("Write"), TypeIoError());
     return sig;
   }
   if (IdEq(name, "open_append")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeFileState("Append"), TypeIoError());
+    sig.ret = Outcome(TypeFileState("Append"), TypeIoError());
     return sig;
   }
   if (IdEq(name, "create_write")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeFileState("Write"), TypeIoError());
+    sig.ret = Outcome(TypeFileState("Write"), TypeIoError());
     return sig;
   }
   if (IdEq(name, "read_file")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeStringManaged(), TypeIoError());
+    sig.ret = Outcome(TypeUnique(TypeStringManaged()), TypeIoError());
     return sig;
   }
   if (IdEq(name, "read_bytes")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeBytesManaged(), TypeIoError());
+    sig.ret = Outcome(TypeUnique(TypeBytesManaged()), TypeIoError());
     return sig;
   }
   if (IdEq(name, "write_file")) {
@@ -257,17 +263,17 @@ std::optional<FileSystemMethodSig> LookupFileSystemMethodSig(
         MakeParam("path", MakeTypeStringAst(ast::StringState::View)),
         MakeParam("data", MakeTypeBytesAst(ast::BytesState::View)),
     };
-    sig.ret = Union2(TypeUnit(), TypeIoError());
+    sig.ret = Outcome(TypeUnit(), TypeIoError());
     return sig;
   }
   if (IdEq(name, "write_stdout")) {
     sig.params = {MakeParam("data", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeUnit(), TypeIoError());
+    sig.ret = Outcome(TypeUnit(), TypeIoError());
     return sig;
   }
   if (IdEq(name, "write_stderr")) {
     sig.params = {MakeParam("data", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeUnit(), TypeIoError());
+    sig.ret = Outcome(TypeUnit(), TypeIoError());
     return sig;
   }
   if (IdEq(name, "exists")) {
@@ -277,27 +283,27 @@ std::optional<FileSystemMethodSig> LookupFileSystemMethodSig(
   }
   if (IdEq(name, "remove")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeUnit(), TypeIoError());
+    sig.ret = Outcome(TypeUnit(), TypeIoError());
     return sig;
   }
   if (IdEq(name, "open_dir")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeDirIterState("Open"), TypeIoError());
+    sig.ret = Outcome(TypeDirIterState("Open"), TypeIoError());
     return sig;
   }
   if (IdEq(name, "create_dir")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeUnit(), TypeIoError());
+    sig.ret = Outcome(TypeUnit(), TypeIoError());
     return sig;
   }
   if (IdEq(name, "ensure_dir")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeUnit(), TypeIoError());
+    sig.ret = Outcome(TypeUnit(), TypeIoError());
     return sig;
   }
   if (IdEq(name, "kind")) {
     sig.params = {MakeParam("path", MakeTypeStringAst(ast::StringState::View))};
-    sig.ret = Union2(TypeFileKind(), TypeIoError());
+    sig.ret = Outcome(TypeFileKind(), TypeIoError());
     return sig;
   }
   if (IdEq(name, "restrict")) {
@@ -334,32 +340,38 @@ ast::ModalDecl BuildFileModalDecl() {
   read_members.push_back(handle_field);
   read_members.push_back(MakeStateMethod(
       "read_all", {},
-      MakeTypeUnionAst({MakeTypeStringAst(ast::StringState::Managed),
-                        MakeTypePathAst({"IoError"})})));
+      MakeOutcomeAst(
+          MakeTypePermAst(
+              ast::TypePerm::Unique,
+              MakeTypeStringAst(ast::StringState::Managed)),
+          MakeTypePathAst({"IoError"}))));
   read_members.push_back(MakeStateMethod(
       "read_all_bytes", {},
-      MakeTypeUnionAst({MakeTypeBytesAst(ast::BytesState::Managed),
-                        MakeTypePathAst({"IoError"})})));
+      MakeOutcomeAst(
+          MakeTypePermAst(
+              ast::TypePerm::Unique,
+              MakeTypeBytesAst(ast::BytesState::Managed)),
+          MakeTypePathAst({"IoError"}))));
   read_members.push_back(MakeTransition("close", {}, "Closed"));
 
   std::vector<ast::StateMember> write_members;
   write_members.push_back(handle_field);
   write_members.push_back(MakeStateMethod(
       "write", {MakeParam("data", MakeTypeBytesAst(ast::BytesState::View))},
-      MakeTypeUnionAst({MakeTypePrimAst("()"), MakeTypePathAst({"IoError"})})));
+      MakeOutcomeAst(MakeTypePrimAst("()"), MakeTypePathAst({"IoError"}))));
   write_members.push_back(MakeStateMethod(
       "flush", {},
-      MakeTypeUnionAst({MakeTypePrimAst("()"), MakeTypePathAst({"IoError"})})));
+      MakeOutcomeAst(MakeTypePrimAst("()"), MakeTypePathAst({"IoError"}))));
   write_members.push_back(MakeTransition("close", {}, "Closed"));
 
   std::vector<ast::StateMember> append_members;
   append_members.push_back(handle_field);
   append_members.push_back(MakeStateMethod(
       "write", {MakeParam("data", MakeTypeBytesAst(ast::BytesState::View))},
-      MakeTypeUnionAst({MakeTypePrimAst("()"), MakeTypePathAst({"IoError"})})));
+      MakeOutcomeAst(MakeTypePrimAst("()"), MakeTypePathAst({"IoError"}))));
   append_members.push_back(MakeStateMethod(
       "flush", {},
-      MakeTypeUnionAst({MakeTypePrimAst("()"), MakeTypePathAst({"IoError"})})));
+      MakeOutcomeAst(MakeTypePrimAst("()"), MakeTypePathAst({"IoError"}))));
   append_members.push_back(MakeTransition("close", {}, "Closed"));
 
   std::vector<ast::StateMember> closed_members;
@@ -399,9 +411,9 @@ ast::ModalDecl BuildDirIterModalDecl() {
   open_members.push_back(handle_field);
   open_members.push_back(MakeStateMethod(
       "next", {},
-      MakeTypeUnionAst({MakeTypePathAst({"DirEntry"}),
-                        MakeTypePrimAst("()"),
-                        MakeTypePathAst({"IoError"})})));
+      MakeOutcomeAst(
+          MakeTypeUnionAst({MakeTypePathAst({"DirEntry"}), MakeTypePrimAst("()")}),
+          MakeTypePathAst({"IoError"}))));
   open_members.push_back(MakeTransition("close", {}, "Closed"));
 
   std::vector<ast::StateMember> closed_members;

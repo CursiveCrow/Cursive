@@ -399,14 +399,14 @@ static int c0_fs_resolve_path(const C0FsState* fs,
 
 static C0Union_File_IoError c0_file_err(C0IoError err) {
   C0Union_File_IoError out;
-  out.disc = 0;
+  out.disc = 1;
   out.payload.io_error = err;
   return out;
 }
 
 static C0Union_DirIter_IoError c0_dir_err(C0IoError err) {
   C0Union_DirIter_IoError out;
-  out.disc = 0;
+  out.disc = 1;
   out.payload.io_error = err;
   return out;
 }
@@ -441,14 +441,14 @@ static C0Union_FileKind_IoError c0_kind_ok(C0FileKind kind) {
 
 static C0Union_StringManaged_IoError c0_string_io_err(C0IoError err) {
   C0Union_StringManaged_IoError out;
-  out.disc = 0;
+  out.disc = 1;
   out.payload.io_error = err;
   return out;
 }
 
 static C0Union_BytesManaged_IoError c0_bytes_io_err(C0IoError err) {
   C0Union_BytesManaged_IoError out;
-  out.disc = 0;
+  out.disc = 1;
   out.payload.io_error = err;
   return out;
 }
@@ -471,7 +471,7 @@ static C0Union_BytesManaged_IoError c0_read_all_bytes_handle(cursive_rt_handle_t
   uint64_t len = (uint64_t)size.quad_part;
   if (len == 0) {
     C0Union_BytesManaged_IoError out;
-    out.disc = 1;
+    out.disc = 0;
     out.payload.value.data = NULL;
     out.payload.value.len = 0;
     out.payload.value.cap = 0;
@@ -503,7 +503,7 @@ static C0Union_BytesManaged_IoError c0_read_all_bytes_handle(cursive_rt_handle_t
   }
 
   C0Union_BytesManaged_IoError out;
-  out.disc = 1;
+  out.disc = 0;
   out.payload.value.data = data;
   out.payload.value.len = len;
   out.payload.value.cap = len;
@@ -512,7 +512,7 @@ static C0Union_BytesManaged_IoError c0_read_all_bytes_handle(cursive_rt_handle_t
 
 static C0Union_StringManaged_IoError c0_read_all_string_handle(cursive_rt_handle_t handle) {
   C0Union_BytesManaged_IoError bytes = c0_read_all_bytes_handle(handle);
-  if (bytes.disc == 0) {
+  if (bytes.disc == 1) {
     return c0_string_io_err(bytes.payload.io_error);
   }
 
@@ -522,7 +522,7 @@ static C0Union_StringManaged_IoError c0_read_all_string_handle(cursive_rt_handle
   }
 
   C0Union_StringManaged_IoError out;
-  out.disc = 1;
+  out.disc = 0;
   out.payload.value.data = bytes.payload.value.data;
   out.payload.value.len = bytes.payload.value.len;
   out.payload.value.cap = bytes.payload.value.cap;
@@ -570,7 +570,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fread(
   }
 
   C0Union_File_IoError out;
-  out.disc = 1;
+  out.disc = 0;
   out.payload.handle = tracked_id;
   return out;
 }
@@ -616,7 +616,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fwrite(
   }
 
   C0Union_File_IoError out;
-  out.disc = 1;
+  out.disc = 0;
   out.payload.handle = tracked_id;
   return out;
 }
@@ -670,7 +670,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fappend(
   }
 
   C0Union_File_IoError out;
-  out.disc = 1;
+  out.disc = 0;
   out.payload.handle = tracked_id;
   return out;
 }
@@ -716,7 +716,7 @@ C0Union_File_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3acreate_x5fwrite(
   }
 
   C0Union_File_IoError out;
-  out.disc = 1;
+  out.disc = 0;
   out.payload.handle = tracked_id;
   return out;
 }
@@ -730,7 +730,7 @@ void cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aread_x5ffile(
     return;
   }
   C0Union_File_IoError file = cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fread(self, path);
-  if (file.disc == 0) {
+  if (file.disc == 1) {
     *out = c0_string_io_err(file.payload.io_error);
     return;
   }
@@ -752,7 +752,7 @@ void cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aread_x5fbytes(
     return;
   }
   C0Union_File_IoError file = cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fread(self, path);
-  if (file.disc == 0) {
+  if (file.disc == 1) {
     *out = c0_bytes_io_err(file.payload.io_error);
     return;
   }
@@ -1384,7 +1384,7 @@ C0Union_DirIter_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(
   }
 
   C0Union_DirIter_IoError out;
-  out.disc = 1;
+  out.disc = 0;
   out.payload.handle = tracked_id;
   return out;
 }
@@ -1592,7 +1592,7 @@ C0Union_StringManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall(
     return c0_string_io_err(C0_IO_FAILURE);
   }
   C0Union_StringManaged_IoError out = c0_read_all_string_handle(tracked->handle);
-  if (out.disc == 1) {
+  if (out.disc == 0) {
     tracked->position = tracked->length;
   }
   cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
@@ -1613,7 +1613,7 @@ C0Union_BytesManaged_IoError File_x3a_x3aRead_x3a_x3aread_x5fall_x5fbytes(
     return c0_bytes_io_err(C0_IO_FAILURE);
   }
   C0Union_BytesManaged_IoError out = c0_read_all_bytes_handle(tracked->handle);
-  if (out.disc == 1) {
+  if (out.disc == 0) {
     tracked->position = tracked->length;
   }
   cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
@@ -1773,14 +1773,14 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
   c0_trace_emit_rule("Prim-Dir-Next");
   C0Union_DirEntry_Unit_IoError out;
   if (!self) {
-    out.disc = 2;
+    out.disc = 1;
     out.payload.io_error = C0_IO_FAILURE;
     return out;
   }
   cursive_rt_rwlock_lock_exclusive(&g_c0_io_registry_lock);
   C0TrackedDirIter* tracked = c0_require_open_dir_iter_locked(self->handle);
   if (!tracked) {
-    out.disc = 2;
+    out.disc = 1;
     out.payload.io_error = C0_IO_FAILURE;
     cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
@@ -1788,7 +1788,8 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
   C0DirIterState* state = tracked->state;
   if (state->index >= state->count) {
     out.disc = 0;
-    out.payload.io_error = 0;
+    out.payload.value.disc = 0;
+    out.payload.value.entry = (C0DirEntry){0};
     cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
@@ -1799,7 +1800,7 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
   uint32_t name_utf8_len = 0;
   uint8_t* name_utf8 = c0_wide_to_utf8(name_w, name_w_len, &name_utf8_len);
   if (!name_utf8 && name_w_len != 0) {
-    out.disc = 2;
+    out.disc = 1;
     out.payload.io_error = C0_IO_FAILURE;
     cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
@@ -1813,7 +1814,7 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
     if (name_utf8) {
       c0_heap_free_raw(name_utf8);
     }
-    out.disc = 2;
+    out.disc = 1;
     out.payload.io_error = C0_IO_FAILURE;
     cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
@@ -1833,9 +1834,9 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
     if (path_utf8) {
       c0_heap_free_raw(path_utf8);
     }
-    out.disc = 2;
+    out.disc = 1;
     out.payload.io_error = C0_IO_FAILURE;
-  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
 
@@ -1856,9 +1857,9 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
     if (path_utf8) {
       c0_heap_free_raw(path_utf8);
     }
-    out.disc = 2;
+    out.disc = 1;
     out.payload.io_error = C0_IO_FAILURE;
-  cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
+    cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
     return out;
   }
 
@@ -1887,8 +1888,9 @@ C0Union_DirEntry_Unit_IoError DirIter_x3a_x3aOpen_x3a_x3anext(
 
   state->index += 1;
 
-  out.disc = 1;
-  out.payload.entry = entry;
+  out.disc = 0;
+  out.payload.value.disc = 1;
+  out.payload.value.entry = entry;
   cursive_rt_rwlock_unlock_exclusive(&g_c0_io_registry_lock);
   return out;
 }

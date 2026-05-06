@@ -523,7 +523,7 @@ ast::ModalDecl BuildSpawnedModalDecl() {
   ast::ModalDecl decl{};
   decl.vis = ast::Visibility::Public;
   decl.name = "Spawned";
-  decl.generic_params = MakeGenericParams({MakeTypeParam("T", nullptr)});
+  decl.generic_params = MakeGenericParams({MakeTypeParam("TValue", nullptr)});
   decl.implements = {};
 
   // State @Pending - task has been created but not completed
@@ -619,23 +619,23 @@ ast::ModalDecl BuildAsyncModalDecl() {
   decl.vis = ast::Visibility::Public;
   decl.name = "Async";
   decl.generic_params = MakeGenericParams({
-      MakeTypeParam("Out", nullptr),
-      MakeTypeParam("In", MakeTypePrimAst("()")),
-      MakeTypeParam("Result", MakeTypePrimAst("()")),
-      MakeTypeParam("E", MakeTypePrimAst("!")),
+      MakeTypeParam("TOut", nullptr),
+      MakeTypeParam("TIn", MakeTypePrimAst("()")),
+      MakeTypeParam("TResult", MakeTypePrimAst("()")),
+      MakeTypeParam("TError", MakeTypePrimAst("!")),
   });
   decl.implements = {};
 
-  // Build Async<Out, In, Result, E>@State modal state refs for resume return type
+  // Build Async<TOut, TIn, TResult, TError>@State modal state refs.
   auto async_state = [&](std::string_view state) {
     ast::TypeModalState modal;
     modal.path = {"Async"};
     modal.state = ast::Identifier{state};
     modal.generic_args = {
-        MakeTypePathAst({"Out"}),
-        MakeTypePathAst({"In"}),
-        MakeTypePathAst({"Result"}),
-        MakeTypePathAst({"E"}),
+        MakeTypePathAst({"TOut"}),
+        MakeTypePathAst({"TIn"}),
+        MakeTypePathAst({"TResult"}),
+        MakeTypePathAst({"TError"}),
     };
     ast::SyncTypeModalStateFromFields(modal);
     return MakeTypeNode(modal);
@@ -653,7 +653,7 @@ ast::ModalDecl BuildAsyncModalDecl() {
     resume.vis = ast::Visibility::Public;
     resume.name = "resume";
     resume.receiver = ast::ReceiverShorthand{ast::ReceiverPerm::Unique};
-    resume.params = {MakeParam("input", MakeTypePathAst({"In"}))};
+    resume.params = {MakeParam("input", MakeTypePathAst({"TIn"}))};
     resume.return_type_opt = MakeTypeUnionAst(std::move(resume_union));
     resume.body = MakeEmptyBlock();
     resume.span = core::Span{};
@@ -670,7 +670,7 @@ ast::ModalDecl BuildAsyncModalDecl() {
     ast::StateBlock completed{};
     completed.name = "Completed";
     completed.members = {
-        MakeStateField("value", MakeTypePathAst({"Result"})),
+        MakeStateField("value", MakeTypePathAst({"TResult"})),
     };
     decl.states.push_back(completed);
   }
@@ -680,7 +680,7 @@ ast::ModalDecl BuildAsyncModalDecl() {
     ast::StateBlock failed{};
     failed.name = "Failed";
     failed.members = {
-        MakeStateField("error", MakeTypePathAst({"E"})),
+        MakeStateField("error", MakeTypePathAst({"TError"})),
     };
     decl.states.push_back(failed);
   }
@@ -697,10 +697,10 @@ ast::ClassDecl BuildAsyncClassDecl() {
   decl.name = "Async";
   decl.modal = false;
   decl.generic_params = MakeGenericParams({
-      MakeTypeParam("Out", nullptr),
-      MakeTypeParam("In", nullptr),
-      MakeTypeParam("Result", nullptr),
-      MakeTypeParam("E", nullptr),
+      MakeTypeParam("TOut", nullptr),
+      MakeTypeParam("TIn", nullptr),
+      MakeTypeParam("TResult", nullptr),
+      MakeTypeParam("TError", nullptr),
   });
   decl.supers = {};
   decl.predicate_clause_opt = std::nullopt;
@@ -722,7 +722,7 @@ ast::TypeAliasDecl BuildSequenceAliasDecl() {
   decl.generic_params = MakeGenericParams({MakeTypeParam("T", nullptr)});
   ast::TypePathType body{};
   body.path = {"Async"};
-  body.generic_args = {MakeTypePathAst({"T"}),
+  body.generic_args = {MakeTypePathAst({"TValue"}),
                        MakeTypePrimAst("()"),
                        MakeTypePrimAst("()"),
                        MakeTypePrimAst("!")};
@@ -738,14 +738,14 @@ ast::TypeAliasDecl BuildFutureAliasDecl() {
   decl.vis = ast::Visibility::Public;
   decl.name = "Future";
   decl.generic_params =
-      MakeGenericParams({MakeTypeParam("T", nullptr),
-                         MakeTypeParam("E", MakeTypePrimAst("!"))});
+      MakeGenericParams({MakeTypeParam("TResult", nullptr),
+                         MakeTypeParam("TError", MakeTypePrimAst("!"))});
   ast::TypePathType body{};
   body.path = {"Async"};
   body.generic_args = {MakeTypePrimAst("()"),
                        MakeTypePrimAst("()"),
-                       MakeTypePathAst({"T"}),
-                       MakeTypePathAst({"E"})};
+                       MakeTypePathAst({"TResult"}),
+                       MakeTypePathAst({"TError"})};
   decl.type = MakeTypeNode(body);
   decl.span = core::Span{};
   decl.doc = {};
@@ -758,14 +758,14 @@ ast::TypeAliasDecl BuildStreamAliasDecl() {
   decl.vis = ast::Visibility::Public;
   decl.name = "Stream";
   decl.generic_params =
-      MakeGenericParams({MakeTypeParam("T", nullptr),
-                         MakeTypeParam("E", nullptr)});
+      MakeGenericParams({MakeTypeParam("TValue", nullptr),
+                         MakeTypeParam("TError", nullptr)});
   ast::TypePathType body{};
   body.path = {"Async"};
-  body.generic_args = {MakeTypePathAst({"T"}),
+  body.generic_args = {MakeTypePathAst({"TValue"}),
                        MakeTypePrimAst("()"),
                        MakeTypePrimAst("()"),
-                       MakeTypePathAst({"E"})};
+                       MakeTypePathAst({"TError"})};
   decl.type = MakeTypeNode(body);
   decl.span = core::Span{};
   decl.doc = {};
@@ -778,12 +778,12 @@ ast::TypeAliasDecl BuildPipeAliasDecl() {
   decl.vis = ast::Visibility::Public;
   decl.name = "Pipe";
   decl.generic_params =
-      MakeGenericParams({MakeTypeParam("In", nullptr),
-                         MakeTypeParam("Out", nullptr)});
+      MakeGenericParams({MakeTypeParam("TIn", nullptr),
+                         MakeTypeParam("TOut", nullptr)});
   ast::TypePathType body{};
   body.path = {"Async"};
-  body.generic_args = {MakeTypePathAst({"Out"}),
-                       MakeTypePathAst({"In"}),
+  body.generic_args = {MakeTypePathAst({"TOut"}),
+                       MakeTypePathAst({"TIn"}),
                        MakeTypePrimAst("()"),
                        MakeTypePrimAst("!")};
   decl.type = MakeTypeNode(body);
@@ -797,12 +797,12 @@ ast::TypeAliasDecl BuildExchangeAliasDecl() {
   ast::TypeAliasDecl decl{};
   decl.vis = ast::Visibility::Public;
   decl.name = "Exchange";
-  decl.generic_params = MakeGenericParams({MakeTypeParam("T", nullptr)});
+  decl.generic_params = MakeGenericParams({MakeTypeParam("TValue", nullptr)});
   ast::TypePathType body{};
   body.path = {"Async"};
-  body.generic_args = {MakeTypePathAst({"T"}),
-                       MakeTypePathAst({"T"}),
-                       MakeTypePathAst({"T"}),
+  body.generic_args = {MakeTypePathAst({"TValue"}),
+                       MakeTypePathAst({"TValue"}),
+                       MakeTypePathAst({"TValue"}),
                        MakeTypePrimAst("!")};
   decl.type = MakeTypeNode(body);
   decl.span = core::Span{};

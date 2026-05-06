@@ -34,8 +34,8 @@
  *   - Method signature building
  *
  * REFACTORING NOTES:
- *   1. string is modal: @View (borrowed slice) vs @Managed (heap allocated)
- *   2. bytes is modal: @View (borrowed slice) vs @Managed (heap allocated)
+ *   1. string is modal: @View (non-owning view) vs @Managed (heap allocated)
+ *   2. bytes is modal: @View (non-owning view) vs @Managed (heap allocated)
  *   3. String literals are string@View
  *   4. @Managed requires HeapAllocator capability
  *   5. Conversion @View -> @Managed requires allocation
@@ -50,14 +50,16 @@
  *   string@Managed:
  *     - (all @View methods)
  *     - push(~!, ch: char) -> ()
- *     - from(view: string@View, heap: $HeapAllocator) -> string@Managed | AllocationError
+ *     - from(view: string@View, heap: $HeapAllocator)
+ *       -> Outcome<unique string@Managed, AllocationError>
  *   bytes@View:
  *     - length(~) -> usize
  *     - get(~, idx: usize) -> u8 | ()
  *   bytes@Managed:
  *     - (all @View methods)
  *     - push(~!, byte: u8) -> ()
- *     - with_capacity(cap: usize, heap: $HeapAllocator) -> bytes@Managed | AllocationError
+ *     - with_capacity(cap: usize, heap: $HeapAllocator)
+ *       -> Outcome<unique bytes@Managed, AllocationError>
  *
  * DIAGNOSTIC CODES:
  *   - E-STR-0001: @View outlives source
@@ -75,6 +77,7 @@
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/resolve/scopes.h"
+#include "04_analysis/typing/outcome.h"
 
 namespace cursive::analysis {
 
@@ -154,16 +157,20 @@ static TypeRef UniqueType(const TypeRef& base) {
   return MakeTypePerm(Permission::Unique, base);
 }
 
+static TypeRef UniqueStringManagedType() {
+  return UniqueType(StringManagedType());
+}
+
+static TypeRef UniqueBytesManagedType() {
+  return UniqueType(BytesManagedType());
+}
+
 static TypeRef SliceU8Type() {
   return MakeTypeSlice(MakeTypePrim("u8"));
 }
 
-static TypeRef Union2(TypeRef a, TypeRef b) {
-  std::vector<TypeRef> members;
-  members.reserve(2);
-  members.push_back(std::move(a));
-  members.push_back(std::move(b));
-  return MakeTypeUnion(std::move(members));
+static TypeRef Outcome(TypeRef value, TypeRef error) {
+  return MakeOutcomeType(std::move(value), std::move(error));
 }
 
 static TypeRef MakeFunc(std::vector<TypeFuncParam> params, TypeRef ret) {
@@ -185,7 +192,7 @@ static std::optional<TypeRef> StringBuiltinType(std::string_view name) {
         {std::nullopt, HeapAllocatorType()},
     };
     return MakeFunc(std::move(params),
-                    Union2(StringManagedType(), AllocErrorType()));
+                    Outcome(UniqueStringManagedType(), AllocErrorType()));
   }
   if (IdEq(name, "as_view")) {
     std::vector<TypeFuncParam> params = {
@@ -207,7 +214,7 @@ static std::optional<TypeRef> StringBuiltinType(std::string_view name) {
         {std::nullopt, HeapAllocatorType()},
     };
     return MakeFunc(std::move(params),
-                    Union2(StringManagedType(), AllocErrorType()));
+                    Outcome(UniqueStringManagedType(), AllocErrorType()));
   }
   if (IdEq(name, "clone_with")) {
     std::vector<TypeFuncParam> params = {
@@ -215,7 +222,7 @@ static std::optional<TypeRef> StringBuiltinType(std::string_view name) {
         {std::nullopt, HeapAllocatorType()},
     };
     return MakeFunc(std::move(params),
-                    Union2(StringManagedType(), AllocErrorType()));
+                    Outcome(UniqueStringManagedType(), AllocErrorType()));
   }
   if (IdEq(name, "append")) {
     std::vector<TypeFuncParam> params = {
@@ -224,7 +231,7 @@ static std::optional<TypeRef> StringBuiltinType(std::string_view name) {
         {std::nullopt, HeapAllocatorType()},
     };
     return MakeFunc(std::move(params),
-                    Union2(MakeTypePrim("()"), AllocErrorType()));
+                    Outcome(MakeTypePrim("()"), AllocErrorType()));
   }
   if (IdEq(name, "length")) {
     std::vector<TypeFuncParam> params = {
@@ -248,7 +255,7 @@ static std::optional<TypeRef> BytesBuiltinType(std::string_view name) {
         {std::nullopt, HeapAllocatorType()},
     };
     return MakeFunc(std::move(params),
-                    Union2(BytesManagedType(), AllocErrorType()));
+                    Outcome(UniqueBytesManagedType(), AllocErrorType()));
   }
   if (IdEq(name, "from_slice")) {
     std::vector<TypeFuncParam> params = {
@@ -256,7 +263,7 @@ static std::optional<TypeRef> BytesBuiltinType(std::string_view name) {
         {std::nullopt, HeapAllocatorType()},
     };
     return MakeFunc(std::move(params),
-                    Union2(BytesManagedType(), AllocErrorType()));
+                    Outcome(UniqueBytesManagedType(), AllocErrorType()));
   }
   if (IdEq(name, "as_view")) {
     std::vector<TypeFuncParam> params = {
@@ -270,7 +277,7 @@ static std::optional<TypeRef> BytesBuiltinType(std::string_view name) {
         {std::nullopt, HeapAllocatorType()},
     };
     return MakeFunc(std::move(params),
-                    Union2(BytesManagedType(), AllocErrorType()));
+                    Outcome(UniqueBytesManagedType(), AllocErrorType()));
   }
   if (IdEq(name, "view")) {
     std::vector<TypeFuncParam> params = {
@@ -297,7 +304,7 @@ static std::optional<TypeRef> BytesBuiltinType(std::string_view name) {
         {std::nullopt, HeapAllocatorType()},
     };
     return MakeFunc(std::move(params),
-                    Union2(MakeTypePrim("()"), AllocErrorType()));
+                    Outcome(MakeTypePrim("()"), AllocErrorType()));
   }
   if (IdEq(name, "length")) {
     std::vector<TypeFuncParam> params = {
@@ -403,7 +410,7 @@ std::optional<StringBytesBuiltinMethodSig> LookupStringBytesBuiltinMethodSig(
           {std::nullopt, HeapAllocatorType()},
       };
       return MakeMethodSig(Permission::Const, view_string, std::move(params),
-                           Union2(StringManagedType(), AllocErrorType()));
+                           Outcome(UniqueStringManagedType(), AllocErrorType()));
     }
     if (IdEq(name, "clone_with") && str->state == StringState::Managed) {
       std::vector<TypeFuncParam> params = {
@@ -411,7 +418,7 @@ std::optional<StringBytesBuiltinMethodSig> LookupStringBytesBuiltinMethodSig(
       };
       return MakeMethodSig(Permission::Const, managed_string,
                            std::move(params),
-                           Union2(StringManagedType(), AllocErrorType()));
+                           Outcome(UniqueStringManagedType(), AllocErrorType()));
     }
     if (IdEq(name, "append") && str->state == StringState::Managed) {
       std::vector<TypeFuncParam> params = {
@@ -420,7 +427,7 @@ std::optional<StringBytesBuiltinMethodSig> LookupStringBytesBuiltinMethodSig(
       };
       return MakeMethodSig(Permission::Unique, managed_string,
                            std::move(params),
-                           Union2(MakeTypePrim("()"), AllocErrorType()));
+                           Outcome(MakeTypePrim("()"), AllocErrorType()));
     }
     return std::nullopt;
   }
@@ -449,7 +456,7 @@ std::optional<StringBytesBuiltinMethodSig> LookupStringBytesBuiltinMethodSig(
           {std::nullopt, HeapAllocatorType()},
       };
       return MakeMethodSig(Permission::Const, view_bytes, std::move(params),
-                           Union2(BytesManagedType(), AllocErrorType()));
+                           Outcome(UniqueBytesManagedType(), AllocErrorType()));
     }
     if (IdEq(name, "append") && bytes->state == BytesState::Managed) {
       std::vector<TypeFuncParam> params = {
@@ -458,7 +465,7 @@ std::optional<StringBytesBuiltinMethodSig> LookupStringBytesBuiltinMethodSig(
       };
       return MakeMethodSig(Permission::Unique, managed_bytes,
                            std::move(params),
-                           Union2(MakeTypePrim("()"), AllocErrorType()));
+                           Outcome(MakeTypePrim("()"), AllocErrorType()));
     }
     return std::nullopt;
   }

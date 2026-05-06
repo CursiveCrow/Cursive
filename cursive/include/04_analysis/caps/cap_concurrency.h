@@ -7,7 +7,7 @@
 // - Spawned<T> modal type (§18.4.2)
 // - CancelToken modal type (§18.6.1)
 // - Tracked<T, E> modal type (§5.4.4)
-// - Async<Out, In, Result, E> modal type and aliases (§5.4.5)
+// - Async<TOut, TIn, TResult, TError> modal type and aliases (§5.4.5)
 
 #include <optional>
 #include <string>

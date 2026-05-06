@@ -39,7 +39,7 @@ bool IsBuiltinType(std::string_view lexeme) {
       "RegionOptions",   "CancelToken", "File",      "DirIter",
       "DirEntry",        "FileKind",   "IoError",   "Async",
       "Future",          "Sequence",   "Stream",    "Pipe",
-      "Exchange",        "Spawned",    "Tracked",
+      "Exchange",        "Spawned",    "Tracked",   "Outcome",
   };
   for (const std::string_view builtin_type : kBuiltinTypes) {
     if (builtin_type == lexeme) {

@@ -379,6 +379,29 @@ ExprPtr MakeEnumLiteralExpr(const core::Span& span, const CtEnum& value) {
   return expr;
 }
 
+ExprPtr MakeModalStateLiteralExpr(const core::Span& span,
+                                  const CtModalState& state) {
+  ast::RecordExpr expr_node;
+  expr_node.target = state.target;
+  expr_node.fields.reserve(state.fields.size());
+  for (const auto& field : state.fields) {
+    ExprPtr lit = LiteralizeValue(field.second, span);
+    if (!lit) {
+      return nullptr;
+    }
+    ast::FieldInit init;
+    init.name = field.first;
+    init.value = lit;
+    init.span = span;
+    expr_node.fields.push_back(std::move(init));
+  }
+
+  auto expr = std::make_shared<Expr>();
+  expr->span = span;
+  expr->node = std::move(expr_node);
+  return expr;
+}
+
 }  // namespace
 
 CtValue MakeSpanValue(const core::Span& span) {
@@ -472,6 +495,13 @@ ExprPtr LiteralizeValue(const CtValue& value, const core::Span& span) {
       return nullptr;
     }
     return MakeRecordLiteralExpr(span, **record);
+  }
+  if (const auto* modal_state =
+          std::get_if<std::shared_ptr<CtModalState>>(&value)) {
+    if (!*modal_state) {
+      return nullptr;
+    }
+    return MakeModalStateLiteralExpr(span, **modal_state);
   }
   if (const auto* enum_value = std::get_if<std::shared_ptr<CtEnum>>(&value)) {
     if (!*enum_value) {

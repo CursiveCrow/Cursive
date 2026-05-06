@@ -616,6 +616,7 @@ add_library(cursive_analysis STATIC
   04_analysis/typing/item/visibility.cpp
   04_analysis/typing/item/where_clause.cpp
   04_analysis/typing/literals.cpp
+  04_analysis/typing/outcome.cpp
   04_analysis/typing/if_case_check.cpp
   04_analysis/typing/stmt/assign_stmt.cpp
   04_analysis/typing/stmt/break_stmt.cpp

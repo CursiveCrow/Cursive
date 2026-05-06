@@ -23,6 +23,7 @@
 #include "05_codegen/globals/globals.h"
 #include "05_codegen/globals/literal_emit.h"
 #include "05_codegen/intrinsics/builtins.h"
+#include "04_analysis/typing/outcome.h"
 
 namespace cursive::codegen {
 
@@ -626,15 +627,8 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
     members.push_back(std::move(rhs));
     return analysis::MakeTypeUnion(std::move(members));
   };
-  auto make_union3 = [](analysis::TypeRef lhs,
-                        analysis::TypeRef mid,
-                        analysis::TypeRef rhs) {
-    std::vector<analysis::TypeRef> members;
-    members.reserve(3);
-    members.push_back(std::move(lhs));
-    members.push_back(std::move(mid));
-    members.push_back(std::move(rhs));
-    return analysis::MakeTypeUnion(std::move(members));
+  auto make_outcome = [](analysis::TypeRef value, analysis::TypeRef error) {
+    return analysis::MakeOutcomeType(std::move(value), std::move(error));
   };
 
   const analysis::TypeRef t_unit = analysis::MakeTypePrim("()");
@@ -848,56 +842,56 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   if (symbol == BuiltinSymFileSystemOpenRead()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_file_read, t_io_error);
+    info.ret = make_outcome(t_file_read, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemOpenWrite()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_file_write, t_io_error);
+    info.ret = make_outcome(t_file_write, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemOpenAppend()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_file_append, t_io_error);
+    info.ret = make_outcome(t_file_append, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemCreateWrite()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_file_write, t_io_error);
+    info.ret = make_outcome(t_file_write, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemReadFile()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_string_managed, t_io_error);
+    info.ret = make_outcome(t_string_managed, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemReadBytes()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_bytes_managed, t_io_error);
+    info.ret = make_outcome(t_bytes_managed, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemWriteFile()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
     info.params.push_back(make_param("data", t_bytes_view));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemWriteStdout()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("data", t_string_view));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemWriteStderr()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("data", t_string_view));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemExists()) {
@@ -909,31 +903,31 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   if (symbol == BuiltinSymFileSystemRemove()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemOpenDir()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_dir_iter_open, t_io_error);
+    info.ret = make_outcome(t_dir_iter_open, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemCreateDir()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemEnsureDir()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemKind()) {
     info.params.push_back(make_param("self", t_file_system));
     info.params.push_back(make_param("path", t_string_view));
-    info.ret = make_union2(analysis::MakeTypePath({"FileKind"}), t_io_error);
+    info.ret = make_outcome(analysis::MakeTypePath({"FileKind"}), t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileSystemRestrict()) {
@@ -953,23 +947,23 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   // File/DirIter modal methods.
   if (symbol == BuiltinSymFileReadReadAll()) {
     info.params.push_back(make_param("self", t_file_read));
-    info.ret = make_union2(t_string_managed, t_io_error);
+    info.ret = make_outcome(t_string_managed, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileReadReadAllBytes()) {
     info.params.push_back(make_param("self", t_file_read));
-    info.ret = make_union2(t_bytes_managed, t_io_error);
+    info.ret = make_outcome(t_bytes_managed, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileWriteWrite()) {
     info.params.push_back(make_param("self", t_file_write));
     info.params.push_back(make_param("data", t_bytes_view));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileWriteFlush()) {
     info.params.push_back(make_param("self", t_file_write));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileWriteClose()) {
@@ -982,12 +976,12 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   if (symbol == BuiltinSymFileAppendWrite()) {
     info.params.push_back(make_param("self", t_file_append));
     info.params.push_back(make_param("data", t_bytes_view));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileAppendFlush()) {
     info.params.push_back(make_param("self", t_file_append));
-    info.ret = make_union2(t_unit, t_io_error);
+    info.ret = make_outcome(t_unit, t_io_error);
     return info;
   }
   if (symbol == BuiltinSymFileAppendClose()) {
@@ -1006,7 +1000,7 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   }
   if (symbol == BuiltinSymDirIterOpenNext()) {
     info.params.push_back(make_param("self", t_dir_iter_open));
-    info.ret = make_union3(t_dir_entry, t_unit, t_io_error);
+    info.ret = make_outcome(make_union2(t_dir_entry, t_unit), t_io_error);
     return info;
   }
   if (symbol == BuiltinSymDirIterOpenClose()) {
@@ -1250,7 +1244,7 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   if (symbol == BuiltinSymStringFrom()) {
     info.params.push_back(make_param("source", t_string_view));
     info.params.push_back(make_param("heap", t_heap_alloc));
-    info.ret = make_union2(t_string_managed, t_alloc_err);
+    info.ret = make_outcome(t_string_managed, t_alloc_err);
     return info;
   }
   if (symbol == BuiltinSymStringAsView()) {
@@ -1268,20 +1262,20 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   if (symbol == BuiltinSymStringToManaged()) {
     info.params.push_back(make_param("self", t_const_string_view));
     info.params.push_back(make_param("heap", t_heap_alloc));
-    info.ret = make_union2(t_string_managed, t_alloc_err);
+    info.ret = make_outcome(t_string_managed, t_alloc_err);
     return info;
   }
   if (symbol == BuiltinSymStringCloneWith()) {
     info.params.push_back(make_param("self", t_const_string_managed));
     info.params.push_back(make_param("heap", t_heap_alloc));
-    info.ret = make_union2(t_string_managed, t_alloc_err);
+    info.ret = make_outcome(t_string_managed, t_alloc_err);
     return info;
   }
   if (symbol == BuiltinSymStringAppend()) {
     info.params.push_back(make_param("self", t_unique_string_managed));
     info.params.push_back(make_param("data", t_string_view));
     info.params.push_back(make_param("heap", t_heap_alloc));
-    info.ret = make_union2(t_unit, t_alloc_err);
+    info.ret = make_outcome(t_unit, t_alloc_err);
     return info;
   }
   if (symbol == BuiltinSymStringLength()) {
@@ -1299,13 +1293,13 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   if (symbol == BuiltinSymBytesWithCapacity()) {
     info.params.push_back(make_param("cap", t_usize));
     info.params.push_back(make_param("heap", t_heap_alloc));
-    info.ret = make_union2(t_bytes_managed, t_alloc_err);
+    info.ret = make_outcome(t_bytes_managed, t_alloc_err);
     return info;
   }
   if (symbol == BuiltinSymBytesFromSlice()) {
     info.params.push_back(make_param("data", t_const_slice_u8));
     info.params.push_back(make_param("heap", t_heap_alloc));
-    info.ret = make_union2(t_bytes_managed, t_alloc_err);
+    info.ret = make_outcome(t_bytes_managed, t_alloc_err);
     return info;
   }
   if (symbol == BuiltinSymBytesAsView()) {
@@ -1321,7 +1315,7 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   if (symbol == BuiltinSymBytesToManaged()) {
     info.params.push_back(make_param("self", t_const_bytes_view));
     info.params.push_back(make_param("heap", t_heap_alloc));
-    info.ret = make_union2(t_bytes_managed, t_alloc_err);
+    info.ret = make_outcome(t_bytes_managed, t_alloc_err);
     return info;
   }
   if (symbol == BuiltinSymBytesView()) {
@@ -1338,7 +1332,7 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
     info.params.push_back(make_param("self", t_unique_bytes_managed));
     info.params.push_back(make_param("data", t_bytes_view));
     info.params.push_back(make_param("heap", t_heap_alloc));
-    info.ret = make_union2(t_unit, t_alloc_err);
+    info.ret = make_outcome(t_unit, t_alloc_err);
     return info;
   }
   if (symbol == BuiltinSymBytesLength()) {

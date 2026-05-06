@@ -8,6 +8,7 @@
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/typing/subtyping.h"
+#include "04_analysis/typing/outcome.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_stmt.h"
 
@@ -17,7 +18,9 @@ namespace {
 
 static inline void SpecDefsPropagate() {
   SPEC_DEF("T-Propagate", "5.2.12");
+  SPEC_DEF("T-Propagate-Outcome", "5.2.12");
   SPEC_DEF("T-Async-Try", "5.2.12");
+  SPEC_DEF("T-Async-Try-Outcome", "5.2.12");
   SPEC_DEF("Async-Try-Infallible-Err", "5.2.12");
 }
 
@@ -52,16 +55,6 @@ ExprTypeResult TypePropagateExprImpl(const ScopeContext& ctx,
     return result;
   }
 
-  // The inner type must be a union type
-  const auto* union_type = std::get_if<TypeUnion>(&stripped->node);
-  if (!union_type) {
-    return result;
-  }
-
-  if (union_type->members.empty()) {
-    return result;
-  }
-
   // Need a return type context to check what can be propagated.
   // For async procedures, propagate (?) routes through the async error channel.
   if (!type_ctx.return_type) {
@@ -81,6 +74,38 @@ ExprTypeResult TypePropagateExprImpl(const ScopeContext& ctx,
   }
 
   if (!propagate_target) {
+    return result;
+  }
+
+  if (const auto outcome_sig = OutcomeSigOf(stripped)) {
+    TypeRef error_target = nullptr;
+    if (async_try) {
+      error_target = propagate_target;
+    } else if (const auto return_outcome = OutcomeSigOf(type_ctx.return_type)) {
+      error_target = return_outcome->error;
+    }
+
+    if (!error_target) {
+      return result;
+    }
+
+    const auto sub = Subtyping(ctx, outcome_sig->error, error_target);
+    if (!sub.ok) {
+      result.diag_id = sub.diag_id;
+      return result;
+    }
+    if (!sub.subtype) {
+      return result;
+    }
+
+    SPEC_RULE(async_try ? "T-Async-Try-Outcome" : "T-Propagate-Outcome");
+    result.ok = true;
+    result.type = outcome_sig->value;
+    return result;
+  }
+
+  const auto* union_type = std::get_if<TypeUnion>(&stripped->node);
+  if (!union_type || union_type->members.empty()) {
     return result;
   }
 

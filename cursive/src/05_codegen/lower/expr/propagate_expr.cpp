@@ -15,6 +15,7 @@
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/checks/checks.h"
 #include "04_analysis/typing/subtyping.h"
+#include "04_analysis/typing/outcome.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/layout/layout.h"
@@ -123,6 +124,59 @@ std::optional<std::size_t> FindMemberIndex(const std::vector<analysis::TypeRef>&
     return std::nullopt;
 }
 
+IRPatternPtr OutcomeStatePattern(std::string state) {
+    auto pattern = std::make_shared<IRPattern>();
+    pattern->node = IRModalPattern{std::move(state), std::nullopt};
+    return pattern;
+}
+
+IRValue RegisterOutcomeFieldValue(const IRValue& base,
+                                  std::string state,
+                                  std::string field,
+                                  analysis::TypeRef field_type,
+                                  LowerCtx& ctx) {
+    IRValue value = ctx.FreshTempValue("outcome_" + field);
+    DerivedValueInfo info;
+    info.kind = DerivedValueInfo::Kind::ModalField;
+    info.base = base;
+    info.modal_state = std::move(state);
+    info.field = std::move(field);
+    ctx.RegisterDerivedValue(value, std::move(info));
+    if (field_type) {
+        ctx.RegisterValueType(value, field_type);
+    }
+    return value;
+}
+
+IRValue RegisterOutcomeErrorReturnValue(const IRValue& error_value,
+                                        const analysis::OutcomeSig& return_sig,
+                                        const analysis::TypeRef& return_type,
+                                        LowerCtx& ctx,
+                                        std::vector<IRPtr>& ir_parts) {
+    analysis::TypeRef state_type = analysis::MakeOutcomeStateType(
+        return_sig.value,
+        return_sig.error,
+        "Error");
+
+    IRValue state_value = ctx.FreshTempValue("propagate_error_outcome");
+    DerivedValueInfo record_info;
+    record_info.kind = DerivedValueInfo::Kind::RecordLit;
+    record_info.fields = {{"error", error_value}};
+    ctx.RegisterDerivedValue(state_value, std::move(record_info));
+    ctx.RegisterValueType(state_value, state_type);
+
+    IRValue widened = ctx.FreshTempValue("propagate_error_return");
+    IRUnaryOp widen;
+    widen.op = "widen";
+    widen.operand = state_value;
+    widen.result = widened;
+    widen.operand_type = state_type;
+    widen.result_type = return_type;
+    ctx.RegisterValueType(widened, return_type);
+    ir_parts.push_back(MakeIR(std::move(widen)));
+    return widened;
+}
+
 }  // namespace
 
 // =============================================================================
@@ -163,18 +217,124 @@ LowerResult LowerPropagateExpr(const ast::PropagateExpr& expr, LowerCtx& ctx) {
         expr_type = ctx.LookupValueType(inner_result.value);
     }
     analysis::TypeRef stripped_expr = analysis::StripPerm(expr_type);
-    const auto* union_type =
-        stripped_expr ? std::get_if<analysis::TypeUnion>(&stripped_expr->node) : nullptr;
 
-    if (!ctx.proc_ret_type || !union_type || union_type->members.empty()) {
+    if (!ctx.proc_ret_type || !stripped_expr) {
         if (debug_propagate) {
-            std::cerr << "[propagate-debug] fallback: missing proc_ret_type or union expr_type\n";
+            std::cerr << "[propagate-debug] fallback: missing proc_ret_type or expr_type\n";
         }
         ctx.ReportCodegenFailure();
         return inner_result;
     }
 
     const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+    const std::optional<analysis::OutcomeSig> outcome_sig =
+        analysis::OutcomeSigOf(stripped_expr);
+    if (outcome_sig.has_value()) {
+        const auto async_sig = analysis::GetAsyncSig(ctx.proc_ret_type);
+        std::optional<analysis::OutcomeSig> return_outcome_sig;
+        if (!async_sig.has_value()) {
+            return_outcome_sig = analysis::OutcomeSigOf(ctx.proc_ret_type);
+            if (!return_outcome_sig.has_value()) {
+                ctx.ReportCodegenFailure();
+                return inner_result;
+            }
+        }
+
+        IRIfCase if_case_ir;
+        if_case_ir.scrutinee = inner_result.value;
+        if_case_ir.scrutinee_type = stripped_expr;
+
+        IRValue result_value = ctx.FreshTempValue("propagate_result");
+        if_case_ir.result = result_value;
+        ctx.RegisterValueType(result_value, outcome_sig->value);
+
+        IRIfCaseClause value_arm;
+        value_arm.pattern = OutcomeStatePattern("Value");
+        value_arm.body = EmptyIR();
+        value_arm.value = RegisterOutcomeFieldValue(
+            inner_result.value,
+            "Value",
+            "value",
+            outcome_sig->value,
+            ctx);
+        if_case_ir.arms.push_back(std::move(value_arm));
+
+        IRValue error_value = RegisterOutcomeFieldValue(
+            inner_result.value,
+            "Error",
+            "error",
+            outcome_sig->error,
+            ctx);
+
+        CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
+        IRPtr cleanup_ir = EmitCleanup(cleanup_plan, ctx);
+
+        IRIfCaseClause error_arm;
+        error_arm.pattern = OutcomeStatePattern("Error");
+        if (async_sig.has_value()) {
+            const std::string saved_error_name = "__c0_async_error_outcome";
+            IRBindVar save_error;
+            save_error.name = saved_error_name;
+            save_error.value = error_value;
+            save_error.type = outcome_sig->error;
+            save_error.prov = analysis::ProvenanceKind::Bottom;
+            ctx.RegisterVar(saved_error_name,
+                            outcome_sig->error,
+                            /*has_responsibility=*/false,
+                            /*is_immovable=*/false,
+                            analysis::ProvenanceKind::Bottom);
+
+            IRValue saved_error;
+            saved_error.kind = IRValue::Kind::Local;
+            saved_error.name = saved_error_name;
+            ctx.RegisterValueType(saved_error, outcome_sig->error);
+
+            IRAsyncFail async_fail;
+            async_fail.value = saved_error;
+            async_fail.result = ctx.FreshTempValue("propagate_failed_async");
+            async_fail.async_type = ctx.proc_ret_type;
+            async_fail.error_type =
+                async_sig->err ? async_sig->err : outcome_sig->error;
+            ctx.RegisterValueType(async_fail.result, ctx.proc_ret_type);
+
+            IRReturn ret;
+            ret.value = async_fail.result;
+            error_arm.body = SeqIR({
+                MakeIR(std::move(save_error)),
+                cleanup_ir,
+                MakeIR(std::move(async_fail)),
+                MakeIR(std::move(ret)),
+            });
+        } else {
+            std::vector<IRPtr> return_parts;
+            return_parts.push_back(cleanup_ir);
+            IRValue return_value = RegisterOutcomeErrorReturnValue(
+                error_value,
+                *return_outcome_sig,
+                ctx.proc_ret_type,
+                ctx,
+                return_parts);
+            IRReturn ret;
+            ret.value = return_value;
+            return_parts.push_back(MakeIR(std::move(ret)));
+            error_arm.body = SeqIR(std::move(return_parts));
+        }
+        error_arm.value = ctx.FreshTempValue("propagate_unreach");
+        if_case_ir.arms.push_back(std::move(error_arm));
+
+        return LowerResult{SeqIR({inner_result.ir, MakeIR(std::move(if_case_ir))}),
+                           result_value};
+    }
+
+    const auto* union_type =
+        std::get_if<analysis::TypeUnion>(&stripped_expr->node);
+    if (!union_type || union_type->members.empty()) {
+        if (debug_propagate) {
+            std::cerr << "[propagate-debug] fallback: expr_type is not a union or Outcome\n";
+        }
+        ctx.ReportCodegenFailure();
+        return inner_result;
+    }
 
     auto success_type = SuccessMemberType(scope, ctx.proc_ret_type, stripped_expr);
     if (!success_type.has_value()) {

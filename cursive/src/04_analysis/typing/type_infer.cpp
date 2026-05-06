@@ -1786,6 +1786,17 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
     }
   }
 
+  const auto equiv = TypeEquiv(inferred.type, expected);
+  if (!equiv.ok) {
+    result.diag_id = equiv.diag_id;
+    return result;
+  }
+  if (equiv.equiv) {
+    SPEC_RULE("Chk-Subsumption");
+    result.ok = true;
+    return result;
+  }
+
   const auto sub = Subtyping(ctx, inferred.type, expected);
   if (!sub.ok) {
     result.diag_id = sub.diag_id;

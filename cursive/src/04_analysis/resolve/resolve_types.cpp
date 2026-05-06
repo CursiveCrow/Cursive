@@ -28,6 +28,7 @@
 #include "04_analysis/caps/cap_heap.h"
 #include "04_analysis/caps/cap_network.h"
 #include "04_analysis/language_service/facts.h"
+#include "04_analysis/typing/outcome.h"
 
 namespace cursive::analysis {
 
@@ -82,7 +83,8 @@ ResTypePathResult ResolveTypePath(ResolveContext& ctx,
   }
   if (path.size() == 1) {
     if (IsFileSystemBuiltinTypePath(path) ||
-        IsHeapAllocatorBuiltinTypePath(path)) {
+        IsHeapAllocatorBuiltinTypePath(path) ||
+        IsOutcomeTypePath(path)) {
       SPEC_RULE("ResolveTypePath-Ident-Local");
       return {true, std::nullopt, std::nullopt, ast::TypePath{path[0]}};
     }

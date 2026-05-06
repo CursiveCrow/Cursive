@@ -24,7 +24,7 @@ static void c0_string_alloc_err(C0Union_StringManaged_AllocError* out,
   if (!out) {
     return;
   }
-  out->disc = 0;
+  out->disc = 1;
   c0_set_alloc_error(&out->payload.alloc_error, size, quota_exceeded);
 }
 
@@ -34,7 +34,7 @@ static void c0_bytes_alloc_err(C0Union_BytesManaged_AllocError* out,
   if (!out) {
     return;
   }
-  out->disc = 0;
+  out->disc = 1;
   c0_set_alloc_error(&out->payload.alloc_error, size, quota_exceeded);
 }
 
@@ -127,7 +127,7 @@ void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3afrom(
   uint64_t len = source ? source->len : 0;
   if (len == 0) {
     c0_trace_emit_rule("Log-StringFrom-ZeroLen");
-    out->disc = 1;
+    out->disc = 0;
     out->payload.value.data = NULL;
     out->payload.value.len = 0;
     out->payload.value.cap = 0;
@@ -186,7 +186,7 @@ void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3afrom(
   c0_trace_emit_rule("Log-StringFrom-AfterWriteDst");
   c0_memcpy(data, source->data, (size_t)len);
   c0_trace_emit_rule("Log-StringFrom-AfterMemcpy");
-  out->disc = 1;
+  out->disc = 0;
   out->payload.value.data = data;
   out->payload.value.len = len;
   out->payload.value.cap = len;
@@ -237,7 +237,7 @@ void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3aclone_x5fwith(
   }
   uint64_t len = self ? self->len : 0;
   if (len == 0) {
-    out->disc = 1;
+    out->disc = 0;
     out->payload.value.data = NULL;
     out->payload.value.len = 0;
     out->payload.value.cap = 0;
@@ -252,7 +252,7 @@ void cursive_x3a_x3aruntime_x3a_x3astring_x3a_x3aclone_x5fwith(
     return;
   }
   c0_memcpy(data, self->data, (size_t)len);
-  out->disc = 1;
+  out->disc = 0;
   out->payload.value.data = data;
   out->payload.value.len = len;
   out->payload.value.cap = len;
@@ -344,7 +344,7 @@ void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3awith_x5fcapacity(
   }
   uint64_t capacity = cap ? *cap : 0;
   if (capacity == 0) {
-    out->disc = 1;
+    out->disc = 0;
     out->payload.value.data = NULL;
     out->payload.value.len = 0;
     out->payload.value.cap = 0;
@@ -358,7 +358,7 @@ void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3awith_x5fcapacity(
     c0_bytes_alloc_err(out, capacity, quota_exceeded);
     return;
   }
-  out->disc = 1;
+  out->disc = 0;
   out->payload.value.data = data;
   out->payload.value.len = 0;
   out->payload.value.cap = capacity;
@@ -373,7 +373,7 @@ void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3afrom_x5fslice(
   }
   uint64_t len = data ? data->len : 0;
   if (len == 0) {
-    out->disc = 1;
+    out->disc = 0;
     out->payload.value.data = NULL;
     out->payload.value.len = 0;
     out->payload.value.cap = 0;
@@ -388,7 +388,7 @@ void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3afrom_x5fslice(
     return;
   }
   c0_memcpy(buf, data->data, (size_t)len);
-  out->disc = 1;
+  out->disc = 0;
   out->payload.value.data = buf;
   out->payload.value.len = len;
   out->payload.value.cap = len;
@@ -419,7 +419,7 @@ void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3ato_x5fmanaged(
   }
   uint64_t len = self ? self->len : 0;
   if (len == 0) {
-    out->disc = 1;
+    out->disc = 0;
     out->payload.value.data = NULL;
     out->payload.value.len = 0;
     out->payload.value.cap = 0;
@@ -434,7 +434,7 @@ void cursive_x3a_x3aruntime_x3a_x3abytes_x3a_x3ato_x5fmanaged(
     return;
   }
   c0_memcpy(buf, self->data, (size_t)len);
-  out->disc = 1;
+  out->disc = 0;
   out->payload.value.data = buf;
   out->payload.value.len = len;
   out->payload.value.cap = len;

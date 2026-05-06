@@ -50,6 +50,7 @@
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/type_infer.h"
 #include "04_analysis/typing/type_lower.h"
+#include "04_analysis/typing/outcome.h"
 #include "04_analysis/typing/types.h"
 #include "02_source/ast/ast.h"
 
@@ -84,27 +85,28 @@ static std::optional<FileSystemMethodSig> LookupProjectFilesMethodSig(std::strin
 
   if (IdEq(name, "read")) {
     sig.params = {path_param};
-    sig.ret = MakeTypeUnion(
-        {MakeTypeString(StringState::Managed), MakeTypePath({"IoError"})});
+    sig.ret = MakeOutcomeType(
+        MakeTypePerm(Permission::Unique, MakeTypeString(StringState::Managed)),
+        MakeTypePath({"IoError"}));
     return sig;
   }
   if (IdEq(name, "read_bytes")) {
     sig.params = {path_param};
-    sig.ret = MakeTypeUnion(
-        {MakeTypeBytes(BytesState::Managed), MakeTypePath({"IoError"})});
+    sig.ret = MakeOutcomeType(
+        MakeTypePerm(Permission::Unique, MakeTypeBytes(BytesState::Managed)),
+        MakeTypePath({"IoError"}));
     return sig;
   }
   if (IdEq(name, "exists")) {
     sig.params = {path_param};
-    sig.ret = MakeTypeUnion(
-        {MakeTypePrim("bool"), MakeTypePath({"IoError"})});
+    sig.ret = MakeOutcomeType(MakeTypePrim("bool"), MakeTypePath({"IoError"}));
     return sig;
   }
   if (IdEq(name, "list_dir")) {
     sig.params = {path_param};
-    sig.ret = MakeTypeUnion(
-        {MakeTypeSlice(MakeTypeString(StringState::Managed)),
-         MakeTypePath({"IoError"})});
+    sig.ret = MakeOutcomeType(
+        MakeTypeSlice(MakeTypeString(StringState::Managed)),
+        MakeTypePath({"IoError"}));
     return sig;
   }
   if (IdEq(name, "project_root")) {

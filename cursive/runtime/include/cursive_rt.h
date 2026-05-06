@@ -238,11 +238,17 @@ typedef struct C0Union_FileKind_IoError {
   uint8_t payload;
 } C0Union_FileKind_IoError;
 
+typedef struct C0Union_DirEntry_Unit {
+  uint8_t disc;
+  uint8_t _pad[7];
+  C0DirEntry entry;
+} C0Union_DirEntry_Unit;
+
 typedef struct C0Union_DirEntry_Unit_IoError {
   uint8_t disc;
   uint8_t _pad[7];
   union {
-    C0DirEntry entry;
+    C0Union_DirEntry_Unit value;
     uint8_t io_error;
   } payload;
 } C0Union_DirEntry_Unit_IoError;

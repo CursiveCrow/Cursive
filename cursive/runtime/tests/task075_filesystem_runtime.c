@@ -154,7 +154,7 @@ static int write_file_ok(const C0DynObject* fs,
 static int expect_file_error(C0Union_File_IoError result,
                              C0IoError expected,
                              const char* label) {
-  if (result.disc != 0 || result.payload.io_error != expected) {
+  if (result.disc != 1 || result.payload.io_error != expected) {
     fprintf(stderr,
             "TASK-075 detail: %s disc=%u actual=%u expected=%u\n",
             label,
@@ -169,7 +169,7 @@ static int expect_file_error(C0Union_File_IoError result,
 static int expect_dir_error(C0Union_DirIter_IoError result,
                             C0IoError expected,
                             const char* label) {
-  if (result.disc != 0 || result.payload.io_error != expected) {
+  if (result.disc != 1 || result.payload.io_error != expected) {
     fprintf(stderr,
             "TASK-075 detail: %s disc=%u actual=%u expected=%u\n",
             label,
@@ -211,23 +211,53 @@ static int expect_kind_error(C0Union_FileKind_IoError result,
   return 0;
 }
 
+static int expect_string_error(C0Union_StringManaged_IoError result,
+                               C0IoError expected,
+                               const char* label) {
+  if (result.disc != 1 || result.payload.io_error != expected) {
+    fprintf(stderr,
+            "TASK-075 detail: %s disc=%u actual=%u expected=%u\n",
+            label,
+            (unsigned)result.disc,
+            (unsigned)result.payload.io_error,
+            (unsigned)expected);
+    return report_failure(label);
+  }
+  return 0;
+}
+
+static int expect_bytes_error(C0Union_BytesManaged_IoError result,
+                              C0IoError expected,
+                              const char* label) {
+  if (result.disc != 1 || result.payload.io_error != expected) {
+    fprintf(stderr,
+            "TASK-075 detail: %s disc=%u actual=%u expected=%u\n",
+            label,
+            (unsigned)result.disc,
+            (unsigned)result.payload.io_error,
+            (unsigned)expected);
+    return report_failure(label);
+  }
+  return 0;
+}
+
 static int expect_next_name(C0DirIterHandle* iter,
                             const char* expected_name,
                             const char* label) {
   C0Union_DirEntry_Unit_IoError next =
       DirIter_x3a_x3aOpen_x3a_x3anext(iter);
-  if (next.disc != 1) {
+  if (next.disc != 0 || next.payload.value.disc != 1) {
     return report_failure(label);
   }
-  if (next.payload.entry.kind != C0_FILE_KIND_FILE) {
+  if (next.payload.value.entry.kind != C0_FILE_KIND_FILE) {
     return report_failure(label);
   }
-  if (next.payload.entry.name.len != (uint64_t)strlen(expected_name)) {
+  if (next.payload.value.entry.name.len != (uint64_t)strlen(expected_name)) {
     return report_failure(label);
   }
-  if (memcmp(next.payload.entry.name.data,
+  if (memcmp(next.payload.value.entry.name.data,
              expected_name,
-             (size_t)next.payload.entry.name.len) != 0) {
+             (size_t)next.payload.value.entry.name.len) != 0) {
     return report_failure(label);
   }
   return 0;
@@ -372,7 +402,7 @@ static int test_closed_file_handles_reject_further_ops(void) {
     C0StringView path = sv_from_cstr(file_path);
     C0Union_File_IoError opened =
         cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3acreate_x5fwrite(&ctx.fs, &path);
-    if (opened.disc != 1) {
+    if (opened.disc != 0) {
       goto fail_label_open_write;
     }
     C0FileHandle writer;
@@ -398,17 +428,21 @@ static int test_closed_file_handles_reject_further_ops(void) {
     C0StringView path = sv_from_cstr(file_path);
     C0Union_File_IoError opened =
         cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fread(&ctx.fs, &path);
-    if (opened.disc != 1) {
+    if (opened.disc != 0) {
       goto fail_label_open_read;
     }
     C0FileHandle reader;
     reader.handle = opened.payload.handle;
     File_x3a_x3aRead_x3a_x3aclose(reader);
-    if (File_x3a_x3aRead_x3a_x3aread_x5fall(&reader).disc != 0) {
-      goto fail_label_closed_read_all;
+    if (expect_string_error(File_x3a_x3aRead_x3a_x3aread_x5fall(&reader),
+                            C0_IO_FAILURE,
+                            "read_all on closed read handle")) {
+      goto fail;
     }
-    if (File_x3a_x3aRead_x3a_x3aread_x5fall_x5fbytes(&reader).disc != 0) {
-      goto fail_label_closed_read_all_bytes;
+    if (expect_bytes_error(File_x3a_x3aRead_x3a_x3aread_x5fall_x5fbytes(&reader),
+                           C0_IO_FAILURE,
+                           "read_all_bytes on closed read handle")) {
+      goto fail;
     }
   }
 
@@ -427,11 +461,6 @@ fail_label_write:
 fail_label_open_read:
   report_failure("open_read tracked file");
   goto fail;
-fail_label_closed_read_all:
-  report_failure("read_all on closed read handle");
-  goto fail;
-fail_label_closed_read_all_bytes:
-  report_failure("read_all_bytes on closed read handle");
 fail:
   delete_path_utf8(file_path);
   delete_path_utf8(base);
@@ -484,7 +513,7 @@ static int test_dir_iter_order_and_close_state(void) {
     C0StringView dir_view = sv_from_cstr(dir_path);
     C0Union_DirIter_IoError opened =
         cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(&ctx.fs, &dir_view);
-    if (opened.disc != 1) {
+    if (opened.disc != 0) {
       goto fail_label_open_dir;
     }
     C0DirIterHandle iter;
@@ -500,12 +529,12 @@ static int test_dir_iter_order_and_close_state(void) {
       goto fail;
     }
     eof = DirIter_x3a_x3aOpen_x3a_x3anext(&iter);
-    if (eof.disc != 0) {
+    if (eof.disc != 0 || eof.payload.value.disc != 0) {
       goto fail_label_dir_eof;
     }
     DirIter_x3a_x3aOpen_x3a_x3aclose(iter);
     eof = DirIter_x3a_x3aOpen_x3a_x3anext(&iter);
-    if (eof.disc != 2 || eof.payload.io_error != C0_IO_FAILURE) {
+    if (eof.disc != 1 || eof.payload.io_error != C0_IO_FAILURE) {
       goto fail_label_dir_closed_next;
     }
   }
@@ -577,7 +606,7 @@ static int test_dir_iter_snapshot_survives_removal(void) {
     C0StringView file_view = sv_from_cstr(file_path);
     C0Union_DirIter_IoError opened =
         cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3aopen_x5fdir(&ctx.fs, &dir_view);
-    if (opened.disc != 1) {
+    if (opened.disc != 0) {
       goto fail_label_snapshot_open_dir;
     }
     C0DirIterHandle iter;
@@ -587,17 +616,19 @@ static int test_dir_iter_snapshot_survives_removal(void) {
       goto fail_label_snapshot_remove;
     }
     next = DirIter_x3a_x3aOpen_x3a_x3anext(&iter);
-    if (next.disc != 1) {
+    if (next.disc != 0 || next.payload.value.disc != 1) {
       goto fail_label_snapshot_next;
     }
-    if (next.payload.entry.kind != C0_FILE_KIND_FILE) {
+    if (next.payload.value.entry.kind != C0_FILE_KIND_FILE) {
       goto fail_label_snapshot_kind;
     }
-    if (next.payload.entry.name.len != strlen("entry.txt") ||
-        memcmp(next.payload.entry.name.data, "entry.txt", strlen("entry.txt")) != 0) {
+    if (next.payload.value.entry.name.len != strlen("entry.txt") ||
+        memcmp(next.payload.value.entry.name.data, "entry.txt", strlen("entry.txt")) != 0) {
       goto fail_label_snapshot_name;
     }
-    if (DirIter_x3a_x3aOpen_x3a_x3anext(&iter).disc != 0) {
+    C0Union_DirEntry_Unit_IoError eof =
+        DirIter_x3a_x3aOpen_x3a_x3anext(&iter);
+    if (eof.disc != 0 || eof.payload.value.disc != 0) {
       goto fail_label_snapshot_eof;
     }
     DirIter_x3a_x3aOpen_x3a_x3aclose(iter);

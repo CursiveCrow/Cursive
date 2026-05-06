@@ -101,12 +101,14 @@ struct CtTuple;
 struct CtArray;
 struct CtSlice;
 struct CtRecord;
+struct CtModalState;
 struct CtEnum;
 
 using CtValue = std::variant<CtPrim, CtString, CtBytes, CtType,
                              CtAst, std::shared_ptr<CtTuple>,
                              std::shared_ptr<CtArray>, std::shared_ptr<CtSlice>,
                              std::shared_ptr<CtRecord>,
+                             std::shared_ptr<CtModalState>,
                              std::shared_ptr<CtEnum>>;
 
 struct CtTuple {
@@ -133,6 +135,11 @@ using CtPayload = std::variant<std::monostate, CtTuplePayload, CtRecordPayload>;
 
 struct CtRecord {
   Path path;
+  std::vector<std::pair<Identifier, CtValue>> fields;
+};
+
+struct CtModalState {
+  ast::ModalStateRef target;
   std::vector<std::pair<Identifier, CtValue>> fields;
 };
 
