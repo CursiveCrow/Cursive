@@ -147,6 +147,7 @@ def main() -> int:
         "TupleIndex-OOB": "E-TYP-1801",
         "T-Cast-Invalid": "E-SEM-2528",
         "IfCase-Union-NonExhaustive": "E-SEM-2705",
+        "ValueUse-NonBitcopyPlace": "E-UNS-0107",
     }
     removed_diag_ids: set[str] = set()
 

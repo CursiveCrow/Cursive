@@ -1,9 +1,11 @@
 The cursive spec is the source of truth. You will NOT make changes that cause the compiler to deviate from the specification. You will NOT make changes to the spec with express user approval.
 
-When explaining or planning, avoid negative framing by default. Do not repeatedly say what a concept is not, what alternatives
-  are rejected, or what should not be done unless the distinction is necessary to prevent a likely mistake. Prefer direct
-  affirmative descriptions of the intended design, behavior, and next action. If a constraint matters, state it once in the
-  relevant decision record or plan section, then proceed using the approved design without re-litigating rejected options.
+## Behavior and Expectations
+
+- You will NOT continuously provide negative framing. When explaining or planning, avoid negative framing by default. Do not repeatedly say what a concept is not, what alternatives are rejected, or what should not be done unless the distinction is necessary to prevent a likely mistake. Prefer direct affirmative descriptions of the intended design, behavior, and next action. If a constraint matters, state it once in the relevant decision record or plan section, then proceed using the approved design without re-litigating rejected options.
+- Do NOT use "stage#" or "phase#" as a naming convention; ever.
+- Do NOT use vanity prefixes or suffixes unless there is an explicit need to prevent potential naming collisions, such as public facing API/ABIs.
+- Spec-valid source is authoritative evidence. When the current compiler rejects, misparses, mischecks, mislowers, or miscompiles source that conforms to the authoritative specification, repair the canonical compiler implementation: parser, resolver, typechecker, lowering, runtime, diagnostics, or whichever path owns the defect. Preserve the source form unless the source itself violates the specification, has an independent code-quality defect, or the user explicitly requests a source rewrite.
 
 # **CRITICAL UTF-8 SPEC WARNING: DO NOT IGNORE**
 

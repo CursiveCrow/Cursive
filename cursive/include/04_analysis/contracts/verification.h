@@ -109,12 +109,21 @@ void AddFact(StaticProofContext& ctx,
 void AddPredicateFacts(StaticProofContext& ctx,
                        const ast::ExprPtr& predicate);
 
+void AddPredicateFactsAt(StaticProofContext& ctx,
+                         const ast::ExprPtr& predicate,
+                         const core::Span& location);
+
 // Build a proof context by cloning an existing context and adding a predicate's
 // verification facts. Returns std::nullopt when no base context exists and the
 // predicate does not contribute any facts.
 std::shared_ptr<StaticProofContext> ExtendProofContextWithPredicate(
     const std::shared_ptr<StaticProofContext>& base,
     const ast::ExprPtr& predicate);
+
+std::shared_ptr<StaticProofContext> ExtendProofContextWithPredicateAt(
+    const std::shared_ptr<StaticProofContext>& base,
+    const ast::ExprPtr& predicate,
+    const core::Span& location);
 
 // Compute a simple logical negation fact when the predicate is a negatable
 // decidable predicate. Returns std::nullopt when no single negated fact exists.

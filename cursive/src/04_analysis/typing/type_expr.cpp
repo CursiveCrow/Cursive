@@ -4305,9 +4305,6 @@ bool IsImpureType(const TypeRef& type) {
   if (!type) {
     return false;
   }
-  if (PermOfType(type) == Permission::Unique) {
-    return true;
-  }
   if (IsCapabilityType(type)) {
     return true;
   }

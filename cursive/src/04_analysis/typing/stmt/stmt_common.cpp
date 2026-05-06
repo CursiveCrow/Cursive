@@ -30,6 +30,7 @@
 #include "00_core/assert_spec.h"
 #include "00_core/diagnostic_messages.h"
 #include "02_source/attributes/attribute_registry.h"
+#include "04_analysis/contracts/contract_check.h"
 #include "04_analysis/contracts/verification.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/caps/cap_concurrency.h"
@@ -865,31 +866,144 @@ static ast::ExprPtr StripAttributedExpr(const ast::ExprPtr& expr) {
   return current;
 }
 
-static std::shared_ptr<StaticProofContext> FallthroughProofContextForStmt(
+static ast::ExprPtr MakeProofExpr(const core::Span& span,
+                                  ast::ExprNode node) {
+  auto expr = std::make_shared<ast::Expr>();
+  expr->span = span;
+  expr->node = std::move(node);
+  return expr;
+}
+
+static std::optional<std::string> SimpleBindingName(const ast::PatternPtr& pat) {
+  if (!pat) {
+    return std::nullopt;
+  }
+  if (const auto* ident = std::get_if<ast::IdentifierPattern>(&pat->node)) {
+    return ident->name;
+  }
+  if (const auto* typed = std::get_if<ast::TypedPattern>(&pat->node)) {
+    return typed->name;
+  }
+  return std::nullopt;
+}
+
+static ast::ExprPtr BindingEqualityFact(const std::string& name,
+                                        const ast::ExprPtr& init,
+                                        const core::Span& span) {
+  ast::IdentifierExpr ident;
+  ident.name = name;
+  ast::BinaryExpr equality;
+  equality.op = "==";
+  equality.lhs = MakeProofExpr(span, std::move(ident));
+  equality.rhs = init;
+  return MakeProofExpr(span, std::move(equality));
+}
+
+static ast::ExprPtr ZeroLiteralExpr(const core::Span& span) {
+  ast::LiteralExpr literal;
+  literal.literal.kind = ast::TokenKind::IntLiteral;
+  literal.literal.lexeme = "0";
+  literal.literal.span = span;
+  return MakeProofExpr(span, std::move(literal));
+}
+
+static bool IsUnsignedPrimitiveName(std::string_view name) {
+  return name == "usize" ||
+         name == "u8" ||
+         name == "u16" ||
+         name == "u32" ||
+         name == "u64";
+}
+
+static bool BindingHasUnsignedAnnotation(const ast::Binding& binding) {
+  const auto type = ast::BindingAnnotationTypeOpt(binding);
+  if (!type) {
+    return false;
+  }
+  const auto* prim = std::get_if<ast::TypePrim>(&type->node);
+  return prim && IsUnsignedPrimitiveName(prim->name);
+}
+
+static ast::ExprPtr BindingNonNegativeFact(const std::string& name,
+                                           const core::Span& span) {
+  ast::IdentifierExpr ident;
+  ident.name = name;
+  ast::BinaryExpr comparison;
+  comparison.op = "<=";
+  comparison.lhs = ZeroLiteralExpr(span);
+  comparison.rhs = MakeProofExpr(span, std::move(ident));
+  return MakeProofExpr(span, std::move(comparison));
+}
+
+static std::shared_ptr<StaticProofContext> LetBindingProofContextForStmt(
+    const ScopeContext& ctx,
     const std::shared_ptr<StaticProofContext>& current_proof_ctx,
     const ast::Stmt& stmt) {
+  const auto* let_stmt = std::get_if<ast::LetStmt>(&stmt);
+  if (!let_stmt || !let_stmt->binding.init) {
+    return current_proof_ctx;
+  }
+
+  const auto binding_name = SimpleBindingName(let_stmt->binding.pat);
+  if (!binding_name.has_value()) {
+    return current_proof_ctx;
+  }
+
+  ContractContext contract_ctx;
+  contract_ctx.scope_ctx = &ctx;
+  const auto purity = CheckPurity(contract_ctx, let_stmt->binding.init);
+  if (!purity.ok) {
+    return current_proof_ctx;
+  }
+
+  std::shared_ptr<StaticProofContext> proof_ctx =
+      ExtendProofContextWithPredicate(
+      current_proof_ctx,
+      BindingEqualityFact(*binding_name, let_stmt->binding.init,
+                          let_stmt->span));
+  if (BindingHasUnsignedAnnotation(let_stmt->binding)) {
+    proof_ctx = ExtendProofContextWithPredicate(
+        proof_ctx, BindingNonNegativeFact(*binding_name, let_stmt->span));
+  }
+  return proof_ctx;
+}
+
+static std::shared_ptr<StaticProofContext> FallthroughProofContextForStmt(
+    const ScopeContext& ctx,
+    const std::shared_ptr<StaticProofContext>& current_proof_ctx,
+    const ast::Stmt& stmt) {
+  const auto with_binding_fact =
+      LetBindingProofContextForStmt(ctx, current_proof_ctx, stmt);
+
   const auto* expr_stmt = std::get_if<ast::ExprStmt>(&stmt);
   if (!expr_stmt || !expr_stmt->value) {
-    return current_proof_ctx;
+    return with_binding_fact;
   }
 
   const auto stripped = StripAttributedExpr(expr_stmt->value);
   if (!stripped) {
-    return current_proof_ctx;
+    return with_binding_fact;
   }
   const auto* if_expr = std::get_if<ast::IfExpr>(&stripped->node);
   if (!if_expr || if_expr->else_expr || !if_expr->then_expr) {
-    return current_proof_ctx;
+    return with_binding_fact;
   }
   if (!HasNonLocalCtrlExpr(if_expr->then_expr, false)) {
-    return current_proof_ctx;
+    return with_binding_fact;
+  }
+
+  ContractContext contract_ctx;
+  contract_ctx.scope_ctx = &ctx;
+  const auto purity = CheckPurity(contract_ctx, if_expr->cond);
+  if (!purity.ok) {
+    return with_binding_fact;
   }
 
   const auto negated = NegatedPredicate(if_expr->cond);
   if (!negated.has_value()) {
-    return current_proof_ctx;
+    return with_binding_fact;
   }
-  return ExtendProofContextWithPredicate(current_proof_ctx, *negated);
+  return ExtendProofContextWithPredicate(with_binding_fact, *negated);
 }
 
 static bool HasNonLocalCtrlStmt(const ast::Stmt& stmt, bool in_loop) {
@@ -2433,7 +2547,7 @@ StmtSeqResult TypeStmtSeq(const ScopeContext& ctx,
       return result;
     }
     current = typed.env;
-    current_proof_ctx = FallthroughProofContextForStmt(current_proof_ctx, stmt);
+    current_proof_ctx = FallthroughProofContextForStmt(ctx, current_proof_ctx, stmt);
     RecordParallelStmtBindings(type_ctx, stmt);
     if (type_ctx.env_ref) {
       *type_ctx.env_ref = current;

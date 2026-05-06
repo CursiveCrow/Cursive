@@ -41,6 +41,7 @@
 #include "04_analysis/typing/subtyping.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/contracts/contract_check.h"
+#include "04_analysis/contracts/verification.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/records.h"
@@ -889,6 +890,7 @@ RecordDeclResult TypeRecordDecl(
     // §4.2: Pass receiver permission so borrow checker can set mutability
     // (~! = Var, ~/%/default = Let)
     std::optional<Permission> recv_perm;
+    bool const_receiver = false;
     if (const auto* shorthand = std::get_if<ast::ReceiverShorthand>(&method->receiver)) {
       if (shorthand->perm == ast::ReceiverPerm::Unique) {
         recv_perm = Permission::Unique;
@@ -896,6 +898,7 @@ RecordDeclResult TypeRecordDecl(
         recv_perm = Permission::Shared;
       } else {
         recv_perm = Permission::Const;
+        const_receiver = true;
       }
     }
     std::optional<BindSelfParam> self_param = BindSelfParam{result.self_type, std::nullopt, recv_perm};
@@ -908,6 +911,26 @@ RecordDeclResult TypeRecordDecl(
       result.ok = false;
       result.diag_id = sig.diag_id;
       return result;
+    }
+
+    if (method->contract.has_value()) {
+      ContractContext contract_ctx;
+      contract_ctx.scope_ctx = &ctx;
+      contract_ctx.receiver_type = result.self_type;
+      contract_ctx.return_type = sig.return_type;
+      for (const auto& binding : sig.bindings) {
+        if (binding.first == "self") {
+          continue;
+        }
+        contract_ctx.params[binding.first] = binding.second;
+      }
+      const auto contract_check =
+          CheckContractWellFormed(contract_ctx, *method->contract);
+      if (!contract_check.ok) {
+        result.ok = false;
+        result.diag_id = contract_check.diag_id;
+        return result;
+      }
     }
 
     // Type method body if present
@@ -952,6 +975,12 @@ RecordDeclResult TypeRecordDecl(
           ComputeDynamicContext(method->body->span, ancestors);
       if (method->contract.has_value()) {
         type_ctx.contract = &*method->contract;
+      }
+      if (decl.invariant_opt.has_value() && const_receiver) {
+        type_ctx.proof_ctx =
+            ExtendProofContextWithPredicateAt(type_ctx.proof_ctx,
+                                              decl.invariant_opt->predicate,
+                                              method->body->span);
       }
 
       ExprTypeFn type_expr = [&](const ast::ExprPtr& inner) {

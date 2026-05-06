@@ -408,6 +408,53 @@ static std::optional<std::int64_t> ParseIntLiteral(std::string_view lexeme) {
   }
 }
 
+static std::optional<std::string> ExprKey(const ast::ExprPtr& expr);
+
+static void AppendPathKey(std::string& out,
+                          const std::vector<std::string>& path,
+                          std::string_view name) {
+  for (std::size_t i = 0; i < path.size(); ++i) {
+    if (i > 0) {
+      out.append("::");
+    }
+    out.append(path[i]);
+  }
+  if (!path.empty()) {
+    out.append("::");
+  }
+  out.append(name);
+}
+
+static std::optional<std::string> ExprArgumentKey(const ast::ExprPtr& expr) {
+  if (!expr) {
+    return std::nullopt;
+  }
+  if (const auto* lit = std::get_if<ast::LiteralExpr>(&expr->node)) {
+    return lit->literal.lexeme;
+  }
+  return ExprKey(expr);
+}
+
+static bool AppendParenArgKeys(std::string& out,
+                               const std::vector<ast::Arg>& args) {
+  out.push_back('(');
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    if (i > 0) {
+      out.push_back(',');
+    }
+    if (args[i].moved) {
+      return false;
+    }
+    const auto arg_key = ExprArgumentKey(args[i].value);
+    if (!arg_key.has_value()) {
+      return false;
+    }
+    out.append(*arg_key);
+  }
+  out.push_back(')');
+  return true;
+}
+
 static std::optional<std::string> ExprKey(const ast::ExprPtr& expr) {
   if (!expr) {
     return std::nullopt;
@@ -417,30 +464,12 @@ static std::optional<std::string> ExprKey(const ast::ExprPtr& expr) {
   }
   if (const auto* path = std::get_if<ast::PathExpr>(&expr->node)) {
     std::string out;
-    for (std::size_t i = 0; i < path->path.size(); ++i) {
-      if (i > 0) {
-        out.append("::");
-      }
-      out.append(path->path[i]);
-    }
-    if (!path->path.empty()) {
-      out.append("::");
-    }
-    out.append(path->name);
+    AppendPathKey(out, path->path, path->name);
     return out;
   }
   if (const auto* qual = std::get_if<ast::QualifiedNameExpr>(&expr->node)) {
     std::string out;
-    for (std::size_t i = 0; i < qual->path.size(); ++i) {
-      if (i > 0) {
-        out.append("::");
-      }
-      out.append(qual->path[i]);
-    }
-    if (!qual->path.empty()) {
-      out.append("::");
-    }
-    out.append(qual->name);
+    AppendPathKey(out, qual->path, qual->name);
     return out;
   }
   if (const auto* field = std::get_if<ast::FieldAccessExpr>(&expr->node)) {
@@ -500,6 +529,41 @@ static std::optional<std::string> ExprKey(const ast::ExprPtr& expr) {
   }
   if (std::holds_alternative<ast::ResultExpr>(expr->node)) {
     return std::string("@result");
+  }
+  if (const auto* call = std::get_if<ast::CallExpr>(&expr->node)) {
+    const auto callee_key = ExprKey(call->callee);
+    if (!callee_key.has_value()) {
+      return std::nullopt;
+    }
+    std::string out = *callee_key;
+    if (!AppendParenArgKeys(out, call->args)) {
+      return std::nullopt;
+    }
+    return out;
+  }
+  if (const auto* method = std::get_if<ast::MethodCallExpr>(&expr->node)) {
+    const auto receiver_key = ExprKey(method->receiver);
+    if (!receiver_key.has_value()) {
+      return std::nullopt;
+    }
+    std::string out = *receiver_key;
+    out.append("~>");
+    out.append(method->name);
+    if (!AppendParenArgKeys(out, method->args)) {
+      return std::nullopt;
+    }
+    return out;
+  }
+  if (const auto* apply = std::get_if<ast::QualifiedApplyExpr>(&expr->node)) {
+    if (!std::holds_alternative<ast::ParenArgs>(apply->args)) {
+      return std::nullopt;
+    }
+    std::string out;
+    AppendPathKey(out, apply->path, apply->name);
+    if (!AppendParenArgKeys(out, std::get<ast::ParenArgs>(apply->args).args)) {
+      return std::nullopt;
+    }
+    return out;
   }
   return std::nullopt;
 }
@@ -1607,23 +1671,38 @@ void AddFact(StaticProofContext& ctx,
   ctx.facts.push_back(fact);
 }
 
-void AddPredicateFacts(StaticProofContext& ctx,
-                       const ast::ExprPtr& predicate) {
+void AddPredicateFactsAt(StaticProofContext& ctx,
+                         const ast::ExprPtr& predicate,
+                         const core::Span& location) {
   if (!predicate) {
     return;
   }
   if (const auto* binary = std::get_if<ast::BinaryExpr>(&predicate->node);
       binary && binary->op == "&&") {
-    AddPredicateFacts(ctx, binary->lhs);
-    AddPredicateFacts(ctx, binary->rhs);
+    AddPredicateFactsAt(ctx, binary->lhs, location);
+    AddPredicateFactsAt(ctx, binary->rhs, location);
     return;
   }
-  AddFact(ctx, predicate, predicate->span);
+  AddFact(ctx, predicate, location);
+}
+
+void AddPredicateFacts(StaticProofContext& ctx,
+                       const ast::ExprPtr& predicate) {
+  AddPredicateFactsAt(ctx, predicate,
+                      predicate ? predicate->span : core::Span{});
 }
 
 std::shared_ptr<StaticProofContext> ExtendProofContextWithPredicate(
     const std::shared_ptr<StaticProofContext>& base,
     const ast::ExprPtr& predicate) {
+  return ExtendProofContextWithPredicateAt(
+      base, predicate, predicate ? predicate->span : core::Span{});
+}
+
+std::shared_ptr<StaticProofContext> ExtendProofContextWithPredicateAt(
+    const std::shared_ptr<StaticProofContext>& base,
+    const ast::ExprPtr& predicate,
+    const core::Span& location) {
   if (!base && !predicate) {
     return nullptr;
   }
@@ -1632,7 +1711,7 @@ std::shared_ptr<StaticProofContext> ExtendProofContextWithPredicate(
   if (base) {
     *proof_ctx = *base;
   }
-  AddPredicateFacts(*proof_ctx, predicate);
+  AddPredicateFactsAt(*proof_ctx, predicate, location);
   return proof_ctx;
 }
 
@@ -1651,14 +1730,20 @@ std::optional<ast::ExprPtr> NegatedPredicate(const ast::ExprPtr& predicate) {
   if (const auto* binary = std::get_if<ast::BinaryExpr>(&predicate->node)) {
     const auto negated_op = NegatedComparisonOperator(binary->op);
     if (!negated_op.has_value()) {
-      return std::nullopt;
+      ast::UnaryExpr negated;
+      negated.op = "!";
+      negated.value = predicate;
+      return MakeExprNode(predicate->span, std::move(negated));
     }
     ast::BinaryExpr negated = *binary;
     negated.op = *negated_op;
     return MakeExprNode(predicate->span, std::move(negated));
   }
 
-  return std::nullopt;
+  ast::UnaryExpr negated;
+  negated.op = "!";
+  negated.value = predicate;
+  return MakeExprNode(predicate->span, std::move(negated));
 }
 
 bool FactDominates(const VerificationFact& fact, const core::Span& location) {

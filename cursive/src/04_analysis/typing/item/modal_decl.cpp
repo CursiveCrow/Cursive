@@ -37,6 +37,7 @@
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/contracts/contract_check.h"
+#include "04_analysis/contracts/verification.h"
 #include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/modal/modal.h"
@@ -163,6 +164,43 @@ static bool HasReservedSelfParam(const std::vector<ast::Param>& params) {
     }
   }
   return false;
+}
+
+static bool ReceiverIsConst(const ast::Receiver& receiver) {
+  if (const auto* shorthand = std::get_if<ast::ReceiverShorthand>(&receiver)) {
+    return shorthand->perm == ast::ReceiverPerm::Const;
+  }
+  return false;
+}
+
+static ast::ExprPtr StateInvariantPredicateFor(
+    const ast::TypeInvariant& invariant,
+    std::string_view state_name) {
+  if (!invariant.predicate) {
+    return nullptr;
+  }
+  const auto* if_case = std::get_if<ast::IfCaseExpr>(&invariant.predicate->node);
+  if (!if_case) {
+    return invariant.predicate;
+  }
+  const auto* ident =
+      if_case->scrutinee
+          ? std::get_if<ast::IdentifierExpr>(&if_case->scrutinee->node)
+          : nullptr;
+  if (!ident || !IdEq(ident->name, "self")) {
+    return invariant.predicate;
+  }
+  for (const auto& arm : if_case->cases) {
+    if (!arm.pattern) {
+      continue;
+    }
+    const auto* modal_pattern =
+        std::get_if<ast::ModalPattern>(&arm.pattern->node);
+    if (modal_pattern && IdEq(modal_pattern->state, state_name)) {
+      return arm.body;
+    }
+  }
+  return invariant.predicate;
 }
 
 static bool StateMemberNamesDisjoint(
@@ -592,6 +630,26 @@ ModalDeclResult TypeModalDecl(
       }
       SPEC_RULE("WF-State-Method");
 
+      if (method.contract.has_value()) {
+        ContractContext contract_ctx;
+        contract_ctx.scope_ctx = &ctx;
+        contract_ctx.receiver_type = state_type;
+        contract_ctx.return_type = sig.return_type;
+        for (const auto& binding : sig.bindings) {
+          if (binding.first == "self") {
+            continue;
+          }
+          contract_ctx.params[binding.first] = binding.second;
+        }
+        const auto contract_check =
+            CheckContractWellFormed(contract_ctx, *method.contract);
+        if (!contract_check.ok) {
+          result.ok = false;
+          result.diag_id = contract_check.diag_id;
+          return result;
+        }
+      }
+
       // Type method body if present
       if (method.body) {
         TypeEnv env;
@@ -620,6 +678,17 @@ ModalDeclResult TypeModalDecl(
             MakeDynamicScopeAncestor(method.attrs, method.span)};
         type_ctx.contract_dynamic =
             ComputeDynamicContext(method.body->span, ancestors);
+        if (method.contract.has_value()) {
+          type_ctx.contract = &*method.contract;
+        }
+        if (decl.invariant_opt.has_value() && ReceiverIsConst(method.receiver)) {
+          const ast::ExprPtr state_invariant =
+              StateInvariantPredicateFor(*decl.invariant_opt, state.name);
+          type_ctx.proof_ctx =
+              ExtendProofContextWithPredicateAt(type_ctx.proof_ctx,
+                                                state_invariant,
+                                                method.body->span);
+        }
 
         ExprTypeFn type_expr = [&](const ast::ExprPtr& inner) {
           return TypeExpr(ctx, type_ctx, inner, env);

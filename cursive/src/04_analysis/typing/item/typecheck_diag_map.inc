@@ -488,6 +488,7 @@ static const DiagMapEntry kTypecheckDiagMap[] = {
   {"Topo-Cycle", "E-MOD-1401"},
   {"TupleAccess-NotTuple", "E-SEM-2524"},
   {"TupleIndex-OOB", "E-TYP-1801"},
+  {"ValueUse-NonBitcopyPlace", "E-UNS-0107"},
   {"W-CNF-0601", "W-CNF-0601"},
   {"W-CON-0001", "W-CON-0001"},
   {"W-CON-0002", "W-CON-0002"},

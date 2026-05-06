@@ -31,6 +31,7 @@ struct ContractContext {
   // Available bindings
   std::map<std::string, TypeRef> params;
   std::unordered_set<std::string> moved_params;
+  std::unordered_set<std::string> local_bindings;
   TypeRef receiver_type;
   TypeRef return_type;
   const ScopeContext* scope_ctx = nullptr;
@@ -39,6 +40,7 @@ struct ContractContext {
   bool is_postcondition = false;
   bool in_type_invariant = false;
   bool in_loop_invariant = false;
+  bool allow_responsibility_moves = false;
 };
 
 // Check well-formedness of contract clause

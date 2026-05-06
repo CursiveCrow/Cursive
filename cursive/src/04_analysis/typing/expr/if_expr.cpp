@@ -22,6 +22,7 @@
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/caps/cap_concurrency.h"
+#include "04_analysis/contracts/contract_check.h"
 #include "04_analysis/contracts/verification.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/subtyping.h"
@@ -169,6 +170,13 @@ static TypeEnv RefineEnvFromConditionFacts(const TypeEnv& env,
     }
   }
   return out;
+}
+
+static bool ConditionCanContributeProofFacts(const ScopeContext& ctx,
+                                             const ast::ExprPtr& cond) {
+  ContractContext contract_ctx;
+  contract_ctx.scope_ctx = &ctx;
+  return CheckPurity(contract_ctx, cond).ok;
 }
 
 static ast::ExprPtr ElseFactCondition(const ast::ExprPtr& cond) {
@@ -591,18 +599,27 @@ ExprTypeResult TypeIfExpr(const ScopeContext& ctx,
     }
   }
 
-  TypeEnv then_env = RefineEnvFromConditionFacts(env, expr.cond);
+  const bool condition_has_proof_facts =
+      ConditionCanContributeProofFacts(ctx, expr.cond);
+  TypeEnv then_env =
+      condition_has_proof_facts ? RefineEnvFromConditionFacts(env, expr.cond) : env;
   TypeEnv else_env = env;
-  if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
-    else_env = RefineEnvFromConditionFacts(env, else_fact_cond);
+  if (condition_has_proof_facts) {
+    if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
+      else_env = RefineEnvFromConditionFacts(env, else_fact_cond);
+    }
   }
   StmtTypeContext then_ctx = type_ctx;
-  then_ctx.proof_ctx =
-      ExtendProofContextWithPredicate(type_ctx.proof_ctx, expr.cond);
+  if (condition_has_proof_facts) {
+    then_ctx.proof_ctx =
+        ExtendProofContextWithPredicate(type_ctx.proof_ctx, expr.cond);
+  }
   StmtTypeContext else_ctx = type_ctx;
-  if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
-    else_ctx.proof_ctx =
-        ExtendProofContextWithPredicate(type_ctx.proof_ctx, else_fact_cond);
+  if (condition_has_proof_facts) {
+    if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
+      else_ctx.proof_ctx =
+          ExtendProofContextWithPredicate(type_ctx.proof_ctx, else_fact_cond);
+    }
   }
 
   // 3. Handle else branch
@@ -696,18 +713,27 @@ CheckResult CheckIfExpr(const ScopeContext& ctx,
     }
   }
 
-  TypeEnv then_env = RefineEnvFromConditionFacts(env, expr.cond);
+  const bool condition_has_proof_facts =
+      ConditionCanContributeProofFacts(ctx, expr.cond);
+  TypeEnv then_env =
+      condition_has_proof_facts ? RefineEnvFromConditionFacts(env, expr.cond) : env;
   TypeEnv else_env = env;
-  if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
-    else_env = RefineEnvFromConditionFacts(env, else_fact_cond);
+  if (condition_has_proof_facts) {
+    if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
+      else_env = RefineEnvFromConditionFacts(env, else_fact_cond);
+    }
   }
   StmtTypeContext then_ctx = type_ctx;
-  then_ctx.proof_ctx =
-      ExtendProofContextWithPredicate(type_ctx.proof_ctx, expr.cond);
+  if (condition_has_proof_facts) {
+    then_ctx.proof_ctx =
+        ExtendProofContextWithPredicate(type_ctx.proof_ctx, expr.cond);
+  }
   StmtTypeContext else_ctx = type_ctx;
-  if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
-    else_ctx.proof_ctx =
-        ExtendProofContextWithPredicate(type_ctx.proof_ctx, else_fact_cond);
+  if (condition_has_proof_facts) {
+    if (const auto else_fact_cond = ElseFactCondition(expr.cond)) {
+      else_ctx.proof_ctx =
+          ExtendProofContextWithPredicate(type_ctx.proof_ctx, else_fact_cond);
+    }
   }
 
   // 2. Check then branch

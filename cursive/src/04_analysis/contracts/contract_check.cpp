@@ -61,6 +61,8 @@
 
 #include "04_analysis/contracts/contract_check.h"
 
+#include <algorithm>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <unordered_set>
@@ -70,11 +72,14 @@
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/record_methods.h"
 #include "04_analysis/contracts/verification.h"
+#include "04_analysis/generics/monomorphize.h"
 #include "04_analysis/modal/modal.h"
+#include "04_analysis/modal/modal_fields.h"
 #include "04_analysis/modal/modal_transitions.h"
 #include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_lower.h"
+#include "04_analysis/typing/type_lookup.h"
 
 namespace cursive::analysis
 {
@@ -260,7 +265,47 @@ namespace cursive::analysis
       return nullptr;
     }
 
-    std::optional<const ast::ProcedureDecl *> LookupProcedureForCallee(
+    struct ContractProcedureLookupResult
+    {
+      const ast::ProcedureDecl *proc = nullptr;
+      ast::ModulePath origin;
+    };
+
+    ast::ModulePath ModulePathForOwnedType(const TypePath &type_path)
+    {
+      ast::ModulePath module_path;
+      if (type_path.empty())
+      {
+        return module_path;
+      }
+      module_path.reserve(type_path.size() - 1);
+      for (std::size_t index = 0; index + 1 < type_path.size(); ++index)
+      {
+        module_path.push_back(type_path[index]);
+      }
+      return module_path;
+    }
+
+    struct ScopedCurrentModule
+    {
+      ScopeContext &ctx;
+      ast::ModulePath saved_module;
+
+      ScopedCurrentModule(const ScopeContext &scope_ctx,
+                          const ast::ModulePath &module_path)
+          : ctx(const_cast<ScopeContext &>(scope_ctx)),
+            saved_module(ctx.current_module)
+      {
+        ctx.current_module = module_path;
+      }
+
+      ~ScopedCurrentModule()
+      {
+        ctx.current_module = saved_module;
+      }
+    };
+
+    std::optional<ContractProcedureLookupResult> LookupProcedureForCallee(
         const ScopeContext &ctx,
         const ast::ExprPtr &callee)
     {
@@ -316,7 +361,7 @@ namespace cursive::analysis
       {
         return std::nullopt;
       }
-      return proc;
+      return ContractProcedureLookupResult{proc, *origin};
     }
 
     bool HasCapabilityParams(const ast::ProcedureDecl &proc)
@@ -351,6 +396,80 @@ namespace cursive::analysis
       return false;
     }
 
+    bool QualifiedPathIs(const ast::ModulePath &path,
+                         std::initializer_list<std::string_view> expected)
+    {
+      if (path.size() != expected.size())
+      {
+        return false;
+      }
+      std::size_t index = 0;
+      for (const auto segment : expected)
+      {
+        if (!IdEq(path[index], segment))
+        {
+          return false;
+        }
+        ++index;
+      }
+      return true;
+    }
+
+    bool IsPureBuiltinQualifiedCall(const ast::QualifiedApplyExpr &expr)
+    {
+      if (!std::holds_alternative<ast::ParenArgs>(expr.args))
+      {
+        return false;
+      }
+      if (QualifiedPathIs(expr.path, {"string"}))
+      {
+        return IdEq(expr.name, "length") ||
+               IdEq(expr.name, "as_view") ||
+               IdEq(expr.name, "slice");
+      }
+      if (QualifiedPathIs(expr.path, {"bytes"}))
+      {
+        return IdEq(expr.name, "view_string") ||
+               IdEq(expr.name, "as_slice");
+      }
+      return false;
+    }
+
+    bool IsPureBuiltinQualifiedName(const ast::ModulePath &path,
+                                    std::string_view name)
+    {
+      if (QualifiedPathIs(path, {"string"}))
+      {
+        return IdEq(name, "length") ||
+               IdEq(name, "as_view") ||
+               IdEq(name, "slice");
+      }
+      if (QualifiedPathIs(path, {"bytes"}))
+      {
+        return IdEq(name, "view_string") ||
+               IdEq(name, "as_slice");
+      }
+      return false;
+    }
+
+    bool IsPureBuiltinCall(const ast::CallExpr &expr)
+    {
+      if (!expr.callee)
+      {
+        return false;
+      }
+      if (const auto *qualified =
+              std::get_if<ast::QualifiedNameExpr>(&expr.callee->node))
+      {
+        return IsPureBuiltinQualifiedName(qualified->path, qualified->name);
+      }
+      if (const auto *path = std::get_if<ast::PathExpr>(&expr.callee->node))
+      {
+        return IsPureBuiltinQualifiedName(path->path, path->name);
+      }
+      return false;
+    }
+
     struct PurityStack
     {
       std::unordered_set<const ast::ProcedureDecl *> procedures;
@@ -359,9 +478,168 @@ namespace cursive::analysis
       std::unordered_set<const ast::StateMethodDecl *> state_methods;
     };
 
-    bool IsImpureExpr(const ContractContext *ctx,
+    bool IsImpureExpr(ContractContext *ctx,
                       const ast::ExprPtr &expr,
                       PurityStack &purity_stack);
+
+    void CollectPatternBindingNames(const ast::PatternPtr &pattern,
+                                    std::unordered_set<std::string> &out);
+
+    void CollectFieldPatternBindingNames(const ast::FieldPattern &field,
+                                         std::unordered_set<std::string> &out)
+    {
+      if (field.pattern_opt)
+      {
+        CollectPatternBindingNames(field.pattern_opt, out);
+      }
+      else if (!IdEq(field.name, "_"))
+      {
+        out.insert(field.name);
+      }
+    }
+
+    void CollectPatternBindingNames(const ast::PatternPtr &pattern,
+                                    std::unordered_set<std::string> &out)
+    {
+      if (!pattern)
+      {
+        return;
+      }
+      std::visit(
+          [&](const auto &node)
+          {
+            using T = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<T, ast::IdentifierPattern>)
+            {
+              if (!IdEq(node.name, "_"))
+              {
+                out.insert(node.name);
+              }
+            }
+            else if constexpr (std::is_same_v<T, ast::TypedPattern>)
+            {
+              if (!IdEq(node.name, "_"))
+              {
+                out.insert(node.name);
+              }
+            }
+            else if constexpr (std::is_same_v<T, ast::TuplePattern>)
+            {
+              for (const auto &elem : node.elements)
+              {
+                CollectPatternBindingNames(elem, out);
+              }
+            }
+            else if constexpr (std::is_same_v<T, ast::RecordPattern>)
+            {
+              for (const auto &field : node.fields)
+              {
+                CollectFieldPatternBindingNames(field, out);
+              }
+            }
+            else if constexpr (std::is_same_v<T, ast::EnumPattern>)
+            {
+              if (!node.payload_opt.has_value())
+              {
+                return;
+              }
+              std::visit(
+                  [&](const auto &payload)
+                  {
+                    using P = std::decay_t<decltype(payload)>;
+                    if constexpr (std::is_same_v<P, ast::TuplePayloadPattern>)
+                    {
+                      for (const auto &elem : payload.elements)
+                      {
+                        CollectPatternBindingNames(elem, out);
+                      }
+                    }
+                    else
+                    {
+                      for (const auto &field : payload.fields)
+                      {
+                        CollectFieldPatternBindingNames(field, out);
+                      }
+                    }
+                  },
+                  *node.payload_opt);
+            }
+            else if constexpr (std::is_same_v<T, ast::ModalPattern>)
+            {
+              if (!node.fields_opt.has_value())
+              {
+                return;
+              }
+              for (const auto &field : node.fields_opt->fields)
+              {
+                CollectFieldPatternBindingNames(field, out);
+              }
+            }
+            else if constexpr (std::is_same_v<T, ast::RangePattern>)
+            {
+              CollectPatternBindingNames(node.lo, out);
+              CollectPatternBindingNames(node.hi, out);
+            }
+          },
+          pattern->node);
+    }
+
+    void IntroduceLocalBindings(ContractContext *ctx,
+                                const ast::PatternPtr &pattern)
+    {
+      if (!ctx)
+      {
+        return;
+      }
+      CollectPatternBindingNames(pattern, ctx->local_bindings);
+    }
+
+    std::optional<std::string> AssignmentRootName(const ast::ExprPtr &expr)
+    {
+      if (!expr)
+      {
+        return std::nullopt;
+      }
+      return std::visit(
+          [&](const auto &node) -> std::optional<std::string>
+          {
+            using T = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<T, ast::IdentifierExpr>)
+            {
+              return node.name;
+            }
+            else if constexpr (std::is_same_v<T, ast::PathExpr>)
+            {
+              if (node.path.empty())
+              {
+                return node.name;
+              }
+              return std::nullopt;
+            }
+            else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>)
+            {
+              return AssignmentRootName(node.base);
+            }
+            else if constexpr (std::is_same_v<T, ast::TupleAccessExpr>)
+            {
+              return AssignmentRootName(node.base);
+            }
+            else if constexpr (std::is_same_v<T, ast::IndexAccessExpr>)
+            {
+              return AssignmentRootName(node.base);
+            }
+            return std::nullopt;
+          },
+          expr->node);
+    }
+
+    bool AssignmentTargetsLocalBinding(const ContractContext *ctx,
+                                       const ast::ExprPtr &place)
+    {
+      const auto root = AssignmentRootName(place);
+      return ctx && root.has_value() &&
+             ctx->local_bindings.find(*root) != ctx->local_bindings.end();
+    }
 
     TypeRef LookupExprTypeFromContext(const ContractContext *ctx,
                                       const ast::ExprPtr &expr)
@@ -397,6 +675,120 @@ namespace cursive::analysis
       return nullptr;
     }
 
+    const ast::TypeAliasDecl *LookupContractTypeAliasDecl(const ScopeContext &ctx,
+                                                          const TypePath &path)
+    {
+      ast::Path syntax_path;
+      syntax_path.reserve(path.size());
+      for (const auto &segment : path)
+      {
+        syntax_path.push_back(segment);
+      }
+
+      const auto it = ctx.sigma.types.find(PathKeyOf(syntax_path));
+      if (it != ctx.sigma.types.end())
+      {
+        return std::get_if<ast::TypeAliasDecl>(&it->second);
+      }
+
+      if (path.size() != 1)
+      {
+        return nullptr;
+      }
+
+      const auto ent = ResolveTypeName(ctx, path[0]);
+      if (!ent.has_value() || !ent->origin_opt.has_value())
+      {
+        return nullptr;
+      }
+
+      ast::Path resolved = *ent->origin_opt;
+      const std::string resolved_name =
+          ent->target_opt.has_value() ? *ent->target_opt : path[0];
+      resolved.push_back(resolved_name);
+
+      const auto resolved_it = ctx.sigma.types.find(PathKeyOf(resolved));
+      if (resolved_it == ctx.sigma.types.end())
+      {
+        return nullptr;
+      }
+
+      return std::get_if<ast::TypeAliasDecl>(&resolved_it->second);
+    }
+
+    TypeRef NormalizeContractAliasType(const ContractContext *ctx,
+                                       const TypeRef &type,
+                                       std::size_t depth = 0)
+    {
+      if (!ctx || !ctx->scope_ctx || !type || depth > 16)
+      {
+        return type;
+      }
+
+      if (const auto *perm = std::get_if<TypePerm>(&type->node))
+      {
+        return MakeTypePerm(
+            perm->perm,
+            NormalizeContractAliasType(ctx, perm->base, depth + 1));
+      }
+      if (const auto *refine = std::get_if<TypeRefine>(&type->node))
+      {
+        return MakeTypeRefine(
+            NormalizeContractAliasType(ctx, refine->base, depth + 1),
+            refine->predicate);
+      }
+      if (const auto *union_type = std::get_if<TypeUnion>(&type->node))
+      {
+        std::vector<TypeRef> members;
+        members.reserve(union_type->members.size());
+        for (const auto &member : union_type->members)
+        {
+          members.push_back(NormalizeContractAliasType(ctx, member, depth + 1));
+        }
+        return MakeTypeUnion(std::move(members));
+      }
+
+      const TypePath *path_name = AppliedTypePath(*type);
+      const std::vector<TypeRef> *path_args = AppliedTypeArgs(*type);
+      if (!path_name || path_name->empty())
+      {
+        return type;
+      }
+
+      const ast::TypeAliasDecl *alias =
+          LookupContractTypeAliasDecl(*ctx->scope_ctx, *path_name);
+      if (!alias)
+      {
+        return type;
+      }
+
+      const auto lowered = LowerType(*ctx->scope_ctx, alias->type);
+      if (!lowered.ok || !lowered.type)
+      {
+        return type;
+      }
+
+      TypeRef instantiated = lowered.type;
+      if (alias->generic_params.has_value() && path_args)
+      {
+        const auto &params = alias->generic_params->params;
+        if (path_args->size() > params.size())
+        {
+          return type;
+        }
+        const auto subst = BuildSubstitution(params, *path_args);
+        instantiated = InstantiateType(instantiated, subst);
+        if (!instantiated)
+        {
+          return type;
+        }
+      }
+
+      return NormalizeContractAliasType(ctx, instantiated, depth + 1);
+    }
+
+    TypeRef StripPermOrSelf(const TypeRef &type);
+
     TypeRef InferContractExprType(const ContractContext *ctx,
                                   const ast::ExprPtr &expr)
     {
@@ -405,9 +797,23 @@ namespace cursive::analysis
         return nullptr;
       }
 
+      if (const auto *ident = std::get_if<ast::IdentifierExpr>(&expr->node))
+      {
+        if (TypeRef binding_type = LookupContractBindingType(ctx, ident->name))
+        {
+          return NormalizeContractAliasType(ctx, binding_type);
+        }
+      }
+      if (std::holds_alternative<ast::ResultExpr>(expr->node))
+      {
+        return NormalizeContractAliasType(
+            ctx,
+            (ctx && ctx->is_postcondition) ? ctx->return_type : nullptr);
+      }
+
       if (TypeRef from_map = LookupExprTypeFromContext(ctx, expr))
       {
-        return from_map;
+        return NormalizeContractAliasType(ctx, from_map);
       }
 
       return std::visit(
@@ -416,11 +822,14 @@ namespace cursive::analysis
             using T = std::decay_t<decltype(node)>;
             if constexpr (std::is_same_v<T, ast::IdentifierExpr>)
             {
-              return LookupContractBindingType(ctx, node.name);
+              return NormalizeContractAliasType(
+                  ctx, LookupContractBindingType(ctx, node.name));
             }
             else if constexpr (std::is_same_v<T, ast::ResultExpr>)
             {
-              return (ctx && ctx->is_postcondition) ? ctx->return_type : nullptr;
+              return NormalizeContractAliasType(
+                  ctx,
+                  (ctx && ctx->is_postcondition) ? ctx->return_type : nullptr);
             }
             else if constexpr (std::is_same_v<T, ast::EntryExpr>)
             {
@@ -438,6 +847,71 @@ namespace cursive::analysis
               }
               const auto lowered = LowerType(*ctx->scope_ctx, node.type);
               return lowered.ok ? lowered.type : nullptr;
+            }
+            else if constexpr (std::is_same_v<T, ast::FieldAccessExpr>)
+            {
+              if (!ctx || !ctx->scope_ctx)
+              {
+                return nullptr;
+              }
+
+              TypeRef base =
+                  StripPermOrSelf(InferContractExprType(ctx, node.base));
+              base = StripPermOrSelf(NormalizeContractAliasType(ctx, base));
+              if (!base)
+              {
+                return nullptr;
+              }
+
+              if (const TypePath *path = AppliedTypePath(*base))
+              {
+                const auto *record =
+                    LookupRecordDecl(*ctx->scope_ctx, *path);
+                if (!record)
+                {
+                  return nullptr;
+                }
+                const auto *path_args = AppliedTypeArgs(*base);
+                const auto field =
+                    FieldType(*record, node.name, *ctx->scope_ctx,
+                              path_args ? *path_args
+                                        : std::vector<TypeRef>{});
+                return field.has_value()
+                    ? NormalizeContractAliasType(ctx, *field)
+                    : nullptr;
+              }
+
+              if (const auto *modal =
+                      std::get_if<TypeModalState>(&base->node))
+              {
+                const ast::ModalDecl *decl =
+                    LookupModalDecl(*ctx->scope_ctx, modal->path);
+                if (!decl)
+                {
+                  return nullptr;
+                }
+                const ast::StateFieldDecl *field =
+                    LookupModalFieldDecl(*decl, modal->state, node.name);
+                if (!field || !field->type)
+                {
+                  return nullptr;
+                }
+                const auto lowered = LowerType(*ctx->scope_ctx, field->type);
+                if (!lowered.ok || !lowered.type)
+                {
+                  return nullptr;
+                }
+
+                TypeRef field_type = lowered.type;
+                if (decl->generic_params.has_value())
+                {
+                  const TypeSubst subst = BuildModalRefSubstitution(
+                      decl->generic_params->params, modal->generic_args);
+                  field_type = InstantiateType(field_type, subst);
+                }
+                return NormalizeContractAliasType(ctx, field_type);
+              }
+              return nullptr;
             }
             return nullptr;
           },
@@ -481,26 +955,335 @@ namespace cursive::analysis
       return stripped ? stripped : type;
     }
 
+    TypeRef ModalStateMemberForPattern(const ContractContext *ctx,
+                                       const TypeRef &type,
+                                       std::string_view state_name)
+    {
+      const TypeRef stripped =
+          StripPermOrSelf(NormalizeContractAliasType(ctx, type));
+      if (!stripped)
+      {
+        return nullptr;
+      }
+      if (const auto *modal = std::get_if<TypeModalState>(&stripped->node))
+      {
+        return IdEq(modal->state, state_name) ? stripped : nullptr;
+      }
+      if (const auto *union_type = std::get_if<TypeUnion>(&stripped->node))
+      {
+        for (const auto &member : union_type->members)
+        {
+          TypeRef matched = ModalStateMemberForPattern(ctx, member, state_name);
+          if (matched)
+          {
+            return matched;
+          }
+        }
+      }
+      return nullptr;
+    }
+
+    TypeRef ContractModalStateFieldType(const ContractContext *ctx,
+                                        const TypeRef &state_type,
+                                        std::string_view field_name)
+    {
+      if (!ctx || !ctx->scope_ctx || !state_type)
+      {
+        return nullptr;
+      }
+      TypeRef stripped =
+          StripPermOrSelf(NormalizeContractAliasType(ctx, state_type));
+      if (!stripped)
+      {
+        return nullptr;
+      }
+      const auto *modal = std::get_if<TypeModalState>(&stripped->node);
+      if (!modal)
+      {
+        return nullptr;
+      }
+      const ast::ModalDecl *decl =
+          LookupModalDecl(*ctx->scope_ctx, modal->path);
+      if (!decl)
+      {
+        return nullptr;
+      }
+      const ast::StateFieldDecl *field =
+          LookupModalFieldDecl(*decl, modal->state, field_name);
+      if (!field || !field->type)
+      {
+        return nullptr;
+      }
+      const auto lowered = LowerType(*ctx->scope_ctx, field->type);
+      if (!lowered.ok || !lowered.type)
+      {
+        return nullptr;
+      }
+      TypeRef field_type = lowered.type;
+      if (decl->generic_params.has_value())
+      {
+        const TypeSubst subst = BuildModalRefSubstitution(
+            decl->generic_params->params, modal->generic_args);
+        field_type = InstantiateType(field_type, subst);
+      }
+      return NormalizeContractAliasType(ctx, field_type);
+    }
+
+    TypeRef ContractRecordFieldType(const ContractContext *ctx,
+                                    const TypeRef &record_type,
+                                    std::string_view field_name)
+    {
+      if (!ctx || !ctx->scope_ctx || !record_type)
+      {
+        return nullptr;
+      }
+      TypeRef stripped =
+          StripPermOrSelf(NormalizeContractAliasType(ctx, record_type));
+      if (!stripped)
+      {
+        return nullptr;
+      }
+      const TypePath *path = AppliedTypePath(*stripped);
+      if (!path)
+      {
+        return nullptr;
+      }
+      const ast::RecordDecl *record =
+          LookupRecordDecl(*ctx->scope_ctx, *path);
+      if (!record)
+      {
+        return nullptr;
+      }
+      const auto *path_args = AppliedTypeArgs(*stripped);
+      const auto field =
+          FieldType(*record, field_name, *ctx->scope_ctx,
+                    path_args ? *path_args : std::vector<TypeRef>{});
+      return field.has_value()
+          ? NormalizeContractAliasType(ctx, *field)
+          : nullptr;
+    }
+
+    void BindPatternTypesFromExpected(ContractContext *ctx,
+                                      const ast::PatternPtr &pattern,
+                                      const TypeRef &expected_type)
+    {
+      if (!ctx || !pattern || !expected_type)
+      {
+        return;
+      }
+      const TypeRef normalized =
+          NormalizeContractAliasType(ctx, expected_type);
+      std::visit(
+          [&](const auto &node)
+          {
+            using T = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<T, ast::IdentifierPattern>)
+            {
+              if (!IdEq(node.name, "_"))
+              {
+                ctx->params[node.name] = normalized;
+                ctx->local_bindings.insert(node.name);
+              }
+            }
+            else if constexpr (std::is_same_v<T, ast::TypedPattern>)
+            {
+              if (IdEq(node.name, "_"))
+              {
+                return;
+              }
+              if (!node.type || !ctx->scope_ctx)
+              {
+                ctx->params[node.name] = normalized;
+                ctx->local_bindings.insert(node.name);
+                return;
+              }
+              const auto lowered = LowerType(*ctx->scope_ctx, node.type);
+              ctx->params[node.name] =
+                  (lowered.ok && lowered.type)
+                      ? NormalizeContractAliasType(ctx, lowered.type)
+                      : normalized;
+              ctx->local_bindings.insert(node.name);
+            }
+            else if constexpr (std::is_same_v<T, ast::TuplePattern>)
+            {
+              const TypeRef stripped = StripPermOrSelf(normalized);
+              const auto *tuple =
+                  stripped ? std::get_if<TypeTuple>(&stripped->node) : nullptr;
+              if (!tuple)
+              {
+                return;
+              }
+              const std::size_t count =
+                  std::min(node.elements.size(), tuple->elements.size());
+              for (std::size_t index = 0; index < count; ++index)
+              {
+                BindPatternTypesFromExpected(ctx, node.elements[index],
+                                             tuple->elements[index]);
+              }
+            }
+            else if constexpr (std::is_same_v<T, ast::RecordPattern>)
+            {
+              for (const auto &field : node.fields)
+              {
+                TypeRef field_type =
+                    ContractRecordFieldType(ctx, normalized, field.name);
+                if (!field_type)
+                {
+                  continue;
+                }
+                if (field.pattern_opt)
+                {
+                  BindPatternTypesFromExpected(ctx, field.pattern_opt,
+                                               field_type);
+                }
+                else if (!IdEq(field.name, "_"))
+                {
+                  ctx->params[field.name] = field_type;
+                  ctx->local_bindings.insert(field.name);
+                }
+              }
+            }
+            else if constexpr (std::is_same_v<T, ast::ModalPattern>)
+            {
+              TypeRef state_type =
+                  ModalStateMemberForPattern(ctx, normalized, node.state);
+              if (!state_type || !node.fields_opt.has_value())
+              {
+                return;
+              }
+              for (const auto &field : node.fields_opt->fields)
+              {
+                TypeRef field_type =
+                    ContractModalStateFieldType(ctx, state_type, field.name);
+                if (!field_type)
+                {
+                  continue;
+                }
+                if (field.pattern_opt)
+                {
+                  BindPatternTypesFromExpected(ctx, field.pattern_opt,
+                                               field_type);
+                }
+                else if (!IdEq(field.name, "_"))
+                {
+                  ctx->params[field.name] = field_type;
+                  ctx->local_bindings.insert(field.name);
+                }
+              }
+            }
+          },
+          pattern->node);
+    }
+
+    TypeRef BindingDeclaredOrInferredType(ContractContext *ctx,
+                                          const ast::Binding &binding)
+    {
+      if (!ctx)
+      {
+        return nullptr;
+      }
+      if (ast::TypePtr annotation = ast::BindingAnnotationTypeOpt(binding))
+      {
+        if (!ctx->scope_ctx)
+        {
+          return nullptr;
+        }
+        const auto lowered = LowerType(*ctx->scope_ctx, annotation);
+        return lowered.ok ? NormalizeContractAliasType(ctx, lowered.type)
+                          : nullptr;
+      }
+      return InferContractExprType(ctx, binding.init);
+    }
+
+    std::optional<std::string> ScrutineeBindingName(const ast::ExprPtr &expr)
+    {
+      if (!expr)
+      {
+        return std::nullopt;
+      }
+      if (const auto *ident = std::get_if<ast::IdentifierExpr>(&expr->node))
+      {
+        return ident->name;
+      }
+      if (const auto *path = std::get_if<ast::PathExpr>(&expr->node);
+          path && path->path.empty())
+      {
+        return path->name;
+      }
+      return std::nullopt;
+    }
+
+    ContractContext NarrowContractContextForPattern(
+        const ContractContext *ctx,
+        const ast::ExprPtr &scrutinee,
+        const ast::PatternPtr &pattern)
+    {
+      ContractContext narrowed = ctx ? *ctx : ContractContext{};
+      if (!ctx || !pattern)
+      {
+        return narrowed;
+      }
+      const auto *modal_pattern = std::get_if<ast::ModalPattern>(&pattern->node);
+      if (!modal_pattern)
+      {
+        return narrowed;
+      }
+      const auto binding_name = ScrutineeBindingName(scrutinee);
+      if (!binding_name.has_value())
+      {
+        return narrowed;
+      }
+      TypeRef scrutinee_type = LookupContractBindingType(ctx, *binding_name);
+      if (!scrutinee_type)
+      {
+        scrutinee_type = InferContractExprType(ctx, scrutinee);
+      }
+      if (!scrutinee_type)
+      {
+        return narrowed;
+      }
+      TypeRef state_type =
+          ModalStateMemberForPattern(ctx, scrutinee_type, modal_pattern->state);
+      if (!state_type)
+      {
+        return narrowed;
+      }
+      if (IdEq(*binding_name, "self"))
+      {
+        narrowed.receiver_type = state_type;
+      }
+      else
+      {
+        narrowed.params[*binding_name] = state_type;
+      }
+      BindPatternTypesFromExpected(&narrowed, pattern, state_type);
+      return narrowed;
+    }
+
     bool IsPureProcedure(const ScopeContext &scope_ctx,
+                         const ast::ModulePath &owner_module,
                          const ast::ProcedureDecl &proc,
                          PurityStack &purity_stack);
 
     bool IsPureRecordMethod(const ScopeContext &scope_ctx,
                             const ast::MethodDecl &method,
                             const TypeRef &receiver_type,
+                            const ast::ModulePath &owner_module,
                             PurityStack &purity_stack);
 
     bool IsPureClassMethod(const ScopeContext &scope_ctx,
                            const ast::ClassMethodDecl &method,
                            const TypeRef &receiver_type,
+                           const ast::ModulePath &owner_module,
                            PurityStack &purity_stack);
 
     bool IsPureStateMethod(const ScopeContext &scope_ctx,
                            const ast::StateMethodDecl &method,
                            const TypeRef &receiver_type,
+                           const ast::ModulePath &owner_module,
                            PurityStack &purity_stack);
 
-    bool IsImpureStmt(const ContractContext *ctx,
+    bool IsImpureStmt(ContractContext *ctx,
                       const ast::Stmt &stmt,
                       PurityStack &purity_stack)
     {
@@ -511,7 +1294,13 @@ namespace cursive::analysis
             if constexpr (std::is_same_v<T, ast::LetStmt> ||
                           std::is_same_v<T, ast::VarStmt>)
             {
-              return IsImpureExpr(ctx, node.binding.init, purity_stack);
+              const bool init_impure =
+                  IsImpureExpr(ctx, node.binding.init, purity_stack);
+              TypeRef binding_type =
+                  BindingDeclaredOrInferredType(ctx, node.binding);
+              IntroduceLocalBindings(ctx, node.binding.pat);
+              BindPatternTypesFromExpected(ctx, node.binding.pat, binding_type);
+              return init_impure;
             }
             else if constexpr (std::is_same_v<T, ast::UsingLocalStmt>)
             {
@@ -527,15 +1316,28 @@ namespace cursive::analysis
             {
               return IsImpureExpr(ctx, node.value_opt, purity_stack);
             }
-            else if constexpr (std::is_same_v<T, ast::AssignStmt> ||
-                               std::is_same_v<T, ast::CompoundAssignStmt> ||
-                               std::is_same_v<T, ast::DeferStmt> ||
+            else if constexpr (std::is_same_v<T, ast::AssignStmt>)
+            {
+              return IsImpureExpr(ctx, node.place, purity_stack) ||
+                     IsImpureExpr(ctx, node.value, purity_stack) ||
+                     !AssignmentTargetsLocalBinding(ctx, node.place);
+            }
+            else if constexpr (std::is_same_v<T, ast::CompoundAssignStmt>)
+            {
+              return IsImpureExpr(ctx, node.place, purity_stack) ||
+                     IsImpureExpr(ctx, node.value, purity_stack) ||
+                     !AssignmentTargetsLocalBinding(ctx, node.place);
+            }
+            else if constexpr (std::is_same_v<T, ast::BreakStmt> ||
+                               std::is_same_v<T, ast::ContinueStmt>)
+            {
+              return false;
+            }
+            else if constexpr (std::is_same_v<T, ast::DeferStmt> ||
                                std::is_same_v<T, ast::RegionStmt> ||
                                std::is_same_v<T, ast::FrameStmt> ||
                                std::is_same_v<T, ast::KeyBlockStmt> ||
-                               std::is_same_v<T, ast::UnsafeBlockStmt> ||
-                               std::is_same_v<T, ast::BreakStmt> ||
-                               std::is_same_v<T, ast::ContinueStmt>)
+                               std::is_same_v<T, ast::UnsafeBlockStmt>)
             {
               return true;
             }
@@ -544,7 +1346,7 @@ namespace cursive::analysis
           stmt);
     }
 
-    bool IsImpureBlock(const ContractContext *ctx,
+    bool IsImpureBlock(ContractContext *ctx,
                        const ast::Block &block,
                        PurityStack &purity_stack)
     {
@@ -559,6 +1361,7 @@ namespace cursive::analysis
     }
 
     bool IsPureProcedure(const ScopeContext &scope_ctx,
+                         const ast::ModulePath &owner_module,
                          const ast::ProcedureDecl &proc,
                          PurityStack &purity_stack)
     {
@@ -574,8 +1377,10 @@ namespace cursive::analysis
         return true;
       }
       purity_stack.procedures.insert(&proc);
+      ScopedCurrentModule current_module(scope_ctx, owner_module);
       ContractContext proc_ctx;
       proc_ctx.scope_ctx = &scope_ctx;
+      proc_ctx.allow_responsibility_moves = true;
       for (const auto &param : proc.params)
       {
         if (!param.type)
@@ -597,6 +1402,7 @@ namespace cursive::analysis
     bool IsPureRecordMethod(const ScopeContext &scope_ctx,
                             const ast::MethodDecl &method,
                             const TypeRef &receiver_type,
+                            const ast::ModulePath &owner_module,
                             PurityStack &purity_stack)
     {
       if (!method.body || HasCapabilityParams(method.params) ||
@@ -610,9 +1416,11 @@ namespace cursive::analysis
         return true;
       }
       purity_stack.record_methods.insert(&method);
+      ScopedCurrentModule current_module(scope_ctx, owner_module);
       ContractContext method_ctx;
       method_ctx.scope_ctx = &scope_ctx;
       method_ctx.receiver_type = receiver_type;
+      method_ctx.allow_responsibility_moves = true;
       for (const auto &param : method.params)
       {
         if (!param.type)
@@ -634,6 +1442,7 @@ namespace cursive::analysis
     bool IsPureClassMethod(const ScopeContext &scope_ctx,
                            const ast::ClassMethodDecl &method,
                            const TypeRef &receiver_type,
+                           const ast::ModulePath &owner_module,
                            PurityStack &purity_stack)
     {
       if (!method.body_opt || HasCapabilityParams(method.params) ||
@@ -647,9 +1456,11 @@ namespace cursive::analysis
         return true;
       }
       purity_stack.class_methods.insert(&method);
+      ScopedCurrentModule current_module(scope_ctx, owner_module);
       ContractContext method_ctx;
       method_ctx.scope_ctx = &scope_ctx;
       method_ctx.receiver_type = receiver_type;
+      method_ctx.allow_responsibility_moves = true;
       for (const auto &param : method.params)
       {
         if (!param.type)
@@ -672,6 +1483,7 @@ namespace cursive::analysis
     bool IsPureStateMethod(const ScopeContext &scope_ctx,
                            const ast::StateMethodDecl &method,
                            const TypeRef &receiver_type,
+                           const ast::ModulePath &owner_module,
                            PurityStack &purity_stack)
     {
       if (!method.body || HasCapabilityParams(method.params) ||
@@ -685,9 +1497,11 @@ namespace cursive::analysis
         return true;
       }
       purity_stack.state_methods.insert(&method);
+      ScopedCurrentModule current_module(scope_ctx, owner_module);
       ContractContext method_ctx;
       method_ctx.scope_ctx = &scope_ctx;
       method_ctx.receiver_type = receiver_type;
+      method_ctx.allow_responsibility_moves = true;
       for (const auto &param : method.params)
       {
         if (!param.type)
@@ -706,7 +1520,7 @@ namespace cursive::analysis
       return pure;
     }
 
-    bool IsImpureExpr(const ContractContext *ctx,
+    bool IsImpureExpr(ContractContext *ctx,
                       const ast::ExprPtr &expr,
                       PurityStack &purity_stack)
     {
@@ -787,7 +1601,10 @@ namespace cursive::analysis
               }
               for (const auto &arm : node.cases)
               {
-                if (IsImpureExpr(ctx, arm.body, purity_stack))
+                ContractContext arm_ctx =
+                    NarrowContractContextForPattern(ctx, node.scrutinee,
+                                                    arm.pattern);
+                if (IsImpureExpr(&arm_ctx, arm.body, purity_stack))
                 {
                   return true;
                 }
@@ -796,8 +1613,14 @@ namespace cursive::analysis
             }
             else if constexpr (std::is_same_v<T, ast::IfIsExpr>)
             {
-              return IsImpureExpr(ctx, node.scrutinee, purity_stack) ||
-                     IsImpureExpr(ctx, node.then_expr, purity_stack) ||
+              if (IsImpureExpr(ctx, node.scrutinee, purity_stack))
+              {
+                return true;
+              }
+              ContractContext then_ctx =
+                  NarrowContractContextForPattern(ctx, node.scrutinee,
+                                                  node.pattern);
+              return IsImpureExpr(&then_ctx, node.then_expr, purity_stack) ||
                      IsImpureExpr(ctx, node.else_expr, purity_stack);
             }
             else if constexpr (std::is_same_v<T, ast::TupleExpr>)
@@ -890,7 +1713,7 @@ namespace cursive::analysis
                     return true;
                   }
                 }
-                return true;
+                return !IsPureBuiltinQualifiedCall(node);
               }
               const auto &brace = std::get<ast::BraceArgs>(node.args);
               for (const auto &field : brace.fields)
@@ -905,6 +1728,11 @@ namespace cursive::analysis
             else if constexpr (std::is_same_v<T, ast::EntryExpr>)
             {
               return IsImpureExpr(ctx, node.expr, purity_stack);
+            }
+            else if constexpr (std::is_same_v<T, ast::MoveExpr>)
+            {
+              return !ctx || !ctx->allow_responsibility_moves ||
+                     IsImpureExpr(ctx, node.place, purity_stack);
             }
             else if constexpr (std::is_same_v<T, ast::AttributedExpr>)
             {
@@ -929,16 +1757,24 @@ namespace cursive::analysis
                 }
               }
 
+              if (IsPureBuiltinCall(node))
+              {
+                return false;
+              }
+
               if (!ctx || !ctx->scope_ctx)
               {
                 return true;
               }
               const auto callee_proc = LookupProcedureForCallee(*ctx->scope_ctx, node.callee);
-              if (!callee_proc.has_value() || !*callee_proc)
+              if (!callee_proc.has_value() || !callee_proc->proc)
               {
                 return true;
               }
-              return !IsPureProcedure(*ctx->scope_ctx, **callee_proc, purity_stack);
+              const bool callee_pure =
+                  IsPureProcedure(*ctx->scope_ctx, callee_proc->origin,
+                                  *callee_proc->proc, purity_stack);
+              return !callee_pure;
             }
             else if constexpr (std::is_same_v<T, ast::MethodCallExpr>)
             {
@@ -983,7 +1819,9 @@ namespace cursive::analysis
                   return true;
                 }
                 return !IsPureStateMethod(*ctx->scope_ctx, *state_method,
-                                          receiver_type, purity_stack);
+                                          receiver_type,
+                                          ModulePathForOwnedType(modal->path),
+                                          purity_stack);
               }
 
               const auto lookup = LookupMethodStatic(*ctx->scope_ctx, receiver_type, node.name);
@@ -994,12 +1832,16 @@ namespace cursive::analysis
               if (lookup.record_method)
               {
                 return !IsPureRecordMethod(*ctx->scope_ctx, *lookup.record_method,
-                                           receiver_type, purity_stack);
+                                           receiver_type,
+                                           ModulePathForOwnedType(lookup.record_path),
+                                           purity_stack);
               }
               if (lookup.class_method)
               {
                 return !IsPureClassMethod(*ctx->scope_ctx, *lookup.class_method,
-                                          receiver_type, purity_stack);
+                                          receiver_type,
+                                          ModulePathForOwnedType(lookup.owner_class),
+                                          purity_stack);
               }
               return true;
             }
@@ -1007,8 +1849,44 @@ namespace cursive::analysis
             {
               return node.block ? IsImpureBlock(ctx, *node.block, purity_stack) : false;
             }
+            else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>)
+            {
+              if (node.invariant_opt.has_value() &&
+                  IsImpureExpr(ctx, node.invariant_opt->predicate, purity_stack))
+              {
+                return true;
+              }
+              return node.body ? IsImpureBlock(ctx, *node.body, purity_stack) : false;
+            }
+            else if constexpr (std::is_same_v<T, ast::LoopConditionalExpr>)
+            {
+              if (IsImpureExpr(ctx, node.cond, purity_stack))
+              {
+                return true;
+              }
+              if (node.invariant_opt.has_value() &&
+                  IsImpureExpr(ctx, node.invariant_opt->predicate, purity_stack))
+              {
+                return true;
+              }
+              return node.body ? IsImpureBlock(ctx, *node.body, purity_stack) : false;
+            }
+            else if constexpr (std::is_same_v<T, ast::LoopIterExpr>)
+            {
+              if (IsImpureExpr(ctx, node.iter, purity_stack))
+              {
+                return true;
+              }
+              if (node.invariant_opt.has_value() &&
+                  IsImpureExpr(ctx, node.invariant_opt->predicate, purity_stack))
+              {
+                return true;
+              }
+              ContractContext loop_ctx = ctx ? *ctx : ContractContext{};
+              IntroduceLocalBindings(&loop_ctx, node.pattern);
+              return node.body ? IsImpureBlock(&loop_ctx, *node.body, purity_stack) : false;
+            }
             else if constexpr (std::is_same_v<T, ast::AllocExpr> ||
-                               std::is_same_v<T, ast::MoveExpr> ||
                                std::is_same_v<T, ast::YieldExpr> ||
                                std::is_same_v<T, ast::YieldFromExpr> ||
                                std::is_same_v<T, ast::WaitExpr> ||
@@ -1018,9 +1896,6 @@ namespace cursive::analysis
                                std::is_same_v<T, ast::DispatchExpr> ||
                                std::is_same_v<T, ast::TransmuteExpr> ||
                                std::is_same_v<T, ast::UnsafeBlockExpr> ||
-                               std::is_same_v<T, ast::LoopInfiniteExpr> ||
-                               std::is_same_v<T, ast::LoopConditionalExpr> ||
-                               std::is_same_v<T, ast::LoopIterExpr> ||
                                std::is_same_v<T, ast::ClosureExpr> ||
                                std::is_same_v<T, ast::FenceExpr> ||
                                std::is_same_v<T, ast::PropagateExpr>)
@@ -1036,7 +1911,8 @@ namespace cursive::analysis
     bool IsMutating(const ContractContext *ctx, const ast::ExprPtr &expr)
     {
       PurityStack purity_stack;
-      return IsImpureExpr(ctx, expr, purity_stack);
+      ContractContext local_ctx = ctx ? *ctx : ContractContext{};
+      return IsImpureExpr(&local_ctx, expr, purity_stack);
     }
 
   } // namespace

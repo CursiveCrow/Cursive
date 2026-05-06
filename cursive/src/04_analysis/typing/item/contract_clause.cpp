@@ -191,6 +191,30 @@ namespace cursive::analysis
           expr->node);
     }
 
+    static ContractContext ContractPurityContext(
+        const ScopeContext &ctx,
+        const TypeRef &return_type,
+        const TypeEnv &env,
+        bool is_postcondition)
+    {
+      ContractContext contract_ctx;
+      contract_ctx.scope_ctx = &ctx;
+      contract_ctx.return_type = return_type;
+      contract_ctx.is_postcondition = is_postcondition;
+      for (const auto &scope : env.scopes)
+      {
+        for (const auto &[name, binding] : scope)
+        {
+          if (IdEq(name, "self"))
+          {
+            contract_ctx.receiver_type = binding.type;
+          }
+          contract_ctx.params[name] = binding.type;
+        }
+      }
+      return contract_ctx;
+    }
+
     // =============================================================================
     // @ENTRY TYPE CHECK
     // =============================================================================
@@ -329,11 +353,14 @@ namespace cursive::analysis
       }
 
       // Check purity
-      if (!ExprIsPure(contract.precondition))
+      auto purity_ctx =
+          ContractPurityContext(ctx, return_type, env, false);
+      auto purity = CheckPurity(purity_ctx, contract.precondition);
+      if (!purity.ok)
       {
         SPEC_RULE("Contract-Pure-Err");
         result.ok = false;
-        result.diag_id = "E-SEM-3004";
+        result.diag_id = purity.diag_id.value_or("E-SEM-3004");
         return result;
       }
 
@@ -347,11 +374,14 @@ namespace cursive::analysis
       SPEC_RULE("Contract-Post");
 
       // Check purity
-      if (!ExprIsPure(contract.postcondition))
+      auto purity_ctx =
+          ContractPurityContext(ctx, return_type, env, true);
+      auto purity = CheckPurity(purity_ctx, contract.postcondition);
+      if (!purity.ok)
       {
         SPEC_RULE("Contract-Pure-Err");
         result.ok = false;
-        result.diag_id = "E-SEM-3004";
+        result.diag_id = purity.diag_id.value_or("E-SEM-3004");
         return result;
       }
 
