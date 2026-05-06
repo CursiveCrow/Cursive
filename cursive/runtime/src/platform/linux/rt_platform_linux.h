@@ -258,6 +258,17 @@ cursive_platform_u32_t cursive_platform_backend_env_get_utf8(
     const char* name,
     char* buffer,
     cursive_platform_u32_t size);
+cursive_platform_u32_t cursive_platform_backend_executable_path_utf8(
+    char* buffer,
+    cursive_platform_u32_t size);
+cursive_platform_uptr_t cursive_platform_backend_argument_count(void);
+cursive_platform_u32_t cursive_platform_backend_argument_utf8(
+    cursive_platform_uptr_t index,
+    char* buffer,
+    cursive_platform_u32_t size);
+cursive_platform_u32_t cursive_platform_backend_current_directory_utf8(
+    char* buffer,
+    cursive_platform_u32_t size);
 void cursive_platform_backend_icu_data_configure(void);
 int cursive_platform_backend_utf8_to_wide_chars(const char* source,
                                                 int source_length,

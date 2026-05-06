@@ -13,6 +13,10 @@
 #define cursive_rt_error_set cursive_rt_last_error_set
 #define cursive_rt_env_query_wide cursive_rt_env_get_wide
 #define cursive_rt_env_query_utf8 cursive_rt_env_get_utf8
+#define cursive_rt_executable_path_query_utf8 cursive_rt_executable_path_utf8
+#define cursive_rt_argument_count_query cursive_rt_argument_count
+#define cursive_rt_argument_query_utf8 cursive_rt_argument_utf8
+#define cursive_rt_current_directory_query_utf8 cursive_rt_current_directory_utf8
 #define cursive_rt_process_spawn cursive_rt_process_create
 #define cursive_rt_wait cursive_rt_wait_one
 #define cursive_rt_process_exit_status cursive_rt_process_exit_code
@@ -172,6 +176,29 @@ static __inline cursive_rt_dword_t cursive_rt_env_get_utf8(
     char* buffer,
     cursive_rt_dword_t size) {
   return cursive_platform_backend_env_get_utf8(name, buffer, size);
+}
+
+static __inline cursive_rt_dword_t cursive_rt_executable_path_utf8(
+    char* buffer,
+    cursive_rt_dword_t size) {
+  return cursive_platform_backend_executable_path_utf8(buffer, size);
+}
+
+static __inline cursive_rt_uptr_t cursive_rt_argument_count(void) {
+  return cursive_platform_backend_argument_count();
+}
+
+static __inline cursive_rt_dword_t cursive_rt_argument_utf8(
+    cursive_rt_uptr_t index,
+    char* buffer,
+    cursive_rt_dword_t size) {
+  return cursive_platform_backend_argument_utf8(index, buffer, size);
+}
+
+static __inline cursive_rt_dword_t cursive_rt_current_directory_utf8(
+    char* buffer,
+    cursive_rt_dword_t size) {
+  return cursive_platform_backend_current_directory_utf8(buffer, size);
 }
 
 static __inline void cursive_rt_icu_data_configure(void) {

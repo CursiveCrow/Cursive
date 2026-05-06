@@ -169,6 +169,26 @@ std::optional<SystemMethodSig> LookupSystemMethodSig(std::string_view name) {
     sig.ret = MakeTypeString(StringState::View);
     return sig;
   }
+  if (IdEq(name, "executable_path")) {
+    sig.params = {};
+    sig.ret = MakeTypeString(StringState::View);
+    return sig;
+  }
+  if (IdEq(name, "argument_count")) {
+    sig.params = {};
+    sig.ret = MakeTypePrim("usize");
+    return sig;
+  }
+  if (IdEq(name, "argument")) {
+    sig.params = {MakeParam("index", MakeTypePrimAst("usize"))};
+    sig.ret = MakeTypeString(StringState::View);
+    return sig;
+  }
+  if (IdEq(name, "current_directory")) {
+    sig.params = {};
+    sig.ret = MakeTypeString(StringState::View);
+    return sig;
+  }
   if (IdEq(name, "run")) {
     sig.params = {MakeParam("command", MakeTypeStringAst(StringState::View))};
     sig.ret = MakeTypePrim("i32");

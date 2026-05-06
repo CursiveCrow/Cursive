@@ -55,6 +55,234 @@ static __inline cursive_platform_u32_t cursive_platform_backend_env_get_utf8(
   return GetEnvironmentVariableA(name, buffer, size);
 }
 
+static __inline cursive_platform_u32_t c0_windows_utf8_query_from_wide(
+    const wchar_t* text,
+    cursive_platform_u32_t text_len,
+    char* buffer,
+    cursive_platform_u32_t size) {
+  if (!text && text_len != 0u) {
+    return 0u;
+  }
+  if (text_len > (cursive_platform_u32_t)INT_MAX) {
+    return 0u;
+  }
+
+  int bytes = WideCharToMultiByte(CP_UTF8,
+                                  0,
+                                  text,
+                                  (int)text_len,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  NULL);
+  if (bytes < 0) {
+    return 0u;
+  }
+
+  cursive_platform_u32_t required = (cursive_platform_u32_t)bytes + 1u;
+  if (!buffer || size < required) {
+    return required;
+  }
+
+  if (bytes > 0) {
+    int written = WideCharToMultiByte(CP_UTF8,
+                                      0,
+                                      text,
+                                      (int)text_len,
+                                      buffer,
+                                      (int)(required - 1u),
+                                      NULL,
+                                      NULL);
+    if (written != bytes) {
+      return 0u;
+    }
+  }
+  buffer[bytes] = '\0';
+  return (cursive_platform_u32_t)bytes;
+}
+
+static __inline cursive_platform_u32_t
+cursive_platform_backend_executable_path_utf8(
+    char* buffer,
+    cursive_platform_u32_t size) {
+  cursive_platform_u32_t capacity = 260u;
+  for (;;) {
+    wchar_t* wide = (wchar_t*)HeapAlloc(GetProcessHeap(),
+                                        0u,
+                                        sizeof(wchar_t) * capacity);
+    if (!wide) {
+      return 0u;
+    }
+
+    cursive_platform_u32_t written =
+        GetModuleFileNameW(NULL, wide, capacity);
+    if (written == 0u) {
+      HeapFree(GetProcessHeap(), 0u, wide);
+      return 0u;
+    }
+
+    if (written < capacity - 1u) {
+      cursive_platform_u32_t result =
+          c0_windows_utf8_query_from_wide(wide, written, buffer, size);
+      HeapFree(GetProcessHeap(), 0u, wide);
+      return result;
+    }
+
+    HeapFree(GetProcessHeap(), 0u, wide);
+    if (capacity >= 32768u) {
+      return 0u;
+    }
+    capacity *= 2u;
+  }
+}
+
+static __inline const wchar_t* c0_windows_skip_argument_space(
+    const wchar_t* cursor) {
+  while (cursor && (*cursor == L' ' || *cursor == L'\t')) {
+    ++cursor;
+  }
+  return cursor;
+}
+
+static __inline void c0_windows_emit_arg_char(
+    wchar_t ch,
+    wchar_t* out,
+    cursive_platform_u32_t out_capacity,
+    cursive_platform_u32_t* out_len) {
+  if (out && *out_len < out_capacity) {
+    out[*out_len] = ch;
+  }
+  *out_len += 1u;
+}
+
+static __inline const wchar_t* c0_windows_parse_argument(
+    const wchar_t* cursor,
+    wchar_t* out,
+    cursive_platform_u32_t out_capacity,
+    cursive_platform_u32_t* out_len) {
+  int in_quotes = 0;
+  cursive_platform_u32_t produced = 0u;
+
+  while (cursor && *cursor) {
+    cursive_platform_u32_t slashes = 0u;
+    if (!in_quotes && (*cursor == L' ' || *cursor == L'\t')) {
+      break;
+    }
+
+    while (*cursor == L'\\') {
+      ++slashes;
+      ++cursor;
+    }
+
+    if (*cursor == L'"') {
+      for (cursive_platform_u32_t i = 0u; i < slashes / 2u; ++i) {
+        c0_windows_emit_arg_char(L'\\', out, out_capacity, &produced);
+      }
+      if ((slashes % 2u) == 0u) {
+        if (in_quotes && cursor[1] == L'"') {
+          c0_windows_emit_arg_char(L'"', out, out_capacity, &produced);
+          ++cursor;
+        } else {
+          in_quotes = !in_quotes;
+        }
+      } else {
+        c0_windows_emit_arg_char(L'"', out, out_capacity, &produced);
+      }
+      ++cursor;
+      continue;
+    }
+
+    for (cursive_platform_u32_t i = 0u; i < slashes; ++i) {
+      c0_windows_emit_arg_char(L'\\', out, out_capacity, &produced);
+    }
+    if (!*cursor || (!in_quotes && (*cursor == L' ' || *cursor == L'\t'))) {
+      break;
+    }
+    c0_windows_emit_arg_char(*cursor, out, out_capacity, &produced);
+    ++cursor;
+  }
+
+  if (out_len) {
+    *out_len = produced;
+  }
+  return cursor;
+}
+
+static __inline cursive_platform_uptr_t
+cursive_platform_backend_argument_count(void) {
+  const wchar_t* cursor = c0_windows_skip_argument_space(GetCommandLineW());
+  cursive_platform_uptr_t count = 0u;
+
+  while (cursor && *cursor) {
+    cursor = c0_windows_parse_argument(cursor, NULL, 0u, NULL);
+    count += 1u;
+    cursor = c0_windows_skip_argument_space(cursor);
+  }
+
+  return count > 0u ? count - 1u : 0u;
+}
+
+static __inline cursive_platform_u32_t
+cursive_platform_backend_argument_utf8(
+    cursive_platform_uptr_t index,
+    char* buffer,
+    cursive_platform_u32_t size) {
+  const wchar_t* cursor = c0_windows_skip_argument_space(GetCommandLineW());
+  cursive_platform_uptr_t ordinal = 0u;
+
+  while (cursor && *cursor) {
+    cursive_platform_u32_t arg_len = 0u;
+    const wchar_t* next =
+        c0_windows_parse_argument(cursor, NULL, 0u, &arg_len);
+    if (ordinal == index + 1u) {
+      wchar_t* wide = (wchar_t*)HeapAlloc(GetProcessHeap(),
+                                          0u,
+                                          sizeof(wchar_t) * (arg_len + 1u));
+      if (!wide) {
+        return 0u;
+      }
+      cursive_platform_u32_t written_len = 0u;
+      c0_windows_parse_argument(cursor, wide, arg_len, &written_len);
+      wide[written_len] = 0;
+      cursive_platform_u32_t result =
+          c0_windows_utf8_query_from_wide(wide, written_len, buffer, size);
+      HeapFree(GetProcessHeap(), 0u, wide);
+      return result;
+    }
+    ordinal += 1u;
+    cursor = c0_windows_skip_argument_space(next);
+  }
+
+  return 0u;
+}
+
+static __inline cursive_platform_u32_t
+cursive_platform_backend_current_directory_utf8(
+    char* buffer,
+    cursive_platform_u32_t size) {
+  cursive_platform_u32_t required = GetCurrentDirectoryW(0u, NULL);
+  if (required == 0u) {
+    return 0u;
+  }
+
+  wchar_t* wide =
+      (wchar_t*)HeapAlloc(GetProcessHeap(), 0u, sizeof(wchar_t) * required);
+  if (!wide) {
+    return 0u;
+  }
+
+  cursive_platform_u32_t written = GetCurrentDirectoryW(required, wide);
+  if (written == 0u || written >= required) {
+    HeapFree(GetProcessHeap(), 0u, wide);
+    return 0u;
+  }
+
+  cursive_platform_u32_t result =
+      c0_windows_utf8_query_from_wide(wide, written, buffer, size);
+  HeapFree(GetProcessHeap(), 0u, wide);
+  return result;
+}
+
 static __inline void cursive_platform_backend_icu_data_configure(void) {}
 
 static __inline int cursive_platform_backend_utf8_to_wide_chars(

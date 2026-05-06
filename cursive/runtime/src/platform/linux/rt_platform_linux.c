@@ -2665,6 +2665,102 @@ cursive_platform_u32_t cursive_platform_backend_env_get_utf8(
   return GetEnvironmentVariableA(name, buffer, size);
 }
 
+cursive_platform_u32_t cursive_platform_backend_executable_path_utf8(
+    char* buffer,
+    cursive_platform_u32_t size) {
+  char path[PATH_MAX + 1];
+  ssize_t len = readlink("/proc/self/exe", path, PATH_MAX);
+
+  if (len < 0) {
+    const cursive_rt_process_start_t* start = cursive_rt_startup_current();
+    if (!start || start->argc <= 0 || !start->argv || !start->argv[0]) {
+      return 0u;
+    }
+    size_t fallback_len = cursive_rt_linux_utf8_cstr_len(start->argv[0]);
+    if (fallback_len >= (size_t)UINT32_MAX) {
+      return 0u;
+    }
+    cursive_platform_u32_t required =
+        (cursive_platform_u32_t)fallback_len + 1u;
+    if (!buffer || size < required) {
+      return required;
+    }
+    memcpy(buffer, start->argv[0], fallback_len);
+    buffer[fallback_len] = '\0';
+    return (cursive_platform_u32_t)fallback_len;
+  }
+
+  if (len > PATH_MAX) {
+    return 0u;
+  }
+  path[len] = '\0';
+
+  cursive_platform_u32_t required = (cursive_platform_u32_t)len + 1u;
+  if (!buffer || size < required) {
+    return required;
+  }
+  memcpy(buffer, path, (size_t)len);
+  buffer[len] = '\0';
+  return (cursive_platform_u32_t)len;
+}
+
+cursive_platform_uptr_t cursive_platform_backend_argument_count(void) {
+  const cursive_rt_process_start_t* start = cursive_rt_startup_current();
+  if (!start || start->argc <= 1 || !start->argv) {
+    return 0u;
+  }
+  return (cursive_platform_uptr_t)(start->argc - 1);
+}
+
+cursive_platform_u32_t cursive_platform_backend_argument_utf8(
+    cursive_platform_uptr_t index,
+    char* buffer,
+    cursive_platform_u32_t size) {
+  const cursive_rt_process_start_t* start = cursive_rt_startup_current();
+  if (!start || start->argc <= 1 || !start->argv ||
+      index >= (cursive_platform_uptr_t)(start->argc - 1)) {
+    return 0u;
+  }
+
+  const char* argument = start->argv[index + 1u];
+  if (!argument) {
+    return 0u;
+  }
+
+  size_t len = cursive_rt_linux_utf8_cstr_len(argument);
+  if (len >= (size_t)UINT32_MAX) {
+    return 0u;
+  }
+  cursive_platform_u32_t required = (cursive_platform_u32_t)len + 1u;
+  if (!buffer || size < required) {
+    return required;
+  }
+  memcpy(buffer, argument, len);
+  buffer[len] = '\0';
+  return (cursive_platform_u32_t)len;
+}
+
+cursive_platform_u32_t cursive_platform_backend_current_directory_utf8(
+    char* buffer,
+    cursive_platform_u32_t size) {
+  char cwd[PATH_MAX + 1];
+  if (!getcwd(cwd, sizeof(cwd))) {
+    return 0u;
+  }
+
+  size_t len = cursive_rt_linux_utf8_cstr_len(cwd);
+  if (len >= (size_t)UINT32_MAX) {
+    return 0u;
+  }
+  cursive_platform_u32_t required = (cursive_platform_u32_t)len + 1u;
+  if (!buffer || size < required) {
+    return required;
+  }
+  memcpy(buffer, cwd, len);
+  buffer[len] = '\0';
+  return (cursive_platform_u32_t)len;
+}
+
 void cursive_platform_backend_icu_data_configure(void) {
   char data_dir[PATH_MAX];
   if (atomic_exchange(&cursive_rt_linux_icu_data_configured, 1) != 0) {

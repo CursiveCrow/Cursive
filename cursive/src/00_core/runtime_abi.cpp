@@ -140,6 +140,10 @@ std::vector<std::string> RuntimeLinkRequiredSyms(std::string_view runtime_root) 
   for (const auto* name : {
            "exit",
            "get_env",
+           "executable_path",
+           "argument_count",
+           "argument",
+           "current_directory",
            "run",
        }) {
     AppendRuntimeSymbol(syms,

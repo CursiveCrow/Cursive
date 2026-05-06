@@ -79,6 +79,10 @@ std::string BuiltinSymHeapAllocatorDeallocRaw();
 
 std::string BuiltinSymSystemExit();
 std::string BuiltinSymSystemGetEnv();
+std::string BuiltinSymSystemExecutablePath();
+std::string BuiltinSymSystemArgumentCount();
+std::string BuiltinSymSystemArgument();
+std::string BuiltinSymSystemCurrentDirectory();
 std::string BuiltinSymSystemRun();
 
 // =============================================================================

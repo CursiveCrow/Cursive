@@ -565,6 +565,15 @@ void cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aexit(
 C0StringView cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aget_x5fenv(
   const C0StringView* key);
 
+C0StringView cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aexecutable_x5fpath(void);
+
+uint64_t cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aargument_x5fcount(void);
+
+C0StringView cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aargument(
+  const uint64_t* index);
+
+C0StringView cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3acurrent_x5fdirectory(void);
+
 int32_t cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3arun(
   const C0StringView* command);
 

@@ -330,6 +330,26 @@ std::string BuiltinSymSystemGetEnv() {
   return project::RuntimePathSig({"system", "get_env"});
 }
 
+std::string BuiltinSymSystemExecutablePath() {
+  SPEC_RULE("BuiltinSym-System-ExecutablePath");
+  return project::RuntimePathSig({"system", "executable_path"});
+}
+
+std::string BuiltinSymSystemArgumentCount() {
+  SPEC_RULE("BuiltinSym-System-ArgumentCount");
+  return project::RuntimePathSig({"system", "argument_count"});
+}
+
+std::string BuiltinSymSystemArgument() {
+  SPEC_RULE("BuiltinSym-System-Argument");
+  return project::RuntimePathSig({"system", "argument"});
+}
+
+std::string BuiltinSymSystemCurrentDirectory() {
+  SPEC_RULE("BuiltinSym-System-CurrentDirectory");
+  return project::RuntimePathSig({"system", "current_directory"});
+}
+
 std::string BuiltinSymSystemRun() {
   SPEC_RULE("BuiltinSym-System-Run");
   return project::RuntimePathSig({"system", "run"});
@@ -810,9 +830,13 @@ std::vector<std::string> RuntimeSpecSyms() {
   }};
   AppendRuntimeSymbols(syms, kHeapSymbols);
 
-  static const std::array<BuiltinSymbolFactory, 3> kSystemSymbols = {{
+  static const std::array<BuiltinSymbolFactory, 7> kSystemSymbols = {{
       &BuiltinSymSystemExit,
       &BuiltinSymSystemGetEnv,
+      &BuiltinSymSystemExecutablePath,
+      &BuiltinSymSystemArgumentCount,
+      &BuiltinSymSystemArgument,
+      &BuiltinSymSystemCurrentDirectory,
       &BuiltinSymSystemRun,
   }};
   AppendRuntimeSymbols(syms, kSystemSymbols);
@@ -945,9 +969,13 @@ std::vector<std::string> RuntimeLinkRequiredSyms() {
   }};
   AppendRuntimeSymbols(syms, kHeapSymbols);
 
-  static const std::array<BuiltinSymbolFactory, 3> kSystemSymbols = {{
+  static const std::array<BuiltinSymbolFactory, 7> kSystemSymbols = {{
       &BuiltinSymSystemExit,
       &BuiltinSymSystemGetEnv,
+      &BuiltinSymSystemExecutablePath,
+      &BuiltinSymSystemArgumentCount,
+      &BuiltinSymSystemArgument,
+      &BuiltinSymSystemCurrentDirectory,
       &BuiltinSymSystemRun,
   }};
   AppendRuntimeSymbols(syms, kSystemSymbols);
@@ -1028,9 +1056,13 @@ std::string BuiltinSym(const std::string& qualified_name) {
       {"HeapAllocator::alloc_raw", &BuiltinSymHeapAllocatorAllocRaw},
       {"HeapAllocator::dealloc_raw", &BuiltinSymHeapAllocatorDeallocRaw},
   }};
-  static const std::array<BuiltinSymbolEntry, 3> kSystemBuiltins = {{
+  static const std::array<BuiltinSymbolEntry, 7> kSystemBuiltins = {{
       {"System::exit", &BuiltinSymSystemExit},
       {"System::get_env", &BuiltinSymSystemGetEnv},
+      {"System::executable_path", &BuiltinSymSystemExecutablePath},
+      {"System::argument_count", &BuiltinSymSystemArgumentCount},
+      {"System::argument", &BuiltinSymSystemArgument},
+      {"System::current_directory", &BuiltinSymSystemCurrentDirectory},
       {"System::run", &BuiltinSymSystemRun},
   }};
   static const std::array<BuiltinSymbolEntry, 2> kExecutionDomainBuiltins = {{

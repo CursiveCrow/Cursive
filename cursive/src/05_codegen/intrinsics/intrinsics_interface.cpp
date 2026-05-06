@@ -217,6 +217,10 @@ RuntimeCategoryMap BuildRuntimeCategoryMap() {
   // System
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::System, BuiltinSymSystemExit());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::System, BuiltinSymSystemGetEnv());
+  AddRuntimeSymbol(categories, RuntimeSymbolCategory::System, BuiltinSymSystemExecutablePath());
+  AddRuntimeSymbol(categories, RuntimeSymbolCategory::System, BuiltinSymSystemArgumentCount());
+  AddRuntimeSymbol(categories, RuntimeSymbolCategory::System, BuiltinSymSystemArgument());
+  AddRuntimeSymbol(categories, RuntimeSymbolCategory::System, BuiltinSymSystemCurrentDirectory());
   AddRuntimeSymbol(categories, RuntimeSymbolCategory::System, BuiltinSymSystemRun());
 
   // ExecutionDomain and Context domain builtins
@@ -1044,6 +1048,23 @@ std::optional<RuntimeFuncInfo> GetRuntimeFuncInfo(const std::string& symbol) {
   }
   if (symbol == BuiltinSymSystemGetEnv()) {
     info.params.push_back(make_param("key", t_string_view));
+    info.ret = t_string_view;
+    return info;
+  }
+  if (symbol == BuiltinSymSystemExecutablePath()) {
+    info.ret = t_string_view;
+    return info;
+  }
+  if (symbol == BuiltinSymSystemArgumentCount()) {
+    info.ret = t_usize;
+    return info;
+  }
+  if (symbol == BuiltinSymSystemArgument()) {
+    info.params.push_back(make_param("index", t_usize));
+    info.ret = t_string_view;
+    return info;
+  }
+  if (symbol == BuiltinSymSystemCurrentDirectory()) {
     info.ret = t_string_view;
     return info;
   }

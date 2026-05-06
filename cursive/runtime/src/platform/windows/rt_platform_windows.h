@@ -4,6 +4,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+#include <limits.h>
+
 typedef HANDLE cursive_platform_handle_t;
 typedef DWORD cursive_platform_u32_t;
 typedef DWORD_PTR cursive_platform_uptr_t;

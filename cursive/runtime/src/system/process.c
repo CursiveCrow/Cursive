@@ -7,6 +7,30 @@ static C0StringView cursive_system_empty_string_view(void) {
   return out;
 }
 
+static C0StringView cursive_system_query_string_view(
+    cursive_rt_dword_t (*query)(char*, cursive_rt_dword_t)) {
+  cursive_rt_dword_t required = query(NULL, 0u);
+  if (required == 0u) {
+    return cursive_system_empty_string_view();
+  }
+
+  char* text = (char*)c0_heap_alloc_raw(required);
+  if (!text) {
+    return cursive_system_empty_string_view();
+  }
+
+  cursive_rt_dword_t written = query(text, required);
+  if (written >= required) {
+    c0_heap_free_raw(text);
+    return cursive_system_empty_string_view();
+  }
+
+  C0StringView out;
+  out.data = (const uint8_t*)text;
+  out.len = written;
+  return out;
+}
+
 static C0StringView cursive_system_get_env_none(void) {
   c0_trace_emit_rule("System-GetEnv-None");
   return cursive_system_empty_string_view();
@@ -70,6 +94,64 @@ C0StringView cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aget_x5fenv(
   out.data = (uint8_t*)value_utf8;
   out.len = written;
   c0_trace_emit_rule("System-GetEnv-Ok");
+  return out;
+}
+
+C0StringView
+cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aexecutable_x5fpath(void) {
+  C0StringView out =
+      cursive_system_query_string_view(cursive_rt_executable_path_query_utf8);
+  c0_trace_emit_rule("System-ExecutablePath");
+  c0_trace_emit_rule("Prim-System-ExecutablePath");
+  return out;
+}
+
+uint64_t cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aargument_x5fcount(void) {
+  cursive_rt_uptr_t count = cursive_rt_argument_count_query();
+  c0_trace_emit_rule("System-ArgumentCount");
+  c0_trace_emit_rule("Prim-System-ArgumentCount");
+  return (uint64_t)count;
+}
+
+C0StringView cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3aargument(
+    const uint64_t* index) {
+  if (!index || *index > (uint64_t)((cursive_rt_uptr_t)-1)) {
+    return cursive_system_empty_string_view();
+  }
+
+  cursive_rt_uptr_t argument_index = (cursive_rt_uptr_t)*index;
+  cursive_rt_dword_t required =
+      cursive_rt_argument_query_utf8(argument_index, NULL, 0u);
+  if (required == 0u) {
+    return cursive_system_empty_string_view();
+  }
+
+  char* text = (char*)c0_heap_alloc_raw(required);
+  if (!text) {
+    return cursive_system_empty_string_view();
+  }
+
+  cursive_rt_dword_t written =
+      cursive_rt_argument_query_utf8(argument_index, text, required);
+  if (written >= required) {
+    c0_heap_free_raw(text);
+    return cursive_system_empty_string_view();
+  }
+
+  C0StringView out;
+  out.data = (const uint8_t*)text;
+  out.len = written;
+  c0_trace_emit_rule("System-Argument");
+  c0_trace_emit_rule("Prim-System-Argument");
+  return out;
+}
+
+C0StringView
+cursive_x3a_x3aruntime_x3a_x3asystem_x3a_x3acurrent_x5fdirectory(void) {
+  C0StringView out =
+      cursive_system_query_string_view(cursive_rt_current_directory_query_utf8);
+  c0_trace_emit_rule("System-CurrentDirectory");
+  c0_trace_emit_rule("Prim-System-CurrentDirectory");
   return out;
 }
 

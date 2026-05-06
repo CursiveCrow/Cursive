@@ -14346,6 +14346,78 @@ labels: Prim-System-GetEnv
 <!-- /CURSIVE-SPEC-UNIT -->
 
 <!-- CURSIVE-SPEC-UNIT
+id: Prim-System-ExecutablePath
+kind: formal-rule
+phase: runtime
+strength: required
+owner: runtime.primitive-method-application
+applies-to: runtime, capabilities, method-dispatch, oracle.reference-model, oracle.coverage
+summary: Maps System executable_path primitive method calls to SystemExecutablePath.
+labels: Prim-System-ExecutablePath
+-->
+
+**(Prim-System-ExecutablePath)**
+Γ ⊢ SystemExecutablePath() ⇓ path
+────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`System`, `executable_path`, v_sys, []) ⇓ Val(path)
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: Prim-System-ArgumentCount
+kind: formal-rule
+phase: runtime
+strength: required
+owner: runtime.primitive-method-application
+applies-to: runtime, capabilities, method-dispatch, oracle.reference-model, oracle.coverage
+summary: Maps System argument_count primitive method calls to SystemArgumentCount.
+labels: Prim-System-ArgumentCount
+-->
+
+**(Prim-System-ArgumentCount)**
+Γ ⊢ SystemArgumentCount() ⇓ n
+────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`System`, `argument_count`, v_sys, []) ⇓ Val(n)
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: Prim-System-Argument
+kind: formal-rule
+phase: runtime
+strength: required
+owner: runtime.primitive-method-application
+applies-to: runtime, capabilities, method-dispatch, oracle.reference-model, oracle.coverage
+summary: Maps System argument primitive method calls to SystemArgument.
+labels: Prim-System-Argument
+-->
+
+**(Prim-System-Argument)**
+Γ ⊢ SystemArgument(index) ⇓ text    index < SystemArgumentCount()
+────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`System`, `argument`, v_sys, [index]) ⇓ Val(text)
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: Prim-System-CurrentDirectory
+kind: formal-rule
+phase: runtime
+strength: required
+owner: runtime.primitive-method-application
+applies-to: runtime, capabilities, method-dispatch, oracle.reference-model, oracle.coverage
+summary: Maps System current_directory primitive method calls to SystemCurrentDirectory.
+labels: Prim-System-CurrentDirectory
+-->
+
+**(Prim-System-CurrentDirectory)**
+Γ ⊢ SystemCurrentDirectory() ⇓ path
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ PrimCall(`System`, `current_directory`, v_sys, []) ⇓ Val(path)
+
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
 id: Prim-System-Exit
 kind: formal-rule
 phase: runtime
@@ -51434,11 +51506,19 @@ SystemInterface =
 {
  ⟨"exit", [⟨⊥, `code`, TypePrim("i32")⟩], TypePrim("!")⟩,
  ⟨"get_env", [⟨⊥, `key`, TypeString(`@View`)⟩], TypeString(`@View`)⟩,
+ ⟨"executable_path", [], TypeString(`@View`)⟩,
+ ⟨"argument_count", [], TypePrim("usize")⟩,
+ ⟨"argument", [⟨⊥, `index`, TypePrim("usize")⟩], TypeString(`@View`)⟩,
+ ⟨"current_directory", [], TypeString(`@View`)⟩,
  ⟨"run", [⟨⊥, `command`, TypeString(`@View`)⟩], TypePrim("i32")⟩
 }
 SystemMembers = [
   MethodDecl(⊥, `public`, false, "exit", ⊥, ReceiverShorthand(`const`), [⟨⊥, `code`, TypePrim("i32")⟩], TypePrim("!"), ⊥, ⊥, ⊥, ⊥),
   MethodDecl(⊥, `public`, false, "get_env", ⊥, ReceiverShorthand(`const`), [⟨⊥, `key`, TypeString(`@View`)⟩], TypeString(`@View`), ⊥, ⊥, ⊥, ⊥),
+  MethodDecl(⊥, `public`, false, "executable_path", ⊥, ReceiverShorthand(`const`), [], TypeString(`@View`), ⊥, ⊥, ⊥, ⊥),
+  MethodDecl(⊥, `public`, false, "argument_count", ⊥, ReceiverShorthand(`const`), [], TypePrim("usize"), ⊥, ⊥, ⊥, ⊥),
+  MethodDecl(⊥, `public`, false, "argument", ⊥, ReceiverShorthand(`const`), [⟨⊥, `index`, TypePrim("usize")⟩], TypeString(`@View`), ⊥, ⊥, ⊥, ⊥),
+  MethodDecl(⊥, `public`, false, "current_directory", ⊥, ReceiverShorthand(`const`), [], TypeString(`@View`), ⊥, ⊥, ⊥, ⊥),
   MethodDecl(⊥, `public`, false, "run", ⊥, ReceiverShorthand(`const`), [⟨⊥, `command`, TypeString(`@View`)⟩], TypePrim("i32"), ⊥, ⊥, ⊥, ⊥)
 ]
 SystemDecl = RecordDecl(⊥, `public`, `System`, ⊥, ⊥, [], SystemMembers, ⊥, ⊥, ⊥)
@@ -93601,6 +93681,41 @@ labels: ContextInitSym-Decl, ContextInitSym, PathSig
 <!-- /CURSIVE-SPEC-UNIT -->
 
 <!-- CURSIVE-SPEC-UNIT
+id: def.24.ProcessInvocationNormalization
+kind: formal-definition
+phase: runtime
+strength: required
+owner: spec.initialization
+applies-to: compiler.runtime, runtime.host, oracle.reference-model, oracle.coverage
+summary: Defines normalized process invocation state supplied by the runtime host.
+labels: ProcessInvocation, ProcessInvocationNormalization
+-->
+ProcessInvocation = ⟨executable_path, arguments, current_directory⟩
+
+ProcessInvocationNormalization(host) ⇓ inv ⇔
+  inv.executable_path is the host executable path normalized to UTF-8 text ∧
+  inv.arguments is the ordered list of host command arguments after the executable path,
+    each normalized to UTF-8 text ∧
+  inv.current_directory is the host current working directory normalized to UTF-8 text
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: req.24.ProcessInvocationPlatformIsolation
+kind: semantic-requirement
+phase: runtime
+strength: required
+owner: spec.initialization
+applies-to: compiler.runtime, runtime.host, oracle.behavior, oracle.coverage
+summary: Requires platform process invocation details to be isolated behind the runtime host boundary.
+labels: ProcessInvocationPlatformIsolation, SystemInterface
+-->
+A conforming runtime MUST isolate platform-specific process startup, argv, path
+encoding, and current-directory acquisition behind the runtime host/platform
+boundary. Source programs observe only the normalized `System` methods defined
+by `SystemInterface`.
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
 id: def.24.PanicRecordInit
 kind: formal-definition
 phase: runtime
@@ -95462,6 +95577,66 @@ labels: BuiltinSym-System-GetEnv, BuiltinSym, System::get_env, PathSig
 **(BuiltinSym-System-GetEnv)**
 ─────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ BuiltinSym(`System::get_env`) ⇓ PathSig(["cursive", "runtime", "system", "get_env"])
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.24.BuiltinSym-System-ExecutablePath
+kind: formal-rule
+phase: lowering
+strength: required
+owner: spec.runtime-interface
+applies-to: compiler.lowering, compiler.backend, compiler.runtime, oracle.reference-model, oracle.coverage
+summary: Resolves the System executable_path built-in runtime symbol.
+labels: BuiltinSym-System-ExecutablePath, BuiltinSym, System::executable_path, PathSig
+-->
+**(BuiltinSym-System-ExecutablePath)**
+────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BuiltinSym(`System::executable_path`) ⇓ PathSig(["cursive", "runtime", "system", "executable_path"])
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.24.BuiltinSym-System-ArgumentCount
+kind: formal-rule
+phase: lowering
+strength: required
+owner: spec.runtime-interface
+applies-to: compiler.lowering, compiler.backend, compiler.runtime, oracle.reference-model, oracle.coverage
+summary: Resolves the System argument_count built-in runtime symbol.
+labels: BuiltinSym-System-ArgumentCount, BuiltinSym, System::argument_count, PathSig
+-->
+**(BuiltinSym-System-ArgumentCount)**
+────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BuiltinSym(`System::argument_count`) ⇓ PathSig(["cursive", "runtime", "system", "argument_count"])
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.24.BuiltinSym-System-Argument
+kind: formal-rule
+phase: lowering
+strength: required
+owner: spec.runtime-interface
+applies-to: compiler.lowering, compiler.backend, compiler.runtime, oracle.reference-model, oracle.coverage
+summary: Resolves the System argument built-in runtime symbol.
+labels: BuiltinSym-System-Argument, BuiltinSym, System::argument, PathSig
+-->
+**(BuiltinSym-System-Argument)**
+─────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BuiltinSym(`System::argument`) ⇓ PathSig(["cursive", "runtime", "system", "argument"])
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.24.BuiltinSym-System-CurrentDirectory
+kind: formal-rule
+phase: lowering
+strength: required
+owner: spec.runtime-interface
+applies-to: compiler.lowering, compiler.backend, compiler.runtime, oracle.reference-model, oracle.coverage
+summary: Resolves the System current_directory built-in runtime symbol.
+labels: BuiltinSym-System-CurrentDirectory, BuiltinSym, System::current_directory, PathSig
+-->
+**(BuiltinSym-System-CurrentDirectory)**
+──────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ BuiltinSym(`System::current_directory`) ⇓ PathSig(["cursive", "runtime", "system", "current_directory"])
 <!-- /CURSIVE-SPEC-UNIT -->
 
 <!-- CURSIVE-SPEC-UNIT
