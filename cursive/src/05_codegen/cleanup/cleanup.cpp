@@ -1049,8 +1049,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
         info.index = USizeImmediate(index);
         ctx.RegisterDerivedValue(elem, info);
       }
-      drops.push_back(
-          EmitDropImpl(arr_type.element, elem, ctx, allow_drop_glue, panic_out));
+      drops.push_back(EmitDropImpl(arr_type.element, elem, ctx, true, panic_out));
     }
 
     return SeqWithPanicStop(std::move(drops), ctx);
@@ -1073,12 +1072,11 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
         info.tuple_index = index;
         ctx.RegisterDerivedValue(elem, info);
       }
-      drops.push_back(
-          EmitDropImpl(tuple_type.elements[index],
-                       elem,
-                       ctx,
-                       allow_drop_glue,
-                       panic_out));
+      drops.push_back(EmitDropImpl(tuple_type.elements[index],
+                                   elem,
+                                   ctx,
+                                   true,
+                                   panic_out));
     }
 
     return SeqWithPanicStop(std::move(drops), ctx);
@@ -1112,7 +1110,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
       IRPtr body = EmitDropImpl(uni_type.members[i],
                                 case_val,
                                 ctx,
-                                allow_drop_glue,
+                                true,
                                 panic_out);
 
       IRValue unit;
@@ -1177,8 +1175,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
         info.field = rit->first;
         ctx.RegisterDerivedValue(field_val, info);
       }
-      drops.push_back(
-          EmitDropImpl(rit->second, field_val, ctx, allow_drop_glue, panic_out));
+      drops.push_back(EmitDropImpl(rit->second, field_val, ctx, true, panic_out));
     }
     return SeqWithPanicStop(std::move(drops), ctx);
   }
@@ -1282,8 +1279,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
                 info.tuple_index = index;
                 ctx.RegisterDerivedValue(elem, info);
               }
-              drops.push_back(
-                  EmitDropImpl(*lowered, elem, ctx, allow_drop_glue, panic_out));
+              drops.push_back(EmitDropImpl(*lowered, elem, ctx, true, panic_out));
             }
           } else if (const auto* record_payload =
                          std::get_if<ast::VariantPayloadRecord>(
@@ -1306,12 +1302,11 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
                 info.field = field.name;
                 ctx.RegisterDerivedValue(field_val, info);
               }
-              drops.push_back(
-                  EmitDropImpl(*lowered,
-                               field_val,
-                               ctx,
-                               allow_drop_glue,
-                               panic_out));
+              drops.push_back(EmitDropImpl(*lowered,
+                                           field_val,
+                                           ctx,
+                                           true,
+                                           panic_out));
             }
           }
           body = SeqWithPanicStop(std::move(drops), ctx);
@@ -1371,7 +1366,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
           body = EmitDropImpl(state_type,
                               state_value,
                               ctx,
-                              allow_drop_glue,
+                              true,
                               panic_out);
         }
 

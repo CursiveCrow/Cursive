@@ -69,6 +69,41 @@ void AppendPad(std::vector<llvm::Type*>& elems,
   elems.push_back(llvm::ArrayType::get(llvm::Type::getInt8Ty(ctx), pad));
 }
 
+std::vector<std::string>& ActiveLLVMTypeQueries() {
+  static thread_local std::vector<std::string> queries;
+  return queries;
+}
+
+class ScopedLLVMTypeQuery {
+ public:
+  explicit ScopedLLVMTypeQuery(const analysis::TypeRef& type)
+      : key_(analysis::TypeToString(type)) {
+    auto& queries = ActiveLLVMTypeQueries();
+    recursive_ = std::find(queries.begin(), queries.end(), key_) != queries.end();
+    if (!recursive_) {
+      queries.push_back(key_);
+    }
+  }
+
+  ScopedLLVMTypeQuery(const ScopedLLVMTypeQuery&) = delete;
+  ScopedLLVMTypeQuery& operator=(const ScopedLLVMTypeQuery&) = delete;
+
+  ~ScopedLLVMTypeQuery() {
+    if (!recursive_) {
+      auto& queries = ActiveLLVMTypeQueries();
+      if (!queries.empty() && queries.back() == key_) {
+        queries.pop_back();
+      }
+    }
+  }
+
+  bool recursive() const { return recursive_; }
+
+ private:
+  std::string key_;
+  bool recursive_ = false;
+};
+
 }  // namespace
 
 // =============================================================================
@@ -597,6 +632,12 @@ using namespace emit_detail;
     if (type_cache_.count(type))
     {
       return type_cache_[type];
+    }
+
+    const ScopedLLVMTypeQuery type_query(type);
+    if (type_query.recursive())
+    {
+      return GetOpaquePtr();
     }
 
     llvm::Type *ll_ty = nullptr;

@@ -16,7 +16,7 @@ static C0Region make_region(void) {
   return cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3anew_x5fscoped(&options);
 }
 
-static int32_t* alloc_i32(C0Region region, int32_t value) {
+static int32_t* alloc_i32(const C0Region* region, int32_t value) {
   int32_t* ptr = (int32_t*)cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(
       region, sizeof(int32_t), alignof(int32_t));
   if (ptr) {
@@ -43,20 +43,20 @@ static int expect_nonnull(const void* ptr, const char* label) {
 
 static int test_frame_reset_preserves_outer_and_expires_inner(void) {
   C0Region region = make_region();
-  int32_t* outer = alloc_i32(region, 11);
+  int32_t* outer = alloc_i32(&region, 11);
   if (expect_nonnull(outer, "frame-reset outer alloc")) {
     return 1;
   }
 
   cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3ascope_x5fenter(1001);
   const uint64_t mark =
-      cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(region);
-  int32_t* inner = alloc_i32(region, 13);
+      cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(&region);
+  int32_t* inner = alloc_i32(&region, 13);
   if (expect_nonnull(inner, "frame-reset inner alloc")) {
     return 1;
   }
 
-  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(region, mark);
+  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(&region, mark);
   if (expect_active(outer, 1, "frame-reset outer stays active")) {
     return 1;
   }
@@ -73,27 +73,27 @@ static int test_frame_reset_preserves_outer_and_expires_inner(void) {
     return 1;
   }
 
-  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(next_region);
-  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(region);
+  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(&next_region);
+  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(&region);
   return 0;
 }
 
 static int test_reset_unchecked_retags_all_live_entries(void) {
   C0Region region = make_region();
-  int32_t* outer = alloc_i32(region, 17);
+  int32_t* outer = alloc_i32(&region, 17);
   if (expect_nonnull(outer, "reset-unchecked outer alloc")) {
     return 1;
   }
 
   cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3ascope_x5fenter(2001);
   const uint64_t mark =
-      cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(region);
-  int32_t* inner = alloc_i32(region, 19);
+      cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(&region);
+  int32_t* inner = alloc_i32(&region, 19);
   if (expect_nonnull(inner, "reset-unchecked inner alloc")) {
     return 1;
   }
 
-  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(region);
+  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(&region);
   if (expect_active(outer, 0, "reset-unchecked outer expires")) {
     return 1;
   }
@@ -101,7 +101,7 @@ static int test_reset_unchecked_retags_all_live_entries(void) {
     return 1;
   }
 
-  int32_t* post_reset = alloc_i32(region, 23);
+  int32_t* post_reset = alloc_i32(&region, 23);
   if (expect_nonnull(post_reset, "reset-unchecked post-reset alloc")) {
     return 1;
   }
@@ -118,30 +118,30 @@ static int test_reset_unchecked_retags_all_live_entries(void) {
     return 1;
   }
 
-  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(region, mark);
+  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(&region, mark);
   if (expect_active(post_reset, 0, "frame cleanup after reset-unchecked expires post-reset alloc")) {
     return 1;
   }
   cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3ascope_x5fexit(2001);
-  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(region);
+  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(&region);
   return 0;
 }
 
 static int test_free_unchecked_pops_all_region_entries(void) {
   C0Region region = make_region();
-  int32_t* outer = alloc_i32(region, 29);
+  int32_t* outer = alloc_i32(&region, 29);
   if (expect_nonnull(outer, "free-unchecked outer alloc")) {
     return 1;
   }
 
   cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3ascope_x5fenter(3001);
-  (void)cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(region);
-  int32_t* inner = alloc_i32(region, 31);
+  (void)cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(&region);
+  int32_t* inner = alloc_i32(&region, 31);
   if (expect_nonnull(inner, "free-unchecked inner alloc")) {
     return 1;
   }
 
-  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(region);
+  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(&region);
   if (expect_active(outer, 0, "free-unchecked outer expires")) {
     return 1;
   }
@@ -150,7 +150,7 @@ static int test_free_unchecked_pops_all_region_entries(void) {
   }
 
   if (cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(
-          region, sizeof(int32_t), alignof(int32_t)) != NULL) {
+          &region, sizeof(int32_t), alignof(int32_t)) != NULL) {
     return report_failure("free-unchecked rejects further alloc");
   }
 
@@ -160,19 +160,19 @@ static int test_free_unchecked_pops_all_region_entries(void) {
 
 static int test_freeze_thaw_leave_runtime_sigma_unchanged(void) {
   C0Region region = make_region();
-  int32_t* first = alloc_i32(region, 37);
+  int32_t* first = alloc_i32(&region, 37);
   if (expect_nonnull(first, "freeze first alloc")) {
     return 1;
   }
 
-  C0Region frozen = cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(region);
-  int32_t* second = alloc_i32(region, 41);
+  C0Region frozen = cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(&region);
+  int32_t* second = alloc_i32(&region, 41);
   if (expect_nonnull(second, "freeze preserves runtime state")) {
     return 1;
   }
 
-  C0Region thawed = cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(frozen);
-  int32_t* third = alloc_i32(thawed, 43);
+  C0Region thawed = cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(&frozen);
+  int32_t* third = alloc_i32(&thawed, 43);
   if (expect_nonnull(third, "thaw preserves runtime state")) {
     return 1;
   }
@@ -187,7 +187,7 @@ static int test_freeze_thaw_leave_runtime_sigma_unchanged(void) {
     return 1;
   }
 
-  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(region);
+  cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(&region);
   if (expect_active(first, 0, "free after freeze/thaw expires first alloc")) {
     return 1;
   }

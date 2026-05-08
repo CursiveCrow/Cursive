@@ -373,6 +373,7 @@ struct IRIfCaseClause {
   IRPatternPtr pattern;
   IRPtr body;
   IRValue value;
+  analysis::TypeRef value_type;
 };
 
 struct IRIfCase {

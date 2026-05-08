@@ -63,7 +63,32 @@ using namespace emit_detail;
         return (addr && addr->getType()->isPointerTy()) ? addr : nullptr;
       }
       case DerivedValueInfo::Kind::LoadFromAddr:
-        return GetAddressableStorage(derived->base);
+      {
+        llvm::Value *base = EvaluateIRValue(derived->base);
+        if (!base)
+        {
+          return nullptr;
+        }
+        analysis::TypeRef value_type =
+            ctx ? ctx->LookupValueType(value) : nullptr;
+        llvm::Type *value_llvm_ty =
+            value_type ? GetLLVMType(value_type) : nullptr;
+        llvm::Type *target_ptr_ty =
+            value_llvm_ty ? llvm::PointerType::get(value_llvm_ty, 0) : nullptr;
+        if (base->getType()->isIntegerTy() && target_ptr_ty)
+        {
+          return builder->CreateIntToPtr(base, target_ptr_ty);
+        }
+        if (!base->getType()->isPointerTy())
+        {
+          return nullptr;
+        }
+        if (target_ptr_ty && base->getType() != target_ptr_ty)
+        {
+          return builder->CreateBitCast(base, target_ptr_ty);
+        }
+        return base;
+      }
       default:
         return nullptr;
       }

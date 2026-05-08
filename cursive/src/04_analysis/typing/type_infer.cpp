@@ -1803,6 +1803,19 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
     return result;
   }
   if (!sub.subtype) {
+    if (expr && std::holds_alternative<ast::MoveExpr>(expr->node) &&
+        PermOfType(inferred.type) == Permission::Unique) {
+      const auto moved_value_sub = Subtyping(ctx, StripPerm(inferred.type), expected);
+      if (!moved_value_sub.ok) {
+        result.diag_id = moved_value_sub.diag_id;
+        return result;
+      }
+      if (moved_value_sub.subtype) {
+        SPEC_RULE("Chk-Subsumption");
+        result.ok = true;
+        return result;
+      }
+    }
     if (sub.diag_id.has_value()) {
       result.diag_id = sub.diag_id;
       return result;
@@ -1849,6 +1862,8 @@ static CheckResult CheckExprImpl(const ScopeContext& ctx,
     }
     SPEC_RULE("Chk-Subsumption-Err");
     result.diag_id = "E-SEM-2526";
+    result.diag_detail = "expected " + TypeToString(expected) +
+                         ", found " + TypeToString(inferred.type);
     return result;
   }
 

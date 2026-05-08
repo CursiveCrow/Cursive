@@ -74,10 +74,8 @@ IRPtr LowerRegionStmt(const ast::RegionStmt& stmt, LowerCtx& ctx) {
   // Lower the options expression
   auto opts_result = LowerExpr(*opts_expr, ctx);
 
-  // Keep user-visible alias binding separate from the internal active-region
-  // slot used by implicit allocations and cleanup lowering.
   const std::optional<std::string> user_alias = stmt.alias_opt;
-  const std::string runtime_alias =
+  std::string runtime_alias =
       user_alias.has_value() ? *user_alias : ctx.FreshRegionAlias();
 
   // Push scope with is_region=true for region tracking
@@ -92,9 +90,6 @@ IRPtr LowerRegionStmt(const ast::RegionStmt& stmt, LowerCtx& ctx) {
     scope_enter_ir = EmitRuntimeScopeEnter(*scope_id, ctx);
   }
 
-  // Register the region release action for cleanup
-  ctx.RegisterRegionRelease(runtime_alias);
-
   // Create the modal type for the region: Region@Active
   const auto region_type = analysis::RegionActiveTypeRef();
 
@@ -103,7 +98,11 @@ IRPtr LowerRegionStmt(const ast::RegionStmt& stmt, LowerCtx& ctx) {
     ctx.RegisterVar(*user_alias, region_type, false, true,
                     analysis::ProvenanceKind::Region, *user_alias, false,
                     *user_alias);
+    runtime_alias = ctx.StableBindingName(*user_alias);
   }
+
+  // Register the region release action for cleanup.
+  ctx.RegisterRegionRelease(runtime_alias);
 
   // Track this as the active region for allocations
   ctx.active_region_aliases.push_back(runtime_alias);

@@ -1489,6 +1489,27 @@ ABICallResult ComputeCallABI(LLVMEmitter& emitter,
   return result;
 }
 
+std::vector<IRParam> BuildProcABIParams(LLVMEmitter& emitter,
+                                        const std::string& symbol,
+                                        const std::vector<IRParam>& params) {
+  std::vector<IRParam> augmented = params;
+  if (emitter.RequiresHostedEnvParam(symbol) &&
+      !emit_detail::HasLeadingHostedEnvParam(augmented))
+  {
+    augmented.insert(augmented.begin(), HostedEnvParam());
+  }
+  LowerCtx* current_ctx = emitter.GetCurrentCtx();
+  const bool needs_panic_out =
+      current_ctx ? current_ctx->NeedsPanicOutForSymbol(symbol)
+                   : NeedsPanicOut(symbol);
+  if (needs_panic_out &&
+      (augmented.empty() || augmented.back().name != std::string(kPanicOutName)))
+  {
+    augmented.push_back(PanicOutParam());
+  }
+  return augmented;
+}
+
 ABICallResult ComputeProcABI(
       LLVMEmitter& emitter,
       const std::string &symbol,
@@ -1497,20 +1518,8 @@ ABICallResult ComputeProcABI(
       bool use_c_abi_aggregate_sret,
       bool foreign_boundary_mode_independent)
   {
-    std::vector<IRParam> augmented = params;
-    if (emitter.RequiresHostedEnvParam(symbol) && !emit_detail::HasLeadingHostedEnvParam(augmented))
-    {
-      augmented.insert(augmented.begin(), HostedEnvParam());
-    }
+    std::vector<IRParam> augmented = BuildProcABIParams(emitter, symbol, params);
     LowerCtx* current_ctx = emitter.GetCurrentCtx();
-    const bool needs_panic_out =
-        current_ctx ? current_ctx->NeedsPanicOutForSymbol(symbol)
-                     : NeedsPanicOut(symbol);
-    if (needs_panic_out &&
-        (augmented.empty() || augmented.back().name != std::string(kPanicOutName)))
-    {
-      augmented.push_back(PanicOutParam());
-    }
 
     analysis::TypeRef abi_ret = ret_type;
     if (const LowerCtx::AsyncProcInfo *async_info =

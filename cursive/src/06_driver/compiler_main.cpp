@@ -2984,6 +2984,31 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
               return full;
             };
 
+            lower_ctx.resolve_type_name_in_module =
+                [&name_maps](const std::vector<std::string>& module_path,
+                             const std::string& name)
+                    -> std::optional<std::vector<std::string>> {
+              const auto module_key = analysis::PathKeyOf(module_path);
+              const auto map_it = name_maps.name_maps.find(module_key);
+              if (map_it == name_maps.name_maps.end()) {
+                return std::nullopt;
+              }
+              const auto ent_it =
+                  map_it->second.find(analysis::IdKeyOf(name));
+              if (ent_it == map_it->second.end()) {
+                return std::nullopt;
+              }
+              const auto& ent = ent_it->second;
+              if (ent.kind != analysis::EntityKind::Type ||
+                  !ent.origin_opt.has_value()) {
+                return std::nullopt;
+              }
+              std::vector<std::string> full = *ent.origin_opt;
+              const std::string resolved_name = ent.target_opt.value_or(name);
+              full.push_back(resolved_name);
+              return full;
+            };
+
             if (typechecked.init_plan.has_value()) {
               lower_ctx.init_order = typechecked.init_plan->init_order;
               lower_ctx.init_modules = typechecked.init_plan->graph.modules;
@@ -3291,8 +3316,6 @@ int cursive::driver::RunCompiler(int argc, char** argv) {
                     }
                     return incremental->build_key;
                   };
-                  out_deps.codegen_obj_thread_safe = true;
-
                   const auto codegen_cache = ensure_cache(output_project);
                   if (!codegen_cache || !codegen_cache->ok.load()) {
                     EmitInternalDiagnostic(

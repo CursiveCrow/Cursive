@@ -145,6 +145,41 @@ bool IsRuntimeHandleModalPath(const cursive::analysis::TypePath& path) {
   return cursive::analysis::IsBuiltinRuntimeHandleModalTypePath(path);
 }
 
+std::vector<std::string>& ActiveLayoutQueries() {
+  static thread_local std::vector<std::string> queries;
+  return queries;
+}
+
+class ScopedLayoutQuery {
+ public:
+  explicit ScopedLayoutQuery(const cursive::analysis::TypeRef& type)
+      : key_(cursive::analysis::TypeToString(type)) {
+    auto& queries = ActiveLayoutQueries();
+    recursive_ = std::find(queries.begin(), queries.end(), key_) != queries.end();
+    if (!recursive_) {
+      queries.push_back(key_);
+    }
+  }
+
+  ScopedLayoutQuery(const ScopedLayoutQuery&) = delete;
+  ScopedLayoutQuery& operator=(const ScopedLayoutQuery&) = delete;
+
+  ~ScopedLayoutQuery() {
+    if (!recursive_) {
+      auto& queries = ActiveLayoutQueries();
+      if (!queries.empty() && queries.back() == key_) {
+        queries.pop_back();
+      }
+    }
+  }
+
+  bool recursive() const { return recursive_; }
+
+ private:
+  std::string key_;
+  bool recursive_ = false;
+};
+
 std::string NormalizeAttrLiteral(std::string value) {
   if (value.size() >= 2 &&
       ((value.front() == '"' && value.back() == '"') ||
@@ -744,6 +779,11 @@ std::optional<Layout> LayoutOf(const cursive::analysis::ScopeContext& ctx,
   }
   const std::uint64_t ptr_size = PtrSize(ctx);
   const std::uint64_t ptr_align = PtrAlign(ctx);
+
+  const ScopedLayoutQuery query(type);
+  if (query.recursive()) {
+    return Layout{ptr_size, ptr_align};
+  }
 
   if (const auto* perm = std::get_if<cursive::analysis::TypePerm>(&type->node)) {
     SPEC_RULE("Layout-Perm");

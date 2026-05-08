@@ -19,6 +19,12 @@ void IRInstructionVisitor::operator()(const IRUnaryOp &unary) const
     analysis::TypeRef result_type =
         active_ctx ? ResolveAliasType(active_ctx, active_ctx->LookupValueType(unary.result))
                    : nullptr;
+    if (!operand_type) {
+      operand_type = ResolveAliasType(active_ctx, unary.operand_type);
+    }
+    if (!result_type) {
+      result_type = ResolveAliasType(active_ctx, unary.result_type);
+    }
     const bool logical_not =
         IsBoolType(operand_type) || IsBoolType(result_type) ||
         operand->getType()->isIntegerTy(1);

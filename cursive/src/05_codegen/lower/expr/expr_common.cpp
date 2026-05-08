@@ -218,16 +218,18 @@ LowerResult LowerExprImpl(const ast::Expr& expr, LowerCtx& ctx) {
         } else if constexpr (std::is_same_v<T, ast::IfExpr>) {
           return LowerIfExpr(expr, node, ctx);
         } else if constexpr (std::is_same_v<T, ast::IfCaseExpr>) {
+          analysis::TypeRef result_type = ctx.expr_type ? ctx.expr_type(expr) : nullptr;
           return LowerIfCases(*node.scrutinee, node.cases, node.else_expr,
-                              false, ctx);
+                              false, ctx, result_type);
         } else if constexpr (std::is_same_v<T, ast::IfIsExpr>) {
           std::vector<ast::IfCaseClause> cases;
           ast::IfCaseClause case_clause;
           case_clause.pattern = node.pattern;
           case_clause.body = node.then_expr;
           cases.push_back(std::move(case_clause));
+          analysis::TypeRef result_type = ctx.expr_type ? ctx.expr_type(expr) : nullptr;
           return LowerIfCases(*node.scrutinee, cases, node.else_expr,
-                              true, ctx);
+                              true, ctx, result_type);
         } else if constexpr (std::is_same_v<T, ast::BlockExpr>) {
           return LowerBlock(*node.block, ctx);
         } else if constexpr (std::is_same_v<T, ast::LoopInfiniteExpr>) {

@@ -150,6 +150,10 @@ ABICallResult ComputeCallABI(LLVMEmitter& emitter,
                              bool use_c_abi_aggregate_sret = false,
                              bool foreign_boundary_mode_independent = false);
 
+std::vector<IRParam> BuildProcABIParams(LLVMEmitter& emitter,
+                                        const std::string& symbol,
+                                        const std::vector<IRParam>& params);
+
 ABICallResult ComputeProcABI(LLVMEmitter& emitter,
                              const std::string& symbol,
                              const std::vector<IRParam>& params,

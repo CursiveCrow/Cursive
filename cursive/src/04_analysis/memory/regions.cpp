@@ -2534,6 +2534,82 @@ static ProvExprResult ProvExpr(const ScopeContext& ctx,
     return finish(place);
   }
 
+  if (std::holds_alternative<ast::BinaryExpr>(expr->node)) {
+    struct BinaryFrame {
+      ast::ExprPtr expr;
+      bool children_ready = false;
+    };
+
+    std::vector<BinaryFrame> stack;
+    stack.push_back(BinaryFrame{expr, false});
+    std::unordered_map<const ast::Expr*, ProvExprResult> results;
+
+    auto bottom_result = []() {
+      ProvExprResult out;
+      out.ok = true;
+      out.prov = BottomTag();
+      return out;
+    };
+
+    while (!stack.empty()) {
+      BinaryFrame frame = std::move(stack.back());
+      stack.pop_back();
+
+      if (!frame.expr) {
+        continue;
+      }
+
+      const auto* binary =
+          std::get_if<ast::BinaryExpr>(&frame.expr->node);
+      if (!binary) {
+        auto child_res = ProvExpr(ctx, frame.expr, env, gamma, expr_map);
+        if (!child_res.ok) {
+          return finish(child_res);
+        }
+        results[frame.expr.get()] = std::move(child_res);
+        continue;
+      }
+
+      if (!frame.children_ready) {
+        stack.push_back(BinaryFrame{frame.expr, true});
+        if (binary->rhs) {
+          stack.push_back(BinaryFrame{binary->rhs, false});
+        }
+        if (binary->lhs) {
+          stack.push_back(BinaryFrame{binary->lhs, false});
+        }
+        continue;
+      }
+
+      ProvExprResult left =
+          binary->lhs && results.count(binary->lhs.get())
+              ? results[binary->lhs.get()]
+              : bottom_result();
+      ProvExprResult right =
+          binary->rhs && results.count(binary->rhs.get())
+              ? results[binary->rhs.get()]
+              : bottom_result();
+      if (!left.ok) {
+        return finish(left);
+      }
+      if (!right.ok) {
+        return finish(right);
+      }
+
+      ProvExprResult joined;
+      joined.ok = true;
+      joined.prov = JoinProv(env, left.prov, right.prov);
+      RecordExprProv(frame.expr, joined, env, expr_map);
+      results[frame.expr.get()] = std::move(joined);
+    }
+
+    auto root_it = results.find(expr.get());
+    if (root_it != results.end()) {
+      SPEC_RULE("P-Expr-Sub");
+      return finish(root_it->second);
+    }
+  }
+
   std::optional<ProvTag> joined_children;
   std::optional<ProvExprResult> first_error;
   ForEachChildLtr(expr, [&](const ast::ExprPtr& child) {

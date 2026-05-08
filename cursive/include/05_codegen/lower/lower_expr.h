@@ -268,6 +268,9 @@ struct LowerCtx {
   std::function<std::optional<std::vector<std::string>>(const std::string&)> resolve_name;
   // Type name resolution lookup
   std::function<std::optional<std::vector<std::string>>(const std::string&)> resolve_type_name;
+  std::function<std::optional<std::vector<std::string>>(
+      const std::vector<std::string>&, const std::string&)>
+      resolve_type_name_in_module;
 
   // Track missing resolution or lowering failures.
   bool resolve_failed = false;
@@ -739,7 +742,8 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
                          const std::vector<ast::IfCaseClause>& arms,
                          const ast::ExprPtr& else_expr,
                          bool single_form,
-                         LowerCtx& ctx);
+                         LowerCtx& ctx,
+                         const analysis::TypeRef& expected_result_type);
 
 // §6.4 LowerLoop - lower loop expression
 LowerResult LowerLoop(const ast::Expr& loop, LowerCtx& ctx);

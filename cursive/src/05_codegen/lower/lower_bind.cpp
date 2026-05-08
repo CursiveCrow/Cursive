@@ -409,16 +409,65 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
               } else if constexpr (std::is_same_v<T, ast::ModalPattern>) {
                 analysis::TypePath modal_path;
                 std::vector<analysis::TypeRef> modal_args;
-                if (hint && std::holds_alternative<analysis::TypeModalState>(hint->node)) {
-                  const auto& modal_state =
-                      std::get<analysis::TypeModalState>(hint->node);
-                  modal_path = modal_state.path;
-                  modal_args = modal_state.generic_args;
-                } else if (hint && std::holds_alternative<analysis::TypePathType>(hint->node)) {
-                  const auto& modal_ref =
-                      std::get<analysis::TypePathType>(hint->node);
-                  modal_path = modal_ref.path;
-                  modal_args = modal_ref.generic_args;
+                analysis::TypeRef modal_hint = StripPermAndRefine(hint);
+                auto assign_modal_ref = [&](const analysis::TypeRef& type,
+                                            bool require_state_match) -> bool {
+                  const analysis::TypeRef stripped = StripPermAndRefine(type);
+                  if (!stripped) {
+                    return false;
+                  }
+                  if (const auto& modal_state =
+                          std::get_if<analysis::TypeModalState>(&stripped->node)) {
+                    if (require_state_match &&
+                        !analysis::IdEq(modal_state->state, node.state)) {
+                      return false;
+                    }
+                    modal_path = modal_state->path;
+                    modal_args = modal_state->generic_args;
+                    return true;
+                  }
+                  if (!require_state_match) {
+                    if (const auto& modal_ref =
+                            std::get_if<analysis::TypePathType>(&stripped->node)) {
+                      modal_path = modal_ref->path;
+                      modal_args = modal_ref->generic_args;
+                      return true;
+                    }
+                  }
+                  return false;
+                };
+                if (!assign_modal_ref(modal_hint, false)) {
+                  if (modal_hint &&
+                      std::holds_alternative<analysis::TypeUnion>(modal_hint->node)) {
+                    const auto& uni = std::get<analysis::TypeUnion>(modal_hint->node);
+                    const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+                    std::vector<analysis::TypeRef> members = uni.members;
+                    if (const auto layout =
+                            ::cursive::analysis::layout::UnionLayoutOf(scope, uni)) {
+                      members = layout->member_list;
+                    }
+                    std::optional<analysis::TypeRef> matched_member;
+                    bool matched_member_is_ambiguous = false;
+                    for (const auto& member : members) {
+                      const analysis::TypeRef stripped = StripPermAndRefine(member);
+                      const auto* modal_state =
+                          stripped
+                              ? std::get_if<analysis::TypeModalState>(&stripped->node)
+                              : nullptr;
+                      if (!modal_state ||
+                          !analysis::IdEq(modal_state->state, node.state)) {
+                        continue;
+                      }
+                      if (matched_member.has_value()) {
+                        matched_member_is_ambiguous = true;
+                        break;
+                      }
+                      matched_member = stripped;
+                    }
+                    if (matched_member.has_value() && !matched_member_is_ambiguous) {
+                      assign_modal_ref(*matched_member, true);
+                    }
+                  }
                 }
                 const ast::ModalDecl* modal_decl = modal_path.empty() ? nullptr : LookupModalDecl(modal_path, ctx);
                 if (!node.fields_opt.has_value()) {

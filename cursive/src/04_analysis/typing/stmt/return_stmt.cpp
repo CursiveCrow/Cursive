@@ -23,6 +23,7 @@
 #include "02_source/attributes/attribute_registry.h"
 #include "04_analysis/contracts/verification.h"
 #include "04_analysis/memory/regions.h"
+#include "04_analysis/memory/safe_ptr.h"
 #include "04_analysis/typing/type_equiv.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_infer.h"
@@ -135,6 +136,63 @@ static TypeRef StripPermDeepLocal(const TypeRef& type) {
 static bool IsRawPointerTypeLocal(const TypeRef& type) {
   const auto stripped = StripPermDeepLocal(type);
   return stripped && std::holds_alternative<TypeRawPtr>(stripped->node);
+}
+
+static bool HasLocalPointerProvenance(ProvenanceKind kind) {
+  return kind == ProvenanceKind::Stack || kind == ProvenanceKind::Region;
+}
+
+static bool TypeContainsSafePointer(const TypeRef& type) {
+  if (!type) {
+    return false;
+  }
+  const TypeRef stripped = StripPermDeepLocal(type);
+  if (!stripped) {
+    return false;
+  }
+  if (IsSafePtrType(stripped)) {
+    return true;
+  }
+  if (const auto* union_type = std::get_if<TypeUnion>(&stripped->node)) {
+    for (const auto& member : union_type->members) {
+      if (TypeContainsSafePointer(member)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static std::optional<std::string_view>
+CheckReturnedSafePointerProvenance(const ScopeContext& ctx,
+                                   const StmtTypeContext& type_ctx,
+                                   const TypeEnv& env,
+                                   const ExprTypeFn& type_expr,
+                                   const ast::ExprPtr& ret_expr,
+                                   const TypeRef& expected_return_type) {
+  if (!ret_expr || !TypeContainsSafePointer(expected_return_type)) {
+    return std::nullopt;
+  }
+
+  const auto typed =
+      TypeExprWithCurrentEnv(ctx, type_ctx, env, type_expr, ret_expr);
+  if (!typed.ok) {
+    return typed.diag_id;
+  }
+  if (!IsSafePtrType(typed.type)) {
+    return std::nullopt;
+  }
+
+  const auto prov = TrackReturnProvenance(ctx, ret_expr, env);
+  if (!prov.ok) {
+    return prov.diag_id;
+  }
+  if (HasLocalPointerProvenance(prov.kind)) {
+    SPEC_RULE("Prov-Return-Local-Warning");
+    return "E-MEM-3020";
+  }
+
+  return std::nullopt;
 }
 
 static bool BindingProvenanceIsLocalFfi(const TypeBinding& binding) {
@@ -371,6 +429,12 @@ StmtTypeResult TypeReturnStmt(const ScopeContext& ctx,
           diag.has_value()) {
         return {false, *diag, {}, {}};
       }
+      if (const auto diag = CheckReturnedSafePointerProvenance(
+              ctx, type_ctx, env, type_expr_current, node.value_opt,
+              async_sig->result);
+          diag.has_value()) {
+        return {false, *diag, {}, {}};
+      }
       if (const auto diag = verify_post(ret_value); diag.has_value()) {
         return {false, *diag, {}, {}};
       }
@@ -424,6 +488,11 @@ StmtTypeResult TypeReturnStmt(const ScopeContext& ctx,
           diag.has_value()) {
         return {false, *diag, {}, {}};
       }
+      if (const auto diag = CheckReturnedSafePointerProvenance(
+              ctx, type_ctx, env, type_expr_current, node.value_opt, typed.type);
+          diag.has_value()) {
+        return {false, *diag, {}, {}};
+      }
       if (const auto diag = verify_post(ret_value); diag.has_value()) {
         return {false, *diag, {}, {}};
       }
@@ -449,6 +518,12 @@ StmtTypeResult TypeReturnStmt(const ScopeContext& ctx,
     }
     if (const auto diag = CheckFfiBoundaryRegionLocalRawPointerReturn(
             ctx, type_ctx, env, type_expr_current, node.value_opt);
+        diag.has_value()) {
+      return {false, *diag, {}, {}};
+    }
+    if (const auto diag = CheckReturnedSafePointerProvenance(
+            ctx, type_ctx, env, type_expr_current, node.value_opt,
+            type_ctx.return_type);
         diag.has_value()) {
       return {false, *diag, {}, {}};
     }

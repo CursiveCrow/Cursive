@@ -96,6 +96,20 @@ std::optional<std::string> PlaceRoot(const ast::Expr& expr) {
       expr.node);
 }
 
+std::optional<std::string> ExactIdentifierPlace(const ast::Expr& expr) {
+  return std::visit(
+      [&](const auto& node) -> std::optional<std::string> {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::AttributedExpr>) {
+          return node.expr ? ExactIdentifierPlace(*node.expr) : std::nullopt;
+        } else if constexpr (std::is_same_v<T, ast::IdentifierExpr>) {
+          return node.name;
+        }
+        return std::nullopt;
+      },
+      expr.node);
+}
+
 // Extract the first field access from a place chain
 std::optional<std::string> FieldHead(const ast::Expr& expr) {
   return std::visit(
@@ -178,19 +192,19 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
   SPEC_RULE("Lower-AddrOf-Deref-Raw");
 
   auto register_ptr_type = [&](IRValue& value) {
-    analysis::TypeRef base_type =
-        ctx.expr_type ? ctx.expr_type(place) : nullptr;
-    if (!base_type) {
-      if (auto root = ::cursive::codegen::PlaceRoot(place)) {
-        if (const BindingState* state = ctx.GetBindingState(*root)) {
-          base_type = state->type;
-        }
+    analysis::TypeRef pointee_type = nullptr;
+    if (auto identifier = ExactIdentifierPlace(place)) {
+      if (const BindingState* state = ctx.GetBindingState(*identifier)) {
+        pointee_type = state->type;
       }
     }
-    if (!base_type) {
+    if (!pointee_type && ctx.expr_type) {
+      pointee_type = ctx.expr_type(place);
+    }
+    if (!pointee_type) {
       return;
     }
-    auto ptr_type = analysis::MakeTypePtr(base_type, analysis::PtrState::Valid);
+    auto ptr_type = analysis::MakeTypePtr(pointee_type, analysis::PtrState::Valid);
     ctx.RegisterValueType(value, ptr_type);
   };
 

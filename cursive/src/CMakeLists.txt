@@ -1180,13 +1180,14 @@ endif()
 # Ensure runtime library is built alongside compiler
 # The runtime is linked with compiled Cursive programs, not the compiler itself,
 # but we want it built as part of the standard build process
-add_dependencies(cursive cursive0_rt)
-add_dependencies(cursive-debug cursive0_rt)
+add_dependencies(cursive cursive0_rt ultraviolet0_rt)
+add_dependencies(cursive-debug cursive0_rt ultraviolet0_rt)
 
 set(CURSIVE_OUT_DIR "${CURSIVE_BUILD_DIR}/out")
 
 if(WIN32)
   set(CURSIVE_OUT_RUNTIME_PATH "${CMAKE_BINARY_DIR}/runtime/CursiveRT.lib")
+  set(ULTRAVIOLET_OUT_RUNTIME_PATH "${CMAKE_BINARY_DIR}/runtime/UltravioletRT.lib")
   set(CURSIVE_LLD_LINK_PATH "${LLVM_ROOT}/bin/lld-link.exe")
   set(CURSIVE_LLVM_LIB_PATH "${LLVM_ROOT}/bin/llvm-lib.exe")
   set(CURSIVE_LLVM_AS_PATH "${LLVM_ROOT}/bin/llvm-as.exe")
@@ -1252,6 +1253,9 @@ if(WIN32)
               "${CURSIVE_OUT_RUNTIME_PATH}"
               "${CURSIVE_OUT_DIR}/CursiveRT.lib"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${ULTRAVIOLET_OUT_RUNTIME_PATH}"
+              "${CURSIVE_OUT_DIR}/UltravioletRT.lib"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icudt72.dll"
               "${CURSIVE_OUT_DIR}/windows/bin/icudt72.dll"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
@@ -1279,7 +1283,7 @@ if(WIN32)
   cursive_stage_windows_out(cursive)
   cursive_stage_windows_out(cursive-debug)
   add_custom_target(cursive_out
-    DEPENDS cursive cursive-debug cursive0_rt cursive_delayimp_sidecar
+    DEPENDS cursive cursive-debug cursive0_rt ultraviolet0_rt cursive_delayimp_sidecar
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CURSIVE_OUT_DIR}"
     # Keep the stable Windows payload tree in place and refresh known outputs.
     # The Visual Studio custom-build wrapper has proven brittle around a full
@@ -1312,6 +1316,9 @@ if(WIN32)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${CURSIVE_OUT_RUNTIME_PATH}"
             "${CURSIVE_OUT_DIR}/CursiveRT.lib"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${ULTRAVIOLET_OUT_RUNTIME_PATH}"
+            "${CURSIVE_OUT_DIR}/UltravioletRT.lib"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${CURSIVE_COMPILER_SIDECAR_BIN_DIR}/icudt72.dll"
             "${CURSIVE_OUT_DIR}/windows/bin/icudt72.dll"
@@ -1497,3 +1504,29 @@ else()
     COMMENT "Packaging compiler distribution into build/out"
   )
 endif()
+
+if(WIN32)
+  set(CURSIVE_CODEGEN_ABI_SRET_TARGET_PROFILE "x86_64-win64")
+  set(CURSIVE_CODEGEN_ABI_SRET_RUNTIME_LIB "${CURSIVE_OUT_DIR}/CursiveRT.lib")
+  set(CURSIVE_CODEGEN_ABI_SRET_EXECUTABLE_SUFFIX ".exe")
+else()
+  set(CURSIVE_CODEGEN_ABI_SRET_TARGET_PROFILE "x86_64-sysv")
+  set(CURSIVE_CODEGEN_ABI_SRET_RUNTIME_LIB "${CURSIVE_OUT_DIR}/CursiveRT.a")
+  set(CURSIVE_CODEGEN_ABI_SRET_EXECUTABLE_SUFFIX "")
+endif()
+
+add_executable(cursive_codegen_abi_sret_test
+  tests/codegen_abi_sret_test.cpp
+)
+
+target_compile_features(cursive_codegen_abi_sret_test PRIVATE cxx_std_20)
+
+target_compile_definitions(cursive_codegen_abi_sret_test PRIVATE
+  CURSIVE_TEST_COMPILER_PATH="${CURSIVE_OUT_DIR}/$<TARGET_FILE_NAME:cursive>"
+  CURSIVE_TEST_RUNTIME_LIB_PATH="${CURSIVE_CODEGEN_ABI_SRET_RUNTIME_LIB}"
+  CURSIVE_TEST_TARGET_PROFILE="${CURSIVE_CODEGEN_ABI_SRET_TARGET_PROFILE}"
+  CURSIVE_TEST_EXECUTABLE_SUFFIX="${CURSIVE_CODEGEN_ABI_SRET_EXECUTABLE_SUFFIX}"
+  CURSIVE_TEST_WORK_ROOT="${CMAKE_BINARY_DIR}/tests"
+)
+
+add_dependencies(cursive_codegen_abi_sret_test cursive_out)

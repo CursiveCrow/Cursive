@@ -69,6 +69,7 @@ struct Project {
   std::filesystem::path source_root;
   OutputPaths outputs;
   std::vector<ModuleInfo> modules;
+  std::vector<ModuleInfo> lifecycle_modules;
   ToolchainConfig toolchain;
   BuildConfig build;
 };

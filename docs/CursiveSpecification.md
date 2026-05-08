@@ -61544,11 +61544,12 @@ strength: required
 owner: spec.expressions
 applies-to: compiler.typecheck, compiler.patterns, oracle.reference-model, oracle.coverage
 summary: Assigns pattern binding, irrefutable-case, and exhaustiveness predicates used by control expressions to Chapter 17.
-labels: PatternTyping, HasIrrefutableCase
+labels: PatternTyping, CaseScope, HasIrrefutableCase
 -->
 Pattern typing uses Chapter 17 pattern judgments:
 
 - `Γ ⊢ pat ◁ T ⊣ B` for case binding
+- `CaseScope(Γ, e, pat, T)` for pattern bindings and scrutinee narrowing
 - `HasIrrefutableCase(cases, T)` and the exhaustiveness conditions from §17.6
 <!-- /CURSIVE-SPEC-UNIT -->
 
@@ -61559,11 +61560,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.expressions
 applies-to: compiler.typecheck, compiler.patterns, oracle.reference-model, oracle.coverage
-summary: Types single-case if-is expressions with pattern bindings scoped to the then branch and matching then/else branch types.
-labels: T-If-Is
+summary: Types single-case if-is expressions with case scope applied to the then branch and matching then/else branch types.
+labels: T-If-Is, CaseScope
 -->
 **(T-If-Is)**
-Γ; R; L ⊢ e : T_s    Γ ⊢ pat ◁ T_s ⊣ B    Distinct(PatNames(pat))    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_1    Γ_1; R; L ⊢ b_t : T    Γ; R; L ⊢ b_f : T
+Γ; R; L ⊢ e : T_s    CaseScope(Γ, e, pat, T_s) ⇓ Γ_1    Γ_1; R; L ⊢ b_t : T    Γ; R; L ⊢ b_f : T
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfIsExpr(e, pat, b_t, b_f) : T
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -61575,11 +61576,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.expressions
 applies-to: compiler.typecheck, compiler.patterns, oracle.reference-model, oracle.coverage
-summary: Types single-case if-is expressions without else as unit when the then branch is unit.
-labels: T-If-Is-No-Else
+summary: Types single-case if-is expressions without else as unit when the case-scoped then branch is unit.
+labels: T-If-Is-No-Else, CaseScope
 -->
 **(T-If-Is-No-Else)**
-Γ; R; L ⊢ e : T_s    Γ ⊢ pat ◁ T_s ⊣ B    Distinct(PatNames(pat))    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_1    Γ_1; R; L ⊢ b_t : TypePrim(`()`)
+Γ; R; L ⊢ e : T_s    CaseScope(Γ, e, pat, T_s) ⇓ Γ_1    Γ_1; R; L ⊢ b_t : TypePrim(`()`)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfIsExpr(e, pat, b_t, ⊥) : TypePrim(`()`)
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -66536,16 +66537,142 @@ BindOrder(p, B) = [⟨x, B[x]⟩ | x ∈ PatNames(p)]
 #### 17.5.4 Static Semantics
 
 <!-- CURSIVE-SPEC-UNIT
-id: req.17.CaseBodyTypingScope
-kind: semantic-requirement
+id: def.17.CaseScopeJudgements
+kind: formal-definition
 phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Requires case bodies to use ordinary block typing/checking under the clause-pattern scope while result agreement and exhaustiveness are enforced by the exhaustiveness rules.
-labels: CaseBody
+summary: Defines the judgement families used to construct case-body scopes and narrowed scrutinee types.
+labels: CaseScopeJudg, PatternNarrowJudg
 -->
-Case-body typing and checking are ordinary block typing and checking under the scope introduced by the clause pattern. Result agreement and exhaustiveness are enforced by the rules in §17.6.4.
+CaseScopeJudg = {CaseScope(Γ, e, pat, T) ⇓ Γ_case}
+PatternNarrowJudg = {PatternNarrow(Γ, pat, T) ⇓ T_n}
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: def.17.ScrutineeBindingAndRefinement
+kind: formal-definition
+phase: semantic-analysis
+strength: required
+owner: spec.patterns
+applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
+summary: Defines stable scrutinee binding extraction and environment replacement for case-scope narrowing.
+labels: ScrutineeBinding, RefineBinding
+-->
+ScrutineeBinding(Identifier(x)) = x
+ScrutineeBinding(e) = ⊥ ⇔ e ≠ Identifier(_)
+RefineBinding(Γ, x, T_n) ⇓ Γ' ⇔ LookupNearestValueBinding(Γ, x) = b ∧ Γ' = ReplaceBindingType(Γ, b, T_n)
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: def.17.UnionOrSingle
+kind: formal-definition
+phase: semantic-analysis
+strength: required
+owner: spec.patterns
+applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
+summary: Defines single-member collapse for narrowed union member lists.
+labels: UnionOrSingle
+-->
+UnionOrSingle([T]) = T
+UnionOrSingle([T_1, …, T_n]) = TypeUnion([T_1, …, T_n]) ⇔ n ≥ 2
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.17.PatternNarrow-Perm
+kind: formal-rule
+phase: semantic-analysis
+strength: required
+owner: spec.patterns
+applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
+summary: Preserves permission while narrowing a pattern-matched scrutinee type.
+labels: PatternNarrow-Perm, PatternNarrow
+-->
+**(PatternNarrow-Perm)**
+PatternNarrow(Γ, pat, T) ⇓ T_n
+──────────────────────────────────────────────────────────────
+PatternNarrow(Γ, pat, TypePerm(p, T)) ⇓ TypePerm(p, T_n)
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.17.PatternNarrow-ModalRef
+kind: formal-rule
+phase: semantic-analysis
+strength: required
+owner: spec.patterns
+applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
+summary: Narrows a general modal scrutinee to the matched modal state.
+labels: PatternNarrow-ModalRef, PatternNarrow
+-->
+**(PatternNarrow-ModalRef)**
+StripPerm(T) = ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    S ∈ States(M)
+────────────────────────────────────────────────────────────────────────────────────────────
+PatternNarrow(Γ, ModalPattern(S, fs), T) ⇓ TypeModalState(modal_ref, S)
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.17.PatternNarrow-ModalState
+kind: formal-rule
+phase: semantic-analysis
+strength: required
+owner: spec.patterns
+applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
+summary: Preserves an already state-specific modal scrutinee when its state matches the modal pattern.
+labels: PatternNarrow-ModalState, PatternNarrow
+-->
+**(PatternNarrow-ModalState)**
+StripPerm(T) = TypeModalState(modal_ref, S)    ModalDeclOf(modal_ref) = M
+────────────────────────────────────────────────────────────────────────────────────────────
+PatternNarrow(Γ, ModalPattern(S, fs), T) ⇓ TypeModalState(modal_ref, S)
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.17.PatternNarrow-Union
+kind: formal-rule
+phase: semantic-analysis
+strength: required
+owner: spec.patterns
+applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
+summary: Narrows a union scrutinee to the matching member narrowings.
+labels: PatternNarrow-Union, PatternNarrow
+-->
+**(PatternNarrow-Union)**
+T = TypeUnion([T_1, …, T_n])    Ns = [N_i | 1 ≤ i ≤ n ∧ PatternNarrow(Γ, pat, T_i) ⇓ N_i]    |Ns| ≥ 1    UnionOrSingle(Ns) = T_n
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+PatternNarrow(Γ, pat, T) ⇓ T_n
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.17.CaseScope-Narrow
+kind: formal-rule
+phase: semantic-analysis
+strength: required
+owner: spec.patterns
+applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
+summary: Builds a case-body scope with pattern bindings and an arm-local narrowed scrutinee binding.
+labels: CaseScope-Narrow, CaseScope
+-->
+**(CaseScope-Narrow)**
+Γ ⊢ pat ◁ T_s ⊣ B    Distinct(PatNames(pat))    ScrutineeBinding(e) = x    PatternNarrow(Γ, pat, T_s) ⇓ T_n    RefineBinding(Γ, x, T_n) ⇓ Γ_r    Γ_0 = PushScope(Γ_r)    IntroAll(Γ_0, B) ⇓ Γ_case
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+CaseScope(Γ, e, pat, T_s) ⇓ Γ_case
+<!-- /CURSIVE-SPEC-UNIT -->
+
+<!-- CURSIVE-SPEC-UNIT
+id: rule.17.CaseScope-PatternOnly
+kind: formal-rule
+phase: semantic-analysis
+strength: required
+owner: spec.patterns
+applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
+summary: Builds a case-body scope from pattern bindings when no scrutinee narrowing applies.
+labels: CaseScope-PatternOnly, CaseScope
+-->
+**(CaseScope-PatternOnly)**
+Γ ⊢ pat ◁ T_s ⊣ B    Distinct(PatNames(pat))    (ScrutineeBinding(e) = ⊥ ∨ PatternNarrow(Γ, pat, T_s) undefined)    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_case
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+CaseScope(Γ, e, pat, T_s) ⇓ Γ_case
 <!-- /CURSIVE-SPEC-UNIT -->
 
 #### 17.5.5 Dynamic Semantics
@@ -66839,11 +66966,11 @@ phase: lowering
 strength: required
 owner: spec.patterns
 applies-to: compiler.lowering, oracle.reference-model, oracle.coverage
-summary: Lowers an if-case expression by lowering its scrutinee and emitting IfCaseIR.
-labels: Lower-IfCases
+summary: Lowers an if-case expression by lowering its scrutinee and emitting IfCaseIR under each case body scope.
+labels: Lower-IfCases, CaseScope
 -->
 **(Lower-IfCases)**
-Γ ⊢ LowerExpr(scrut) ⇓ ⟨IR_s, v_s⟩
+Γ ⊢ LowerExpr(scrut) ⇓ ⟨IR_s, v_s⟩    Γ; R; L ⊢ scrut : T_s    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, scrut, p_i, T_s) ⇓ Γ_i
 ────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ ⊢ LowerIfCases(scrut, cases, else_opt) ⇓ ⟨SeqIR(IR_s, IfCaseIR(v_s, cases, else_opt)), v_case⟩
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -66983,11 +67110,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Types enum if-case expressions when all case bodies agree and the cases are exhaustive or an else block exists.
-labels: T-IfCase-Enum
+summary: Types enum if-case expressions when all case-scoped bodies agree and the cases are exhaustive or an else block exists.
+labels: T-IfCase-Enum, CaseScope
 -->
 **(T-IfCase-Enum)**
-Γ; R; L ⊢ e : TypePath(p)    EnumDecl(p) = E    ∀ i, case_i = ⟨p_i, b_i⟩    Γ ⊢ p_i ◁ TypePath(p) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ b_i : T_r    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt : T_r)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, TypePath(p)) ∨ CaseVariants(cases) = VariantNames(E))
+Γ; R; L ⊢ e : TypePath(p)    EnumDecl(p) = E    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, e, p_i, TypePath(p)) ⇓ Γ_i    ∀ i, Γ_i; R; L ⊢ b_i : T_r    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt : T_r)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, TypePath(p)) ∨ CaseVariants(cases) = VariantNames(E))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfCaseExpr(e, cases, else_opt) : T_r
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67012,11 +67139,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Types modal if-case expressions when all case bodies agree and the cases are exhaustive or an else block exists.
-labels: T-IfCase-Modal
+summary: Types modal if-case expressions when all case-scoped bodies agree and the cases are exhaustive or an else block exists.
+labels: T-IfCase-Modal, CaseScope
 -->
 **(T-IfCase-Modal)**
-Γ; R; L ⊢ e : ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ∀ i, case_i = ⟨p_i, b_i⟩    Γ ⊢ p_i ◁ ModalRefType(modal_ref) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ b_i : T_r    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt : T_r)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, ModalRefType(modal_ref)) ∨ CaseStates(cases) = States(M))
+Γ; R; L ⊢ e : ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, e, p_i, ModalRefType(modal_ref)) ⇓ Γ_i    ∀ i, Γ_i; R; L ⊢ b_i : T_r    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt : T_r)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, ModalRefType(modal_ref)) ∨ CaseStates(cases) = States(M))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfCaseExpr(e, cases, else_opt) : T_r
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67057,11 +67184,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Types union if-case expressions when all case bodies agree and the cases are exhaustive or an else block exists.
-labels: T-IfCase-Union
+summary: Types union if-case expressions when all case-scoped bodies agree and the cases are exhaustive or an else block exists.
+labels: T-IfCase-Union, CaseScope
 -->
 **(T-IfCase-Union)**
-Γ; R; L ⊢ e : TypeUnion([T_1, …, T_n])    ∀ i, case_i = ⟨p_i, b_i⟩    Γ ⊢ p_i ◁ TypeUnion([T_1, …, T_n]) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ b_i : T_r    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt : T_r)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, TypeUnion([T_1, …, T_n])) ∨ UnionTypesExhaustive(cases, [T_1, …, T_n]))
+Γ; R; L ⊢ e : TypeUnion([T_1, …, T_n])    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, e, p_i, TypeUnion([T_1, …, T_n])) ⇓ Γ_i    ∀ i, Γ_i; R; L ⊢ b_i : T_r    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt : T_r)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, TypeUnion([T_1, …, T_n])) ∨ UnionTypesExhaustive(cases, [T_1, …, T_n]))
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfCaseExpr(e, cases, else_opt) : T_r
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67089,11 +67216,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Checks union if-case expressions against an expected type when exhaustive or when an else block exists.
-labels: Chk-IfCase-Union
+summary: Checks union if-case expressions against an expected type under case scopes when exhaustive or when an else block exists.
+labels: Chk-IfCase-Union, CaseScope
 -->
 **(Chk-IfCase-Union)**
-Γ; R; L ⊢ e : TypeUnion([T_1, …, T_n])    ∀ i, case_i = ⟨p_i, b_i⟩    Γ ⊢ p_i ◁ TypeUnion([T_1, …, T_n]) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ b_i ⇐ T    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt ⇐ T ⊣ ∅)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, TypeUnion([T_1, …, T_n])) ∨ UnionTypesExhaustive(cases, [T_1, …, T_n]))
+Γ; R; L ⊢ e : TypeUnion([T_1, …, T_n])    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, e, p_i, TypeUnion([T_1, …, T_n])) ⇓ Γ_i    ∀ i, Γ_i; R; L ⊢ b_i ⇐ T    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt ⇐ T ⊣ ∅)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, TypeUnion([T_1, …, T_n])) ∨ UnionTypesExhaustive(cases, [T_1, …, T_n]))
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfCaseExpr(e, cases, else_opt) ⇐ T ⊣ ∅
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67118,11 +67245,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Types other if-case expressions when all case bodies agree and cases are irrefutable or an else block exists.
-labels: T-IfCase-Other
+summary: Types other if-case expressions when all case-scoped bodies agree and cases are irrefutable or an else block exists.
+labels: T-IfCase-Other, CaseScope
 -->
 **(T-IfCase-Other)**
-Γ; R; L ⊢ e : T_s    ∀ i, case_i = ⟨p_i, b_i⟩    Γ ⊢ p_i ◁ T_s ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ b_i : T_r    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt : T_r)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, T_s))
+Γ; R; L ⊢ e : T_s    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, e, p_i, T_s) ⇓ Γ_i    ∀ i, Γ_i; R; L ⊢ b_i : T_r    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt : T_r)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, T_s))
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfCaseExpr(e, cases, else_opt) : T_r
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67134,11 +67261,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Checks enum if-case expressions against an expected type when exhaustive or when an else block exists.
-labels: Chk-IfCase-Enum
+summary: Checks enum if-case expressions against an expected type under case scopes when exhaustive or when an else block exists.
+labels: Chk-IfCase-Enum, CaseScope
 -->
 **(Chk-IfCase-Enum)**
-Γ; R; L ⊢ e : TypePath(p)    EnumDecl(p) = E    ∀ i, case_i = ⟨p_i, b_i⟩    Γ ⊢ p_i ◁ TypePath(p) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ b_i ⇐ T    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt ⇐ T ⊣ ∅)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, TypePath(p)) ∨ CaseVariants(cases) = VariantNames(E))
+Γ; R; L ⊢ e : TypePath(p)    EnumDecl(p) = E    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, e, p_i, TypePath(p)) ⇓ Γ_i    ∀ i, Γ_i; R; L ⊢ b_i ⇐ T    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt ⇐ T ⊣ ∅)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, TypePath(p)) ∨ CaseVariants(cases) = VariantNames(E))
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfCaseExpr(e, cases, else_opt) ⇐ T ⊣ ∅
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67166,11 +67293,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Checks modal if-case expressions against an expected type when exhaustive or when an else block exists.
-labels: Chk-IfCase-Modal
+summary: Checks modal if-case expressions against an expected type under case scopes when exhaustive or when an else block exists.
+labels: Chk-IfCase-Modal, CaseScope
 -->
 **(Chk-IfCase-Modal)**
-Γ; R; L ⊢ e : ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ∀ i, case_i = ⟨p_i, b_i⟩    Γ ⊢ p_i ◁ ModalRefType(modal_ref) ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ b_i ⇐ T    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt ⇐ T ⊣ ∅)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, ModalRefType(modal_ref)) ∨ CaseStates(cases) = States(M))
+Γ; R; L ⊢ e : ModalRefType(modal_ref)    ModalDeclOf(modal_ref) = M    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, e, p_i, ModalRefType(modal_ref)) ⇓ Γ_i    ∀ i, Γ_i; R; L ⊢ b_i ⇐ T    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt ⇐ T ⊣ ∅)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, ModalRefType(modal_ref)) ∨ CaseStates(cases) = States(M))
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfCaseExpr(e, cases, else_opt) ⇐ T ⊣ ∅
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67182,11 +67309,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Checks other if-case expressions against an expected type when irrefutable or when an else block exists.
-labels: Chk-IfCase-Other
+summary: Checks other if-case expressions against an expected type under case scopes when irrefutable or when an else block exists.
+labels: Chk-IfCase-Other, CaseScope
 -->
 **(Chk-IfCase-Other)**
-Γ; R; L ⊢ e : T_s    ∀ i, case_i = ⟨p_i, b_i⟩    Γ ⊢ p_i ◁ T_s ⊣ B_i    Distinct(PatNames(p_i))    Γ_i = IntroAll(Γ, B_i)    Γ_i; R; L ⊢ b_i ⇐ T    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt ⇐ T ⊣ ∅)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, T_s))
+Γ; R; L ⊢ e : T_s    ∀ i, case_i = ⟨p_i, b_i⟩    ∀ i, CaseScope(Γ, e, p_i, T_s) ⇓ Γ_i    ∀ i, Γ_i; R; L ⊢ b_i ⇐ T    (else_opt = ⊥ ∨ Γ; R; L ⊢ else_opt ⇐ T ⊣ ∅)    (else_opt ≠ ⊥ ∨ HasIrrefutableCase(cases, T_s))
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfCaseExpr(e, cases, else_opt) ⇐ T ⊣ ∅
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67198,11 +67325,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Checks if-is expressions with an else branch against an expected type using pattern-introduced scope in the then branch.
-labels: Chk-IfIs
+summary: Checks if-is expressions with an else branch against an expected type using case scope in the then branch.
+labels: Chk-IfIs, CaseScope
 -->
 **(Chk-IfIs)**
-Γ; R; L ⊢ e : T_s    Γ ⊢ pat ◁ T_s ⊣ B    Distinct(PatNames(pat))    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_1    Γ_1; R; L ⊢ b_t ⇐ T ⊣ ∅    Γ; R; L ⊢ b_f ⇐ T ⊣ ∅
+Γ; R; L ⊢ e : T_s    CaseScope(Γ, e, pat, T_s) ⇓ Γ_1    Γ_1; R; L ⊢ b_t ⇐ T ⊣ ∅    Γ; R; L ⊢ b_f ⇐ T ⊣ ∅
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfIsExpr(e, pat, b_t, b_f) ⇐ T ⊣ ∅
 <!-- /CURSIVE-SPEC-UNIT -->
@@ -67214,11 +67341,11 @@ phase: semantic-analysis
 strength: required
 owner: spec.patterns
 applies-to: compiler.typecheck, oracle.reference-model, oracle.coverage
-summary: Checks if-is expressions without else as unit expressions using pattern-introduced scope in the then branch.
-labels: Chk-IfIs-No-Else
+summary: Checks if-is expressions without else as unit expressions using case scope in the then branch.
+labels: Chk-IfIs-No-Else, CaseScope
 -->
 **(Chk-IfIs-No-Else)**
-Γ; R; L ⊢ e : T_s    Γ ⊢ pat ◁ T_s ⊣ B    Distinct(PatNames(pat))    Γ_0 = PushScope(Γ)    IntroAll(Γ_0, B) ⇓ Γ_1    Γ_1; R; L ⊢ b_t ⇐ TypePrim(`()`) ⊣ ∅
+Γ; R; L ⊢ e : T_s    CaseScope(Γ, e, pat, T_s) ⇓ Γ_1    Γ_1; R; L ⊢ b_t ⇐ TypePrim(`()`) ⊣ ∅
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Γ; R; L ⊢ IfIsExpr(e, pat, b_t, ⊥) ⇐ TypePrim(`()`) ⊣ ∅
 <!-- /CURSIVE-SPEC-UNIT -->

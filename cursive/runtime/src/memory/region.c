@@ -589,15 +589,19 @@ static void* c0_region_alloc_arena(C0RegionArena* arena, size_t size, size_t ali
 }
 
 void* cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(
-    C0Region self,
+    const C0Region* self,
     uint64_t size,
     uint64_t align) {
   c0_trace_emit_rule("RegionSym-Alloc");
+  if (!self) {
+    return NULL;
+  }
+
   C0RegionState* state = c0_region_state();
   cursive_platform_rwlock_lock_exclusive(&state->lock);
 
-  C0RegionArena* arena = c0_region_find(state, self.handle);
-  const C0RegionEntry* entry = c0_region_resolve_entry(state, self.handle);
+  C0RegionArena* arena = c0_region_find(state, self->handle);
+  const C0RegionEntry* entry = c0_region_resolve_entry(state, self->handle);
   if (!arena || !entry) {
     cursive_platform_rwlock_unlock_exclusive(&state->lock);
     return NULL;
@@ -618,12 +622,16 @@ void* cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aalloc(
   return ptr;
 }
 
-uint64_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(C0Region self) {
+uint64_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(const C0Region* self) {
   c0_trace_emit_rule("RegionSym-Mark");
+  if (!self) {
+    return 0;
+  }
+
   C0RegionState* state = c0_region_state();
   cursive_platform_rwlock_lock_exclusive(&state->lock);
 
-  C0RegionArena* arena = c0_region_find(state, self.handle);
+  C0RegionArena* arena = c0_region_find(state, self->handle);
   if (!arena) {
     cursive_platform_rwlock_unlock_exclusive(&state->lock);
     return 0;
@@ -632,7 +640,7 @@ uint64_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(C0Region self) {
   const uint64_t scope = c0_scope_current(state);
   const uint64_t mark = (uint64_t)arena->alloc_count;
   const uint64_t tag = c0_region_fresh_token(state);
-  if (!c0_region_stack_push(state, tag, self.handle, scope, mark, 1)) {
+  if (!c0_region_stack_push(state, tag, self->handle, scope, mark, 1)) {
     cursive_platform_rwlock_unlock_exclusive(&state->lock);
     return 0;
   }
@@ -642,14 +650,18 @@ uint64_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3amark(C0Region self) {
 }
 
 void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(
-    C0Region self,
+    const C0Region* self,
     uint64_t mark_value) {
   c0_trace_emit_rule("RegionSym-ResetTo");
+  if (!self) {
+    return;
+  }
+
   C0RegionState* state = c0_region_state();
   cursive_platform_rwlock_lock_exclusive(&state->lock);
 
-  C0RegionArena* arena = c0_region_find(state, self.handle);
-  size_t entry_index = c0_region_find_mark_entry_index(state, self.handle, mark_value);
+  C0RegionArena* arena = c0_region_find(state, self->handle);
+  size_t entry_index = c0_region_find_mark_entry_index(state, self->handle, mark_value);
   if (!arena || entry_index == SIZE_MAX) {
     cursive_platform_rwlock_unlock_exclusive(&state->lock);
     return;
@@ -664,15 +676,19 @@ void cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5fto(
 }
 
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(
-    C0Region self) {
+    const C0Region* self) {
   c0_trace_emit_rule("Region-Reset-Proc");
   c0_trace_emit_rule("RegionSym-ResetUnchecked");
+  if (!self) {
+    return c0_region_make(C0_REGION_FREED, 0);
+  }
+
   C0RegionState* state = c0_region_state();
   cursive_platform_rwlock_lock_exclusive(&state->lock);
 
-  C0RegionArena* arena = c0_region_find(state, self.handle);
+  C0RegionArena* arena = c0_region_find(state, self->handle);
   if (arena) {
-    const size_t tag_count = c0_region_count_target_entries(state, self.handle);
+    const size_t tag_count = c0_region_count_target_entries(state, self->handle);
     uint64_t* fresh_tags = NULL;
     if (tag_count > 0) {
       fresh_tags = (uint64_t*)c0_heap_alloc_raw(tag_count * sizeof(uint64_t));
@@ -684,7 +700,7 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(
         fresh_tags[i] = c0_region_fresh_token(state);
       }
       for (size_t i = 0; i < state->region_count; ++i) {
-        if (state->region_stack[i].target != self.handle) {
+        if (state->region_stack[i].target != self->handle) {
           continue;
         }
         state->region_stack[i].tag = fresh_tags[next++];
@@ -694,33 +710,37 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3areset_x5funchecked(
   }
 
   cursive_platform_rwlock_unlock_exclusive(&state->lock);
-  return c0_region_make(C0_REGION_ACTIVE, self.handle);
+  return c0_region_make(C0_REGION_ACTIVE, self->handle);
 }
 
-C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(C0Region self) {
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afreeze(const C0Region* self) {
   c0_trace_emit_rule("Region-Freeze-Proc");
   c0_trace_emit_rule("RegionSym-Freeze");
-  return c0_region_make(C0_REGION_FROZEN, self.handle);
+  return c0_region_make(C0_REGION_FROZEN, self ? self->handle : 0);
 }
 
-C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(C0Region self) {
+C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3athaw(const C0Region* self) {
   c0_trace_emit_rule("Region-Thaw-Proc");
   c0_trace_emit_rule("RegionSym-Thaw");
-  return c0_region_make(C0_REGION_ACTIVE, self.handle);
+  return c0_region_make(C0_REGION_ACTIVE, self ? self->handle : 0);
 }
 
 C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(
-    C0Region self) {
+    const C0Region* self) {
   c0_trace_emit_rule("Region-Free-Proc");
   c0_trace_emit_rule("RegionSym-FreeUnchecked");
+  if (!self) {
+    return c0_region_make(C0_REGION_FREED, 0);
+  }
+
   C0RegionState* state = c0_region_state();
   cursive_platform_rwlock_lock_exclusive(&state->lock);
 
-  C0RegionArena* arena = c0_region_find(state, self.handle);
+  C0RegionArena* arena = c0_region_find(state, self->handle);
   if (arena) {
     arena->alloc_count = 0;
-    c0_region_stack_pop_target(state, self.handle);
-    c0_region_remove(state, self.handle);
+    c0_region_stack_pop_target(state, self->handle);
+    c0_region_remove(state, self->handle);
     // Keep published region blocks quarantined after free. The spec preserves
     // AddrTags across reset/free, so reusing a raw address would violate the
     // FreshAddr witness for later allocations.
@@ -728,7 +748,7 @@ C0Region cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3afree_x5funchecked(
   }
 
   cursive_platform_rwlock_unlock_exclusive(&state->lock);
-  return c0_region_make(C0_REGION_FREED, self.handle);
+  return c0_region_make(C0_REGION_FREED, self->handle);
 }
 
 uint8_t cursive_x3a_x3aruntime_x3a_x3aregion_x3a_x3aaddr_x5fis_x5factive(

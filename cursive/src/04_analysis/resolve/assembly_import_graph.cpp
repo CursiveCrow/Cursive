@@ -295,6 +295,32 @@ std::vector<std::string> ComputeDirectLibraryImports(
   return libraries;
 }
 
+std::vector<ModuleInfo> ComputeLifecycleModules(
+    std::string_view assembly_name,
+    const AssemblyImportGraph& graph) {
+  std::vector<ModuleInfo> modules = ComputeEmitModules(assembly_name, graph);
+
+  const auto library_names = ComputeLibraryClosure(assembly_name, graph);
+  for (const auto& library_name : library_names) {
+    const auto library_it = graph.assemblies.find(library_name);
+    if (library_it == graph.assemblies.end()) {
+      continue;
+    }
+    modules.insert(modules.end(),
+                   library_it->second->modules.begin(),
+                   library_it->second->modules.end());
+  }
+
+  SortModulesDeterministically(modules);
+  modules.erase(std::unique(modules.begin(),
+                            modules.end(),
+                            [](const ModuleInfo& lhs, const ModuleInfo& rhs) {
+                              return lhs.path == rhs.path;
+                            }),
+                modules.end());
+  return modules;
+}
+
 }  // namespace
 
 AssemblyImportGraph BuildAssemblyImportGraph(
@@ -617,6 +643,8 @@ std::optional<Project> BuildOutputProjectForAssembly(
 
   Project output_project = AssemblyProject(base_project, *assembly_it->second);
   output_project.modules = ComputeEmitModules(output_project.assembly.name, graph);
+  output_project.lifecycle_modules =
+      ComputeLifecycleModules(output_project.assembly.name, graph);
   return output_project;
 }
 

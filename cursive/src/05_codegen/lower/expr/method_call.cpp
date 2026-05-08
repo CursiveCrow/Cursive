@@ -34,13 +34,17 @@
 #include "04_analysis/modal/modal.h"
 #include "04_analysis/modal/modal_transitions.h"
 #include "04_analysis/memory/string_bytes.h"
+#include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/type_expr.h"
 #include "04_analysis/typing/type_predicates.h"
+#include "04_analysis/typing/types.h"
 #include "04_analysis/memory/calls.h"
 #include "00_core/assert_spec.h"
+#include "00_core/process_config.h"
 #include "00_core/symbols.h"
 
 #include <algorithm>
+#include <iostream>
 #include <variant>
 
 namespace cursive::codegen {
@@ -115,6 +119,44 @@ std::optional<std::pair<analysis::TypePath, std::string>> ModalStateInfo(
     return std::nullopt;
 }
 
+std::optional<analysis::TypePath> ResolveDispatchTypePath(
+    const analysis::ScopeContext& scope,
+    const analysis::TypePath& path) {
+    if (path.size() != 1) {
+        return path;
+    }
+
+    const auto ent = analysis::ResolveTypeName(scope, path.front());
+    if (!ent.has_value() ||
+        ent->kind != analysis::EntityKind::Type ||
+        !ent->origin_opt.has_value()) {
+        return path;
+    }
+
+    analysis::TypePath resolved = *ent->origin_opt;
+    resolved.push_back(ent->target_opt.value_or(path.front()));
+    return resolved;
+}
+
+const ast::ModalDecl* ResolveModalDeclForDispatch(
+    const analysis::ScopeContext& scope,
+    analysis::TypePath& path) {
+    if (const ast::ModalDecl* direct = analysis::LookupModalDecl(scope, path)) {
+        return direct;
+    }
+
+    const auto resolved = ResolveDispatchTypePath(scope, path);
+    if (!resolved.has_value() || *resolved == path) {
+        return nullptr;
+    }
+
+    if (const ast::ModalDecl* decl = analysis::LookupModalDecl(scope, *resolved)) {
+        path = *resolved;
+        return decl;
+    }
+    return nullptr;
+}
+
 const ast::Expr* UnwrapReceiverExpr(const ast::ExprPtr& expr) {
     const ast::Expr* current = expr.get();
     while (current) {
@@ -153,6 +195,33 @@ analysis::TypeRef ReceiverBindingType(const ast::ExprPtr& receiver,
         return nullptr;
     }
     return state->type;
+}
+
+analysis::TypeRef ReceiverSemanticType(const ast::ExprPtr& receiver,
+                                       const LowerCtx& ctx) {
+    if (!receiver || !ctx.expr_type) {
+        return nullptr;
+    }
+    return ctx.expr_type(*receiver);
+}
+
+analysis::TypeRef ReceiverDispatchType(const ast::ExprPtr& receiver,
+                                       const LowerCtx& ctx) {
+    analysis::TypeRef binding_type = ReceiverBindingType(receiver, ctx);
+    analysis::TypeRef semantic_type = ReceiverSemanticType(receiver, ctx);
+
+    if (ModalStateInfo(semantic_type)) {
+        return semantic_type;
+    }
+    if (binding_type) {
+        return binding_type;
+    }
+    return semantic_type;
+}
+
+bool ShouldTraceMethodCall(std::string_view name) {
+    return core::IsDebugEnabled("call") &&
+           (name == "currentDiagnostic" || name == "remainingDiagnostics");
 }
 
 // Materialize a temporary for non-`move` receiver expressions that do not
@@ -495,14 +564,27 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
     SPEC_RULE("Lower-Expr-MethodCall");
 
     // Get receiver type for dispatch determination
-    analysis::TypeRef recv_type = ReceiverBindingType(expr.receiver, ctx);
-    if (ctx.expr_type) {
-        if (!recv_type) {
-            recv_type = ctx.expr_type(*expr.receiver);
-        }
-    }
+    analysis::TypeRef recv_type = ReceiverDispatchType(expr.receiver, ctx);
     analysis::TypeRef stripped = recv_type ? analysis::StripPerm(recv_type) : recv_type;
     const auto* dyn_type = stripped ? std::get_if<analysis::TypeDynamic>(&stripped->node) : nullptr;
+    if (ShouldTraceMethodCall(expr.name)) {
+        const auto root = ReceiverRootName(expr.receiver);
+        const analysis::TypeRef binding_type = ReceiverBindingType(expr.receiver, ctx);
+        const analysis::TypeRef semantic_type = ReceiverSemanticType(expr.receiver, ctx);
+        std::cerr << "[cursive] method-call-lower"
+                  << " name=" << expr.name
+                  << " root=" << (root.has_value() ? *root : std::string("<none>"))
+                  << " binding_type="
+                  << (binding_type ? analysis::TypeToString(binding_type)
+                                   : std::string("<null>"))
+                  << " semantic_type="
+                  << (semantic_type ? analysis::TypeToString(semantic_type)
+                                    : std::string("<null>"))
+                  << " dispatch_type="
+                  << (recv_type ? analysis::TypeToString(recv_type)
+                                : std::string("<null>"))
+                  << "\n";
+    }
 
     // Handle shared-value until(pred, action) specially.
     if (analysis::IdEq(expr.name, "until") &&
@@ -923,7 +1005,8 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
     // Static dispatch - look up method from type
     if (!dyn_type && ctx.sigma) {
         if (auto modal_info = ModalStateInfo(recv_type)) {
-            const auto* modal_decl = analysis::LookupModalDecl(scope, modal_info->first);
+            analysis::TypePath modal_path = modal_info->first;
+            const auto* modal_decl = ResolveModalDeclForDispatch(scope, modal_path);
             if (modal_decl) {
                 if (const auto* state_method =
                         analysis::LookupStateMethodDecl(*modal_decl, modal_info->second, expr.name)) {
@@ -1023,6 +1106,20 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
             }
             if (auto sym = MethodSymbol(sym_scope, recv_type_for_sym, expr.name)) {
                 callee_sym = *sym;
+                if (ShouldTraceMethodCall(expr.name)) {
+                    std::cerr << "[cursive] method-call-symbol"
+                              << " name=" << expr.name
+                              << " symbol=" << callee_sym
+                              << " recv_type="
+                              << analysis::TypeToString(recv_type_for_sym)
+                              << "\n";
+                }
+            } else if (ShouldTraceMethodCall(expr.name)) {
+                std::cerr << "[cursive] method-call-symbol-missing"
+                          << " name=" << expr.name
+                          << " recv_type="
+                          << analysis::TypeToString(recv_type_for_sym)
+                          << "\n";
             }
         }
     }

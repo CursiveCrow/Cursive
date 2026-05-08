@@ -579,18 +579,94 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
           if (!pat.fields_opt) {
             return;
           }
+          analysis::TypeRef modal_hint =
+              StripPermAndRefine(InstantiateActiveGenericType(
+                  ctx.LookupValueType(value), ctx));
+          analysis::TypePath modal_path;
+          std::vector<analysis::TypeRef> modal_args;
+          auto assign_modal_ref = [&](const analysis::TypeRef& type,
+                                      bool require_state_match) -> bool {
+            const analysis::TypeRef stripped = StripPermAndRefine(type);
+            if (!stripped) {
+              return false;
+            }
+            if (const auto* modal_state =
+                    std::get_if<analysis::TypeModalState>(&stripped->node)) {
+              if (require_state_match &&
+                  !analysis::IdEq(modal_state->state, pat.state)) {
+                return false;
+              }
+              modal_path = modal_state->path;
+              modal_args = modal_state->generic_args;
+              return true;
+            }
+            if (!require_state_match) {
+              if (const auto* modal_ref =
+                      std::get_if<analysis::TypePathType>(&stripped->node)) {
+                modal_path = modal_ref->path;
+                modal_args = modal_ref->generic_args;
+                return true;
+              }
+            }
+            return false;
+          };
+          if (!assign_modal_ref(modal_hint, false) && modal_hint &&
+              std::holds_alternative<analysis::TypeUnion>(modal_hint->node)) {
+            const auto& uni = std::get<analysis::TypeUnion>(modal_hint->node);
+            const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+            std::vector<analysis::TypeRef> members = uni.members;
+            if (const auto layout =
+                    ::cursive::analysis::layout::UnionLayoutOf(scope, uni)) {
+              members = layout->member_list;
+            }
+            std::optional<analysis::TypeRef> matched_member;
+            bool matched_member_is_ambiguous = false;
+            for (const auto& member : members) {
+              const analysis::TypeRef stripped = StripPermAndRefine(member);
+              const auto* modal_state =
+                  stripped
+                      ? std::get_if<analysis::TypeModalState>(&stripped->node)
+                      : nullptr;
+              if (!modal_state || !analysis::IdEq(modal_state->state, pat.state)) {
+                continue;
+              }
+              if (matched_member.has_value()) {
+                matched_member_is_ambiguous = true;
+                break;
+              }
+              matched_member = stripped;
+            }
+            if (matched_member.has_value() && !matched_member_is_ambiguous) {
+              assign_modal_ref(*matched_member, true);
+            }
+          }
+          const ast::ModalDecl* modal_decl =
+              modal_path.empty() ? nullptr : LookupModalDecl(modal_path, ctx);
           for (const auto& field : pat.fields_opt->fields) {
+            analysis::TypeRef field_type = nullptr;
+            if (modal_decl) {
+              field_type = ModalFieldType(
+                  *modal_decl,
+                  modal_args,
+                  pat.state,
+                  field.name,
+                  ctx);
+            }
             IRValue field_val = ctx.FreshTempValue("pat_modal_field");
             DerivedValueInfo info;
             info.kind = DerivedValueInfo::Kind::ModalField;
             info.base = value;
+            info.static_path = modal_path;
             info.modal_state = pat.state;
             info.field = field.name;
             ctx.RegisterDerivedValue(field_val, info);
+            if (field_type) {
+              ctx.RegisterValueType(field_val, field_type);
+            }
             if (field.pattern_opt) {
               CollectPatternBindingsInOrder(*field.pattern_opt, field_val, ctx, bindings);
             } else {
-              bindings.push_back({field.name, field_val, nullptr});
+              bindings.push_back({field.name, field_val, field_type});
             }
           }
         } else {

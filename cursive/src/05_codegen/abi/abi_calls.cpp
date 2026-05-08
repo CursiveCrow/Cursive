@@ -80,6 +80,43 @@ const ast::ModalDecl* GetModalDecl(const analysis::ScopeContext& ctx,
   return analysis::LookupModalDecl(ctx, path);
 }
 
+std::optional<analysis::TypePath> ResolveDispatchTypePath(
+    const analysis::ScopeContext& ctx,
+    const analysis::TypePath& path) {
+  if (path.size() != 1) {
+    return path;
+  }
+
+  const auto ent = analysis::ResolveTypeName(ctx, path.front());
+  if (!ent.has_value() || ent->kind != analysis::EntityKind::Type ||
+      !ent->origin_opt.has_value()) {
+    return path;
+  }
+
+  analysis::TypePath resolved = *ent->origin_opt;
+  resolved.push_back(ent->target_opt.value_or(path.front()));
+  return resolved;
+}
+
+const ast::ModalDecl* ResolveModalDeclForDispatch(
+    const analysis::ScopeContext& ctx,
+    analysis::TypePath& path) {
+  if (const ast::ModalDecl* direct = GetModalDecl(ctx, path)) {
+    return direct;
+  }
+
+  const auto resolved = ResolveDispatchTypePath(ctx, path);
+  if (!resolved.has_value() || *resolved == path) {
+    return nullptr;
+  }
+
+  if (const ast::ModalDecl* decl = GetModalDecl(ctx, *resolved)) {
+    path = *resolved;
+    return decl;
+  }
+  return nullptr;
+}
+
 // Strip permission wrapper from type.
 // Recursively removes TypePerm nodes to get the underlying type.
 analysis::TypeRef StripPerm(const analysis::TypeRef& type) {
@@ -208,6 +245,22 @@ LowerCtx BuildABILowerCtx(const analysis::ScopeContext& scope_ctx) {
     return full;
   };
 
+  lower_ctx.resolve_type_name_in_module =
+      [&scope_ctx](const std::vector<std::string>& module_path,
+                   const std::string& name)
+          -> std::optional<std::vector<std::string>> {
+    analysis::ScopeContext module_ctx = scope_ctx;
+    module_ctx.current_module = module_path;
+    const auto ent = analysis::ResolveTypeName(module_ctx, name);
+    if (!ent.has_value() || ent->kind != analysis::EntityKind::Type ||
+        !ent->origin_opt.has_value()) {
+      return std::nullopt;
+    }
+    std::vector<std::string> full = *ent->origin_opt;
+    full.push_back(ent->target_opt.value_or(name));
+    return full;
+  };
+
   // Seed local/procedure value bindings so helper lowering can read locals
   // without forcing path resolution.
   const auto& scopes = scope_ctx.scopes;
@@ -320,7 +373,9 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
       return builtin;
     }
 
-    const auto* modal_decl = GetModalDecl(ctx, modal_path);
+    auto resolved_modal_path = modal_path;
+    const auto* modal_decl =
+        ResolveModalDeclForDispatch(ctx, resolved_modal_path);
     if (!modal_decl) {
       return std::nullopt;
     }
@@ -330,7 +385,7 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
     const auto* state_method = analysis::LookupStateMethodDecl(*modal_decl, state, name);
     if (state_method) {
       SPEC_RULE("MethodSymbol-ModalState-Method");
-      return MangleStateMethod(modal_path, state, *state_method);
+      return MangleStateMethod(resolved_modal_path, state, *state_method);
     }
 
     // (MethodSymbol-ModalState-Transition)
@@ -338,7 +393,7 @@ std::optional<std::string> MethodSymbol(const analysis::ScopeContext& ctx,
     const auto* transition = analysis::LookupTransitionDecl(*modal_decl, state, name);
     if (transition) {
       SPEC_RULE("MethodSymbol-ModalState-Transition");
-      return MangleTransition(modal_path, state, *transition);
+      return MangleTransition(resolved_modal_path, state, *transition);
     }
 
     return std::nullopt;

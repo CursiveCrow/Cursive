@@ -179,16 +179,50 @@ using namespace emit_detail;
       {
         return nullptr;
       }
+      analysis::TypeRef desired_type = nullptr;
+      if (const LowerCtx *ctx = GetCurrentCtx())
+      {
+        desired_type = ctx->LookupValueType(val);
+      }
+      analysis::TypeRef storage_type = nullptr;
+      const auto storage_type_it = local_types_.find(val.name);
+      if (storage_type_it != local_types_.end())
+      {
+        storage_type = storage_type_it->second;
+      }
+      auto coerce_refined_local = [&](llvm::Value *loaded) -> llvm::Value *
+      {
+        if (!loaded || !desired_type || !storage_type)
+        {
+          return loaded;
+        }
+        llvm::Type *desired_llvm_ty = GetLLVMType(desired_type);
+        if (!desired_llvm_ty || desired_llvm_ty->isVoidTy())
+        {
+          return loaded;
+        }
+        if (llvm::Value *coerced = CoerceToTyped(
+                *this,
+                builder,
+                loaded,
+                desired_llvm_ty,
+                storage_type,
+                desired_type))
+        {
+          return coerced;
+        }
+        return loaded;
+      };
       if (auto *alloca = llvm::dyn_cast<llvm::AllocaInst>(local))
       {
-        return builder->CreateLoad(alloca->getAllocatedType(), alloca);
+        llvm::Value *loaded = builder->CreateLoad(alloca->getAllocatedType(), alloca);
+        return coerce_refined_local(loaded);
       }
       if (local->getType()->isPointerTy())
       {
-        const auto it = local_types_.find(val.name);
-        if (it != local_types_.end() && it->second)
+        if (storage_type)
         {
-          if (llvm::Type *local_ty = GetLLVMType(it->second))
+          if (llvm::Type *local_ty = GetLLVMType(storage_type))
           {
             llvm::Value *typed_ptr = local;
             llvm::Type *expected_ptr_ty = llvm::PointerType::get(local_ty, 0);
@@ -196,7 +230,8 @@ using namespace emit_detail;
             {
               typed_ptr = builder->CreateBitCast(typed_ptr, expected_ptr_ty);
             }
-            return builder->CreateLoad(local_ty, typed_ptr);
+            llvm::Value *loaded = builder->CreateLoad(local_ty, typed_ptr);
+            return coerce_refined_local(loaded);
           }
         }
       }
@@ -1703,16 +1738,75 @@ using namespace emit_detail;
           if (derived->name == std::string(kPanicOutName))
           {
             materialized = builder->CreateLoad(alloca->getAllocatedType(), alloca);
-          }
-          else
-          {
-            materialized = alloca;
+            break;
           }
         }
-        else
+
+        analysis::TypeRef desired_storage_type =
+            pointee_from_type(lookup_value_type(val));
+        analysis::TypeRef current_storage_type = nullptr;
+        const auto local_type_it = local_types_.find(derived->name);
+        if (local_type_it != local_types_.end())
         {
-          materialized = local;
+          current_storage_type = local_type_it->second;
         }
+        if (desired_storage_type && current_storage_type)
+        {
+          llvm::Type *desired_storage_llvm = GetLLVMType(desired_storage_type);
+          llvm::Type *current_storage_llvm = GetLLVMType(current_storage_type);
+          if (desired_storage_llvm && current_storage_llvm &&
+              !desired_storage_llvm->isVoidTy() &&
+              desired_storage_llvm != current_storage_llvm)
+          {
+            llvm::Value *typed_local = local;
+            llvm::Type *current_ptr_ty =
+                llvm::PointerType::get(current_storage_llvm, 0);
+            if (typed_local->getType() != current_ptr_ty)
+            {
+              typed_local = builder->CreateBitCast(typed_local, current_ptr_ty);
+            }
+            llvm::Value *loaded =
+                builder->CreateLoad(current_storage_llvm, typed_local);
+            llvm::Value *coerced =
+                CoerceToTyped(*this,
+                              builder,
+                              loaded,
+                              desired_storage_llvm,
+                              current_storage_type,
+                              desired_storage_type);
+            if (coerced)
+            {
+              llvm::Function *current_fn =
+                  builder->GetInsertBlock()
+                      ? builder->GetInsertBlock()->getParent()
+                      : nullptr;
+              if (current_fn)
+              {
+                llvm::IRBuilder<> entry_builder(
+                    &current_fn->getEntryBlock(),
+                    current_fn->getEntryBlock().begin());
+                llvm::AllocaInst *refined_slot =
+                    entry_builder.CreateAlloca(
+                        desired_storage_llvm,
+                        nullptr,
+                        derived->name + ".addr.refined");
+                builder->CreateStore(coerced, refined_slot);
+                materialized = refined_slot;
+                break;
+              }
+            }
+          }
+        }
+
+        IRValue local_value;
+        local_value.kind = IRValue::Kind::Local;
+        local_value.name = derived->name;
+        if (llvm::Value *storage = GetAddressableStorage(local_value))
+        {
+          materialized = storage;
+          break;
+        }
+        materialized = local;
         break;
       }
       case DerivedValueInfo::Kind::AddrTuple:

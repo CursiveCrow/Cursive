@@ -68,6 +68,18 @@ namespace {
 // Helper functions for call lowering
 // =============================================================================
 
+bool DebugProcedureParameterSignature(const std::string& symbol) {
+  return symbol.find("emptyDiagnosticStream") != std::string::npos ||
+         symbol.find("singleDiagnosticStream") != std::string::npos ||
+         symbol.find("singleErrorDiagnosticStream") != std::string::npos ||
+         symbol.find("parseManifestText") != std::string::npos ||
+         symbol.find("emptyPathComponentList") != std::string::npos;
+}
+
+bool ParamDebugEnabled() {
+  return std::getenv("CURSIVE_PARAM_DEBUG") != nullptr;
+}
+
 // Extract parameter modes from TypeFunc parameters
 ParamModeList ParamModesFromFuncParams(const std::vector<analysis::TypeFuncParam>& params) {
   ParamModeList modes;
@@ -958,10 +970,17 @@ LowerResult LowerMoveArgExprWithTemp(const ast::Arg& arg,
   if (!analysis::UsesCallTempForConsuming(
           std::optional<analysis::ParamMode>(analysis::ParamMode::Move), arg)) {
     auto moved_expr = analysis::MovedArgExpr(arg);
-    return LowerExpr(*moved_expr, ctx);
+    auto prev_suppress = ctx.suppress_temp_at_depth;
+    ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
+    auto result = LowerExpr(*moved_expr, ctx);
+    ctx.suppress_temp_at_depth = prev_suppress;
+    return result;
   }
 
+  auto prev_suppress = ctx.suppress_temp_at_depth;
+  ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
   auto value_result = LowerExpr(*arg.value, ctx);
+  ctx.suppress_temp_at_depth = prev_suppress;
   std::string temp_name = ctx.FreshTempValue(temp_prefix).name;
 
   analysis::TypeRef temp_type =
@@ -1420,6 +1439,12 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
   }
   if (!result_type) {
     result_type = contextual_result_type;
+  }
+  if (ParamDebugEnabled() && DebugProcedureParameterSignature(callee_lookup_symbol)) {
+    std::cerr << "[lower-call-param-debug] callee=" << callee_lookup_symbol
+              << " source_args=" << expr.args.size()
+              << " param_modes=" << param_modes.size()
+              << " param_types=" << param_types.size() << "\n";
   }
 
   // Lower arguments

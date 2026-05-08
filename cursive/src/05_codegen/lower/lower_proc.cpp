@@ -56,6 +56,7 @@
 
 #include "05_codegen/lower/lower_proc.h"
 
+#include <cstdlib>
 #include <map>
 #include <iostream>
 #include <string_view>
@@ -86,6 +87,18 @@ namespace cursive::codegen {
 using namespace ast;
 
 namespace {
+
+bool DebugProcedureParameterSignature(const std::string& symbol) {
+  return symbol.find("emptyDiagnosticStream") != std::string::npos ||
+         symbol.find("singleDiagnosticStream") != std::string::npos ||
+         symbol.find("singleErrorDiagnosticStream") != std::string::npos ||
+         symbol.find("parseManifestText") != std::string::npos ||
+         symbol.find("emptyPathComponentList") != std::string::npos;
+}
+
+bool ParamDebugEnabled() {
+  return std::getenv("CURSIVE_PARAM_DEBUG") != nullptr;
+}
 
 bool IsUnitType(const analysis::TypeRef& type) {
   if (!type) {
@@ -1112,6 +1125,18 @@ ProcIR LowerProc(const ProcedureDecl& decl,
                     preserve_addr_provenance);
     p.stable_name = ctx.StableBindingName(param.name);
     ir.params.push_back(p);
+  }
+  if (ParamDebugEnabled() && DebugProcedureParameterSignature(ir.symbol)) {
+    std::cerr << "[lower-proc-param-debug] symbol=" << ir.symbol
+              << " decl_params=" << decl.params.size()
+              << " ir_params=" << ir.params.size();
+    for (const auto& param : decl.params) {
+      std::cerr << " decl_param=" << param.name;
+    }
+    for (const auto& param : ir.params) {
+      std::cerr << " ir_param=" << param.name;
+    }
+    std::cerr << "\n";
   }
   // Lower return type
   if (decl.return_type_opt && ctx.sigma) {

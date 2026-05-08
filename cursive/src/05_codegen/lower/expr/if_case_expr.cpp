@@ -24,6 +24,12 @@
 #include <vector>
 
 #include "00_core/assert_spec.h"
+#include "04_analysis/generics/monomorphize.h"
+#include "04_analysis/modal/modal.h"
+#include "04_analysis/resolve/scopes.h"
+#include "04_analysis/resolve/scopes_lookup.h"
+#include "04_analysis/typing/type_lower.h"
+#include "04_analysis/typing/type_predicates.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/cleanup/unwind.h"
 #include "05_codegen/lower/lower_pat.h"
@@ -124,8 +130,380 @@ struct LowerIfCaseClauseResult {
   bool terminates = false;
 };
 
+struct AliasExpandResult {
+  bool ok = true;
+  analysis::TypeRef type = nullptr;
+  bool expanded = false;
+};
+
+struct TypeAliasLookup {
+  const ast::TypeAliasDecl* decl = nullptr;
+  ast::ModulePath owner_module;
+};
+
+std::optional<TypeAliasLookup> LookupTypeAliasDecl(
+    const analysis::ScopeContext& scope,
+    const analysis::TypePath& path) {
+  if (path.empty()) {
+    return std::nullopt;
+  }
+
+  if (path.size() > 1) {
+    ast::Path full;
+    full.reserve(path.size());
+    for (const auto& segment : path) {
+      full.push_back(segment);
+    }
+    const auto it = scope.sigma.types.find(analysis::PathKeyOf(full));
+    if (it == scope.sigma.types.end()) {
+      return std::nullopt;
+    }
+    const ast::TypeAliasDecl* decl = std::get_if<ast::TypeAliasDecl>(&it->second);
+    if (!decl) {
+      return std::nullopt;
+    }
+    ast::ModulePath owner(full.begin(), full.end() - 1);
+    return TypeAliasLookup{decl, std::move(owner)};
+  }
+
+  const auto resolved = analysis::ResolveTypeName(scope, path.front());
+  if (!resolved.has_value() || !resolved->origin_opt.has_value()) {
+    return std::nullopt;
+  }
+
+  ast::Path full = *resolved->origin_opt;
+  full.push_back(resolved->target_opt.value_or(path.front()));
+  const auto it = scope.sigma.types.find(analysis::PathKeyOf(full));
+  if (it == scope.sigma.types.end()) {
+    return std::nullopt;
+  }
+  const ast::TypeAliasDecl* decl = std::get_if<ast::TypeAliasDecl>(&it->second);
+  if (!decl) {
+    return std::nullopt;
+  }
+  return TypeAliasLookup{decl, *resolved->origin_opt};
+}
+
+analysis::TypePath ResolveAliasTypePath(
+    const analysis::TypePath& path,
+    const ast::ModulePath& owner_module,
+    const LowerCtx& ctx) {
+  if (path.size() != 1) {
+    return path;
+  }
+
+  if (ctx.resolve_type_name_in_module) {
+    if (const auto resolved =
+            ctx.resolve_type_name_in_module(owner_module, path.front())) {
+      return *resolved;
+    }
+  }
+
+  if (ctx.sigma) {
+    ast::Path same_module_path = owner_module;
+    same_module_path.push_back(path.front());
+    const analysis::PathKey key = analysis::PathKeyOf(same_module_path);
+    if (ctx.sigma->types.find(key) != ctx.sigma->types.end() ||
+        ctx.sigma->classes.find(key) != ctx.sigma->classes.end()) {
+      return same_module_path;
+    }
+  }
+
+  return path;
+}
+
+std::shared_ptr<ast::Type> ResolveAliasTypeNames(
+    const std::shared_ptr<ast::Type>& type,
+    const ast::ModulePath& owner_module,
+    const LowerCtx& ctx) {
+  if (!type) {
+    return type;
+  }
+
+  auto out = std::make_shared<ast::Type>(*type);
+  std::visit(
+      [&](auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::TypePermType>) {
+          node.base = ResolveAliasTypeNames(node.base, owner_module, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeUnion>) {
+          for (auto& member : node.types) {
+            member = ResolveAliasTypeNames(member, owner_module, ctx);
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeFunc>) {
+          for (auto& param : node.params) {
+            param.type = ResolveAliasTypeNames(param.type, owner_module, ctx);
+          }
+          node.ret = ResolveAliasTypeNames(node.ret, owner_module, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeClosure>) {
+          for (auto& param : node.params) {
+            param.type = ResolveAliasTypeNames(param.type, owner_module, ctx);
+          }
+          node.ret = ResolveAliasTypeNames(node.ret, owner_module, ctx);
+          if (node.deps_opt.has_value()) {
+            for (auto& dep : *node.deps_opt) {
+              dep.type = ResolveAliasTypeNames(dep.type, owner_module, ctx);
+            }
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeTuple>) {
+          for (auto& element : node.elements) {
+            element = ResolveAliasTypeNames(element, owner_module, ctx);
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeArray>) {
+          node.element = ResolveAliasTypeNames(node.element, owner_module, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeSlice>) {
+          node.element = ResolveAliasTypeNames(node.element, owner_module, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeSafePtr>) {
+          node.element = ResolveAliasTypeNames(node.element, owner_module, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeRawPtr>) {
+          node.element = ResolveAliasTypeNames(node.element, owner_module, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeDynamic>) {
+          node.path = ResolveAliasTypePath(node.path, owner_module, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeModalState>) {
+          node.path = ResolveAliasTypePath(node.path, owner_module, ctx);
+          for (auto& arg : node.generic_args) {
+            arg = ResolveAliasTypeNames(arg, owner_module, ctx);
+          }
+          ast::SyncTypeModalStateFromFields(node);
+        } else if constexpr (std::is_same_v<T, ast::TypePathType>) {
+          node.path = ResolveAliasTypePath(node.path, owner_module, ctx);
+          for (auto& arg : node.generic_args) {
+            arg = ResolveAliasTypeNames(arg, owner_module, ctx);
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeApply>) {
+          node.path = ResolveAliasTypePath(node.path, owner_module, ctx);
+          for (auto& arg : node.args) {
+            arg = ResolveAliasTypeNames(arg, owner_module, ctx);
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeOpaque>) {
+          node.path = ResolveAliasTypePath(node.path, owner_module, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeRefine>) {
+          node.base = ResolveAliasTypeNames(node.base, owner_module, ctx);
+        }
+      },
+      out->node);
+  return out;
+}
+
+AliasExpandResult ExpandTypeAlias(
+    const analysis::ScopeContext& scope,
+    const analysis::TypePath& path,
+    const std::vector<analysis::TypeRef>& args,
+    const LowerCtx& ctx) {
+  AliasExpandResult result;
+  const auto alias_lookup = LookupTypeAliasDecl(scope, path);
+  if (!alias_lookup.has_value()) {
+    return result;
+  }
+  const ast::TypeAliasDecl& alias = *alias_lookup->decl;
+
+  const auto resolved_alias_type =
+      ResolveAliasTypeNames(alias.type, alias_lookup->owner_module, ctx);
+  const auto lowered = analysis::LowerType(scope, resolved_alias_type);
+  if (!lowered.ok || !lowered.type) {
+    result.ok = false;
+    return result;
+  }
+
+  if (!alias.generic_params.has_value()) {
+    if (!args.empty()) {
+      return result;
+    }
+    result.type = lowered.type;
+    result.expanded = true;
+    return result;
+  }
+
+  const auto& params = alias.generic_params->params;
+  if (args.size() > params.size()) {
+    return result;
+  }
+
+  const auto subst = analysis::BuildSubstitution(params, args);
+  result.type = analysis::InstantiateType(lowered.type, subst);
+  result.ok = result.type != nullptr;
+  result.expanded = result.ok;
+  return result;
+}
+
+AliasExpandResult NormalizeAliasTopLevel(
+    const analysis::ScopeContext& scope,
+    analysis::TypeRef type,
+    const LowerCtx& ctx) {
+  AliasExpandResult result;
+  result.type = std::move(type);
+
+  for (int depth = 0; depth < 16; ++depth) {
+    if (!result.type) {
+      return result;
+    }
+
+    const auto* path = analysis::AppliedTypePath(*result.type);
+    const auto* args = analysis::AppliedTypeArgs(*result.type);
+    if (!path || !args) {
+      return result;
+    }
+
+    const auto expanded = ExpandTypeAlias(scope, *path, *args, ctx);
+    if (!expanded.ok) {
+      result.ok = false;
+      return result;
+    }
+    if (!expanded.expanded) {
+      return result;
+    }
+
+    result.type = expanded.type;
+    result.expanded = true;
+  }
+
+  return result;
+}
+
+std::optional<std::string> ScrutineeIdentifier(const ast::Expr& scrutinee) {
+  if (const auto* ident = std::get_if<ast::IdentifierExpr>(&scrutinee.node)) {
+    return std::string(ident->name);
+  }
+  return std::nullopt;
+}
+
+bool ModalStateMatches(const analysis::TypeRef& type,
+                       std::string_view state_name) {
+  const auto stripped = analysis::StripPerm(type);
+  if (!stripped) {
+    return false;
+  }
+  const auto* modal = std::get_if<analysis::TypeModalState>(&stripped->node);
+  return modal && analysis::IdEq(modal->state, state_name);
+}
+
+analysis::TypeRef RefinedModalPatternType(
+    const analysis::ScopeContext& scope,
+    const ast::ModalPattern& pattern,
+    const analysis::TypeRef& scrutinee_type,
+    const LowerCtx& ctx) {
+  if (!scrutinee_type) {
+    return nullptr;
+  }
+
+  if (const auto* perm = std::get_if<analysis::TypePerm>(&scrutinee_type->node)) {
+    const analysis::TypeRef narrowed =
+        RefinedModalPatternType(scope, pattern, perm->base, ctx);
+    if (!narrowed) {
+      return nullptr;
+    }
+    SPEC_RULE("PatternNarrow-Perm");
+    return analysis::MakeTypePerm(perm->perm, narrowed);
+  }
+
+  const auto normalized =
+      NormalizeAliasTopLevel(scope, scrutinee_type, ctx);
+  if (!normalized.ok || !normalized.type) {
+    return nullptr;
+  }
+  if (normalized.expanded) {
+    return RefinedModalPatternType(scope, pattern, normalized.type, ctx);
+  }
+
+  if (const auto* union_type =
+          std::get_if<analysis::TypeUnion>(&normalized.type->node)) {
+    std::vector<analysis::TypeRef> matched;
+    matched.reserve(union_type->members.size());
+    for (const auto& member : union_type->members) {
+      const analysis::TypeRef member_narrowed =
+          RefinedModalPatternType(scope, pattern, member, ctx);
+      if (member_narrowed) {
+        matched.push_back(member_narrowed);
+      }
+    }
+    if (matched.empty()) {
+      return nullptr;
+    }
+    if (matched.size() == 1) {
+      return matched.front();
+    }
+    SPEC_RULE("PatternNarrow-Union");
+    return analysis::MakeTypeUnion(std::move(matched));
+  }
+
+  if (ModalStateMatches(normalized.type, pattern.state)) {
+    SPEC_RULE("PatternNarrow-ModalState");
+    return normalized.type;
+  }
+
+  const auto* path = analysis::AppliedTypePath(*normalized.type);
+  const auto* args = analysis::AppliedTypeArgs(*normalized.type);
+  if (!path) {
+    return nullptr;
+  }
+
+  ast::TypePath ast_path;
+  ast_path.reserve(path->size());
+  for (const auto& segment : *path) {
+    ast_path.push_back(segment);
+  }
+  const ast::ModalDecl* modal_decl = analysis::LookupModalDecl(scope, ast_path);
+  if (!modal_decl || !analysis::HasState(*modal_decl, pattern.state)) {
+    return nullptr;
+  }
+
+  SPEC_RULE("PatternNarrow-ModalRef");
+  return analysis::MakeTypeModalState(
+      *path,
+      pattern.state,
+      args ? *args : std::vector<analysis::TypeRef>{});
+}
+
+analysis::TypeRef RefinedPatternType(
+    const analysis::ScopeContext& scope,
+    const ast::Pattern& pattern,
+    const analysis::TypeRef& scrutinee_type,
+    const LowerCtx& ctx) {
+  if (const auto* modal = std::get_if<ast::ModalPattern>(&pattern.node)) {
+    return RefinedModalPatternType(scope, *modal, scrutinee_type, ctx);
+  }
+  if (const auto* typed = std::get_if<ast::TypedPattern>(&pattern.node)) {
+    const auto lowered = analysis::LowerType(scope, typed->type);
+    return lowered.ok ? lowered.type : nullptr;
+  }
+  return nullptr;
+}
+
+void RefineScrutineeBinding(const ast::Expr& scrutinee,
+                            const ast::Pattern& pattern,
+                            const analysis::TypeRef& scrutinee_type,
+                            LowerCtx& ctx) {
+  if (!ctx.sigma) {
+    return;
+  }
+
+  const auto name = ScrutineeIdentifier(scrutinee);
+  if (!name.has_value()) {
+    return;
+  }
+
+  auto binding_it = ctx.binding_states.find(*name);
+  if (binding_it == ctx.binding_states.end() || binding_it->second.empty()) {
+    return;
+  }
+
+  const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+  auto& binding = binding_it->second.back();
+  analysis::TypeRef refined =
+      RefinedPatternType(scope, pattern, binding.type, ctx);
+  if (!refined && scrutinee_type) {
+    refined = RefinedPatternType(scope, pattern, scrutinee_type, ctx);
+  }
+  if (!refined) {
+    return;
+  }
+
+  binding.type = refined;
+}
+
 LowerIfCaseClauseResult LowerIfCaseClauseImpl(
     const ast::IfCaseClause& arm,
+    const ast::Expr& scrutinee_expr,
     const IRValue& scrutinee,
     const analysis::TypeRef& scrutinee_type,
     analysis::ProvenanceKind scrutinee_prov,
@@ -242,7 +620,8 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
                          const std::vector<ast::IfCaseClause>& arms,
                          const ast::ExprPtr& else_expr,
                          bool single_form,
-                         LowerCtx& ctx) {
+                         LowerCtx& ctx,
+                         const analysis::TypeRef& expected_result_type) {
   SPEC_RULE("Lower-IfCases");
 
   // Lower the scrutinee under a dedicated temp sink. Nested temporaries used
@@ -266,6 +645,13 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
   analysis::TypeRef scrutinee_type;
   if (ctx.expr_type) {
     scrutinee_type = ctx.expr_type(scrutinee);
+  }
+  if (!scrutinee_type) {
+    if (const auto name = ScrutineeIdentifier(scrutinee)) {
+      if (const BindingState* binding = ctx.GetBindingState(*name)) {
+        scrutinee_type = binding->type;
+      }
+    }
   }
 
   // Get provenance information for the scrutinee
@@ -303,7 +689,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
   std::vector<LowerCtx> arm_ctxs;
   arm_ctxs.reserve(arms.size() + (else_expr || single_form ? 1 : 0));
 
-  analysis::TypeRef result_type;
+  analysis::TypeRef result_type = expected_result_type;
   auto merge_result_type = [&](analysis::TypeRef candidate) {
     if (!candidate) {
       return;
@@ -318,7 +704,8 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     LowerCtx arm_ctx = MakeBranchCtx(ctx);
 
     // Lower this case clause.
-    auto clause_result = LowerIfCaseClauseImpl(arm, scrutinee_result.value,
+    auto clause_result = LowerIfCaseClauseImpl(arm, scrutinee,
+                                               scrutinee_result.value,
                                                scrutinee_type, scrutinee_prov,
                                                scrutinee_region, scrutinee_region_tag,
                                                owned_scrutinee,
@@ -335,6 +722,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     ir_arm.pattern = LowerIRPattern(*arm.pattern, arm_ctx);
     ir_arm.body = clause_result.result.ir;
     ir_arm.value = clause_result.result.value;
+    ir_arm.value_type = clause_result.value_type;
     if (!clause_result.terminates) {
       merge_result_type(clause_result.value_type);
     }
@@ -345,6 +733,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
   if (else_expr || single_form) {
     LowerCtx else_ctx = MakeBranchCtx(ctx);
     LowerResult else_result;
+    analysis::TypeRef else_type;
 
     if (else_expr) {
       else_result = LowerExpr(*else_expr, else_ctx);
@@ -355,7 +744,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
 
     const bool else_terminates = EndsWithTerminator(else_result.ir);
     if (!else_terminates) {
-      analysis::TypeRef else_type = else_ctx.LookupValueType(else_result.value);
+      else_type = else_ctx.LookupValueType(else_result.value);
       if (!else_type && else_expr && ctx.expr_type) {
         else_type = ctx.expr_type(*else_expr);
       }
@@ -372,6 +761,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     else_arm.pattern = std::make_shared<IRPattern>(IRPattern{IRWildcardPattern{}});
     else_arm.body = else_result.ir;
     else_arm.value = else_result.value;
+    else_arm.value_type = else_type;
     ir_arms.push_back(std::move(else_arm));
     arm_ctxs.push_back(std::move(else_ctx));
   }
@@ -427,6 +817,7 @@ namespace {
 
 LowerIfCaseClauseResult LowerIfCaseClauseImpl(
     const ast::IfCaseClause& arm,
+    const ast::Expr& scrutinee_expr,
     const IRValue& scrutinee,
     const analysis::TypeRef& scrutinee_type,
     analysis::ProvenanceKind scrutinee_prov,
@@ -434,6 +825,8 @@ LowerIfCaseClauseResult LowerIfCaseClauseImpl(
     std::optional<std::string> scrutinee_region_tag,
     const std::optional<OwnedIfCaseScrutinee>& owned_scrutinee,
     LowerCtx& ctx) {
+  RefineScrutineeBinding(scrutinee_expr, *arm.pattern, scrutinee_type, ctx);
+
   // Push a new scope for pattern bindings
   ctx.PushScope(false, false);
   ctx.RegisterRuntimeScopeExit();
@@ -567,7 +960,9 @@ LowerResult LowerIfCaseClause(const ast::IfCaseClause& arm,
                           std::optional<std::string> scrutinee_region,
                           std::optional<std::string> scrutinee_region_tag,
                           LowerCtx& ctx) {
-  return LowerIfCaseClauseImpl(arm, scrutinee, scrutinee_type, scrutinee_prov,
+  ast::Expr synthetic_scrutinee;
+  return LowerIfCaseClauseImpl(arm, synthetic_scrutinee, scrutinee,
+                               scrutinee_type, scrutinee_prov,
                                std::move(scrutinee_region),
                                std::move(scrutinee_region_tag),
                                std::nullopt, ctx).result;

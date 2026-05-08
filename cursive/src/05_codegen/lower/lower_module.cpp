@@ -61,11 +61,13 @@
 #include "05_codegen/lower/lower_module.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 
@@ -302,12 +304,99 @@ LowerCtx::FfiImportUnwindMode ParseExternUnwindMode(
   return fallback;
 }
 
+ast::TypePath ResolveLoweringTypePath(const ast::TypePath& path,
+                                      const LowerCtx& ctx) {
+  if (path.size() != 1 || !ctx.resolve_type_name) {
+    return path;
+  }
+  const auto resolved = ctx.resolve_type_name(path.front());
+  if (!resolved.has_value() || resolved->empty()) {
+    return path;
+  }
+  return *resolved;
+}
+
+std::shared_ptr<ast::Type> ResolveTypeNamesForLowering(
+    const std::shared_ptr<ast::Type>& type,
+    const LowerCtx& ctx) {
+  if (!type) {
+    return type;
+  }
+
+  auto out = std::make_shared<ast::Type>(*type);
+  std::visit(
+      [&](auto& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::TypePermType>) {
+          node.base = ResolveTypeNamesForLowering(node.base, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeUnion>) {
+          for (auto& member : node.types) {
+            member = ResolveTypeNamesForLowering(member, ctx);
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeFunc>) {
+          for (auto& param : node.params) {
+            param.type = ResolveTypeNamesForLowering(param.type, ctx);
+          }
+          node.ret = ResolveTypeNamesForLowering(node.ret, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeClosure>) {
+          for (auto& param : node.params) {
+            param.type = ResolveTypeNamesForLowering(param.type, ctx);
+          }
+          node.ret = ResolveTypeNamesForLowering(node.ret, ctx);
+          if (node.deps_opt.has_value()) {
+            for (auto& dep : *node.deps_opt) {
+              dep.type = ResolveTypeNamesForLowering(dep.type, ctx);
+            }
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeTuple>) {
+          for (auto& element : node.elements) {
+            element = ResolveTypeNamesForLowering(element, ctx);
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeArray>) {
+          node.element = ResolveTypeNamesForLowering(node.element, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeSlice>) {
+          node.element = ResolveTypeNamesForLowering(node.element, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeSafePtr>) {
+          node.element = ResolveTypeNamesForLowering(node.element, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeRawPtr>) {
+          node.element = ResolveTypeNamesForLowering(node.element, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeDynamic>) {
+          node.path = ResolveLoweringTypePath(node.path, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeModalState>) {
+          node.path = ResolveLoweringTypePath(node.path, ctx);
+          for (auto& arg : node.generic_args) {
+            arg = ResolveTypeNamesForLowering(arg, ctx);
+          }
+          ast::SyncTypeModalStateFromFields(node);
+        } else if constexpr (std::is_same_v<T, ast::TypePathType>) {
+          node.path = ResolveLoweringTypePath(node.path, ctx);
+          for (auto& arg : node.generic_args) {
+            arg = ResolveTypeNamesForLowering(arg, ctx);
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeApply>) {
+          node.path = ResolveLoweringTypePath(node.path, ctx);
+          for (auto& arg : node.args) {
+            arg = ResolveTypeNamesForLowering(arg, ctx);
+          }
+        } else if constexpr (std::is_same_v<T, ast::TypeOpaque>) {
+          node.path = ResolveLoweringTypePath(node.path, ctx);
+        } else if constexpr (std::is_same_v<T, ast::TypeRefine>) {
+          node.base = ResolveTypeNamesForLowering(node.base, ctx);
+        }
+      },
+      out->node);
+  return out;
+}
+
 analysis::LowerTypeResult LowerTypeForMethod(const analysis::ScopeContext& scope,
-                                         const std::shared_ptr<ast::Type>& type) {
+                                             const std::shared_ptr<ast::Type>& type,
+                                             const LowerCtx& ctx) {
   if (!type) {
     return {false, std::nullopt, nullptr};
   }
-  if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, type)) {
+  const auto resolved_type = ResolveTypeNamesForLowering(type, ctx);
+  if (auto lowered =
+          ::cursive::analysis::layout::LowerTypeForLayout(scope, resolved_type)) {
     return {true, std::nullopt, *lowered};
   }
   return {false, std::nullopt, nullptr};
@@ -385,12 +474,14 @@ analysis::TypeRef SubstSelfType(const analysis::TypeRef& self,
 }
 
 analysis::TypeRef LowerReturnType(const analysis::ScopeContext& scope,
-                              const std::shared_ptr<ast::Type>& ret_opt,
-                              const analysis::TypeRef& self_type) {
+                                  const std::shared_ptr<ast::Type>& ret_opt,
+                                  const analysis::TypeRef& self_type,
+                                  const LowerCtx& ctx) {
   if (!ret_opt) {
     return analysis::MakeTypePrim("()");
   }
-  const auto lowered = analysis::LowerType(scope, ret_opt);
+  const auto resolved_ret = ResolveTypeNamesForLowering(ret_opt, ctx);
+  const auto lowered = analysis::LowerType(scope, resolved_ret);
   if (lowered.ok && lowered.type) {
     return SubstSelfType(self_type, lowered.type);
   }
@@ -399,19 +490,33 @@ analysis::TypeRef LowerReturnType(const analysis::ScopeContext& scope,
 
 IRParam LowerParam(const ast::Param& param,
                    const analysis::ScopeContext& scope,
-                   const analysis::TypeRef& self_type) {
+                   const analysis::TypeRef& self_type,
+                   const LowerCtx& ctx) {
   IRParam out;
   out.mode = param.mode.has_value() ? std::optional<analysis::ParamMode>(analysis::ParamMode::Move)
                                     : std::nullopt;
   out.name = param.name;
   out.stable_name = out.name;
   if (param.type) {
-    const auto lowered = analysis::LowerType(scope, param.type);
+    const auto resolved_type = ResolveTypeNamesForLowering(param.type, ctx);
+    const auto lowered = analysis::LowerType(scope, resolved_type);
     if (lowered.ok && lowered.type) {
       out.type = SubstSelfType(self_type, lowered.type);
     }
   }
   return out;
+}
+
+bool DebugProcedureParameterSignature(const std::string& symbol) {
+  return symbol.find("emptyDiagnosticStream") != std::string::npos ||
+         symbol.find("singleDiagnosticStream") != std::string::npos ||
+         symbol.find("singleErrorDiagnosticStream") != std::string::npos ||
+         symbol.find("parseManifestText") != std::string::npos ||
+         symbol.find("emptyPathComponentList") != std::string::npos;
+}
+
+bool ParamDebugEnabled() {
+  return std::getenv("CURSIVE_PARAM_DEBUG") != nullptr;
 }
 
 analysis::VerificationModeAttribute ResolveForeignVerificationMode(
@@ -655,7 +760,7 @@ ProcIR LowerRecordMethod(const ast::RecordDecl& record,
   const auto recv_type = analysis::RecvTypeForReceiver(
       scope, self_type, method.receiver,
       [&](const std::shared_ptr<ast::Type>& type) {
-        return LowerTypeForMethod(scope, type);
+        return LowerTypeForMethod(scope, type, ctx);
       });
   const auto recv_mode = analysis::RecvModeOf(method.receiver);
 
@@ -668,10 +773,11 @@ ProcIR LowerRecordMethod(const ast::RecordDecl& record,
   params.push_back(self_param);
 
   for (const auto& param : method.params) {
-    params.push_back(LowerParam(param, scope, self_type));
+    params.push_back(LowerParam(param, scope, self_type, ctx));
   }
 
-  const auto ret_type = LowerReturnType(scope, method.return_type_opt, self_type);
+  const auto ret_type =
+      LowerReturnType(scope, method.return_type_opt, self_type, ctx);
   const std::string sym = MangleMethod(record_path, method);
 
   const bool prev_dynamic_checks = ctx.dynamic_checks;
@@ -699,10 +805,11 @@ ProcIR LowerStateMethod(const ast::ModalDecl& modal,
   std::vector<IRParam> params;
   params.push_back(IRParam{std::nullopt, "self", "self", recv_type});
   for (const auto& param : method.params) {
-    params.push_back(LowerParam(param, scope, nullptr));
+    params.push_back(LowerParam(param, scope, nullptr, ctx));
   }
 
-  const auto ret_type = LowerReturnType(scope, method.return_type_opt, nullptr);
+  const auto ret_type =
+      LowerReturnType(scope, method.return_type_opt, nullptr, ctx);
   const std::string sym = MangleStateMethod(modal_path, state.name, method);
   const bool prev_dynamic_checks = ctx.dynamic_checks;
   ctx.dynamic_checks =
@@ -728,7 +835,7 @@ ProcIR LowerTransition(const ast::ModalDecl& modal,
   std::vector<IRParam> params;
   params.push_back(IRParam{analysis::ParamMode::Move, "self", "self", recv_type});
   for (const auto& param : trans.params) {
-    params.push_back(LowerParam(param, scope, nullptr));
+    params.push_back(LowerParam(param, scope, nullptr, ctx));
   }
 
   auto ret_type = analysis::MakeTypeModalState(modal_path, trans.target_state);
@@ -767,7 +874,7 @@ std::vector<ProcIR> LowerClassMethodBody(const ast::ClassDecl& class_decl,
     const auto recv_type = analysis::RecvTypeForReceiver(
         scope, self_type, method.receiver,
         [&](const std::shared_ptr<ast::Type>& type) {
-          return LowerTypeForMethod(scope, type);
+          return LowerTypeForMethod(scope, type, ctx);
         });
     const auto recv_mode = analysis::RecvModeOf(method.receiver);
 
@@ -780,10 +887,11 @@ std::vector<ProcIR> LowerClassMethodBody(const ast::ClassDecl& class_decl,
     params.push_back(self_param);
 
     for (const auto& param : method.params) {
-      params.push_back(LowerParam(param, scope, self_type));
+      params.push_back(LowerParam(param, scope, self_type, ctx));
     }
 
-    const auto ret_type = LowerReturnType(scope, method.return_type_opt, self_type);
+    const auto ret_type =
+        LowerReturnType(scope, method.return_type_opt, self_type, ctx);
     const std::string sym = MangleDefaultImpl(self_type, class_path, method.name);
     auto proc = LowerProcLike(sym, params, ret_type, *method.body_opt, module_path, ctx);
     ApplyProcAttrs(method.attrs, proc);
@@ -802,9 +910,21 @@ ProcIR BuildProcedureSignature(const ast::ProcedureDecl& decl,
 
   const auto& scope = BuildScope(module_path, ctx);
   for (const auto& param : decl.params) {
-    ir.params.push_back(LowerParam(param, scope, nullptr));
+    ir.params.push_back(LowerParam(param, scope, nullptr, ctx));
   }
-  ir.ret = LowerReturnType(scope, decl.return_type_opt, nullptr);
+  if (ParamDebugEnabled() && DebugProcedureParameterSignature(ir.symbol)) {
+    std::cerr << "[lower-signature-debug] symbol=" << ir.symbol
+              << " decl_params=" << decl.params.size()
+              << " ir_params=" << ir.params.size();
+    for (const auto& param : decl.params) {
+      std::cerr << " decl_param=" << param.name;
+    }
+    for (const auto& param : ir.params) {
+      std::cerr << " ir_param=" << param.name;
+    }
+    std::cerr << "\n";
+  }
+  ir.ret = LowerReturnType(scope, decl.return_type_opt, nullptr, ctx);
   ApplyProcAttrs(decl.attrs, ir);
 
   const bool is_export_proc = HasExportAttr(decl.attrs);
@@ -846,7 +966,7 @@ ProcIR BuildRecordMethodSignature(const ast::RecordDecl& record,
   const auto recv_type = analysis::RecvTypeForReceiver(
       scope, self_type, method.receiver,
       [&](const std::shared_ptr<ast::Type>& type) {
-        return LowerTypeForMethod(scope, type);
+        return LowerTypeForMethod(scope, type, ctx);
       });
   const auto recv_mode = analysis::RecvModeOf(method.receiver);
 
@@ -861,9 +981,9 @@ ProcIR BuildRecordMethodSignature(const ast::RecordDecl& record,
   ir.params.push_back(std::move(self_param));
 
   for (const auto& param : method.params) {
-    ir.params.push_back(LowerParam(param, scope, self_type));
+    ir.params.push_back(LowerParam(param, scope, self_type, ctx));
   }
-  ir.ret = LowerReturnType(scope, method.return_type_opt, self_type);
+  ir.ret = LowerReturnType(scope, method.return_type_opt, self_type, ctx);
   AppendPanicOutParamIfNeeded(ir, ctx);
   return ir;
 }
@@ -883,9 +1003,9 @@ ProcIR BuildStateMethodSignature(const ast::ModalDecl& modal,
   ir.symbol = MangleStateMethod(modal_path, state.name, method);
   ir.params.push_back(IRParam{std::nullopt, "self", "self", recv_type});
   for (const auto& param : method.params) {
-    ir.params.push_back(LowerParam(param, scope, nullptr));
+    ir.params.push_back(LowerParam(param, scope, nullptr, ctx));
   }
-  ir.ret = LowerReturnType(scope, method.return_type_opt, nullptr);
+  ir.ret = LowerReturnType(scope, method.return_type_opt, nullptr, ctx);
   AppendPanicOutParamIfNeeded(ir, ctx);
   return ir;
 }
@@ -905,7 +1025,7 @@ ProcIR BuildTransitionSignature(const ast::ModalDecl& modal,
   ir.symbol = MangleTransition(modal_path, state.name, trans);
   ir.params.push_back(IRParam{analysis::ParamMode::Move, "self", "self", recv_type});
   for (const auto& param : trans.params) {
-    ir.params.push_back(LowerParam(param, scope, nullptr));
+    ir.params.push_back(LowerParam(param, scope, nullptr, ctx));
   }
   ir.ret = analysis::MakeTypeModalState(modal_path, trans.target_state);
   AppendPanicOutParamIfNeeded(ir, ctx);
@@ -932,7 +1052,7 @@ std::vector<ProcIR> BuildClassMethodSignatures(const ast::ClassDecl& class_decl,
     const auto recv_type = analysis::RecvTypeForReceiver(
         scope, self_type, method.receiver,
         [&](const std::shared_ptr<ast::Type>& type) {
-          return LowerTypeForMethod(scope, type);
+          return LowerTypeForMethod(scope, type, ctx);
         });
     const auto recv_mode = analysis::RecvModeOf(method.receiver);
 
@@ -947,9 +1067,9 @@ std::vector<ProcIR> BuildClassMethodSignatures(const ast::ClassDecl& class_decl,
     ir.params.push_back(std::move(self_param));
 
     for (const auto& param : method.params) {
-      ir.params.push_back(LowerParam(param, scope, self_type));
+      ir.params.push_back(LowerParam(param, scope, self_type, ctx));
     }
-    ir.ret = LowerReturnType(scope, method.return_type_opt, self_type);
+    ir.ret = LowerReturnType(scope, method.return_type_opt, self_type, ctx);
     AppendPanicOutParamIfNeeded(ir, ctx);
     out.push_back(std::move(ir));
   }
@@ -1077,10 +1197,10 @@ bool RegisterModuleSignatures(const ast::ASTModule& module, LowerCtx& ctx) {
                     ProcIR sig;
                     sig.symbol = symbol;
                     for (const auto& param : proc.params) {
-                      sig.params.push_back(LowerParam(param, scope, nullptr));
+                      sig.params.push_back(LowerParam(param, scope, nullptr, ctx));
                     }
                     sig.ret =
-                        LowerReturnType(scope, proc.return_type_opt, nullptr);
+                        LowerReturnType(scope, proc.return_type_opt, nullptr, ctx);
                     sig.abi = ExternAbiFor(node.abi_opt);
                     register_internal_proc(sig);
                     ctx.RegisterProcFfiImport(
@@ -1309,7 +1429,7 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
                       // Build parameter list
                       std::vector<IRParam> params;
                       for (const auto& param : proc.params) {
-                        params.push_back(LowerParam(param, scope, nullptr));
+                        params.push_back(LowerParam(param, scope, nullptr, ctx));
                       }
                       // Extern declarations describe a foreign ABI surface.
                       // Their visible parameters are lowered as by-value ABI
@@ -1319,7 +1439,8 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
                       }
 
                       // Determine return type
-                      auto ret_type = LowerReturnType(scope, proc.return_type_opt, nullptr);
+                      auto ret_type =
+                          LowerReturnType(scope, proc.return_type_opt, nullptr, ctx);
 
                       // Create extern proc IR
                       ExternProcIR extern_proc;
@@ -1442,18 +1563,33 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
   drain_extra_procs();
   flush_item_maps();
 
-  if (!module_drop_glue_types.empty()) {
-    std::vector<std::string> drop_syms;
-    drop_syms.reserve(module_drop_glue_types.size());
-    for (const auto& [sym, _type] : module_drop_glue_types) {
-      drop_syms.push_back(sym);
+  std::unordered_set<std::string> emitted_drop_glue_syms;
+  for (;;) {
+    if (!ctx.values.drop_glue_types.empty()) {
+      for (auto& [name, type] : ctx.values.drop_glue_types) {
+        module_drop_glue_types[name] = type;
+      }
+      ctx.values.drop_glue_types.clear();
     }
-    std::sort(drop_syms.begin(), drop_syms.end());
-    for (const auto& sym : drop_syms) {
+
+    std::vector<std::string> pending_drop_syms;
+    pending_drop_syms.reserve(module_drop_glue_types.size());
+    for (const auto& [sym, _type] : module_drop_glue_types) {
+      if (emitted_drop_glue_syms.count(sym) == 0) {
+        pending_drop_syms.push_back(sym);
+      }
+    }
+    if (pending_drop_syms.empty()) {
+      break;
+    }
+
+    std::sort(pending_drop_syms.begin(), pending_drop_syms.end());
+    for (const auto& sym : pending_drop_syms) {
       const auto type_it = module_drop_glue_types.find(sym);
       if (type_it == module_drop_glue_types.end()) {
         continue;
       }
+      emitted_drop_glue_syms.insert(sym);
       ProcIR glue = EmitDropGlue(type_it->second, ctx);
       register_proc(glue, false, LinkageKind::Internal);
       decls.push_back(std::move(glue));

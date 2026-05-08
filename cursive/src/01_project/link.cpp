@@ -50,6 +50,55 @@ std::string PathArgString(const std::filesystem::path& path) {
   return out;
 }
 
+std::string LowerAscii(std::string_view text);
+
+std::optional<std::string> WslDrivePathArgString(
+    const std::filesystem::path& path) {
+  const std::string generic = PathArgString(path);
+  if (generic.size() < 8 || generic[0] != '/' || generic[1] != 'm' ||
+      generic[2] != 'n' || generic[3] != 't' || generic[4] != '/' ||
+      generic[6] != '/') {
+    return std::nullopt;
+  }
+
+  const unsigned char drive_ch = static_cast<unsigned char>(generic[5]);
+  if (!std::isalpha(drive_ch)) {
+    return std::nullopt;
+  }
+
+  std::string out;
+  out.reserve(generic.size());
+  out.push_back(static_cast<char>(std::toupper(drive_ch)));
+  out.push_back(':');
+  out.append(generic, 6, std::string::npos);
+  return out;
+}
+
+bool ToolPathNamesWindowsExecutable(const std::filesystem::path& tool) {
+  const std::string extension = LowerAscii(tool.extension().generic_string());
+  if (extension == ".exe") {
+    return true;
+  }
+
+  std::error_code ec;
+  const auto target = std::filesystem::read_symlink(tool, ec);
+  if (ec || target.empty()) {
+    return false;
+  }
+  return LowerAscii(target.extension().generic_string()) == ".exe";
+}
+
+std::string ToolPathArgString(const std::filesystem::path& tool,
+                              const std::filesystem::path& path) {
+  if (ToolPathNamesWindowsExecutable(tool)) {
+    if (auto windows_path = WslDrivePathArgString(path);
+        windows_path.has_value()) {
+      return *windows_path;
+    }
+  }
+  return PathArgString(path);
+}
+
 std::string QuoteCommandArg(std::string_view arg) {
   if (arg.empty()) {
     return "\"\"";
@@ -1284,7 +1333,7 @@ std::vector<std::string> BuildWindowsLinkArgs(
                plan.data_export_symbols.size() + 8);
   args.push_back(PathArgString(tool));
   args.push_back("/NOLOGO");
-  args.push_back("/OUT:" + PathArgString(output));
+  args.push_back("/OUT:" + ToolPathArgString(tool, output));
   auto map_output = output;
   map_output.replace_extension(".map");
   if (shared_library) {
@@ -1297,7 +1346,7 @@ std::vector<std::string> BuildWindowsLinkArgs(
       args.push_back("/ENTRY:" + entry_symbol);
     }
     if (import_lib.has_value()) {
-      args.push_back("/IMPLIB:" + PathArgString(*import_lib));
+      args.push_back("/IMPLIB:" + ToolPathArgString(tool, *import_lib));
     }
   } else {
     args.push_back("/ENTRY:main");
@@ -1307,15 +1356,15 @@ std::vector<std::string> BuildWindowsLinkArgs(
                    "," +
                    std::to_string(kWindowsExeStackCommitBytes));
   }
-  args.push_back("/MAP:" + PathArgString(map_output));
+  args.push_back("/MAP:" + ToolPathArgString(tool, map_output));
   args.push_back("/NODEFAULTLIB");
   if (plan.target_profile == TargetProfile::X86_64Win64) {
     for (const auto& lib_dir : WindowsImportLibSearchDirs()) {
-      args.push_back("/LIBPATH:" + PathArgString(lib_dir));
+      args.push_back("/LIBPATH:" + ToolPathArgString(tool, lib_dir));
     }
   }
   for (const auto& input : inputs) {
-    args.push_back(PathArgString(input));
+    args.push_back(ToolPathArgString(tool, input));
   }
   if (plan.target_profile == TargetProfile::X86_64Win64) {
     args.push_back("kernel32.lib");
@@ -1600,9 +1649,9 @@ bool InvokeArchiver(const std::filesystem::path& tool,
     run_options.report_root = core::DefaultTargetCrashReportRoot(output);
     run_options.tool_name = "cursive-archiver";
     run_options.arguments.push_back("/NOLOGO");
-    run_options.arguments.push_back("/OUT:" + PathArgString(output));
+    run_options.arguments.push_back("/OUT:" + ToolPathArgString(tool, output));
     for (const auto& input : inputs) {
-      run_options.arguments.push_back(PathArgString(input));
+      run_options.arguments.push_back(ToolPathArgString(tool, input));
     }
     const auto debug_result = core::DebugRunProcess(run_options);
     return debug_result.launched && debug_result.exit_code == 0;
@@ -1615,9 +1664,9 @@ bool InvokeArchiver(const std::filesystem::path& tool,
     args.reserve(inputs.size() + 3);
     args.push_back(PathArgString(tool));
     args.push_back("/NOLOGO");
-    args.push_back("/OUT:" + PathArgString(output));
+    args.push_back("/OUT:" + ToolPathArgString(tool, output));
     for (const auto& input : inputs) {
-      args.push_back(PathArgString(input));
+      args.push_back(ToolPathArgString(tool, input));
     }
   } else {
     args.reserve(inputs.size() + 3);

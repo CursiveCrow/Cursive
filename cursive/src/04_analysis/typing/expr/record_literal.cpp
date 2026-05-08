@@ -47,6 +47,17 @@ static inline void SpecDefsRecordLiteral() {
   SPEC_DEF("Record-FileDir-Err", "5.2.12");
 }
 
+static const ast::ModalDecl* LookupModalDeclForLiteral(
+    const ScopeContext& ctx,
+    const TypePath& path,
+    TypePath& resolved_path) {
+  const TypeDecl* decl = LookupTypeDecl(ctx, path, &resolved_path);
+  if (!decl) {
+    return nullptr;
+  }
+  return std::get_if<ast::ModalDecl>(decl);
+}
+
 }  // namespace
 
 // §5.2.12 Record Literal Expression Typing
@@ -78,8 +89,9 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
       return result;
     }
 
-    // Lookup the modal declaration
-    const auto* decl = LookupModalDecl(ctx, modal->path);
+    TypePath resolved_modal_path;
+    const auto* decl =
+        LookupModalDeclForLiteral(ctx, modal->path, resolved_modal_path);
     if (!decl) {
       return result;
     }
@@ -186,6 +198,8 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
           CheckExprAgainst(ctx, type_ctx, field_init.value, field_type, env);
       if (!check.ok) {
         result.diag_id = check.diag_id;
+        result.diag_detail = check.diag_detail;
+        result.diag_span = check.diag_span;
         return result;
       }
     }
@@ -193,7 +207,8 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
     SPEC_RULE("T-Modal-State-Intro");
 
     result.ok = true;
-    result.type = MakeTypeModalState(modal->path, modal->state, std::move(lowered_args));
+    result.type = MakeTypeModalState(
+        std::move(resolved_modal_path), modal->state, std::move(lowered_args));
     return result;
   }
 
@@ -276,6 +291,8 @@ ExprTypeResult TypeRecordExprImpl(const ScopeContext& ctx,
                                         *field_type_opt, env);
     if (!check.ok) {
       result.diag_id = check.diag_id;
+      result.diag_detail = check.diag_detail;
+      result.diag_span = check.diag_span;
       return result;
     }
   }

@@ -312,6 +312,28 @@ void ConfigureResolveCallbacks(codegen::LowerCtx& ctx,
     full.push_back(resolved_name);
     return full;
   };
+
+  ctx.resolve_type_name_in_module =
+      [&name_maps](const std::vector<std::string>& module_path,
+                   const std::string& name)
+          -> std::optional<std::vector<std::string>> {
+    const auto map_it = name_maps.name_maps.find(analysis::PathKeyOf(module_path));
+    if (map_it == name_maps.name_maps.end()) {
+      return std::nullopt;
+    }
+    const auto ent_it = map_it->second.find(analysis::IdKeyOf(name));
+    if (ent_it == map_it->second.end()) {
+      return std::nullopt;
+    }
+    const auto& ent = ent_it->second;
+    if (ent.kind != analysis::EntityKind::Type || !ent.origin_opt.has_value()) {
+      return std::nullopt;
+    }
+    std::vector<std::string> full = *ent.origin_opt;
+    const std::string resolved_name = ent.target_opt.value_or(name);
+    full.push_back(resolved_name);
+    return full;
+  };
 }
 
 void ResetLowerContextForModule(codegen::LowerCtx& ctx,
@@ -375,6 +397,19 @@ std::unordered_set<std::string> BuildProjectModuleKeySet(
   std::unordered_set<std::string> keys;
   keys.reserve(project.modules.size());
   for (const auto& module : project.modules) {
+    keys.insert(module.path);
+  }
+  return keys;
+}
+
+std::unordered_set<std::string> BuildProjectLifecycleModuleKeySet(
+    const project::Project& project) {
+  const auto& modules = project.lifecycle_modules.empty()
+                            ? project.modules
+                            : project.lifecycle_modules;
+  std::unordered_set<std::string> keys;
+  keys.reserve(modules.size());
+  for (const auto& module : modules) {
     keys.insert(module.path);
   }
   return keys;
@@ -447,6 +482,7 @@ void ConfigureCodegenContextForProjectImpl(CodegenCache& cache,
     cache.ctx.shared_library_export_symbols.clear();
   }
   const auto project_modules = BuildProjectModuleKeySet(project);
+  const auto lifecycle_modules = BuildProjectLifecycleModuleKeySet(project);
 
   cache.ctx.executable_project = project::IsExecutable(project);
   cache.ctx.shared_library_project = project::IsSharedLibrary(project);
@@ -476,7 +512,7 @@ void ConfigureCodegenContextForProjectImpl(CodegenCache& cache,
       cache.ctx.hosted_library && !cache.ctx.hosted_exports.empty();
 
   if (cache.full_init_plan.has_value()) {
-    FilterInitPlanForProject(cache.ctx, *cache.full_init_plan, project_modules);
+    FilterInitPlanForProject(cache.ctx, *cache.full_init_plan, lifecycle_modules);
   } else {
     cache.ctx.init_order.clear();
     cache.ctx.init_modules.clear();

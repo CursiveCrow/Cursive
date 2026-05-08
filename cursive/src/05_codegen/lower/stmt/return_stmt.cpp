@@ -96,6 +96,27 @@ bool ExprNeedsDynamicRefinementCheck(const ast::ExprPtr& expr,
          ctx.dynamic_refine_checks->end();
 }
 
+bool SameIRValue(const IRValue& lhs, const IRValue& rhs) {
+  return lhs.kind == rhs.kind &&
+         lhs.name == rhs.name &&
+         lhs.bytes == rhs.bytes &&
+         lhs.literal_id == rhs.literal_id &&
+         lhs.vtable_sym == rhs.vtable_sym;
+}
+
+std::vector<TempValue> TempsExcludingValue(const std::vector<TempValue>& temps,
+                                           const IRValue& value) {
+  std::vector<TempValue> filtered;
+  filtered.reserve(temps.size());
+  for (const TempValue& temp : temps) {
+    if (SameIRValue(temp.value, value)) {
+      continue;
+    }
+    filtered.push_back(temp);
+  }
+  return filtered;
+}
+
 }  // namespace
 
 IRPtr EmitDynamicPostconditionCheckForReturn(const IRValue& return_value,
@@ -213,8 +234,10 @@ IRPtr LowerReturnStmt(const ast::ReturnStmt& stmt,
   }
 
   // Drop statement-scoped temporaries before unwinding scopes.
-  if (!temps.empty()) {
-    ir_parts.push_back(CleanupList(temps, ctx));
+  const std::vector<TempValue> cleanup_temps =
+      TempsExcludingValue(temps, return_value);
+  if (!cleanup_temps.empty()) {
+    ir_parts.push_back(CleanupList(cleanup_temps, ctx));
   }
 
   // Section 6.8 Emit cleanup for all variables from current scope to function root

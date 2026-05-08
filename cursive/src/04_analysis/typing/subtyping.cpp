@@ -116,7 +116,24 @@ static bool TypeBaseCompatibleForArgument(const ScopeContext& ctx,
   if (!actual || !expected) {
     return false;
   }
-  const auto base_sub = Subtyping(ctx, actual, expected);
+  auto strip_argument_use_site_base = [](const TypeRef& type) {
+    TypeRef current = type;
+    while (current) {
+      if (const auto* perm = std::get_if<TypePerm>(&current->node)) {
+        current = perm->base;
+        continue;
+      }
+      if (const auto* refine = std::get_if<TypeRefine>(&current->node)) {
+        current = refine->base;
+        continue;
+      }
+      break;
+    }
+    return current;
+  };
+  const auto base_sub = Subtyping(ctx,
+                                  strip_argument_use_site_base(actual),
+                                  strip_argument_use_site_base(expected));
   return base_sub.ok && base_sub.subtype;
 }
 
@@ -1168,6 +1185,8 @@ static SubtypingResult SubtypingUncached(const ScopeContext& ctx,
             return {true, std::nullopt, false};
           }
         }
+        SPEC_RULE("T-Equiv-ModalState");
+        return {true, std::nullopt, true};
       }
     }
   }

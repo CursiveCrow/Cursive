@@ -151,6 +151,7 @@ void IRInstructionVisitor::operator()(const IRAlloc &alloc) const
       llvm::PointerType::get(value_ty, 0));
   builder.CreateStore(value, typed_ptr);
 
+  emitter.SetTempStorage(alloc.result, typed_ptr);
   emitter.SetTempValue(alloc.result, raw_ptr);
 }
 

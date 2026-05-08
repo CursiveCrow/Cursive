@@ -80,6 +80,7 @@ Project AssemblyProject(const Project& base_project, const Assembly& assembly) {
   project.source_root = assembly.source_root;
   project.outputs = assembly.outputs;
   project.modules = assembly.modules;
+  project.lifecycle_modules = assembly.modules;
   return project;
 }
 

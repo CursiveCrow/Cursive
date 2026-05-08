@@ -405,9 +405,33 @@ using namespace emit_detail;
       globals_[vtable->symbol] = placeholder;
     }
 
+    // Procedure bodies may read module-scope statics before their declaration
+    // appears in source order. Define static globals before emitting bodies so
+    // symbol reads bind to the owning definition instead of creating an
+    // external declaration that later collides with the real definition.
+    for (const auto &decl : expanded_decls)
+    {
+      if (const auto *global = std::get_if<GlobalConst>(&decl))
+      {
+        EmitGlobalConst(*global);
+        continue;
+      }
+      if (const auto *global = std::get_if<GlobalZero>(&decl))
+      {
+        EmitGlobalZero(*global);
+        continue;
+      }
+    }
+
     // Pass 2: emit definitions
     for (const auto &decl : expanded_decls)
     {
+      if (std::holds_alternative<GlobalConst>(decl) ||
+          std::holds_alternative<GlobalZero>(decl))
+      {
+        continue;
+      }
+
       const DeclPerfKind decl_kind =
           perf_enabled ? DeclPerfKindOf(decl) : DeclPerfKind::Count;
       const auto decl_start = perf_enabled ? Clock::now() : Clock::time_point{};

@@ -42,8 +42,12 @@ LowerResult LowerAllocExpr(const ast::Expr& expr,
                            LowerCtx& ctx) {
     SPEC_RULE("Lower-Expr-Alloc");
 
-    // Lower the value expression
+    // The allocated value is consumed by AllocIR and stored into the target
+    // region. Its top-level value must remain owned by the allocation result.
+    auto prev_suppress = ctx.suppress_temp_at_depth;
+    ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
     auto value_result = LowerExpr(*alloc.value, ctx);
+    ctx.suppress_temp_at_depth = prev_suppress;
 
     // Get the type of the value being allocated
     analysis::TypeRef value_type;

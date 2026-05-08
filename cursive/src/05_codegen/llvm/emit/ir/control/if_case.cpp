@@ -512,6 +512,88 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     return load;
   };
 
+  auto union_disc_value = [&](llvm::Value *union_value) -> llvm::Value *
+  {
+    if (!union_value)
+    {
+      return nullptr;
+    }
+    if (union_value->getType()->isIntegerTy() || union_value->getType()->isPointerTy())
+    {
+      return union_value;
+    }
+    auto *union_ty = llvm::dyn_cast<llvm::StructType>(union_value->getType());
+    if (!union_ty || union_ty->getNumElements() == 0)
+    {
+      return nullptr;
+    }
+    return builder.CreateExtractValue(union_value, {0u});
+  };
+
+  auto load_union_payload_member =
+      [&](llvm::Value *union_value,
+          const ::cursive::analysis::layout::UnionLayout &union_layout,
+          std::size_t member_index) -> llvm::Value *
+  {
+    if (!union_value || member_index >= union_layout.member_list.size())
+    {
+      return nullptr;
+    }
+    const analysis::TypeRef member_type = union_layout.member_list[member_index];
+    if (!member_type)
+    {
+      return nullptr;
+    }
+
+    llvm::Type *member_ty = emitter.GetLLVMType(member_type);
+    if (!member_ty)
+    {
+      return nullptr;
+    }
+
+    if (union_layout.niche)
+    {
+      return CoerceTo(&builder, union_value, member_ty);
+    }
+
+    auto *union_ty = llvm::dyn_cast<llvm::StructType>(union_value->getType());
+    if (!union_ty || union_ty->getNumElements() < 2)
+    {
+      return llvm::Constant::getNullValue(member_ty);
+    }
+
+    llvm::Function *current_fn =
+        builder.GetInsertBlock() ? builder.GetInsertBlock()->getParent() : nullptr;
+    if (!current_fn)
+    {
+      return nullptr;
+    }
+
+    llvm::IRBuilder<> entry_builder(
+        &current_fn->getEntryBlock(),
+        current_fn->getEntryBlock().begin());
+    llvm::AllocaInst *union_slot = entry_builder.CreateAlloca(union_ty);
+    builder.CreateStore(union_value, union_slot);
+
+    llvm::Value *payload_i8 = CreateTaggedPayloadI8Ptr(
+        emitter,
+        &builder,
+        union_ty,
+        union_slot,
+        union_layout.payload_align);
+    if (!payload_i8)
+    {
+      return llvm::Constant::getNullValue(member_ty);
+    }
+
+    llvm::Value *member_ptr = builder.CreateBitCast(
+        payload_i8,
+        llvm::PointerType::get(member_ty, 0));
+    llvm::LoadInst *load = builder.CreateLoad(member_ty, member_ptr);
+    load->setAlignment(llvm::Align(1));
+    return load;
+  };
+
   std::function<llvm::Value *(const IRPatternPtr &,
                               llvm::Value *,
                               analysis::TypeRef)>
@@ -1078,6 +1160,119 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
             {
               return llvm::ConstantInt::getFalse(emitter.GetContext());
             }
+            analysis::TypeRef stripped_subject = normalize_match_type(subject_type);
+            const auto *subject_union =
+                stripped_subject ? std::get_if<analysis::TypeUnion>(&stripped_subject->node)
+                                 : nullptr;
+            if (subject_union)
+            {
+              const auto union_layout =
+                  ::cursive::analysis::layout::UnionLayoutOf(scope, *subject_union);
+              if (!union_layout.has_value())
+              {
+                return llvm::ConstantInt::getFalse(emitter.GetContext());
+              }
+
+              std::optional<std::size_t> modal_member_index;
+              std::optional<analysis::TypeModalState> modal_member_state;
+              for (std::size_t i = 0; i < union_layout->member_list.size(); ++i)
+              {
+                analysis::TypeRef member_type =
+                    normalize_match_type(union_layout->member_list[i]);
+                const auto *state_type =
+                    member_type ? std::get_if<analysis::TypeModalState>(&member_type->node)
+                                : nullptr;
+                if (state_type && analysis::IdEq(state_type->state, pat.state))
+                {
+                  modal_member_index = i;
+                  modal_member_state = *state_type;
+                  break;
+                }
+              }
+              if (!modal_member_index.has_value() || !modal_member_state.has_value())
+              {
+                return llvm::ConstantInt::getFalse(emitter.GetContext());
+              }
+
+              llvm::Value *state_ok = llvm::ConstantInt::getFalse(emitter.GetContext());
+              if (union_layout->niche)
+              {
+                std::optional<std::size_t> payload_index;
+                for (std::size_t i = 0; i < union_layout->member_list.size(); ++i)
+                {
+                  const auto member_size =
+                      ::cursive::analysis::layout::SizeOf(scope, union_layout->member_list[i]);
+                  if (member_size.has_value() && *member_size != 0)
+                  {
+                    payload_index = i;
+                    break;
+                  }
+                }
+                if (payload_index.has_value())
+                {
+                  llvm::Value *disc = union_disc_value(subject);
+                  if (disc && disc->getType()->isPointerTy())
+                  {
+                    llvm::Value *null_ptr = llvm::ConstantPointerNull::get(
+                        llvm::cast<llvm::PointerType>(disc->getType()));
+                    state_ok = (*modal_member_index == *payload_index)
+                                   ? builder.CreateICmpNE(disc, null_ptr)
+                                   : builder.CreateICmpEQ(disc, null_ptr);
+                  }
+                }
+              }
+              else
+              {
+                llvm::Value *disc = union_disc_value(subject);
+                if (!disc || !disc->getType()->isIntegerTy())
+                {
+                  return llvm::ConstantInt::getFalse(emitter.GetContext());
+                }
+                state_ok = EmitTypedEq(
+                    &builder,
+                    disc,
+                    llvm::ConstantInt::get(disc->getType(), *modal_member_index));
+              }
+
+              llvm::Value *payload_ok =
+                  llvm::ConstantInt::getTrue(emitter.GetContext());
+              if (pat.fields.has_value())
+              {
+                const ast::ModalDecl *modal_decl =
+                    analysis::LookupModalDecl(scope, modal_member_state->path);
+                if (!modal_decl)
+                {
+                  return llvm::ConstantInt::getFalse(emitter.GetContext());
+                }
+                llvm::Value *modal_member_value =
+                    load_union_payload_member(subject, *union_layout, *modal_member_index);
+                for (const auto &field : pat.fields->fields)
+                {
+                  if (!field.pattern)
+                  {
+                    continue;
+                  }
+                  ModalPayloadMemberInfo member =
+                      modal_payload_member_by_field(*modal_decl,
+                                                    modal_member_state->generic_args,
+                                                    pat.state,
+                                                    field.name);
+                  member.tagged = false;
+                  llvm::Value *member_val =
+                      load_modal_payload_member(modal_member_value, member);
+                  llvm::Value *member_ok =
+                      emit_pattern_cond_for_value(field.pattern, member_val, member.type);
+                  payload_ok = builder.CreateAnd(
+                      AsBool(&builder, payload_ok),
+                      AsBool(&builder, member_ok));
+                }
+              }
+
+              return builder.CreateAnd(
+                  AsBool(&builder, state_ok),
+                  AsBool(&builder, payload_ok));
+            }
+
             analysis::TypePath modal_path;
             const ast::ModalDecl *modal_decl = lookup_modal_decl(subject_type, &modal_path);
             if (!modal_decl)
@@ -1085,7 +1280,6 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
               return llvm::ConstantInt::getFalse(emitter.GetContext());
             }
 
-            analysis::TypeRef stripped_subject = normalize_match_type(subject_type);
             const auto *subject_modal_state =
                 stripped_subject
                     ? std::get_if<analysis::TypeModalState>(&stripped_subject->node)
@@ -1201,6 +1395,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     llvm::BasicBlock *pred = nullptr;
     llvm::Value *value = nullptr;
     llvm::Value *storage = nullptr;
+    analysis::TypeRef source_type;
   };
   std::vector<IncomingValue> incoming;
   llvm::BasicBlock *fallback_pred = nullptr;
@@ -1238,8 +1433,9 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
   {
     llvm::Value *arm_storage = emitter.GetAddressableStorage(arm.value);
     llvm::Value *arm_value = EvaluateOrDefault(arm.value);
+    analysis::TypeRef arm_type = arm.value_type ? arm.value_type : LookupValueType(arm.value);
     builder.CreateBr(merge_bb);
-    incoming.push_back({arm_end, arm_value, arm_storage});
+    incoming.push_back({arm_end, arm_value, arm_storage, arm_type});
   }
 
     if (!is_last)
@@ -1270,7 +1466,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
 
   if (fallback_pred)
   {
-    incoming.push_back({fallback_pred, llvm::Constant::getNullValue(result_ty), nullptr});
+    incoming.push_back({fallback_pred, llvm::Constant::getNullValue(result_ty), nullptr, nullptr});
   }
 
   const bool aggregate_result = IsAddressBackedAggregateType(result_ty);
@@ -1292,12 +1488,22 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
         llvm::Value *candidate = nullptr;
         if (entry.storage && entry.storage->getType()->isPointerTy())
         {
-          llvm::Value *typed_storage = entry.storage;
-          if (typed_storage->getType() != expected_ptr_ty)
+          llvm::Type *load_ty = nullptr;
+          if (entry.source_type)
           {
-            typed_storage = pred_builder.CreateBitCast(typed_storage, expected_ptr_ty);
+            load_ty = emitter.GetLLVMType(entry.source_type);
           }
-          candidate = pred_builder.CreateLoad(result_ty, typed_storage);
+          if (!load_ty)
+          {
+            load_ty = result_ty;
+          }
+          llvm::Value *typed_storage = entry.storage;
+          llvm::Type *load_ptr_ty = llvm::PointerType::get(load_ty, 0);
+          if (typed_storage->getType() != load_ptr_ty)
+          {
+            typed_storage = pred_builder.CreateBitCast(typed_storage, load_ptr_ty);
+          }
+          candidate = pred_builder.CreateLoad(load_ty, typed_storage);
         }
         if (!candidate)
         {
@@ -1308,7 +1514,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
             &pred_builder,
             candidate,
             result_ty,
-            nullptr,
+            entry.source_type,
             result_type);
         if (!coerced)
         {
@@ -1327,7 +1533,9 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     }
   }
 
-  auto coerce_in_predecessor = [&](llvm::BasicBlock *pred, llvm::Value *value) -> llvm::Value *
+  auto coerce_in_predecessor = [&](llvm::BasicBlock *pred,
+                                   llvm::Value *value,
+                                   const analysis::TypeRef &source_type) -> llvm::Value *
   {
     llvm::Value *candidate = value ? value : llvm::Constant::getNullValue(result_ty);
     if (!candidate)
@@ -1342,7 +1550,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
           &pred_builder,
           candidate,
           result_ty,
-          nullptr,
+          source_type,
           result_type);
       if (!coerced)
       {
@@ -1355,7 +1563,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
         &builder,
         candidate,
         result_ty,
-        nullptr,
+        source_type,
         result_type);
     if (!coerced)
     {
@@ -1373,14 +1581,19 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
   {
     emitter.SetTempValue(
         if_case.result,
-        coerce_in_predecessor(incoming.front().pred, incoming.front().value));
+        coerce_in_predecessor(incoming.front().pred,
+                              incoming.front().value,
+                              incoming.front().source_type));
     return;
   }
 
   llvm::PHINode *phi = builder.CreatePHI(result_ty, incoming.size(), "ifcase.result");
   for (const auto &entry : incoming)
   {
-    phi->addIncoming(coerce_in_predecessor(entry.pred, entry.value), entry.pred);
+    phi->addIncoming(coerce_in_predecessor(entry.pred,
+                                           entry.value,
+                                           entry.source_type),
+                     entry.pred);
   }
   emitter.SetTempValue(if_case.result, phi);
 }

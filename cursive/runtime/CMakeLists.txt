@@ -117,7 +117,7 @@ else()
   endif()
 endif()
 
-add_library(cursive0_rt STATIC
+set(CURSIVE_RUNTIME_SOURCES
   # Core
   src/core/mem.c
   src/core/panic.c
@@ -149,6 +149,10 @@ add_library(cursive0_rt STATIC
   # Compatibility
   ${RUNTIME_COMPAT_SOURCES}
   ${RUNTIME_PLATFORM_SOURCES}
+)
+
+add_library(cursive0_rt STATIC
+  ${CURSIVE_RUNTIME_SOURCES}
 )
 
 target_include_directories(cursive0_rt PUBLIC
@@ -193,6 +197,52 @@ if(MSVC)
   target_compile_options(cursive0_rt PRIVATE /GS- /Zl)
   # Leave the runtime archive free of MSVC debug runtime-check helpers.
   set_property(TARGET cursive0_rt PROPERTY MSVC_RUNTIME_CHECKS "")
+endif()
+
+add_library(ultraviolet0_rt STATIC
+  ${CURSIVE_RUNTIME_SOURCES}
+)
+
+target_include_directories(ultraviolet0_rt PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_include_directories(ultraviolet0_rt PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${RUNTIME_ICU_INCLUDE_DIR}
+)
+
+target_compile_definitions(ultraviolet0_rt PUBLIC
+  ${RUNTIME_PLATFORM_DEFINITION}
+  CURSIVE_RT_ULTRAVIOLET_SYMBOLS=1
+)
+
+target_link_libraries(ultraviolet0_rt PUBLIC
+  ${RUNTIME_ICU_LIBS}
+  ${RUNTIME_PLATFORM_LIBS}
+)
+
+set_target_properties(ultraviolet0_rt PROPERTIES
+  OUTPUT_NAME "UltravioletRT"
+  PREFIX ""
+  C_STANDARD 11
+  C_STANDARD_REQUIRED YES
+)
+
+if(NOT WIN32)
+  target_compile_options(ultraviolet0_rt PRIVATE
+    -fno-stack-protector
+  )
+endif()
+
+if(NOT WIN32)
+  add_dependencies(ultraviolet0_rt cursive_linux_icu_sidecars)
+  add_dependencies(ultraviolet0_rt ${RUNTIME_SUPPORT_TARGETS})
+endif()
+
+if(MSVC)
+  target_compile_options(ultraviolet0_rt PRIVATE /GS- /Zl)
+  set_property(TARGET ultraviolet0_rt PROPERTY MSVC_RUNTIME_CHECKS "")
 endif()
 
 add_executable(cursive0_rt_task070_test
@@ -342,6 +392,7 @@ endif()
 if(MSVC)
   set(FINAL_RT_DIR "${CMAKE_BINARY_DIR}/runtime")
   set(FINAL_RT "${FINAL_RT_DIR}/CursiveRT.lib")
+  set(FINAL_ULTRAVIOLET_RT "${FINAL_RT_DIR}/UltravioletRT.lib")
   set(RUNTIME_STAGE_SCRIPT
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/stage_windows_runtime.cmake")
   set(RUNTIME_LLVM_ARCH_DIR "llvm-21.1.8-x86_64")
@@ -373,6 +424,21 @@ if(MSVC)
             -P "${RUNTIME_STAGE_SCRIPT}"
     COMMENT "Staging CRT-free Windows runtime archive"
   )
+
+  add_custom_command(TARGET ultraviolet0_rt POST_BUILD
+    COMMAND "${CMAKE_COMMAND}"
+            "-DRUNTIME_LIB_TOOL=${CMAKE_AR}"
+            "-DRUNTIME_LLVM_AR=${RUNTIME_LLVM_AR}"
+            "-DRUNTIME_INPUT=$<TARGET_FILE:ultraviolet0_rt>"
+            "-DFINAL_RT_DIR=${FINAL_RT_DIR}"
+            "-DFINAL_RT=${FINAL_ULTRAVIOLET_RT}"
+            "-DRUNTIME_LIBCMT_LIBRARY=libcmt.lib"
+            "-DRUNTIME_KERNEL32_LIBRARY=kernel32.lib"
+            "-DRUNTIME_ICU_LIBS=${RUNTIME_ICU_LIBS}"
+            "-DRUNTIME_ICU_DLLS=${RUNTIME_ICU_DLLS}"
+            -P "${RUNTIME_STAGE_SCRIPT}"
+    COMMENT "Staging CRT-free Windows Ultraviolet runtime archive"
+  )
 else()
   # On non-Windows, stage the archive in the build runtime directory.
   set(FINAL_RT_DIR "${CMAKE_BINARY_DIR}/runtime")
@@ -381,6 +447,12 @@ else()
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "$<TARGET_FILE:cursive0_rt>" "${FINAL_RT_DIR}/CursiveRT.a"
     COMMENT "Staging Linux runtime archive"
+  )
+  add_custom_command(TARGET ultraviolet0_rt POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${FINAL_RT_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:ultraviolet0_rt>" "${FINAL_RT_DIR}/UltravioletRT.a"
+    COMMENT "Staging Linux Ultraviolet runtime archive"
   )
   add_custom_command(TARGET cursive0_rt POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/lib"

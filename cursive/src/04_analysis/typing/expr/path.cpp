@@ -219,6 +219,23 @@ PlaceTypeResult TypeIdentifierPlaceImpl(const ScopeContext& ctx,
     return result;
   }
 
+  if (const auto ent = ResolveValueName(ctx, name);
+      ent.has_value() && ent->origin_opt.has_value()) {
+    const auto resolved_name = ent->target_opt.value_or(std::string(name));
+    const auto resolved_static =
+        LookupModuleStatic(ctx, *ent->origin_opt, resolved_name);
+    if (!resolved_static.ok) {
+      result.diag_id = resolved_static.diag_id;
+      return result;
+    }
+    if (resolved_static.type) {
+      SPEC_RULE("P-Ident");
+      result.ok = true;
+      result.type = resolved_static.type;
+      return result;
+    }
+  }
+
   const auto static_lookup = LookupModuleStatic(ctx, ctx.current_module, name);
   if (!static_lookup.ok) {
     result.diag_id = static_lookup.diag_id;

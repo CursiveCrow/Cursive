@@ -84,17 +84,13 @@ using namespace emit_detail;
       phase_start = now;
     }
 
-    const bool needs_hosted_env = RequiresHostedEnvParam(proc.symbol);
     const bool has_explicit_hosted_env = HasLeadingHostedEnvParam(proc.params);
+    std::vector<IRParam> abi_params =
+        BuildProcABIParams(*this, proc.symbol, proc.params);
+    const bool has_abi_hosted_env =
+        !abi_params.empty() && abi_params.front().name == std::string(kHostedEnvParamName);
     const bool needs_implicit_hosted_env =
-        needs_hosted_env && !has_explicit_hosted_env;
-    std::vector<IRParam> abi_params = proc.params;
-    std::size_t abi_param_base = 0u;
-    if (needs_implicit_hosted_env)
-    {
-      abi_params.insert(abi_params.begin(), HostedEnvParam());
-      abi_param_base = 1u;
-    }
+        has_abi_hosted_env && !has_explicit_hosted_env;
     ABICallResult abi = ComputeProcABI(*this, proc.symbol, proc.params, proc.ret);
     if (!abi.valid || !abi.func_type)
     {
@@ -179,30 +175,31 @@ using namespace emit_detail;
 
     SPEC_RULE("ParamInitIR");
     // Map parameters into locals
-    for (std::size_t i = 0; i < proc.params.size(); ++i)
+    for (std::size_t i = 0; i < abi_params.size(); ++i)
     {
-      const std::size_t abi_index = i + abi_param_base;
+      const IRParam &param = abi_params[i];
+      const std::size_t abi_index = i;
       if (abi_index >= abi.param_indices.size())
       {
-        bind_zero_sized_param(proc.params[i]);
+        bind_zero_sized_param(param);
         continue;
       }
       if (!abi.param_indices[abi_index].has_value())
       {
-        bind_zero_sized_param(proc.params[i]);
+        bind_zero_sized_param(param);
         continue;
       }
       unsigned idx = *abi.param_indices[abi_index];
       if (idx >= func->arg_size())
       {
-        bind_zero_sized_param(proc.params[i]);
+        bind_zero_sized_param(param);
         continue;
       }
       llvm::Argument *arg = func->getArg(idx);
-      arg->setName(proc.params[i].name);
+      arg->setName(param.name);
 
       auto register_explicit_hosted_env = [&](llvm::Value *env_value) {
-        if (proc.params[i].name != std::string(kHostedEnvParamName) || !env_value)
+        if (param.name != std::string(kHostedEnvParamName) || !env_value)
         {
           return;
         }
@@ -227,26 +224,26 @@ using namespace emit_detail;
           abi.param_kinds[abi_index] == PassKind::ByRef)
       {
         SPEC_RULE("BindSlot-Param-ByRef");
-        llvm::Type *llvm_ty = GetLLVMType(proc.params[i].type);
+        llvm::Type *llvm_ty = GetLLVMType(param.type);
         llvm::Value *typed_ptr = arg;
         if (typed_ptr && typed_ptr->getType()->isPointerTy() && llvm_ty)
         {
           typed_ptr =
               builder->CreateBitCast(typed_ptr, llvm::PointerType::get(llvm_ty, 0));
         }
-        RegisterLocalBindStorage(proc.params[i].name, typed_ptr);
-        if (proc.params[i].type)
+        RegisterLocalBindStorage(param.name, typed_ptr);
+        if (param.type)
         {
-          local_types_[proc.params[i].name] = proc.params[i].type;
+          local_types_[param.name] = param.type;
         }
         const std::string stable_name =
-            proc.params[i].stable_name.empty()
-                ? proc.params[i].name
-                : proc.params[i].stable_name;
-        if (stable_name != proc.params[i].name) {
+            param.stable_name.empty()
+                ? param.name
+                : param.stable_name;
+        if (stable_name != param.name) {
           RegisterLocalBindStorage(stable_name, typed_ptr);
-          if (proc.params[i].type) {
-            local_types_[stable_name] = proc.params[i].type;
+          if (param.type) {
+            local_types_[stable_name] = param.type;
           }
         }
         register_explicit_hosted_env(typed_ptr);
@@ -256,9 +253,9 @@ using namespace emit_detail;
       }
 
       SPEC_RULE("BindSlot-Param-ByValue");
-      llvm::Type *llvm_ty = GetLLVMType(proc.params[i].type);
+      llvm::Type *llvm_ty = GetLLVMType(param.type);
       llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
-      llvm::AllocaInst *alloca = entry_builder.CreateAlloca(llvm_ty, nullptr, proc.params[i].name);
+      llvm::AllocaInst *alloca = entry_builder.CreateAlloca(llvm_ty, nullptr, param.name);
       llvm::Value *stored_value = arg;
       if (carrier == ABIArgCarrierKind::Indirect &&
           arg && arg->getType()->isPointerTy() && llvm_ty)
@@ -279,19 +276,19 @@ using namespace emit_detail;
         }
       }
       builder->CreateStore(stored_value, alloca);
-      RegisterLocalBindStorage(proc.params[i].name, alloca);
-      if (proc.params[i].type)
+      RegisterLocalBindStorage(param.name, alloca);
+      if (param.type)
       {
-        local_types_[proc.params[i].name] = proc.params[i].type;
+        local_types_[param.name] = param.type;
       }
       const std::string stable_name =
-          proc.params[i].stable_name.empty()
-              ? proc.params[i].name
-              : proc.params[i].stable_name;
-      if (stable_name != proc.params[i].name) {
+          param.stable_name.empty()
+              ? param.name
+              : param.stable_name;
+      if (stable_name != param.name) {
         RegisterLocalBindStorage(stable_name, alloca);
-        if (proc.params[i].type) {
-          local_types_[stable_name] = proc.params[i].type;
+        if (param.type) {
+          local_types_[stable_name] = param.type;
         }
       }
       register_explicit_hosted_env(arg);

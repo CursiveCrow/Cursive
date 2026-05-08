@@ -48,7 +48,8 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
                          const std::vector<ast::IfCaseClause>& arms,
                          const ast::ExprPtr& else_expr,
                          bool single_form,
-                         LowerCtx& ctx);
+                         LowerCtx& ctx,
+                         const analysis::TypeRef& expected_result_type);
 
 // §6.6 LowerIfCaseClause - lower a single case clause
 LowerResult LowerIfCaseClause(const ast::IfCaseClause& arm,

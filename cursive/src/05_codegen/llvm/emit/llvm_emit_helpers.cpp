@@ -1954,6 +1954,104 @@ namespace cursive::codegen::emit_detail {
       return builder->CreateLoad(union_struct_ty, union_slot);
     }
 
+    llvm::Value *UnpackUnionToMember(LLVMEmitter &emitter,
+                                     llvm::IRBuilder<> *builder,
+                                     llvm::Value *source_value,
+                                     llvm::Type *target_ty,
+                                     const analysis::TypeRef &source_type,
+                                     const analysis::TypeRef &target_type)
+    {
+      if (!builder || !source_value || !target_ty)
+      {
+        return nullptr;
+      }
+
+      analysis::TypeRef stripped_source = StripPermType(source_type);
+      const auto *source_union =
+          stripped_source ? std::get_if<analysis::TypeUnion>(&stripped_source->node) : nullptr;
+      if (!source_union)
+      {
+        return nullptr;
+      }
+
+      const LowerCtx *ctx = emitter.GetCurrentCtx();
+      if (!ctx || !ctx->sigma)
+      {
+        return nullptr;
+      }
+      const analysis::ScopeContext &scope = BuildScope(ctx);
+      const auto union_layout =
+          ::cursive::analysis::layout::UnionLayoutOf(scope, *source_union);
+      if (!union_layout.has_value())
+      {
+        return nullptr;
+      }
+
+      const std::optional<std::size_t> member_index =
+          FindUnionMemberIndex(union_layout->member_list, target_type);
+      if (!member_index.has_value() ||
+          *member_index >= union_layout->member_list.size())
+      {
+        return nullptr;
+      }
+
+      const analysis::TypeRef member_type = union_layout->member_list[*member_index];
+      if (!member_type)
+      {
+        return nullptr;
+      }
+
+      if (union_layout->niche)
+      {
+        if (llvm::Value *coerced = CoerceTo(builder, source_value, target_ty))
+        {
+          return coerced;
+        }
+        return llvm::Constant::getNullValue(target_ty);
+      }
+
+      if (IsUnitType(member_type))
+      {
+        return llvm::Constant::getNullValue(target_ty);
+      }
+
+      auto *union_struct_ty = llvm::dyn_cast<llvm::StructType>(source_value->getType());
+      if (!union_struct_ty || union_struct_ty->getNumElements() < 2)
+      {
+        return nullptr;
+      }
+
+      llvm::Function *current_fn =
+          builder->GetInsertBlock() ? builder->GetInsertBlock()->getParent() : nullptr;
+      if (!current_fn)
+      {
+        return nullptr;
+      }
+
+      llvm::IRBuilder<> entry_builder(
+          &current_fn->getEntryBlock(),
+          current_fn->getEntryBlock().begin());
+      llvm::AllocaInst *union_slot = entry_builder.CreateAlloca(union_struct_ty);
+      builder->CreateStore(source_value, union_slot);
+
+      llvm::Value *payload_i8 = CreateTaggedPayloadI8Ptr(
+          emitter,
+          builder,
+          union_struct_ty,
+          union_slot,
+          union_layout->payload_align);
+      if (!payload_i8)
+      {
+        return llvm::Constant::getNullValue(target_ty);
+      }
+
+      llvm::Value *member_ptr =
+          builder->CreateBitCast(payload_i8, llvm::PointerType::get(target_ty, 0));
+      llvm::LoadInst *load = builder->CreateLoad(target_ty, member_ptr);
+      load->setAlignment(llvm::Align(1));
+      return load;
+    }
+
     llvm::Value *CoerceToTyped(LLVMEmitter &emitter,
                                llvm::IRBuilder<> *builder,
                                llvm::Value *value,
@@ -1984,6 +2082,19 @@ namespace cursive::codegen::emit_detail {
       if (IsBoolType(stripped_target))
       {
         return CoerceBoolTo(builder, value, target_ty);
+      }
+
+      const auto *source_union =
+          stripped_source ? std::get_if<analysis::TypeUnion>(&stripped_source->node) : nullptr;
+      const auto *early_target_union =
+          stripped_target ? std::get_if<analysis::TypeUnion>(&stripped_target->node) : nullptr;
+      if (source_union && !early_target_union)
+      {
+        if (llvm::Value *unpacked = UnpackUnionToMember(
+                emitter, builder, value, target_ty, stripped_source, stripped_target))
+        {
+          return unpacked;
+        }
       }
 
       const auto *source_array =

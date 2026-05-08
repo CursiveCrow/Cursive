@@ -5,10 +5,12 @@
 #include "05_codegen/lower/expr/expr_common.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 
 #include "00_core/assert_spec.h"
 #include "04_analysis/resolve/scopes.h"
+#include "04_analysis/resolve/resolve_items.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
@@ -16,6 +18,18 @@
 namespace cursive::codegen {
 
 namespace {
+
+bool DebugProcedureParameterSignature(const std::string& symbol) {
+  return symbol.find("emptyDiagnosticStream") != std::string::npos ||
+         symbol.find("singleDiagnosticStream") != std::string::npos ||
+         symbol.find("singleErrorDiagnosticStream") != std::string::npos ||
+         symbol.find("parseManifestText") != std::string::npos ||
+         symbol.find("emptyPathComponentList") != std::string::npos;
+}
+
+bool ParamDebugEnabled() {
+  return std::getenv("CURSIVE_PARAM_DEBUG") != nullptr;
+}
 
 analysis::Permission PermissionOfType(const analysis::TypeRef& type) {
   if (!type) {
@@ -39,6 +53,7 @@ const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
     analysis::GenericCallSubstMap* generic_call_substs = nullptr;
     std::vector<std::string> module_path;
     std::optional<project::TargetProfile> target_profile;
+    analysis::NameMapTable name_maps;
     analysis::ScopeContext scope;
   };
 
@@ -47,7 +62,8 @@ const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
     return kEmptyScope;
   }
 
-  if (cache.sigma != ctx.sigma || cache.expr_types != ctx.expr_types ||
+  const bool sigma_changed = cache.sigma != ctx.sigma;
+  if (sigma_changed || cache.expr_types != ctx.expr_types ||
       cache.dynamic_refine_checks != ctx.dynamic_refine_checks ||
       cache.generic_call_substs != ctx.generic_call_substs ||
       cache.module_path != ctx.module_path ||
@@ -66,6 +82,22 @@ const analysis::ScopeContext& ScopeForLowering(const LowerCtx& ctx) {
     cache.scope.expr_types = ctx.expr_types;
     cache.scope.dynamic_refine_checks = ctx.dynamic_refine_checks;
     cache.scope.generic_call_substs = ctx.generic_call_substs;
+
+    if (sigma_changed || cache.name_maps.empty()) {
+      analysis::ScopeContext name_ctx = cache.scope;
+      cache.name_maps = analysis::CollectNameMaps(name_ctx).name_maps;
+    }
+
+    analysis::Scope module_scope;
+    const auto module_key = analysis::PathKeyOf(cache.scope.current_module);
+    const auto module_scope_it = cache.name_maps.find(module_key);
+    if (module_scope_it != cache.name_maps.end()) {
+      module_scope = module_scope_it->second;
+    }
+    cache.scope.scopes = analysis::ScopeList{
+        analysis::Scope{},
+        std::move(module_scope),
+        analysis::UniverseBindings()};
   }
 
   return cache.scope;
@@ -989,6 +1021,14 @@ void LowerCtx::RegisterProcSig(const ProcIR& proc) {
   info.params = proc.params;
   info.ret = proc.ret;
   info.abi = proc.abi;
+  if (ParamDebugEnabled() && DebugProcedureParameterSignature(proc.symbol)) {
+    std::cerr << "[proc-sig-register-debug] symbol=" << proc.symbol
+              << " params=" << proc.params.size();
+    for (const auto& param : proc.params) {
+      std::cerr << " param=" << param.name;
+    }
+    std::cerr << "\n";
+  }
 
   if (auto existing = proc_sigs.find(proc.symbol); existing != proc_sigs.end()) {
     info.ffi_import = existing->second.ffi_import;

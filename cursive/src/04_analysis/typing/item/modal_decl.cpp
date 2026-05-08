@@ -803,6 +803,7 @@ ModalDeclResult TypeModalDecl(
         if (!body_result.ok) {
           result.ok = false;
           result.diag_id = body_result.diag_id;
+          result.diag_detail = body_result.diag_detail;
           return result;
         }
 
@@ -811,6 +812,8 @@ ModalDeclResult TypeModalDecl(
           SPEC_RULE("Transition-Body-Err");
           result.ok = false;
           result.diag_id = "E-TYP-2055";
+          result.diag_detail =
+              "transition body type is not the declared target state";
           return result;
         }
         SPEC_RULE("T-Modal-Transition-Body");

@@ -418,6 +418,7 @@ LoadProjectResult LoadProjectImpl(const std::filesystem::path& project_root,
   project.source_root = selected->source_root;
   project.outputs = selected->outputs;
   project.modules = selected->modules;
+  project.lifecycle_modules = selected->modules;
   project.toolchain = validated.toolchain;
   project.build = validated.build;
 
