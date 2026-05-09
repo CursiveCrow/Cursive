@@ -2710,6 +2710,15 @@ using namespace emit_detail;
       case DerivedValueInfo::Kind::UnionPayload:
       {
         analysis::TypeRef union_type = strip_perm(lookup_value_type(derived->base));
+        if (analysis::TypeRef resolved =
+                ResolveAliasTypeInScope(scope, union_type))
+        {
+          union_type = strip_perm(resolved);
+          if (!union_type)
+          {
+            union_type = resolved;
+          }
+        }
         const auto *uni = union_type ? std::get_if<analysis::TypeUnion>(&union_type->node) : nullptr;
         if (!uni)
         {
@@ -2888,6 +2897,15 @@ using namespace emit_detail;
         const ast::ModalDecl *modal_decl =
             modal_decl_for_payload_value(*derived, &modal_path);
         analysis::TypeRef base_modal_type = strip_perm(lookup_value_type(derived->base));
+        if (analysis::TypeRef resolved =
+                ResolveAliasTypeInScope(scope, base_modal_type))
+        {
+          base_modal_type = strip_perm(resolved);
+          if (!base_modal_type)
+          {
+            base_modal_type = resolved;
+          }
+        }
         const auto *base_modal_state =
             base_modal_type
                 ? std::get_if<analysis::TypeModalState>(&base_modal_type->node)

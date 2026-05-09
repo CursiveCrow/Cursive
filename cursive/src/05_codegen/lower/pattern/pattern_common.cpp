@@ -100,6 +100,60 @@ analysis::TypeRef InstantiateActiveGenericType(const analysis::TypeRef& type,
   return analysis::InstantiateType(type, *ctx.active_generic_type_subst);
 }
 
+analysis::TypeRef ResolvePatternAliasType(const analysis::TypeRef& type,
+                                          LowerCtx& ctx,
+                                          std::size_t depth) {
+  analysis::TypeRef stripped = StripPermAndRefine(type);
+  if (!stripped) {
+    return type;
+  }
+  if (depth > 16 || !ctx.sigma) {
+    return stripped;
+  }
+
+  const auto* path = std::get_if<analysis::TypePathType>(&stripped->node);
+  if (!path) {
+    return stripped;
+  }
+
+  ast::TypePath syntax_path;
+  syntax_path.reserve(path->path.size());
+  for (const auto& segment : path->path) {
+    syntax_path.push_back(segment);
+  }
+  const auto it = ctx.sigma->types.find(analysis::PathKeyOf(syntax_path));
+  if (it == ctx.sigma->types.end()) {
+    return stripped;
+  }
+
+  const auto* alias = std::get_if<ast::TypeAliasDecl>(&it->second);
+  if (!alias) {
+    return stripped;
+  }
+
+  const analysis::ScopeContext& scope = ScopeForLowering(ctx);
+  const auto lowered =
+      ::cursive::analysis::layout::LowerTypeForLayout(scope, alias->type);
+  if (!lowered.has_value()) {
+    return stripped;
+  }
+
+  analysis::TypeRef resolved = *lowered;
+  if (alias->generic_params && !alias->generic_params->params.empty()) {
+    if (path->generic_args.size() > alias->generic_params->params.size()) {
+      return stripped;
+    }
+    analysis::TypeSubst subst =
+        analysis::BuildSubstitution(alias->generic_params->params,
+                                    path->generic_args);
+    resolved = analysis::InstantiateType(resolved, subst);
+  } else if (!path->generic_args.empty()) {
+    return stripped;
+  }
+
+  return ResolvePatternAliasType(resolved, ctx, depth + 1);
+}
+
 bool TypeEquivForUnionMatch(analysis::TypeRef lhs, analysis::TypeRef rhs) {
   lhs = analysis::StripPerm(lhs);
   rhs = analysis::StripPerm(rhs);
@@ -580,8 +634,9 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
             return;
           }
           analysis::TypeRef modal_hint =
-              StripPermAndRefine(InstantiateActiveGenericType(
-                  ctx.LookupValueType(value), ctx));
+              ResolvePatternAliasType(InstantiateActiveGenericType(
+                  ctx.LookupValueType(value), ctx), ctx);
+          modal_hint = StripPermAndRefine(modal_hint);
           analysis::TypePath modal_path;
           std::vector<analysis::TypeRef> modal_args;
           IRValue modal_base = value;

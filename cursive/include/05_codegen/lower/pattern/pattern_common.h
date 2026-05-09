@@ -20,6 +20,7 @@
 //
 // =============================================================================
 
+#include <cstddef>
 #include <optional>
 #include <set>
 #include <string>
@@ -42,6 +43,11 @@ namespace cursive::codegen {
 // Lower a syntax type to analysis TypeRef for pattern typing
 analysis::TypeRef LowerSyntaxType(const std::shared_ptr<ast::Type>& type,
                                   LowerCtx& ctx);
+
+// Resolve transparent type aliases before pattern narrowing/binding.
+analysis::TypeRef ResolvePatternAliasType(const analysis::TypeRef& type,
+                                          LowerCtx& ctx,
+                                          std::size_t depth = 0);
 
 // Look up a record declaration by path
 const ast::RecordDecl* LookupRecordDecl(const ast::TypePath& path,

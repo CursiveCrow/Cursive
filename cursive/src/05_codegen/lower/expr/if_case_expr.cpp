@@ -37,6 +37,10 @@
 
 namespace cursive::codegen {
 
+analysis::TypeRef ResolvePatternAliasType(const analysis::TypeRef& type,
+                                          LowerCtx& ctx,
+                                          std::size_t depth = 0);
+
 namespace {
 
 LowerCtx MakeBranchCtx(LowerCtx& base) {
@@ -656,6 +660,9 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
         scrutinee_type = binding->type;
       }
     }
+  }
+  if (scrutinee_type) {
+    scrutinee_type = ResolvePatternAliasType(scrutinee_type, ctx);
   }
 
   // Get provenance information for the scrutinee

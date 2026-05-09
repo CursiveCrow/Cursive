@@ -46,6 +46,10 @@
 
 namespace cursive::codegen {
 
+analysis::TypeRef ResolvePatternAliasType(const analysis::TypeRef& type,
+                                          LowerCtx& ctx,
+                                          std::size_t depth = 0);
+
 namespace {
 
 // Lower a syntax type to an analysis TypeRef for binding purposes
@@ -409,7 +413,9 @@ void RegisterBindingsFromPattern(const ast::Pattern& pattern,
               } else if constexpr (std::is_same_v<T, ast::ModalPattern>) {
                 analysis::TypePath modal_path;
                 std::vector<analysis::TypeRef> modal_args;
-                analysis::TypeRef modal_hint = StripPermAndRefine(hint);
+                analysis::TypeRef modal_hint =
+                    ResolvePatternAliasType(hint, ctx);
+                modal_hint = StripPermAndRefine(modal_hint);
                 auto assign_modal_ref = [&](const analysis::TypeRef& type,
                                             bool require_state_match) -> bool {
                   const analysis::TypeRef stripped = StripPermAndRefine(type);
