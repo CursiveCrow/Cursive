@@ -97,6 +97,9 @@ bool ValidateIfCaseClause(const IRIfCaseClause& arm) {
   if (!ValidateIRPtr(arm.body)) {
     return false;
   }
+  if (arm.cleanup_ir && !ValidateIRPtr(arm.cleanup_ir)) {
+    return false;
+  }
   return ValidateValue(arm.value);
 }
 
@@ -131,7 +134,10 @@ bool ValidateIR(const IR& ir) {
               return false;
             }
           }
-          return ValidateValue(node.result);
+          if (!ValidateValue(node.result)) {
+            return false;
+          }
+          return true;
         } else if constexpr (std::is_same_v<T, IRCallVTable>) {
           if (!ValidateValue(node.base)) {
             return false;
@@ -302,6 +308,8 @@ bool ValidateIR(const IR& ir) {
         } else if constexpr (std::is_same_v<T, IRClearPanic>) {
           return true;
         } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+          return true;
+        } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           if (node.cleanup_ir) {
             return ValidateIRPtr(node.cleanup_ir);
           }

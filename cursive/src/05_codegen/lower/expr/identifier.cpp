@@ -22,6 +22,7 @@
 #include "05_codegen/lower/expr/identifier.h"
 #include "05_codegen/lower/expr/expr_common.h"
 #include "00_core/assert_spec.h"
+#include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/intrinsics/builtins.h"
 
 namespace cursive::codegen {

@@ -55,6 +55,8 @@
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/symbols/mangle.h"
 #include "00_core/assert_spec.h"
+#include "04_analysis/generics/monomorphize.h"
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_expr.h"
@@ -63,6 +65,9 @@
 #include <cassert>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace cursive::codegen {
 
@@ -79,6 +84,122 @@ static bool HoldsType(const analysis::TypeRef& type) {
 template <typename T>
 static const T& GetType(const analysis::TypeRef& type) {
   return std::get<T>(type->node);
+}
+
+static ast::Path ToSyntaxPath(const analysis::TypePath& path) {
+  ast::Path out;
+  out.reserve(path.size());
+  for (const auto& segment : path) {
+    out.push_back(segment);
+  }
+  return out;
+}
+
+static std::string DropCacheModuleKey(const std::vector<std::string>& path) {
+  std::string out;
+  for (std::size_t i = 0; i < path.size(); ++i) {
+    if (i != 0) {
+      out += "::";
+    }
+    out += path[i];
+  }
+  return out;
+}
+
+static std::string DropNeedCacheKey(const analysis::TypeRef& stripped,
+                                    const LowerCtx& ctx) {
+  return std::to_string(reinterpret_cast<std::uintptr_t>(ctx.sigma)) + "|" +
+         DropCacheModuleKey(ctx.module_path) + "|" +
+         (stripped ? analysis::TypeToString(stripped) : std::string());
+}
+
+static std::unordered_map<std::string, bool>& DropNeedCache(LowerCtx& ctx) {
+  if (!ctx.values.drop_need_cache) {
+    ctx.values.drop_need_cache =
+        std::make_shared<std::unordered_map<std::string, bool>>();
+  }
+  return *ctx.values.drop_need_cache;
+}
+
+static const std::unordered_map<std::string, bool>* DropNeedCache(
+    const LowerCtx& ctx) {
+  return ctx.values.drop_need_cache.get();
+}
+
+static std::optional<analysis::TypeRef> LowerTypeForDrop(
+    const std::shared_ptr<ast::Type>& type,
+    LowerCtx& ctx) {
+  if (!type || !ctx.sigma) {
+    return std::nullopt;
+  }
+
+  analysis::ScopeContext scope;
+  scope.sigma = *ctx.sigma;
+  scope.sigma_source = ctx.sigma;
+  scope.current_module = ctx.module_path;
+  return analysis::layout::LowerTypeForLayout(scope, type);
+}
+
+static analysis::TypeRef InstantiateIfGeneric(
+    analysis::TypeRef type,
+    const std::optional<ast::GenericParams>& generic_params,
+    const std::vector<analysis::TypeRef>& generic_args) {
+  if (!type || !generic_params.has_value() || generic_params->params.empty()) {
+    return type;
+  }
+  if (generic_args.size() > generic_params->params.size()) {
+    return nullptr;
+  }
+
+  const auto subst =
+      analysis::BuildSubstitution(generic_params->params, generic_args);
+  if (subst.empty()) {
+    return type;
+  }
+  return analysis::InstantiateType(type, subst);
+}
+
+static const ast::StateBlock* FindModalState(
+    const ast::ModalDecl& decl,
+    std::string_view name) {
+  for (const auto& state : decl.states) {
+    if (analysis::IdEq(state.name, name)) {
+      return &state;
+    }
+  }
+  return nullptr;
+}
+
+static bool TypeNeedsDropImpl(const analysis::TypeRef& type,
+                              LowerCtx& ctx,
+                              std::unordered_set<std::string>& active);
+
+static bool TypeNeedsDropCached(const analysis::TypeRef& type,
+                                LowerCtx& ctx,
+                                std::unordered_set<std::string>& active);
+
+static bool StateFieldsNeedDrop(
+    const ast::StateBlock& state,
+    const std::optional<ast::GenericParams>& generic_params,
+    const std::vector<analysis::TypeRef>& generic_args,
+    LowerCtx& ctx,
+    std::unordered_set<std::string>& active) {
+  for (const auto& member : state.members) {
+    const auto* field = std::get_if<ast::StateFieldDecl>(&member);
+    if (!field) {
+      continue;
+    }
+    auto lowered = LowerTypeForDrop(field->type, ctx);
+    if (!lowered.has_value()) {
+      return true;
+    }
+    analysis::TypeRef field_type =
+        InstantiateIfGeneric(*lowered, generic_params, generic_args);
+    if (!field_type || TypeNeedsDropCached(field_type, ctx, active)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // ============================================================================
@@ -172,9 +293,43 @@ bool IsBuiltinDropType(const analysis::TypeRef& type) {
   return false;
 }
 
-bool TypeNeedsDrop(const analysis::TypeRef& type, LowerCtx& ctx) {
-  SPEC_RULE("TypeNeedsDrop");
+static bool TypeNeedsDropCached(const analysis::TypeRef& type,
+                                LowerCtx& ctx,
+                                std::unordered_set<std::string>& active) {
+  analysis::TypeRef stripped = analysis::StripPerm(type);
+  if (stripped && HoldsType<analysis::TypeRefine>(stripped)) {
+    stripped = GetType<analysis::TypeRefine>(stripped).base;
+  }
+  const std::string active_key =
+      stripped ? analysis::TypeToString(stripped) : std::string();
+  if (!active_key.empty() && active.find(active_key) != active.end()) {
+    return false;
+  }
 
+  const std::string cache_key = DropNeedCacheKey(stripped, ctx);
+  auto& cache = DropNeedCache(ctx);
+  auto cache_it = cache.find(cache_key);
+  if (cache_it != cache.end()) {
+    return cache_it->second;
+  }
+  if (ctx.values.parent != nullptr) {
+    const auto* parent_cache = DropNeedCache(*ctx.values.parent);
+    if (parent_cache != nullptr) {
+      auto parent_it = parent_cache->find(cache_key);
+      if (parent_it != parent_cache->end()) {
+        return parent_it->second;
+      }
+    }
+  }
+
+  const bool needs_drop = TypeNeedsDropImpl(type, ctx, active);
+  cache[cache_key] = needs_drop;
+  return needs_drop;
+}
+
+static bool TypeNeedsDropImpl(const analysis::TypeRef& type,
+                              LowerCtx& ctx,
+                              std::unordered_set<std::string>& active) {
   if (!type) {
     return false;
   }
@@ -184,6 +339,23 @@ bool TypeNeedsDrop(const analysis::TypeRef& type, LowerCtx& ctx) {
   if (!stripped) {
     return false;
   }
+
+  if (HoldsType<analysis::TypeRefine>(stripped)) {
+    const auto& refined = GetType<analysis::TypeRefine>(stripped);
+    return TypeNeedsDropCached(refined.base, ctx, active);
+  }
+
+  const std::string active_key = analysis::TypeToString(stripped);
+  if (!active.insert(active_key).second) {
+    return false;
+  }
+  struct ActiveGuard {
+    std::unordered_set<std::string>& active;
+    std::string key;
+    ~ActiveGuard() {
+      active.erase(key);
+    }
+  } guard{active, active_key};
 
   // Built-in drop types
   if (IsBuiltinDropType(stripped)) {
@@ -247,14 +419,15 @@ bool TypeNeedsDrop(const analysis::TypeRef& type, LowerCtx& ctx) {
   // Arrays need drop if elements need drop
   if (HoldsType<analysis::TypeArray>(stripped)) {
     const auto& arr_type = GetType<analysis::TypeArray>(stripped);
-    return TypeNeedsDrop(arr_type.element, ctx);
+    return arr_type.length != 0 &&
+           TypeNeedsDropCached(arr_type.element, ctx, active);
   }
 
   // Tuples need drop if any element needs drop
   if (HoldsType<analysis::TypeTuple>(stripped)) {
     const auto& tuple_type = GetType<analysis::TypeTuple>(stripped);
     for (const auto& elem : tuple_type.elements) {
-      if (TypeNeedsDrop(elem, ctx)) {
+      if (TypeNeedsDropCached(elem, ctx, active)) {
         return true;
       }
     }
@@ -265,19 +438,144 @@ bool TypeNeedsDrop(const analysis::TypeRef& type, LowerCtx& ctx) {
   if (HoldsType<analysis::TypeUnion>(stripped)) {
     const auto& uni_type = GetType<analysis::TypeUnion>(stripped);
     for (const auto& member : uni_type.members) {
-      if (TypeNeedsDrop(member, ctx)) {
+      if (TypeNeedsDropCached(member, ctx, active)) {
         return true;
       }
     }
     return false;
   }
 
-  // Named types (records, enums, modals) may need drop
-  if (HoldsType<analysis::TypePathType>(stripped) ||
-      HoldsType<analysis::TypeModalState>(stripped)) {
-    // Conservative: assume they might need drop
-    // Full implementation would check their fields
+  auto nominal_needs_drop =
+      [&](const analysis::TypePath& path,
+          const std::vector<analysis::TypeRef>& generic_args) -> bool {
+    if (!ctx.sigma) {
+      return true;
+    }
+
+    const ast::Path syntax_path = ToSyntaxPath(path);
+    const auto it = ctx.sigma->types.find(analysis::PathKeyOf(syntax_path));
+    if (it == ctx.sigma->types.end()) {
+      return true;
+    }
+
+    if (const auto* alias = std::get_if<ast::TypeAliasDecl>(&it->second)) {
+      auto lowered = LowerTypeForDrop(alias->type, ctx);
+      if (!lowered.has_value()) {
+        return true;
+      }
+      analysis::TypeRef alias_type =
+          InstantiateIfGeneric(*lowered, alias->generic_params, generic_args);
+      return !alias_type || TypeNeedsDropCached(alias_type, ctx, active);
+    }
+
+    if (const auto* record = std::get_if<ast::RecordDecl>(&it->second)) {
+      for (const auto& member : record->members) {
+        const auto* field = std::get_if<ast::FieldDecl>(&member);
+        if (!field) {
+          continue;
+        }
+        auto lowered = LowerTypeForDrop(field->type, ctx);
+        if (!lowered.has_value()) {
+          return true;
+        }
+        analysis::TypeRef field_type =
+            InstantiateIfGeneric(*lowered, record->generic_params, generic_args);
+        if (!field_type || TypeNeedsDropCached(field_type, ctx, active)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (const auto* enum_decl = std::get_if<ast::EnumDecl>(&it->second)) {
+      for (const auto& variant : enum_decl->variants) {
+        if (!variant.payload_opt.has_value()) {
+          continue;
+        }
+        if (const auto* tuple_payload =
+                std::get_if<ast::VariantPayloadTuple>(&*variant.payload_opt)) {
+          for (const auto& element : tuple_payload->elements) {
+            auto lowered = LowerTypeForDrop(element, ctx);
+            if (!lowered.has_value()) {
+              return true;
+            }
+            analysis::TypeRef payload_type =
+                InstantiateIfGeneric(*lowered, enum_decl->generic_params, generic_args);
+            if (!payload_type || TypeNeedsDropCached(payload_type, ctx, active)) {
+              return true;
+            }
+          }
+        } else if (const auto* record_payload =
+                       std::get_if<ast::VariantPayloadRecord>(
+                           &*variant.payload_opt)) {
+          for (const auto& field : record_payload->fields) {
+            auto lowered = LowerTypeForDrop(field.type, ctx);
+            if (!lowered.has_value()) {
+              return true;
+            }
+            analysis::TypeRef payload_type =
+                InstantiateIfGeneric(*lowered, enum_decl->generic_params, generic_args);
+            if (!payload_type || TypeNeedsDropCached(payload_type, ctx, active)) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    if (const auto* modal_decl = std::get_if<ast::ModalDecl>(&it->second)) {
+      for (const auto& state : modal_decl->states) {
+        if (StateFieldsNeedDrop(
+                state,
+                modal_decl->generic_params,
+                generic_args,
+                ctx,
+                active)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     return true;
+  };
+
+  if (HoldsType<analysis::TypePathType>(stripped)) {
+    const auto& path_type = GetType<analysis::TypePathType>(stripped);
+    return nominal_needs_drop(path_type.path, path_type.generic_args);
+  }
+
+  if (HoldsType<analysis::TypeApply>(stripped)) {
+    const auto& apply_type = GetType<analysis::TypeApply>(stripped);
+    return nominal_needs_drop(apply_type.path, apply_type.args);
+  }
+
+  if (HoldsType<analysis::TypeModalState>(stripped)) {
+    const auto& state_type = GetType<analysis::TypeModalState>(stripped);
+    if (!ctx.sigma) {
+      return true;
+    }
+    const ast::Path syntax_path = ToSyntaxPath(state_type.path);
+    const auto it = ctx.sigma->types.find(analysis::PathKeyOf(syntax_path));
+    if (it == ctx.sigma->types.end()) {
+      return true;
+    }
+    const auto* modal_decl = std::get_if<ast::ModalDecl>(&it->second);
+    if (!modal_decl) {
+      return true;
+    }
+    const ast::StateBlock* state =
+        FindModalState(*modal_decl, state_type.state);
+    if (!state) {
+      return true;
+    }
+    return StateFieldsNeedDrop(
+        *state,
+        modal_decl->generic_params,
+        state_type.generic_args,
+        ctx,
+        active);
   }
 
   // Dynamic types don't need drop (no Drop on capabilities)
@@ -286,6 +584,13 @@ bool TypeNeedsDrop(const analysis::TypeRef& type, LowerCtx& ctx) {
   }
 
   return false;
+}
+
+bool TypeNeedsDrop(const analysis::TypeRef& type, LowerCtx& ctx) {
+  SPEC_RULE("TypeNeedsDrop");
+
+  std::unordered_set<std::string> active;
+  return TypeNeedsDropCached(type, ctx, active);
 }
 
 // ============================================================================

@@ -195,6 +195,25 @@ std::vector<StaticBindRef> GlobalStaticOrder(
 }
 
 // StaticBindTypes(binding) = B when BindType(binding) matches pattern
+static analysis::TypeRef StaticAnnotationType(const ast::Binding& binding,
+                                              const ast::ModulePath& module_path,
+                                              LowerCtx& ctx) {
+  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
+  if (!ann_type || !ctx.sigma) {
+    return nullptr;
+  }
+
+  analysis::ScopeContext scope;
+  scope.sigma = *ctx.sigma;
+  scope.sigma_source = ctx.sigma;
+  scope.current_module = module_path;
+  if (auto lowered =
+          ::cursive::analysis::layout::LowerTypeForLayout(scope, ann_type)) {
+    return *lowered;
+  }
+  return nullptr;
+}
+
 std::vector<std::pair<std::string, analysis::TypeRef>> StaticBindTypes(
     const ast::Binding& binding,
     const ast::ModulePath& module_path,
@@ -205,18 +224,10 @@ std::vector<std::pair<std::string, analysis::TypeRef>> StaticBindTypes(
   }
 
   analysis::TypeRef bind_type;
-  if (binding.init && ctx.expr_type) {
+  if (auto ann_type = StaticAnnotationType(binding, module_path, ctx)) {
+    bind_type = ann_type;
+  } else if (binding.init && ctx.expr_type) {
     bind_type = ctx.expr_type(*binding.init);
-  }
-  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
-  if (!bind_type && ann_type && ctx.sigma) {
-    analysis::ScopeContext scope;
-    scope.sigma = *ctx.sigma;
-    scope.sigma_source = ctx.sigma;
-    scope.current_module = module_path;
-    if (auto lowered = ::cursive::analysis::layout::LowerTypeForLayout(scope, ann_type)) {
-      bind_type = *lowered;
-    }
   }
   if (!bind_type) {
     return {};
@@ -409,22 +420,13 @@ analysis::TypeRef StaticInitTypeForGlobal(const ast::StaticDecl& item,
                                           const ast::ModulePath& module_path,
                                           LowerCtx& ctx) {
   const auto& binding = item.binding;
-  analysis::TypeRef init_type;
+  if (auto ann_type = StaticAnnotationType(binding, module_path, ctx)) {
+    return ann_type;
+  }
   if (binding.init && ctx.expr_type) {
-    init_type = ctx.expr_type(*binding.init);
+    return ctx.expr_type(*binding.init);
   }
-  const auto ann_type = ast::BindingAnnotationTypeOpt(binding);
-  if (!init_type && ann_type && ctx.sigma) {
-    analysis::ScopeContext scope;
-    scope.sigma = *ctx.sigma;
-    scope.sigma_source = ctx.sigma;
-    scope.current_module = module_path;
-    if (auto lowered =
-            ::cursive::analysis::layout::LowerTypeForLayout(scope, ann_type)) {
-      init_type = *lowered;
-    }
-  }
-  return init_type;
+  return nullptr;
 }
 
 void RegisterStaticMetadata(const ast::StaticDecl& item,
@@ -489,6 +491,13 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
           GlobalConst gc;
           gc.symbol = sym;
           gc.bytes = std::move(*bytes);
+          const auto align =
+              ::cursive::analysis::layout::AlignOf(layout_scope, init_type);
+          if (!align.has_value()) {
+            ctx.ReportCodegenFailure();
+            return result;
+          }
+          gc.align = *align;
           gc.externally_visible = externally_visible;
           gc.export_from_shared_library = export_from_shared_library;
           result.decls.push_back(std::move(gc));
@@ -507,6 +516,12 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
         return result;
       }
       gz.size = *size;
+      const auto align = ::cursive::analysis::layout::AlignOf(layout_scope, init_type);
+      if (!align.has_value()) {
+        ctx.ReportCodegenFailure();
+        return result;
+      }
+      gz.align = *align;
       result.decls.push_back(std::move(gz));
       result.needs_runtime_init = true;
       return result;
@@ -523,6 +538,12 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
       return result;
     }
     gz.size = *size;
+    const auto align = ::cursive::analysis::layout::AlignOf(layout_scope, init_type);
+    if (!align.has_value()) {
+      ctx.ReportCodegenFailure();
+      return result;
+    }
+    gz.align = *align;
     result.decls.push_back(std::move(gz));
     return result;
   }
@@ -553,6 +574,13 @@ EmitGlobalResult EmitGlobal(const ast::StaticDecl& item,
       return result;
     }
     gz.size = *size;
+    const auto align = ::cursive::analysis::layout::AlignOf(layout_scope, type);
+    if (!align.has_value()) {
+      ctx.ReportCodegenFailure();
+      result.decls.clear();
+      return result;
+    }
+    gz.align = *align;
     result.decls.push_back(std::move(gz));
   }
 

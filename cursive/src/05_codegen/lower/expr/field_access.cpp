@@ -24,10 +24,12 @@
 #include "05_codegen/cleanup/cleanup.h"
 #include "00_core/assert_spec.h"
 #include "02_source/attributes/attribute_registry.h"
+#include "04_analysis/typing/type_lookup.h"
 
 #include <algorithm>
 #include <cassert>
 #include <variant>
+#include <vector>
 
 namespace cursive::codegen {
 
@@ -107,6 +109,47 @@ void UpdateBindingAfterFieldAssignLocal(const ast::Expr& place, LowerCtx& ctx) {
   fields.erase(std::remove(fields.begin(), fields.end(), *head), fields.end());
 }
 
+analysis::TypeRef StripFieldBaseType(analysis::TypeRef type) {
+  while (type) {
+    if (const auto* perm = std::get_if<analysis::TypePerm>(&type->node)) {
+      type = perm->base;
+      continue;
+    }
+    if (const auto* refine = std::get_if<analysis::TypeRefine>(&type->node)) {
+      type = refine->base;
+      continue;
+    }
+    break;
+  }
+  return type;
+}
+
+analysis::TypeRef InferRecordFieldTypeFromBase(
+    const IRValue& base_value,
+    std::string_view field_name,
+    LowerCtx& ctx) {
+  analysis::TypeRef base_type = StripFieldBaseType(ctx.LookupValueType(base_value));
+  if (!base_type) {
+    return nullptr;
+  }
+  const auto* path = analysis::AppliedTypePath(*base_type);
+  if (!path) {
+    return nullptr;
+  }
+  const auto* args = analysis::AppliedTypeArgs(*base_type);
+  const auto& scope = ScopeForLowering(ctx);
+  const ast::RecordDecl* record = analysis::LookupRecordDecl(scope, *path);
+  if (!record) {
+    return nullptr;
+  }
+  const auto field_type = analysis::FieldType(
+      *record,
+      field_name,
+      scope,
+      args ? *args : std::vector<analysis::TypeRef>{});
+  return field_type.has_value() ? *field_type : nullptr;
+}
+
 }  // namespace
 
 // ============================================================================
@@ -135,9 +178,13 @@ LowerResult LowerReadPlaceFieldAccess(const ast::FieldAccessExpr& node,
   // Create a fresh temporary for the field value
   IRValue field_value = ctx.FreshTempValue("place_field");
 
-  // Register the type of the field value if type information is available
-  if (ctx.expr_type) {
-    ctx.RegisterValueType(field_value, ctx.expr_type(place));
+  // Register the type of the field value if type information is available.
+  analysis::TypeRef field_type = ctx.expr_type ? ctx.expr_type(place) : nullptr;
+  if (!field_type) {
+    field_type = InferRecordFieldTypeFromBase(base_result.value, node.name, ctx);
+  }
+  if (field_type) {
+    ctx.RegisterValueType(field_value, field_type);
   }
 
   // Register derived value info for field access

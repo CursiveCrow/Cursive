@@ -12,6 +12,7 @@
 #include <string_view>
 #include <vector>
 
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/typing/types.h"
 
 // Forward declarations for LLVM types
@@ -100,6 +101,32 @@ std::vector<llvm::Type*> ComputeStructElements(
     const std::vector<std::uint64_t>& offsets,
     std::uint64_t total_size,
     std::uint64_t required_align = 1);
+
+struct LayoutLLVMField {
+  analysis::TypeRef source_type;
+  llvm::Type* llvm_type = nullptr;
+  std::uint64_t offset = 0;
+  std::uint64_t size = 0;
+  std::uint64_t align = 1;
+  bool recursive_indirect = false;
+};
+
+struct LayoutLLVMRecord {
+  std::vector<LayoutLLVMField> fields;
+  std::uint64_t size = 0;
+  std::uint64_t align = 1;
+};
+
+std::optional<LayoutLLVMRecord> ComputeLayoutLLVMRecord(
+    LLVMEmitter& emitter,
+    const analysis::ScopeContext& scope,
+    const analysis::TypeRef& aggregate_type,
+    const std::vector<analysis::TypeRef>& fields,
+    const analysis::layout::RecordLayoutOptions& options = {});
+
+std::vector<llvm::Type*> ComputeStructElements(
+    LLVMEmitter& emitter,
+    const LayoutLLVMRecord& layout);
 
 // TaggedElems(disc, payload_size, payload_align, size) - Build tagged union elements
 // ::cursive::analysis::layout::Layout: [disc_type, padding, [payload_size x i8], tail_padding]

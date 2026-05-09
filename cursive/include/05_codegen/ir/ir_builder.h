@@ -32,7 +32,7 @@ namespace cursive::codegen {
 ///
 /// Example:
 ///   IRPtr ir = MakeIR(IRBindVar{"x", value, type});
-///   IRPtr call = MakeIR(IRCall{callee, args, result});
+///   IRPtr call = MakeCall(callee, args, result);
 template <typename T>
 IRPtr MakeIR(T&& node) {
   static_assert(
@@ -447,8 +447,12 @@ inline IRPtr MakeClearPanic() {
 }
 
 /// Create an IR node to check for panic.
-inline IRPtr MakePanicCheck(IRPtr cleanup_ir = nullptr) {
-  IRPanicCheck check;
+inline IRPtr MakePanicCheck() {
+  return MakeIR(IRPanicCheck{});
+}
+
+inline IRPtr MakeCleanupPanicCheck(IRPtr cleanup_ir) {
+  IRCleanupPanicCheck check;
   check.cleanup_ir = std::move(cleanup_ir);
   return MakeIR(std::move(check));
 }
@@ -479,7 +483,9 @@ inline IRPtr MakeRestoreDeinitPanic() {
 
 /// Create an IR node to check for poison.
 inline IRPtr MakeCheckPoison(const std::string& module) {
-  return MakeIR(IRCheckPoison{module});
+  IRCheckPoison check;
+  check.module = module;
+  return MakeIR(std::move(check));
 }
 
 /// Create an IR node to lower a panic.
@@ -558,20 +564,24 @@ inline ProcIR MakeProcIR(
 /// Create a GlobalConst declaration.
 inline GlobalConst MakeGlobalConst(
     const std::string& symbol,
-    std::vector<std::uint8_t> bytes) {
+    std::vector<std::uint8_t> bytes,
+    std::uint64_t align = 1) {
   GlobalConst gc;
   gc.symbol = symbol;
   gc.bytes = std::move(bytes);
+  gc.align = align;
   return gc;
 }
 
 /// Create a GlobalZero declaration.
 inline GlobalZero MakeGlobalZero(
     const std::string& symbol,
-    std::uint64_t size) {
+    std::uint64_t size,
+    std::uint64_t align = 1) {
   GlobalZero gz;
   gz.symbol = symbol;
   gz.size = size;
+  gz.align = align;
   return gz;
 }
 

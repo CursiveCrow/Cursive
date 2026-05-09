@@ -16,6 +16,7 @@
 #include "05_codegen/lower/expr/method_call.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/checks.h"
+#include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/cleanup/unwind.h"
 #include "05_codegen/dyn_dispatch/dyn_dispatch.h"
 #include "05_codegen/intrinsics/builtins.h"

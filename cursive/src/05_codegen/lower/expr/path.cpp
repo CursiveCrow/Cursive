@@ -13,6 +13,7 @@
 
 #include "05_codegen/lower/expr/path.h"
 #include "00_core/assert_spec.h"
+#include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/intrinsics/builtins.h"
 
 namespace cursive::codegen {
@@ -33,7 +34,7 @@ namespace cursive::codegen {
 // Unlike IdentifierExpr, PathExpr already has the full module path resolved.
 // =============================================================================
 
-LowerResult LowerPath(const ast::PathExpr& expr, LowerCtx& /*ctx*/) {
+LowerResult LowerPath(const ast::PathExpr& expr, LowerCtx& ctx) {
     SPEC_RULE("Lower-Expr-Path");
 
     // Build IRReadPath from the path components

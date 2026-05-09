@@ -36,7 +36,7 @@
 // POISON SET COMPUTATION:
 //   PoisonSetFor(module, ctx):
 //     1. Build module index map
-//     2. Build outgoing edge graph from init_eager_edges
+//     2. Build reverse edge graph from init_eager_edges
 //     3. DFS from target module
 //     4. Collect all reachable modules
 //     5. Return module paths as strings
@@ -44,7 +44,7 @@
 // GRAPH TRAVERSAL:
 //   - init_modules: ordered list of all modules
 //   - init_eager_edges: (from, to) dependency pairs
-//   - Traverse outgoing edges from module
+//   - Traverse reverse eager dependency edges from module
 //   - Mark visited, collect reachable set
 //
 // USAGE IN INIT:
@@ -106,15 +106,16 @@ std::vector<std::string> PoisonSetFor(const std::string& module_path,
   const std::size_t target = it->second;
   const std::size_t n = ctx.init_modules.size();
 
-  // Build outgoing edge graph from init_eager_edges
-  std::vector<std::vector<std::size_t>> outgoing(n);
+  // Build reverse edge graph from init_eager_edges. Edges are (dependent,
+  // dependency), and PoisonSet(m) contains modules that can reach m.
+  std::vector<std::vector<std::size_t>> dependents(n);
   for (const auto& edge : ctx.init_eager_edges) {
     if (edge.first < n && edge.second < n) {
-      outgoing[edge.first].push_back(edge.second);
+      dependents[edge.second].push_back(edge.first);
     }
   }
 
-  // DFS from target module to find all reachable modules
+  // DFS from target module to find all reverse-reachable dependents.
   std::vector<char> visited(n, false);
   std::vector<std::size_t> stack;
   visited[target] = true;
@@ -122,7 +123,7 @@ std::vector<std::string> PoisonSetFor(const std::string& module_path,
   while (!stack.empty()) {
     const std::size_t cur = stack.back();
     stack.pop_back();
-    for (const auto succ : outgoing[cur]) {
+    for (const auto succ : dependents[cur]) {
       if (!visited[succ]) {
         visited[succ] = true;
         stack.push_back(succ);

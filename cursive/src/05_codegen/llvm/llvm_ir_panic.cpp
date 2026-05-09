@@ -475,10 +475,10 @@ std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx) {
   }
 
   const std::size_t n = ctx.init_modules.size();
-  std::vector<std::vector<std::size_t>> outgoing(n);
+  std::vector<std::vector<std::size_t>> dependents(n);
   for (const auto& edge : ctx.init_eager_edges) {
     if (edge.first < n && edge.second < n) {
-      outgoing[edge.first].push_back(edge.second);
+      dependents[edge.second].push_back(edge.first);
     }
   }
 
@@ -489,7 +489,7 @@ std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx) {
   while (!stack.empty()) {
     const std::size_t cur = stack.back();
     stack.pop_back();
-    for (const auto succ : outgoing[cur]) {
+    for (const auto succ : dependents[cur]) {
       if (!visited[succ]) {
         visited[succ] = true;
         stack.push_back(succ);
@@ -511,7 +511,8 @@ std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx) {
 }
 
 void StoreInitPanicRecord(LLVMEmitter& emitter,
-                          llvm::IRBuilder<>* builder) {
+                          llvm::IRBuilder<>* builder,
+                          const std::vector<std::string>* poison_modules) {
   LowerCtx* ctx = emitter.GetCurrentCtx();
   if (!ctx) {
     return;
@@ -521,11 +522,15 @@ void StoreInitPanicRecord(LLVMEmitter& emitter,
     return;
   }
 
-  const auto poison = PoisonSetForInit(*ctx);
-  if (!poison.empty()) {
+  std::vector<std::string> computed_poison;
+  if (!poison_modules) {
+    computed_poison = PoisonSetForInit(*ctx);
+    poison_modules = &computed_poison;
+  }
+  if (!poison_modules->empty()) {
     llvm::Type* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
     llvm::Value* val = llvm::ConstantInt::get(bool_ty, 1);
-    for (const auto& module_name : poison) {
+    for (const auto& module_name : *poison_modules) {
       const auto path = SplitModulePathString(module_name);
       llvm::Value* flag = GetPoisonFlagPtr(emitter, path);
       if (!flag) {
@@ -774,7 +779,7 @@ using namespace emit_detail;
 
   void LLVMEmitter::EmitPoisonCheck(const std::string &module_name)
   {
-    SPEC_RULE("LowerIRDecl-PoisonCheck");
+    SPEC_RULE("LowerIRInstr-CheckPoison");
     auto *builder = static_cast<llvm::IRBuilder<> *>(builder_.get());
     if (!builder || !builder->GetInsertBlock() ||
         builder->GetInsertBlock()->getTerminator())
@@ -813,15 +818,6 @@ using namespace emit_detail;
 
     builder->SetInsertPoint(panic_bb);
     StorePanicRecord(*this, builder, PanicCode(PanicReason::InitPanic));
-    if (current_ctx_)
-    {
-      CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(*current_ctx_);
-      IRPtr cleanup_ir = EmitCleanupOnPanic(cleanup_plan, *current_ctx_);
-      if (cleanup_ir)
-      {
-        EmitIR(cleanup_ir);
-      }
-    }
     if (!builder->GetInsertBlock()->getTerminator())
     {
       EmitReturn(*this, builder);

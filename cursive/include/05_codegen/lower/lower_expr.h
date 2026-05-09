@@ -223,6 +223,8 @@ struct LowerValueState {
   std::vector<std::string>* value_type_insert_sink = nullptr;
   std::unordered_map<std::string, analysis::TypeRef> static_types;
   std::unordered_map<std::string, analysis::TypeRef> drop_glue_types;
+  std::shared_ptr<std::unordered_map<std::string, bool>> drop_need_cache =
+      std::make_shared<std::unordered_map<std::string, bool>>();
   std::unordered_map<std::string, DerivedValueInfo> derived_values;
 
   struct RequiredVTableInfo {

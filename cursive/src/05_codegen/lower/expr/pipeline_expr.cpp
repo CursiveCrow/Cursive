@@ -34,6 +34,7 @@
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/checks/panic.h"
+#include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/lower/expr/closure_expr.h"
 

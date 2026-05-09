@@ -92,7 +92,8 @@ std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx);
 
 // Store panic record for init function failures
 void StoreInitPanicRecord(LLVMEmitter& emitter,
-                          llvm::IRBuilder<>* builder);
+                          llvm::IRBuilder<>* builder,
+                          const std::vector<std::string>* poison_modules = nullptr);
 
 // Deinit must continue across cleanup panics, then surface the first panic
 // after the full deinit list completes.

@@ -106,6 +106,8 @@ struct IRInstructionVisitor
 
   void operator()(const IRPanicCheck &check) const;
 
+  void operator()(const IRCleanupPanicCheck &check) const;
+
   void operator()(const IRLowerPanic &panic) const;
 
   void operator()(const IRCheckOp &check) const;

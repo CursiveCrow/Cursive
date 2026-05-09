@@ -117,8 +117,8 @@ bool LiteralRef(const IRDecls& decls,
 // ============================================================================
 
 // (StaticTypeForConst): Infer the type for a GlobalConst
-// If type information is available in ctx, use it; otherwise
-// fall back to [u8; n] where n is the byte count
+// If type information is available in ctx, use it; otherwise infer [u8; n]
+// only for literal-data symbols, where n is the byte count.
 analysis::TypeRef StaticTypeForConst(const GlobalConst& global,
                                       const LowerCtx* ctx);
 

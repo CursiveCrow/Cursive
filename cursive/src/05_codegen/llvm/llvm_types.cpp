@@ -34,6 +34,7 @@
 #include "00_core/spec_trace.h"
 #include "04_analysis/layout/layout.h"
 #include "04_analysis/modal/modal.h"
+#include "04_analysis/typing/type_equiv.h"
 #include "05_codegen/llvm/llvm_emit.h"
 #include "05_codegen/llvm/emit/internal_helpers.h"
 #include "05_codegen/llvm/emit/llvm_emit_helpers.h"
@@ -58,6 +59,241 @@ std::uint64_t AlignUp(std::uint64_t value, std::uint64_t align) {
     return value;
   }
   return value + (align - rem);
+}
+
+bool TypePathEq(const analysis::TypePath& lhs, const analysis::TypePath& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < lhs.size(); ++i) {
+    if (!analysis::IdEq(lhs[i], rhs[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool TypeArgsEq(const std::vector<analysis::TypeRef>& lhs,
+                const std::vector<analysis::TypeRef>& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < lhs.size(); ++i) {
+    const auto equiv = analysis::TypeEquiv(lhs[i], rhs[i]);
+    if (!equiv.ok || !equiv.equiv) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool SameNominalType(const analysis::TypeRef& lhs,
+                     const analysis::TypeRef& rhs) {
+  if (!lhs || !rhs) {
+    return false;
+  }
+  if (lhs.get() == rhs.get()) {
+    return true;
+  }
+  if (const auto* lhs_state = std::get_if<analysis::TypeModalState>(&lhs->node)) {
+    const auto* rhs_state = std::get_if<analysis::TypeModalState>(&rhs->node);
+    return rhs_state &&
+           TypePathEq(lhs_state->path, rhs_state->path) &&
+           analysis::IdEq(lhs_state->state, rhs_state->state) &&
+           TypeArgsEq(lhs_state->generic_args, rhs_state->generic_args);
+  }
+
+  const auto* lhs_path = analysis::AppliedTypePath(*lhs);
+  const auto* rhs_path = analysis::AppliedTypePath(*rhs);
+  if (!lhs_path || !rhs_path || !TypePathEq(*lhs_path, *rhs_path)) {
+    return false;
+  }
+  static const std::vector<analysis::TypeRef> empty_args;
+  const auto* lhs_args = analysis::AppliedTypeArgs(*lhs);
+  const auto* rhs_args = analysis::AppliedTypeArgs(*rhs);
+  return TypeArgsEq(lhs_args ? *lhs_args : empty_args,
+                    rhs_args ? *rhs_args : empty_args);
+}
+
+std::optional<analysis::TypeSubst> BuildTypeSubstitution(
+    const std::optional<ast::GenericParams>& generic_params,
+    const std::vector<analysis::TypeRef>& generic_args) {
+  if (!generic_params.has_value() || generic_params->params.empty()) {
+    return analysis::TypeSubst{};
+  }
+  if (generic_args.size() > generic_params->params.size()) {
+    return std::nullopt;
+  }
+  return analysis::BuildSubstitution(generic_params->params, generic_args);
+}
+
+std::optional<analysis::TypeRef> LowerTypeWithSubst(
+    const analysis::ScopeContext& scope,
+    const std::shared_ptr<ast::Type>& type,
+    const analysis::TypeSubst& subst) {
+  const auto lowered = analysis::layout::LowerTypeForLayout(scope, type);
+  if (!lowered.has_value()) {
+    return std::nullopt;
+  }
+  analysis::TypeRef out = *lowered;
+  if (!subst.empty()) {
+    out = analysis::InstantiateType(out, subst);
+  }
+  return out;
+}
+
+const std::vector<analysis::TypeRef>& AppliedArgsOrEmpty(
+    const analysis::TypeRef& type) {
+  static const std::vector<analysis::TypeRef> empty_args;
+  if (!type) {
+    return empty_args;
+  }
+  if (const auto* args = analysis::AppliedTypeArgs(*type)) {
+    return *args;
+  }
+  return empty_args;
+}
+
+bool TypeContainsByValueImpl(const analysis::ScopeContext& scope,
+                             const analysis::TypeRef& candidate,
+                             const analysis::TypeRef& needle,
+                             std::vector<std::string>& active) {
+  if (!candidate || !needle) {
+    return false;
+  }
+  if (SameNominalType(candidate, needle)) {
+    return true;
+  }
+
+  const std::string key = analysis::TypeToString(candidate);
+  if (std::find(active.begin(), active.end(), key) != active.end()) {
+    return false;
+  }
+  active.push_back(key);
+  struct PopGuard {
+    std::vector<std::string>& active;
+    ~PopGuard() { active.pop_back(); }
+  } guard{active};
+
+  auto contains = [&](const analysis::TypeRef& type) {
+    return TypeContainsByValueImpl(scope, type, needle, active);
+  };
+
+  return std::visit(
+      [&](const auto& node) -> bool {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, analysis::TypePerm>) {
+          return contains(node.base);
+        } else if constexpr (std::is_same_v<T, analysis::TypeRefine>) {
+          return contains(node.base);
+        } else if constexpr (std::is_same_v<T, analysis::TypeUnion>) {
+          for (const auto& member : node.members) {
+            if (contains(member)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, analysis::TypeTuple>) {
+          for (const auto& element : node.elements) {
+            if (contains(element)) {
+              return true;
+            }
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, analysis::TypeArray>) {
+          return contains(node.element);
+        } else if constexpr (std::is_same_v<T, analysis::TypeModalState>) {
+          const ast::ModalDecl* modal_decl =
+              analysis::LookupModalDecl(scope, node.path);
+          if (!modal_decl) {
+            return false;
+          }
+          const auto subst =
+              BuildTypeSubstitution(modal_decl->generic_params, node.generic_args);
+          if (!subst.has_value()) {
+            return false;
+          }
+          for (const auto& state : modal_decl->states) {
+            if (!analysis::IdEq(state.name, node.state)) {
+              continue;
+            }
+            for (const auto& member : state.members) {
+              const auto* field = std::get_if<ast::StateFieldDecl>(&member);
+              if (!field) {
+                continue;
+              }
+              const auto lowered = LowerTypeWithSubst(scope, field->type, *subst);
+              if (lowered.has_value() && contains(*lowered)) {
+                return true;
+              }
+            }
+            return false;
+          }
+          return false;
+        } else if constexpr (std::is_same_v<T, analysis::TypePathType> ||
+                             std::is_same_v<T, analysis::TypeApply>) {
+          const analysis::TypeDecl* decl =
+              analysis::LookupTypeDecl(scope, node.path);
+          if (!decl) {
+            return false;
+          }
+          const auto& args = AppliedArgsOrEmpty(candidate);
+          if (const auto* alias = std::get_if<ast::TypeAliasDecl>(decl)) {
+            const auto subst = BuildTypeSubstitution(alias->generic_params, args);
+            if (!subst.has_value()) {
+              return false;
+            }
+            const auto lowered = LowerTypeWithSubst(scope, alias->type, *subst);
+            return lowered.has_value() && contains(*lowered);
+          }
+          if (const auto* record = std::get_if<ast::RecordDecl>(decl)) {
+            const auto subst = BuildTypeSubstitution(record->generic_params, args);
+            if (!subst.has_value()) {
+              return false;
+            }
+            for (const auto& member : record->members) {
+              const auto* field = std::get_if<ast::FieldDecl>(&member);
+              if (!field) {
+                continue;
+              }
+              const auto lowered = LowerTypeWithSubst(scope, field->type, *subst);
+              if (lowered.has_value() && contains(*lowered)) {
+                return true;
+              }
+            }
+            return false;
+          }
+          if (const auto* modal = std::get_if<ast::ModalDecl>(decl)) {
+            const auto subst = BuildTypeSubstitution(modal->generic_params, args);
+            if (!subst.has_value()) {
+              return false;
+            }
+            for (const auto& state : modal->states) {
+              for (const auto& member : state.members) {
+                const auto* field = std::get_if<ast::StateFieldDecl>(&member);
+                if (!field) {
+                  continue;
+                }
+                const auto lowered = LowerTypeWithSubst(scope, field->type, *subst);
+                if (lowered.has_value() && contains(*lowered)) {
+                  return true;
+                }
+              }
+            }
+          }
+          return false;
+        } else {
+          return false;
+        }
+      },
+      candidate->node);
+}
+
+bool TypeContainsByValue(const analysis::ScopeContext& scope,
+                         const analysis::TypeRef& candidate,
+                         const analysis::TypeRef& needle) {
+  std::vector<std::string> active;
+  return TypeContainsByValueImpl(scope, candidate, needle, active);
 }
 
 void AppendPad(std::vector<llvm::Type*>& elems,
@@ -260,6 +496,97 @@ std::vector<llvm::Type*> ComputeStructElements(
     }
   }
 
+  return elems;
+}
+
+std::optional<LayoutLLVMRecord> ComputeLayoutLLVMRecord(
+    LLVMEmitter& emitter,
+    const analysis::ScopeContext& scope,
+    const analysis::TypeRef& aggregate_type,
+    const std::vector<analysis::TypeRef>& fields,
+    const analysis::layout::RecordLayoutOptions& options) {
+  LayoutLLVMRecord out;
+  out.fields.reserve(fields.size());
+
+  std::uint64_t offset = 0;
+  std::uint64_t max_align = 1;
+  for (std::size_t i = 0; i < fields.size(); ++i) {
+    const bool recursive_indirect =
+        aggregate_type && TypeContainsByValue(scope, fields[i], aggregate_type);
+    std::optional<analysis::layout::Layout> field_layout;
+    llvm::Type* field_ty = nullptr;
+    if (recursive_indirect) {
+      field_layout = analysis::layout::Layout{
+          analysis::layout::PtrSize(scope),
+          analysis::layout::PtrAlign(scope)};
+      field_ty = emitter.GetOpaquePtr();
+    } else {
+      field_layout = analysis::layout::LayoutOf(scope, fields[i]);
+      field_ty = emitter.GetLLVMType(fields[i]);
+    }
+    if (!field_layout.has_value() || !field_ty) {
+      return std::nullopt;
+    }
+
+    const std::uint64_t field_align = options.packed ? 1 : field_layout->align;
+    if (i != 0) {
+      offset = AlignUp(offset, field_align);
+    }
+
+    LayoutLLVMField field;
+    field.source_type = fields[i];
+    field.llvm_type = field_ty;
+    field.offset = offset;
+    field.size = field_layout->size;
+    field.align = field_align;
+    field.recursive_indirect = recursive_indirect;
+    out.fields.push_back(field);
+
+    max_align = std::max(max_align, field_align);
+    offset += field_layout->size;
+  }
+
+  if (options.packed) {
+    max_align = 1;
+  } else if (options.min_align.has_value()) {
+    max_align = std::max(max_align, *options.min_align);
+  }
+  const std::uint64_t computed_size = AlignUp(offset, max_align);
+  out.size = computed_size;
+  out.align = max_align;
+
+  if (aggregate_type) {
+    if (const auto aggregate_layout = analysis::layout::LayoutOf(scope, aggregate_type);
+        aggregate_layout.has_value() &&
+        aggregate_layout->size >= out.size) {
+      out.size = aggregate_layout->size;
+      out.align = std::max(out.align, aggregate_layout->align);
+    }
+  }
+  return out;
+}
+
+std::vector<llvm::Type*> ComputeStructElements(
+    LLVMEmitter& emitter,
+    const LayoutLLVMRecord& layout) {
+  std::vector<llvm::Type*> elems;
+  llvm::LLVMContext& ctx = emitter.GetContext();
+  std::uint64_t prev_end = 0;
+  for (const auto& field : layout.fields) {
+    if (field.offset > prev_end) {
+      AppendPad(elems, ctx, field.offset - prev_end);
+    }
+    elems.push_back(field.llvm_type);
+    prev_end = field.offset + field.size;
+  }
+  if (layout.size > prev_end) {
+    AppendPad(elems, ctx, layout.size - prev_end);
+  }
+  if (layout.align > 1) {
+    if (llvm::Type* marker = GetAlignmentMarkerType(ctx, layout.align)) {
+      elems.push_back(llvm::ArrayType::get(marker, 0));
+    }
+  }
   return elems;
 }
 
@@ -885,14 +1212,14 @@ using namespace emit_detail;
             }
           }
           const auto record_layout_options = ::cursive::analysis::layout::ResolveRecordLayoutOptions(record->attrs);
-          if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields, record_layout_options))
+          if (const auto layout = ComputeLayoutLLVMRecord(
+                  *this,
+                  scope,
+                  type,
+                  fields,
+                  record_layout_options))
           {
-            std::vector<llvm::Type *> elems =
-                ComputeStructElements(*this,
-                                      fields,
-                                      layout->offsets,
-                                      layout->layout.size,
-                                      layout->layout.align);
+            std::vector<llvm::Type *> elems = ComputeStructElements(*this, *layout);
             ll_ty = llvm::StructType::get(context_, elems, record_layout_options.packed);
           }
           else
@@ -1085,10 +1412,13 @@ using namespace emit_detail;
                   fields.push_back(analysis::MakeTypePrim("u8"));
                 }
               }
-              if (const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, fields))
+              if (const auto layout = ComputeLayoutLLVMRecord(
+                      *this,
+                      scope,
+                      type,
+                      fields))
               {
-                std::vector<llvm::Type *> elems = ComputeStructElements(
-                    *this, fields, layout->offsets, layout->layout.size);
+                std::vector<llvm::Type *> elems = ComputeStructElements(*this, *layout);
                 ll_ty = llvm::StructType::get(context_, elems);
               }
               else

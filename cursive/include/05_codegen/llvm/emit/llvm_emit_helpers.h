@@ -201,7 +201,7 @@ namespace cursive::codegen::emit_detail {
       long long child_ms = 0;
     };
 
-    inline constexpr std::size_t kIRNodePerfKindCount = 62;
+    inline constexpr std::size_t kIRNodePerfKindCount = 63;
 
     struct IRProcPerfContext
     {
@@ -410,6 +410,7 @@ namespace cursive::codegen::emit_detail {
     struct FieldAccessMeta
     {
       std::size_t index = 0;
+      analysis::TypeRef aggregate_type;
       analysis::TypeRef field_type;
       std::vector<analysis::TypeRef> aggregate_fields;
       ::cursive::analysis::layout::RecordLayoutOptions layout_options{};
@@ -532,9 +533,6 @@ namespace cursive::codegen::emit_detail {
     llvm::Value *EmitTypedEq(llvm::IRBuilder<> *builder,
                              llvm::Value *lhs,
                              llvm::Value *rhs);
-
-    bool DebugTargetEnumPath(const std::vector<std::string> &path)
-    ;
 
     std::string LLVMValueRepr(llvm::Value *value)
     ;

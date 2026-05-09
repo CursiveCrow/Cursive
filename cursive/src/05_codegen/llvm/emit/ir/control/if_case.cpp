@@ -339,14 +339,17 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
   struct ModalPayloadMemberInfo
   {
     analysis::TypeRef type;
+    llvm::Type *storage_type = nullptr;
     std::uint64_t offset = 0;
     std::uint64_t payload_size = 0;
     std::uint64_t payload_align = 1;
     bool tagged = true;
+    bool recursive_indirect = false;
     bool ok = false;
   };
 
   auto modal_payload_member_by_field = [&](const ast::ModalDecl &modal_decl,
+                                           const analysis::TypePath &modal_path,
                                            const std::vector<analysis::TypeRef> &modal_args,
                                            std::string_view state_name,
                                            std::string_view field_name)
@@ -403,17 +406,27 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
       field_names.push_back(field->name);
     }
 
-    const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
+    analysis::TypeRef aggregate_type = analysis::MakeTypeModalState(
+        modal_path,
+        std::string(state_name),
+        modal_args);
+    const auto layout = ComputeLayoutLLVMRecord(
+        emitter,
+        scope,
+        aggregate_type,
+        field_types);
     if (!layout.has_value())
     {
       return out;
     }
-    for (std::size_t i = 0; i < field_names.size() && i < layout->offsets.size(); ++i)
+    for (std::size_t i = 0; i < field_names.size() && i < layout->fields.size(); ++i)
     {
       if (analysis::IdEq(field_names[i], std::string(field_name)))
       {
         out.type = field_types[i];
-        out.offset = layout->offsets[i];
+        out.storage_type = layout->fields[i].llvm_type;
+        out.offset = layout->fields[i].offset;
+        out.recursive_indirect = layout->fields[i].recursive_indirect;
         out.ok = true;
         break;
       }
@@ -450,7 +463,8 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
       return nullptr;
     }
     llvm::Type *member_ty = emitter.GetLLVMType(member.type);
-    if (!member_ty)
+    llvm::Type *storage_ty = member.storage_type ? member.storage_type : member_ty;
+    if (!member_ty || !storage_ty)
     {
       return nullptr;
     }
@@ -506,9 +520,18 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
         llvm::ConstantInt::get(i64_ty, member.offset));
     llvm::Value *field_ptr = builder.CreateBitCast(
         field_i8,
-        llvm::PointerType::get(member_ty, 0));
-    llvm::LoadInst *load = builder.CreateLoad(member_ty, field_ptr);
+        llvm::PointerType::get(storage_ty, 0));
+    llvm::LoadInst *load = builder.CreateLoad(storage_ty, field_ptr);
     load->setAlignment(llvm::Align(1));
+    if (member.recursive_indirect)
+    {
+      llvm::Value *target_ptr =
+          builder.CreateBitCast(load, llvm::PointerType::get(member_ty, 0));
+      llvm::LoadInst *target_load =
+          builder.CreateLoad(member_ty, target_ptr);
+      target_load->setAlignment(llvm::Align(1));
+      return target_load;
+    }
     return load;
   };
 
@@ -1073,20 +1096,6 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
             {
               return llvm::ConstantInt::getFalse(emitter.GetContext());
             }
-            if (core::IsDebugEnabled("obj") &&
-                DebugTargetEnumPath(enum_path.empty() ? pat.path : enum_path))
-            {
-              std::cerr << "[ifcase-enum] path="
-                        << core::StringOfPath(enum_path.empty() ? pat.path : enum_path)
-                        << " variant=" << pat.name
-                        << " expected="
-                        << static_cast<unsigned long long>(*expected_disc)
-                        << " subject_type="
-                        << (subject_type ? analysis::TypeToString(subject_type) : "<null>")
-                        << " actual_disc=" << LLVMValueRepr(actual_disc)
-                        << " subject=" << LLVMValueRepr(subject)
-                        << "\n";
-            }
             llvm::Value *disc_eq = EmitTypedEq(
                 &builder,
                 actual_disc,
@@ -1254,6 +1263,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
                   }
                   ModalPayloadMemberInfo member =
                       modal_payload_member_by_field(*modal_decl,
+                                                    modal_member_state->path,
                                                     modal_member_state->generic_args,
                                                     pat.state,
                                                     field.name);
@@ -1347,6 +1357,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
                 }
                 auto member =
                     modal_payload_member_by_field(*modal_decl,
+                                                  modal_path,
                                                   subject_modal_args,
                                                   pat.state,
                                                   field.name);
@@ -1398,9 +1409,86 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     analysis::TypeRef source_type;
   };
   std::vector<IncomingValue> incoming;
-  llvm::BasicBlock *fallback_pred = nullptr;
   const LLVMEmitter::FlowStateSnapshot branch_state =
       emitter.SaveFlowState();
+
+  analysis::TypeRef result_type = LookupValueType(if_case.result);
+  if (!result_type)
+  {
+    for (const auto &arm : if_case.arms)
+    {
+      if (arm.value_type)
+      {
+        result_type = arm.value_type;
+        break;
+      }
+    }
+  }
+  llvm::Type *result_ty = ExpectedLLVMType(if_case.result);
+  if (!result_ty && result_type)
+  {
+    result_ty = emitter.GetLLVMType(result_type);
+  }
+  const bool aggregate_result =
+      result_ty && !result_ty->isVoidTy() &&
+      IsAddressBackedAggregateType(result_ty);
+  llvm::Value *merged_storage = nullptr;
+  if (aggregate_result)
+  {
+    merged_storage =
+        emitter.AcquireReusableAggregateStorage(func, result_ty, "ifcase.result");
+    llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
+    if (merged_storage && merged_storage->getType() != expected_ptr_ty)
+    {
+      merged_storage = builder.CreateBitCast(merged_storage, expected_ptr_ty);
+    }
+  }
+
+  auto store_aggregate_result = [&](llvm::Value *arm_storage,
+                                    llvm::Value *arm_value,
+                                    const analysis::TypeRef &arm_type)
+  {
+    if (!merged_storage || !result_ty)
+    {
+      return;
+    }
+    llvm::Value *candidate = nullptr;
+    if (arm_storage && arm_storage->getType()->isPointerTy())
+    {
+      llvm::Type *load_ty = arm_type ? emitter.GetLLVMType(arm_type) : nullptr;
+      if (!load_ty)
+      {
+        load_ty = result_ty;
+      }
+      llvm::Value *typed_storage = arm_storage;
+      llvm::Type *load_ptr_ty = llvm::PointerType::get(load_ty, 0);
+      if (typed_storage->getType() != load_ptr_ty)
+      {
+        typed_storage = builder.CreateBitCast(typed_storage, load_ptr_ty);
+      }
+      candidate = builder.CreateLoad(load_ty, typed_storage);
+    }
+    if (!candidate)
+    {
+      candidate = arm_value ? arm_value : llvm::Constant::getNullValue(result_ty);
+    }
+    llvm::Value *coerced = CoerceToTyped(
+        emitter,
+        &builder,
+        candidate,
+        result_ty,
+        arm_type,
+        result_type);
+    if (!coerced)
+    {
+      coerced = CoerceTo(&builder, candidate, result_ty);
+    }
+    if (!coerced)
+    {
+      coerced = llvm::Constant::getNullValue(result_ty);
+    }
+    builder.CreateStore(coerced, merged_storage);
+  };
 
   for (std::size_t i = 0; i < if_case.arms.size(); ++i)
   {
@@ -1417,8 +1505,24 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     llvm::Value *cond = AsBool(&builder, emit_pattern_cond(arm.pattern));
     if (is_last)
     {
-      fallback_pred = builder.GetInsertBlock();
-      builder.CreateCondBr(cond, arm_bb, merge_bb);
+      llvm::BasicBlock *unmatched_bb =
+          llvm::BasicBlock::Create(emitter.GetContext(), "ifcase.unmatched", func);
+      builder.CreateCondBr(cond, arm_bb, unmatched_bb);
+      builder.SetInsertPoint(unmatched_bb);
+      if (!result_ty)
+      {
+        result_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+      }
+      if (aggregate_result && merged_storage)
+      {
+        builder.CreateStore(llvm::Constant::getNullValue(result_ty), merged_storage);
+      }
+      else if (!result_ty->isVoidTy())
+      {
+        incoming.push_back(
+            {unmatched_bb, llvm::Constant::getNullValue(result_ty), nullptr, result_type});
+      }
+      builder.CreateBr(merge_bb);
     }
     else
     {
@@ -1427,16 +1531,32 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
 
     builder.SetInsertPoint(arm_bb);
     emitter.RestoreFlowState(branch_state);
-  emitter.EmitIR(arm.body);
-  llvm::BasicBlock *arm_end = builder.GetInsertBlock();
-  if (!arm_end->getTerminator())
-  {
-    llvm::Value *arm_storage = emitter.GetAddressableStorage(arm.value);
-    llvm::Value *arm_value = EvaluateOrDefault(arm.value);
-    analysis::TypeRef arm_type = arm.value_type ? arm.value_type : LookupValueType(arm.value);
-    builder.CreateBr(merge_bb);
-    incoming.push_back({arm_end, arm_value, arm_storage, arm_type});
-  }
+    emitter.EmitIR(arm.body);
+    llvm::BasicBlock *value_bb = builder.GetInsertBlock();
+    if (!value_bb->getTerminator())
+    {
+      llvm::Value *arm_storage = emitter.GetAddressableStorage(arm.value);
+      llvm::Value *arm_value = EvaluateOrDefault(arm.value);
+      analysis::TypeRef arm_type =
+          arm.value_type ? arm.value_type : LookupValueType(arm.value);
+      if (aggregate_result && merged_storage)
+      {
+        store_aggregate_result(arm_storage, arm_value, arm_type);
+      }
+      if (arm.cleanup_ir)
+      {
+        emitter.EmitIR(arm.cleanup_ir);
+      }
+      llvm::BasicBlock *arm_end = builder.GetInsertBlock();
+      if (!arm_end->getTerminator())
+      {
+        builder.CreateBr(merge_bb);
+        if (!aggregate_result || !merged_storage)
+        {
+          incoming.push_back({arm_end, arm_value, arm_storage, arm_type});
+        }
+      }
+    }
 
     if (!is_last)
     {
@@ -1446,8 +1566,6 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
 
   builder.SetInsertPoint(merge_bb);
   emitter.RestoreFlowState(branch_state);
-  analysis::TypeRef result_type = LookupValueType(if_case.result);
-  llvm::Type *result_ty = ExpectedLLVMType(if_case.result);
   if (!result_ty)
   {
     if (!incoming.empty() && incoming.front().value)
@@ -1464,73 +1582,11 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     return;
   }
 
-  if (fallback_pred)
+  if (aggregate_result && merged_storage)
   {
-    incoming.push_back({fallback_pred, llvm::Constant::getNullValue(result_ty), nullptr, nullptr});
-  }
-
-  const bool aggregate_result = IsAddressBackedAggregateType(result_ty);
-
-  if (aggregate_result)
-  {
-    llvm::Value *merged_storage =
-        emitter.AcquireReusableAggregateStorage(func, result_ty, "ifcase.result");
-    llvm::Type *expected_ptr_ty = llvm::PointerType::get(result_ty, 0);
-    if (merged_storage && merged_storage->getType() != expected_ptr_ty)
-    {
-      merged_storage = builder.CreateBitCast(merged_storage, expected_ptr_ty);
-    }
-    if (merged_storage)
-    {
-      for (const auto &entry : incoming)
-      {
-        llvm::IRBuilder<> pred_builder(entry.pred->getTerminator());
-        llvm::Value *candidate = nullptr;
-        if (entry.storage && entry.storage->getType()->isPointerTy())
-        {
-          llvm::Type *load_ty = nullptr;
-          if (entry.source_type)
-          {
-            load_ty = emitter.GetLLVMType(entry.source_type);
-          }
-          if (!load_ty)
-          {
-            load_ty = result_ty;
-          }
-          llvm::Value *typed_storage = entry.storage;
-          llvm::Type *load_ptr_ty = llvm::PointerType::get(load_ty, 0);
-          if (typed_storage->getType() != load_ptr_ty)
-          {
-            typed_storage = pred_builder.CreateBitCast(typed_storage, load_ptr_ty);
-          }
-          candidate = pred_builder.CreateLoad(load_ty, typed_storage);
-        }
-        if (!candidate)
-        {
-          candidate = entry.value ? entry.value : llvm::Constant::getNullValue(result_ty);
-        }
-        llvm::Value *coerced = CoerceToTyped(
-            emitter,
-            &pred_builder,
-            candidate,
-            result_ty,
-            entry.source_type,
-            result_type);
-        if (!coerced)
-        {
-          coerced = CoerceTo(&pred_builder, candidate, result_ty);
-        }
-        if (!coerced)
-        {
-          coerced = llvm::Constant::getNullValue(result_ty);
-        }
-        pred_builder.CreateStore(coerced, merged_storage);
-      }
-
-      emitter.ForgetTempStorage(if_case.result);
-      emitter.SetTempStorage(if_case.result, merged_storage);
-      return;
-    }
+    emitter.ForgetTempStorage(if_case.result);
+    emitter.SetTempStorage(if_case.result, merged_storage);
+    return;
   }
 
   auto coerce_in_predecessor = [&](llvm::BasicBlock *pred,

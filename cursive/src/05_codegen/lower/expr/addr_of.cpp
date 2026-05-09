@@ -21,6 +21,7 @@
 
 #include "05_codegen/lower/expr/addr_of.h"
 #include "05_codegen/checks/checks.h"
+#include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/intrinsics/intrinsics_interface.h"
 #include "05_codegen/intrinsics/builtins.h"
 #include "05_codegen/lower/expr/expr_common.h"
@@ -316,10 +317,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             info.name = resolved_name;
             ctx.RegisterDerivedValue(ptr_value, info);
 
-            IRPtr poison_ir = EmptyIR();
-            IRCheckPoison check;
-            check.module = ModulePathString(full);
-            poison_ir = MakeIR(std::move(check));
+            IRPtr poison_ir = CheckPoison(ModulePathString(full), ctx);
             if (poison_ir && !std::holds_alternative<IROpaque>(poison_ir->node)) {
               SeedAddrRefSyms(addr, {poison_ir, PanicCheck(ctx)});
               return LowerResult{SeqIR(std::vector<IRPtr>{poison_ir,

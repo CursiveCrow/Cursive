@@ -409,6 +409,7 @@ namespace cursive::codegen::emit_detail {
           "IRPhi",
           "IRClearPanic",
           "IRPanicCheck",
+          "IRCleanupPanicCheck",
           "IRInitPanicHandle",
           "IRHandleDeinitPanic",
           "IRRestoreDeinitPanic",
@@ -1278,6 +1279,7 @@ namespace cursive::codegen::emit_detail {
           return std::nullopt;
         }
         FieldAccessMeta meta;
+        meta.aggregate_type = stripped;
         meta.index = *index;
         meta.field_type = tuple->elements[*index];
         meta.aggregate_fields = tuple->elements;
@@ -1318,6 +1320,7 @@ namespace cursive::codegen::emit_detail {
         }
 
         FieldAccessMeta meta;
+        meta.aggregate_type = stripped;
         bool found = false;
         std::size_t field_index = 0;
         for (const auto &member : state_block->members)
@@ -1455,6 +1458,7 @@ namespace cursive::codegen::emit_detail {
       record_layout_options = ::cursive::analysis::layout::ResolveRecordLayoutOptions(record->attrs);
 
       FieldAccessMeta meta;
+      meta.aggregate_type = stripped;
       bool found = false;
       std::size_t field_index = 0;
       for (const auto &member : record->members)
@@ -2232,11 +2236,6 @@ namespace cursive::codegen::emit_detail {
     llvm::Value *EmitTypedEq(llvm::IRBuilder<> *builder,
                              llvm::Value *lhs,
                              llvm::Value *rhs);
-
-    bool DebugTargetEnumPath(const std::vector<std::string> &path)
-    {
-      return !path.empty() && analysis::IdEq(path.back(), "TypeEnumCase");
-    }
 
     std::string LLVMValueRepr(llvm::Value *value)
     {

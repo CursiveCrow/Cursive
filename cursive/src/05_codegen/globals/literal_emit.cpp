@@ -330,6 +330,7 @@ void CollectLiteralRefsFromIR(const IRPtr& ir,
       CollectLiteralRefsFromValue(node.scrutinee, out);
       for (const auto& arm : node.arms) {
         CollectLiteralRefsFromIR(arm.body, out);
+        CollectLiteralRefsFromIR(arm.cleanup_ir, out);
         CollectLiteralRefsFromValue(arm.value, out);
       }
       CollectLiteralRefsFromValue(node.result, out);
@@ -352,7 +353,7 @@ void CollectLiteralRefsFromIR(const IRPtr& ir,
         CollectLiteralRefsFromValue(incoming.value, out);
       }
       CollectLiteralRefsFromValue(node.value, out);
-    } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+    } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
       CollectLiteralRefsFromIR(node.cleanup_ir, out);
     } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
       CollectLiteralRefsFromIR(node.cleanup_ir, out);
@@ -512,7 +513,10 @@ analysis::TypeRef StaticTypeForConst(const GlobalConst& global,
       return type;
     }
   }
-  return analysis::MakeTypeArray(analysis::MakeTypePrim("u8"), global.bytes.size());
+  if (IsLiteralSymbol(global.symbol)) {
+    return analysis::MakeTypeArray(analysis::MakeTypePrim("u8"), global.bytes.size());
+  }
+  return nullptr;
 }
 
 // ============================================================================

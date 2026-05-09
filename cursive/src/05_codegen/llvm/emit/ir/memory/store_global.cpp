@@ -4,6 +4,8 @@
 // =============================================================================
 #include "../../ir_instruction_visitor.h"
 
+#include "04_analysis/layout/layout.h"
+
 namespace cursive::codegen::emit_detail {
 
 void IRInstructionVisitor::operator()(const IRStoreGlobal &store) const
@@ -97,8 +99,18 @@ void IRInstructionVisitor::operator()(const IRStoreGlobal &store) const
   }
 
   llvm::StoreInst *stored = builder.CreateStore(value, target_ptr);
-  stored->setAlignment(global_var ? global_var->getAlign().valueOrOne()
-                                  : llvm::Align(1));
+  llvm::Align store_align =
+      global_var ? global_var->getAlign().valueOrOne() : llvm::Align(1);
+  if (target_type && active_ctx)
+  {
+    const analysis::ScopeContext &scope = BuildScope(active_ctx);
+    if (const auto align =
+            ::cursive::analysis::layout::AlignOf(scope, target_type))
+    {
+      store_align = llvm::Align(*align);
+    }
+  }
+  stored->setAlignment(store_align);
 }
 
 } // namespace cursive::codegen::emit_detail

@@ -522,6 +522,10 @@ static IRPtr EmitCleanupAction(const CleanupAction& action, LowerCtx& ctx) {
       return EmitDropFields(action.type, var_value, action.skip_fields, ctx);
     }
     case CleanupAction::Kind::DropStatic: {
+      if (!TypeNeedsDrop(action.type, ctx)) {
+        return EmptyIR();
+      }
+
       IRReadPath read;
       read.path = action.static_module_path;
       read.name = action.name;
@@ -673,6 +677,7 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
 
   parts.push_back(EmitRuntimeTrace("Cleanup-Start", ctx));
 
+  bool cleanup_action_can_panic = false;
   for (const auto& action : plan) {
     IRPtr action_ir = EmitCleanupAction(action, ctx);
     if (IsNoopIR(action_ir)) {
@@ -696,6 +701,8 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
       }
       continue;
     }
+
+    cleanup_action_can_panic = true;
 
     // Clear panic before running each cleanup action.
     parts.push_back(MakeIR(IRClearPanic{}));
@@ -832,8 +839,8 @@ static IRPtr EmitCleanupImpl(const CleanupPlan& plan,
 
   parts.push_back(EmitRuntimeTrace("Cleanup-Done", ctx));
 
-  if (emit_panic_check) {
-    IRPanicCheck check;
+  if (emit_panic_check && cleanup_action_can_panic) {
+    IRCleanupPanicCheck check;
     check.cleanup_ir =
         remainder.empty() ? EmptyIR() : EmitCleanupOnPanic(remainder, ctx);
     parts.push_back(MakeIR(std::move(check)));
@@ -946,6 +953,10 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
                           bool allow_drop_glue,
                           const std::optional<IRValue>& panic_out) {
   if (!type) {
+    return EmptyIR();
+  }
+
+  if (!TypeNeedsDrop(type, ctx)) {
     return EmptyIR();
   }
 

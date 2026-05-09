@@ -5,7 +5,6 @@
 #include "05_codegen/lower/expr/expr_common.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <iostream>
 
 #include "00_core/assert_spec.h"
@@ -18,18 +17,6 @@
 namespace cursive::codegen {
 
 namespace {
-
-bool DebugProcedureParameterSignature(const std::string& symbol) {
-  return symbol.find("emptyDiagnosticStream") != std::string::npos ||
-         symbol.find("singleDiagnosticStream") != std::string::npos ||
-         symbol.find("singleErrorDiagnosticStream") != std::string::npos ||
-         symbol.find("parseManifestText") != std::string::npos ||
-         symbol.find("emptyPathComponentList") != std::string::npos;
-}
-
-bool ParamDebugEnabled() {
-  return std::getenv("CURSIVE_PARAM_DEBUG") != nullptr;
-}
 
 analysis::Permission PermissionOfType(const analysis::TypeRef& type) {
   if (!type) {
@@ -1021,14 +1008,6 @@ void LowerCtx::RegisterProcSig(const ProcIR& proc) {
   info.params = proc.params;
   info.ret = proc.ret;
   info.abi = proc.abi;
-  if (ParamDebugEnabled() && DebugProcedureParameterSignature(proc.symbol)) {
-    std::cerr << "[proc-sig-register-debug] symbol=" << proc.symbol
-              << " params=" << proc.params.size();
-    for (const auto& param : proc.params) {
-      std::cerr << " param=" << param.name;
-    }
-    std::cerr << "\n";
-  }
 
   if (auto existing = proc_sigs.find(proc.symbol); existing != proc_sigs.end()) {
     info.ffi_import = existing->second.ffi_import;

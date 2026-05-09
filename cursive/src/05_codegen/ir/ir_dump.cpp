@@ -694,9 +694,25 @@ struct Dumper {
         oss << "\n";
       }
       Indent();
-      oss << "body { ";
+      oss << "body {\n";
+      indent_level++;
+      Dump(arm.body);
+      indent_level--;
+      Indent();
+      oss << "}\n";
+      Indent();
+      oss << "value ";
       Dump(arm.value);
-      oss << " }\n";
+      oss << "\n";
+      if (arm.cleanup_ir && !std::holds_alternative<IROpaque>(arm.cleanup_ir->node)) {
+        Indent();
+        oss << "cleanup {\n";
+        indent_level++;
+        Dump(arm.cleanup_ir);
+        indent_level--;
+        Indent();
+        oss << "}\n";
+      }
       indent_level--;
       Indent();
       oss << "}\n";
@@ -737,6 +753,18 @@ struct Dumper {
 
   void DumpNode(const IRPanicCheck&) { oss << "panic_check"; }
 
+  void DumpNode(const IRCleanupPanicCheck& h) {
+    oss << "cleanup_panic_check";
+    if (h.cleanup_ir) {
+      oss << " {\n";
+      indent_level++;
+      Dump(h.cleanup_ir);
+      indent_level--;
+      Indent();
+      oss << "}";
+    }
+  }
+
   void DumpNode(const IRInitPanicHandle& h) {
     oss << "init_panic_handle " << h.module;
     if (!h.poison_modules.empty()) {
@@ -756,7 +784,9 @@ struct Dumper {
 
   void DumpNode(const IRRestoreDeinitPanic&) { oss << "restore_deinit_panic"; }
 
-  void DumpNode(const IRCheckPoison& c) { oss << "check_poison " << c.module; }
+  void DumpNode(const IRCheckPoison& c) {
+    oss << "check_poison " << c.module;
+  }
 
   void DumpNode(const IRLowerPanic& p) { oss << "panic " << p.reason; }
 

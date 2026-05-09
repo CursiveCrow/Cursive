@@ -61,7 +61,6 @@
 #include "05_codegen/lower/lower_module.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -507,18 +506,6 @@ IRParam LowerParam(const ast::Param& param,
   return out;
 }
 
-bool DebugProcedureParameterSignature(const std::string& symbol) {
-  return symbol.find("emptyDiagnosticStream") != std::string::npos ||
-         symbol.find("singleDiagnosticStream") != std::string::npos ||
-         symbol.find("singleErrorDiagnosticStream") != std::string::npos ||
-         symbol.find("parseManifestText") != std::string::npos ||
-         symbol.find("emptyPathComponentList") != std::string::npos;
-}
-
-bool ParamDebugEnabled() {
-  return std::getenv("CURSIVE_PARAM_DEBUG") != nullptr;
-}
-
 analysis::VerificationModeAttribute ResolveForeignVerificationMode(
     const ast::AttributeList& proc_attrs) {
   if (const auto proc_mode = analysis::ResolveVerificationModeAttribute(proc_attrs);
@@ -911,18 +898,6 @@ ProcIR BuildProcedureSignature(const ast::ProcedureDecl& decl,
   const auto& scope = BuildScope(module_path, ctx);
   for (const auto& param : decl.params) {
     ir.params.push_back(LowerParam(param, scope, nullptr, ctx));
-  }
-  if (ParamDebugEnabled() && DebugProcedureParameterSignature(ir.symbol)) {
-    std::cerr << "[lower-signature-debug] symbol=" << ir.symbol
-              << " decl_params=" << decl.params.size()
-              << " ir_params=" << ir.params.size();
-    for (const auto& param : decl.params) {
-      std::cerr << " decl_param=" << param.name;
-    }
-    for (const auto& param : ir.params) {
-      std::cerr << " ir_param=" << param.name;
-    }
-    std::cerr << "\n";
   }
   ir.ret = LowerReturnType(scope, decl.return_type_opt, nullptr, ctx);
   ApplyProcAttrs(decl.attrs, ir);
@@ -1591,6 +1566,7 @@ IRDecls LowerModule(const ast::ASTModule& module, LowerCtx& ctx) {
       }
       emitted_drop_glue_syms.insert(sym);
       ProcIR glue = EmitDropGlue(type_it->second, ctx);
+      flush_item_maps();
       register_proc(glue, false, LinkageKind::Internal);
       decls.push_back(std::move(glue));
     }

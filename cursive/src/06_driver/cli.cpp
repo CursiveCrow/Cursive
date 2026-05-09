@@ -643,7 +643,6 @@ CliParseResult ParseArgs(int argc, char** argv) {
       }
       opts.debug_subsystems = parsed;
       core::SetDebugSubsystems(opts.debug_subsystems);
-      ++i;
       continue;
     }
     if (StartsWith(arg, "--debug=")) {

@@ -13,6 +13,7 @@
 
 #include "05_codegen/lower/expr/qualified_name.h"
 #include "00_core/assert_spec.h"
+#include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/intrinsics/builtins.h"
 
 namespace cursive::codegen {
@@ -31,7 +32,7 @@ namespace cursive::codegen {
 // 2. A symbol IRValue with the final name
 // =============================================================================
 
-LowerResult LowerQualifiedName(const ast::QualifiedNameExpr& expr, LowerCtx& /*ctx*/) {
+LowerResult LowerQualifiedName(const ast::QualifiedNameExpr& expr, LowerCtx& ctx) {
     SPEC_RULE("Lower-Expr-Path");
 
     // Build IRReadPath from the path components

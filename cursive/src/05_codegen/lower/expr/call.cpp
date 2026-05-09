@@ -23,7 +23,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
-#include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <set>
@@ -67,18 +66,6 @@ namespace {
 // =============================================================================
 // Helper functions for call lowering
 // =============================================================================
-
-bool DebugProcedureParameterSignature(const std::string& symbol) {
-  return symbol.find("emptyDiagnosticStream") != std::string::npos ||
-         symbol.find("singleDiagnosticStream") != std::string::npos ||
-         symbol.find("singleErrorDiagnosticStream") != std::string::npos ||
-         symbol.find("parseManifestText") != std::string::npos ||
-         symbol.find("emptyPathComponentList") != std::string::npos;
-}
-
-bool ParamDebugEnabled() {
-  return std::getenv("CURSIVE_PARAM_DEBUG") != nullptr;
-}
 
 // Extract parameter modes from TypeFunc parameters
 ParamModeList ParamModesFromFuncParams(const std::vector<analysis::TypeFuncParam>& params) {
@@ -660,6 +647,13 @@ struct GenericProcInfo {
   const ast::ProcedureDecl* decl = nullptr;
 };
 
+struct ProcedureCalleeInfo {
+  std::string symbol;
+  ast::ModulePath module_path;
+  const ast::ProcedureDecl* proc = nullptr;
+  const ast::ExternProcDecl* extern_proc = nullptr;
+};
+
 bool PathEq(const ast::Path& lhs, const ast::Path& rhs) {
   if (lhs.size() != rhs.size()) {
     return false;
@@ -705,7 +699,7 @@ std::optional<ast::Path> ExtractCalleePath(const ast::ExprPtr& callee, LowerCtx&
       callee->node);
 }
 
-std::optional<std::string> ResolveProcedureSymbolForCallee(
+std::optional<ProcedureCalleeInfo> ResolveProcedureCalleeInfo(
     const ast::ExprPtr& callee,
     LowerCtx& ctx) {
   if (!ctx.sigma || !callee) {
@@ -731,7 +725,11 @@ std::optional<std::string> ResolveProcedureSymbolForCallee(
       if (!proc || !analysis::IdEq(proc->name, proc_name)) {
         continue;
       }
-      return MangleProc(module.path, *proc);
+      return ProcedureCalleeInfo{
+          MangleProc(module.path, *proc),
+          module.path,
+          proc,
+          nullptr};
     }
     for (const auto& item : module.items) {
       const auto* ext = std::get_if<ast::ExternBlock>(&item);
@@ -744,19 +742,29 @@ std::optional<std::string> ResolveProcedureSymbolForCallee(
           continue;
         }
         if (auto link_name = LinkName(proc->attrs, proc->name)) {
-          return *link_name;
+          return ProcedureCalleeInfo{*link_name, module.path, nullptr, proc};
         }
         if (ExternAbiUsesRawName(ext->abi_opt)) {
-          return proc->name;
+          return ProcedureCalleeInfo{proc->name, module.path, nullptr, proc};
         }
         ast::Path path = module.path;
         path.push_back(proc->name);
-        return ScopedSym(path);
+        return ProcedureCalleeInfo{ScopedSym(path), module.path, nullptr, proc};
       }
     }
   }
 
   return std::nullopt;
+}
+
+std::optional<std::string> ResolveProcedureSymbolForCallee(
+    const ast::ExprPtr& callee,
+    LowerCtx& ctx) {
+  const auto info = ResolveProcedureCalleeInfo(callee, ctx);
+  if (!info.has_value()) {
+    return std::nullopt;
+  }
+  return info->symbol;
 }
 
 std::optional<GenericProcInfo> ResolveGenericProcedure(const ast::CallExpr& expr,
@@ -802,6 +810,114 @@ analysis::TypeRef InstantiateActiveGenericType(const analysis::TypeRef& type,
     return type;
   }
   return analysis::InstantiateType(type, *ctx.active_generic_type_subst);
+}
+
+analysis::ScopeContext SourceCallScope(const ast::ModulePath& module_path,
+                                       const LowerCtx& ctx) {
+  analysis::ScopeContext scope;
+  if (ctx.sigma) {
+    scope.sigma = *ctx.sigma;
+    scope.sigma_source = ctx.sigma;
+  }
+  scope.current_module = module_path;
+  scope.target_profile = ctx.target_profile;
+  scope.expr_types = ctx.expr_types;
+  scope.dynamic_refine_checks = ctx.dynamic_refine_checks;
+  scope.generic_call_substs = ctx.generic_call_substs;
+  return scope;
+}
+
+analysis::TypeRef LowerSourceCallType(
+    const analysis::ScopeContext& scope,
+    const std::shared_ptr<ast::Type>& type) {
+  if (!type) {
+    return analysis::MakeTypePrim("()");
+  }
+  if (const auto lowered =
+          ::cursive::analysis::layout::LowerTypeForLayout(scope, type)) {
+    return *lowered;
+  }
+  const auto fallback = analysis::LowerType(scope, type);
+  if (fallback.ok && fallback.type) {
+    return fallback.type;
+  }
+  return analysis::MakeTypePrim("()");
+}
+
+template <typename ProcDeclT>
+bool PopulateSourceCallSignature(const ProcDeclT& decl,
+                                 const ast::ModulePath& module_path,
+                                 LowerCtx& ctx,
+                                 ParamModeList& param_modes,
+                                 ParamTypeList& param_types,
+                                 analysis::TypeRef& result_type) {
+  const analysis::ScopeContext scope = SourceCallScope(module_path, ctx);
+  ParamModeList modes;
+  ParamTypeList types;
+  modes.reserve(decl.params.size());
+  types.reserve(decl.params.size());
+  for (const auto& param : decl.params) {
+    modes.push_back(param.mode.has_value()
+                        ? std::optional<analysis::ParamMode>(
+                              analysis::ParamMode::Move)
+                        : std::nullopt);
+    types.push_back(InstantiateActiveGenericType(
+        LowerSourceCallType(scope, param.type),
+        ctx));
+  }
+  param_modes = std::move(modes);
+  param_types = std::move(types);
+  result_type = InstantiateActiveGenericType(
+      LowerSourceCallType(scope, decl.return_type_opt),
+      ctx);
+  return true;
+}
+
+void RegisterResolvedSourceSignatureIfMissing(
+    const ProcedureCalleeInfo& info,
+    LowerCtx& ctx) {
+  if (ctx.LookupProcSig(info.symbol)) {
+    return;
+  }
+  if (!info.proc) {
+    return;
+  }
+
+  ParamModeList param_modes;
+  ParamTypeList param_types;
+  analysis::TypeRef result_type;
+  const bool populated = PopulateSourceCallSignature(*info.proc,
+                                                     info.module_path,
+                                                     ctx,
+                                                     param_modes,
+                                                     param_types,
+                                                     result_type);
+  if (!populated) {
+    return;
+  }
+
+  ProcIR proc;
+  proc.symbol = info.symbol;
+  proc.ret = result_type ? result_type : analysis::MakeTypePrim("()");
+  proc.params.reserve(param_modes.size() + 1);
+  for (std::size_t i = 0; i < param_modes.size(); ++i) {
+    IRParam param;
+    param.mode = param_modes[i];
+    param.name = "arg" + std::to_string(i);
+    if (info.proc && i < info.proc->params.size()) {
+      param.name = info.proc->params[i].name;
+    } else if (info.extern_proc && i < info.extern_proc->params.size()) {
+      param.name = info.extern_proc->params[i].name;
+    }
+    param.type = i < param_types.size() && param_types[i]
+                     ? param_types[i]
+                     : analysis::MakeTypePrim("()");
+    proc.params.push_back(std::move(param));
+  }
+  if (ctx.NeedsPanicOutForSymbol(info.symbol)) {
+    proc.params.push_back(PanicOutParam());
+  }
+  ctx.RegisterProcSig(proc);
 }
 
 std::optional<analysis::TypeSubst> LookupGenericSubstForCall(
@@ -924,7 +1040,10 @@ LowerResult LowerRefArgExprWithTemp(const ast::ExprPtr& expr,
     return LowerAddrOf(*expr, ctx);
   }
 
+  auto prev_suppress = ctx.suppress_temp_at_depth;
+  ctx.suppress_temp_at_depth = ctx.temp_depth + 1;
   auto value_result = LowerExpr(*expr, ctx);
+  ctx.suppress_temp_at_depth = prev_suppress;
   std::string temp_name = ctx.FreshTempValue(temp_prefix).name;
 
   analysis::TypeRef temp_type =
@@ -949,6 +1068,14 @@ LowerResult LowerRefArgExprWithTemp(const ast::ExprPtr& expr,
   ctx.RegisterVar(temp_name, temp_type, false, false,
                   analysis::ProvenanceKind::Stack, std::nullopt);
   bind.stable_name = ctx.StableBindingName(temp_name);
+
+  IRValue temp_value;
+  temp_value.kind = IRValue::Kind::Local;
+  temp_value.name = temp_name;
+  if (temp_type) {
+    ctx.RegisterValueType(temp_value, temp_type);
+    ctx.RegisterTempValue(temp_value, temp_type);
+  }
 
   ast::Expr temp_ident;
   temp_ident.span = expr->span;
@@ -1343,10 +1470,12 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
   // Lower the callee expression
   auto callee_result = LowerExpr(*expr.callee, ctx);
   std::string callee_lookup_symbol = callee_result.value.name;
+  std::optional<ProcedureCalleeInfo> resolved_proc_info;
   if (callee_result.value.kind == IRValue::Kind::Symbol) {
-    if (auto resolved_symbol = ResolveProcedureSymbolForCallee(expr.callee, ctx);
-        resolved_symbol.has_value()) {
-      callee_lookup_symbol = *resolved_symbol;
+    resolved_proc_info = ResolveProcedureCalleeInfo(expr.callee, ctx);
+    if (resolved_proc_info.has_value()) {
+      callee_lookup_symbol = resolved_proc_info->symbol;
+      RegisterResolvedSourceSignatureIfMissing(*resolved_proc_info, ctx);
     }
   }
 
@@ -1404,16 +1533,20 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
       sig = ctx.LookupProcSig(callee_result.value.name);
     }
     if (sig) {
-      param_modes.clear();
-      param_types.clear();
-      param_modes.reserve(sig->params.size());
-      param_types.reserve(sig->params.size());
+      ParamModeList sig_param_modes;
+      ParamTypeList sig_param_types;
+      sig_param_modes.reserve(sig->params.size());
+      sig_param_types.reserve(sig->params.size());
       for (const auto& param : sig->params) {
         if (param.name == std::string(kPanicOutName)) {
           continue;
         }
-        param_modes.push_back(param.mode);
-        param_types.push_back(param.type);
+        sig_param_modes.push_back(param.mode);
+        sig_param_types.push_back(param.type);
+      }
+      if (sig_param_modes.size() == expr.args.size() || param_modes.empty()) {
+        param_modes = std::move(sig_param_modes);
+        param_types = std::move(sig_param_types);
       }
       result_type = sig->ret;
     }
@@ -1423,16 +1556,20 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
     if (const auto* sig = ctx.LookupProcSig(callee_lookup_symbol);
         sig && (sig->ffi_import ||
                 UsesRawExportAbi(ctx, callee_lookup_symbol))) {
-      param_modes.clear();
-      param_types.clear();
-      param_modes.reserve(sig->params.size());
-      param_types.reserve(sig->params.size());
+      ParamModeList sig_param_modes;
+      ParamTypeList sig_param_types;
+      sig_param_modes.reserve(sig->params.size());
+      sig_param_types.reserve(sig->params.size());
       for (const auto& param : sig->params) {
         if (param.name == std::string(kPanicOutName)) {
           continue;
         }
-        param_modes.push_back(analysis::ParamMode::Move);
-        param_types.push_back(param.type);
+        sig_param_modes.push_back(analysis::ParamMode::Move);
+        sig_param_types.push_back(param.type);
+      }
+      if (sig_param_modes.size() == expr.args.size() || param_modes.empty()) {
+        param_modes = std::move(sig_param_modes);
+        param_types = std::move(sig_param_types);
       }
       result_type = sig->ret;
     }
@@ -1440,13 +1577,26 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
   if (!result_type) {
     result_type = contextual_result_type;
   }
-  if (ParamDebugEnabled() && DebugProcedureParameterSignature(callee_lookup_symbol)) {
-    std::cerr << "[lower-call-param-debug] callee=" << callee_lookup_symbol
-              << " source_args=" << expr.args.size()
-              << " param_modes=" << param_modes.size()
-              << " param_types=" << param_types.size() << "\n";
+  const bool source_params_mismatch =
+      param_modes.size() != expr.args.size() ||
+      (!param_types.empty() && param_types.size() != expr.args.size());
+  if (source_params_mismatch && resolved_proc_info.has_value()) {
+    if (resolved_proc_info->proc) {
+      PopulateSourceCallSignature(*resolved_proc_info->proc,
+                                  resolved_proc_info->module_path,
+                                  ctx,
+                                  param_modes,
+                                  param_types,
+                                  result_type);
+    } else if (resolved_proc_info->extern_proc) {
+      PopulateSourceCallSignature(*resolved_proc_info->extern_proc,
+                                  resolved_proc_info->module_path,
+                                  ctx,
+                                  param_modes,
+                                  param_types,
+                                  result_type);
+    }
   }
-
   // Lower arguments
   auto [args_ir, arg_values] =
       LowerArgs(param_modes,
@@ -1458,6 +1608,10 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
 
   IRCall call;
   call.callee = callee_result.value;
+  if (call.callee.kind == IRValue::Kind::Symbol &&
+      !callee_lookup_symbol.empty()) {
+    call.callee.name = callee_lookup_symbol;
+  }
   call.args = std::move(arg_values);
   call.result = result_value;
   if (result_type) {

@@ -584,6 +584,9 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
                   ctx.LookupValueType(value), ctx));
           analysis::TypePath modal_path;
           std::vector<analysis::TypeRef> modal_args;
+          IRValue modal_base = value;
+          std::optional<std::size_t> matched_union_member_index;
+          std::optional<analysis::TypeRef> matched_union_member_type;
           auto assign_modal_ref = [&](const analysis::TypeRef& type,
                                       bool require_state_match) -> bool {
             const analysis::TypeRef stripped = StripPermAndRefine(type);
@@ -620,8 +623,10 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
               members = layout->member_list;
             }
             std::optional<analysis::TypeRef> matched_member;
+            std::optional<std::size_t> matched_member_index;
             bool matched_member_is_ambiguous = false;
-            for (const auto& member : members) {
+            for (std::size_t i = 0; i < members.size(); ++i) {
+              const auto& member = members[i];
               const analysis::TypeRef stripped = StripPermAndRefine(member);
               const auto* modal_state =
                   stripped
@@ -635,10 +640,23 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
                 break;
               }
               matched_member = stripped;
+              matched_member_index = i;
             }
             if (matched_member.has_value() && !matched_member_is_ambiguous) {
               assign_modal_ref(*matched_member, true);
+              matched_union_member_index = matched_member_index;
+              matched_union_member_type = *matched_member;
             }
+          }
+          if (matched_union_member_index.has_value() &&
+              matched_union_member_type.has_value()) {
+            modal_base = ctx.FreshTempValue("pat_modal_payload");
+            DerivedValueInfo payload_info;
+            payload_info.kind = DerivedValueInfo::Kind::UnionPayload;
+            payload_info.base = value;
+            payload_info.union_index = *matched_union_member_index;
+            ctx.RegisterDerivedValue(modal_base, payload_info);
+            ctx.RegisterValueType(modal_base, *matched_union_member_type);
           }
           const ast::ModalDecl* modal_decl =
               modal_path.empty() ? nullptr : LookupModalDecl(modal_path, ctx);
@@ -655,7 +673,7 @@ void CollectPatternBindingsInOrder(const ast::Pattern& pattern,
             IRValue field_val = ctx.FreshTempValue("pat_modal_field");
             DerivedValueInfo info;
             info.kind = DerivedValueInfo::Kind::ModalField;
-            info.base = value;
+            info.base = modal_base;
             info.static_path = modal_path;
             info.modal_state = pat.state;
             info.field = field.name;

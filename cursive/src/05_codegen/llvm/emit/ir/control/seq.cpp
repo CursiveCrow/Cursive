@@ -81,6 +81,10 @@ void IRInstructionVisitor::operator()(const IRSeq &seq) const
         {
           return call;
         }
+        if (const IRCall *call = self(self, arm.cleanup_ir, target_value))
+        {
+          return call;
+        }
       }
       return nullptr;
     }
@@ -196,7 +200,8 @@ void IRInstructionVisitor::operator()(const IRSeq &seq) const
            ++lookahead)
       {
         if (std::holds_alternative<IROpaque>(seq.items[lookahead]->node) ||
-            std::holds_alternative<IRPanicCheck>(seq.items[lookahead]->node))
+            std::holds_alternative<IRPanicCheck>(seq.items[lookahead]->node) ||
+            std::holds_alternative<IRCleanupPanicCheck>(seq.items[lookahead]->node))
         {
           continue;
         }

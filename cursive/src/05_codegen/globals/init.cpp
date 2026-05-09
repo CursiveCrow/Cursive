@@ -55,6 +55,7 @@
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/abi/abi.h"
 #include "05_codegen/cleanup/cleanup.h"
+#include "05_codegen/cleanup/drop_hooks.h"
 #include "05_codegen/common/runtime_trace_utils.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_pat.h"
@@ -178,6 +179,10 @@ void RegisterInitializedStaticCleanup(const ast::ModulePath& module_path,
 
   const auto bind_types = StaticBindTypes(item.binding, module_path, ctx);
   for (const auto& [name, type] : bind_types) {
+    if (!TypeNeedsDrop(type, ctx)) {
+      continue;
+    }
+
     LowerCtx::StaticInitCleanup cleanup;
     cleanup.module_path = module_path;
     cleanup.name = name;
@@ -318,8 +323,8 @@ IRPtr LowerStaticInitItem(const ast::ModulePath& module_path,
   }
 
   ir_parts.push_back(StaticStoreIR(item, module_path, binds));
-  ir_parts.push_back(InitPanicHandle(ModulePathString(module_path), ctx));
   RegisterInitializedStaticCleanup(module_path, item, ctx);
+  ir_parts.push_back(InitPanicHandle(ModulePathString(module_path), ctx));
 
   return SeqIR(std::move(ir_parts));
 }

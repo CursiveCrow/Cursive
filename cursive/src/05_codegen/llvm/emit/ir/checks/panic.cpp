@@ -11,7 +11,11 @@ void IRInstructionVisitor::operator()(const IRClearPanic &) const
   ClearPanicRecord(emitter, &builder);
 }
 
-void IRInstructionVisitor::operator()(const IRPanicCheck &check) const
+namespace {
+
+void EmitPanicCheckImpl(LLVMEmitter &emitter,
+                        llvm::IRBuilder<> &builder,
+                        const IRPtr &cleanup_ir)
 {
   llvm::Value *panic_ptr = LoadPanicOutPtr(emitter, &builder);
   if (!panic_ptr)
@@ -36,9 +40,9 @@ void IRInstructionVisitor::operator()(const IRPanicCheck &check) const
   builder.CreateCondBr(has_panic, panic_bb, cont_bb);
 
   builder.SetInsertPoint(panic_bb);
-  if (check.cleanup_ir)
+  if (cleanup_ir)
   {
-    emitter.EmitIR(check.cleanup_ir);
+    emitter.EmitIR(cleanup_ir);
   }
   const bool entry_stub_panic =
       func && func->getName() == EntrySym() &&
@@ -87,6 +91,18 @@ void IRInstructionVisitor::operator()(const IRPanicCheck &check) const
   builder.SetInsertPoint(cont_bb);
 }
 
+}  // namespace
+
+void IRInstructionVisitor::operator()(const IRPanicCheck &) const
+{
+  EmitPanicCheckImpl(emitter, builder, IRPtr{});
+}
+
+void IRInstructionVisitor::operator()(const IRCleanupPanicCheck &check) const
+{
+  EmitPanicCheckImpl(emitter, builder, check.cleanup_ir);
+}
+
 void IRInstructionVisitor::operator()(const IRLowerPanic &panic) const
 {
   const std::uint16_t code = PanicCodeFromString(panic.reason);
@@ -127,7 +143,7 @@ void IRInstructionVisitor::operator()(const IRInitPanicHandle &handle) const
   builder.CreateCondBr(has_panic, panic_bb, cont_bb);
 
   builder.SetInsertPoint(panic_bb);
-  StoreInitPanicRecord(emitter, &builder);
+  StoreInitPanicRecord(emitter, &builder, &handle.poison_modules);
   if (handle.cleanup_ir)
   {
     emitter.EmitIR(handle.cleanup_ir);

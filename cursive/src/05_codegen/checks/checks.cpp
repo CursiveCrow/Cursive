@@ -524,16 +524,16 @@ IRPtr ClearPanic(LowerCtx& /*ctx*/) {
 // S6.8 PanicCheck - emit IR to check panic after call
 IRPtr PanicCheck(LowerCtx& ctx) {
   SPEC_RULE("PanicCheck");
-  CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
-  CleanupPlan static_cleanup_plan = ActiveStaticInitCleanupPlan(ctx);
-  cleanup_plan.insert(cleanup_plan.end(),
-                      static_cleanup_plan.begin(),
-                      static_cleanup_plan.end());
-  IRPanicCheck check;
-  check.cleanup_ir = EmitCleanupOnPanic(cleanup_plan, ctx);
   IRPtr trace_ir = EmitRuntimeTrace("PanicCheck", ctx);
-  IRPtr check_node = MakeIR(check);
-  return SeqIR({trace_ir, check_node});
+  return SeqIR({trace_ir, MakeIR(IRPanicCheck{})});
+}
+
+IRPtr CheckPoison(const std::string& module_path, LowerCtx& ctx) {
+  SPEC_RULE("CheckPoison-Use");
+  IRCheckPoison check;
+  check.module = module_path;
+  IRPtr trace_ir = EmitRuntimeTrace("CheckPoison", ctx);
+  return SeqIR({trace_ir, MakeIR(std::move(check))});
 }
 
 // S6.8 InitPanicHandle - module init panic handling

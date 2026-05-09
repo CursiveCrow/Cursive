@@ -364,14 +364,17 @@ void CollectRefSymsFromIR(std::set<std::string>& out, const IRPtr& ir) {
           CollectRefSymsFromIR(out, node.cond_ir);
           CollectRefSymsFromIR(out, node.body_ir);
         } else if constexpr (std::is_same_v<T, IRIfCase>) {
-          return;
+          for (const auto& arm : node.arms) {
+            CollectRefSymsFromIR(out, arm.body);
+            CollectRefSymsFromIR(out, arm.cleanup_ir);
+          }
         } else if constexpr (std::is_same_v<T, IRRegion>) {
           CollectRefSymsFromIR(out, node.body);
         } else if constexpr (std::is_same_v<T, IRFrame>) {
           CollectRefSymsFromIR(out, node.body);
         } else if constexpr (std::is_same_v<T, IRClearPanic>) {
           return;
-        } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+        } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           CollectRefSymsFromIR(out, node.cleanup_ir);
         } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
           CollectRefSymsFromIR(out, node.cleanup_ir);

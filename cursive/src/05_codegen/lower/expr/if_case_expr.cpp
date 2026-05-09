@@ -126,6 +126,7 @@ struct OwnedIfCaseScrutinee {
 
 struct LowerIfCaseClauseResult {
   LowerResult result;
+  IRPtr cleanup_ir;
   analysis::TypeRef value_type;
   bool terminates = false;
 };
@@ -647,6 +648,9 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     scrutinee_type = ctx.expr_type(scrutinee);
   }
   if (!scrutinee_type) {
+    scrutinee_type = ctx.LookupValueType(scrutinee_result.value);
+  }
+  if (!scrutinee_type) {
     if (const auto name = ScrutineeIdentifier(scrutinee)) {
       if (const BindingState* binding = ctx.GetBindingState(*name)) {
         scrutinee_type = binding->type;
@@ -721,6 +725,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     IRIfCaseClause ir_arm;
     ir_arm.pattern = LowerIRPattern(*arm.pattern, arm_ctx);
     ir_arm.body = clause_result.result.ir;
+    ir_arm.cleanup_ir = clause_result.cleanup_ir;
     ir_arm.value = clause_result.result.value;
     ir_arm.value_type = clause_result.value_type;
     if (!clause_result.terminates) {
@@ -760,6 +765,7 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
     IRIfCaseClause else_arm;
     else_arm.pattern = std::make_shared<IRPattern>(IRPattern{IRWildcardPattern{}});
     else_arm.body = else_result.ir;
+    else_arm.cleanup_ir = EmptyIR();
     else_arm.value = else_result.value;
     else_arm.value_type = else_type;
     ir_arms.push_back(std::move(else_arm));
@@ -937,8 +943,6 @@ LowerIfCaseClauseResult LowerIfCaseClauseImpl(
   parts.push_back(body_result.ir);
   if (!body_terminates) {
     parts.push_back(capture_ir);
-    parts.push_back(body_temp_cleanup);
-    parts.push_back(cleanup_ir);
   }
 
   // Pop the clause scope.
@@ -946,6 +950,9 @@ LowerIfCaseClauseResult LowerIfCaseClauseImpl(
 
   LowerIfCaseClauseResult result;
   result.result = LowerResult{SeqIR(std::move(parts)), arm_value};
+  result.cleanup_ir = body_terminates
+      ? EmptyIR()
+      : SeqIR({body_temp_cleanup, cleanup_ir});
   result.value_type = body_terminates ? nullptr : body_type;
   result.terminates = body_terminates;
   return result;

@@ -10,6 +10,7 @@
 #include "00_core/assert_spec.h"
 #include "04_analysis/resolve/scopes.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_lookup.h"
 #include "05_codegen/checks/checks.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/globals/globals.h"
@@ -131,8 +132,40 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
           SPEC_RULE("Lower-ReadPlace-Field");
           auto base_result = LowerReadPlace(*node.base, ctx);
           IRValue field_value = ctx.FreshTempValue("place_field");
-          if (ctx.expr_type) {
-            ctx.RegisterValueType(field_value, ctx.expr_type(place));
+          analysis::TypeRef field_type = ctx.expr_type ? ctx.expr_type(place) : nullptr;
+          if (!field_type) {
+            analysis::TypeRef base_type = ctx.LookupValueType(base_result.value);
+            while (base_type) {
+              if (const auto* perm = std::get_if<analysis::TypePerm>(&base_type->node)) {
+                base_type = perm->base;
+                continue;
+              }
+              if (const auto* refine = std::get_if<analysis::TypeRefine>(&base_type->node)) {
+                base_type = refine->base;
+                continue;
+              }
+              break;
+            }
+            if (base_type) {
+              const auto* path = analysis::AppliedTypePath(*base_type);
+              const auto* args = analysis::AppliedTypeArgs(*base_type);
+              if (path) {
+                const auto& scope = ScopeForLowering(ctx);
+                if (const ast::RecordDecl* record = analysis::LookupRecordDecl(scope, *path)) {
+                  const auto inferred = analysis::FieldType(
+                      *record,
+                      node.name,
+                      scope,
+                      args ? *args : std::vector<analysis::TypeRef>{});
+                  if (inferred.has_value()) {
+                    field_type = *inferred;
+                  }
+                }
+              }
+            }
+          }
+          if (field_type) {
+            ctx.RegisterValueType(field_value, field_type);
           }
           DerivedValueInfo info;
           info.kind = DerivedValueInfo::Kind::Field;
@@ -397,10 +430,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
 
   auto lower_static_write = [&](std::vector<std::string> full,
                                 const std::string& resolved_name) -> IRPtr {
-    IRPtr poison_ir = EmptyIR();
-    IRCheckPoison check;
-    check.module = ModulePathString(full);
-    poison_ir = MakeIR(std::move(check));
+    IRPtr poison_ir = CheckPoison(ModulePathString(full), ctx);
 
     IRPtr drop_ir = EmptyIR();
     if (allow_drop) {
@@ -593,10 +623,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
 
           SPEC_RULE(allow_drop ? "Lower-WritePlace-Ident-Path"
                                : "LowerWriteSub-Ident-Path");
-          IRPtr poison_ir = EmptyIR();
-          IRCheckPoison check;
-          check.module = ModulePathString(full);
-          poison_ir = MakeIR(std::move(check));
+          IRPtr poison_ir = CheckPoison(ModulePathString(full), ctx);
 
           IRPtr drop_ir = EmptyIR();
           if (allow_drop) {

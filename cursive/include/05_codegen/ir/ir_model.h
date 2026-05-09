@@ -372,6 +372,7 @@ struct IRLoop {
 struct IRIfCaseClause {
   IRPatternPtr pattern;
   IRPtr body;
+  IRPtr cleanup_ir;
   IRValue value;
   analysis::TypeRef value_type;
 };
@@ -414,8 +415,9 @@ struct IRPhi {
 };
 
 struct IRClearPanic {};
-struct IRPanicCheck {
-  // Optional cleanup IR to run when panic is detected.
+struct IRPanicCheck {};
+
+struct IRCleanupPanicCheck {
   IRPtr cleanup_ir;
 };
 
@@ -657,6 +659,7 @@ struct IR {
                IRPhi,
                IRClearPanic,
                IRPanicCheck,
+               IRCleanupPanicCheck,
                IRInitPanicHandle,
                IRHandleDeinitPanic,
                IRRestoreDeinitPanic,
@@ -714,6 +717,7 @@ struct ProcIR {
 struct GlobalConst {
   std::string symbol;
   std::vector<std::uint8_t> bytes;
+  std::uint64_t align = 1;
   bool externally_visible = false;
   bool export_from_shared_library = false;
 };
@@ -721,6 +725,7 @@ struct GlobalConst {
 struct GlobalZero {
   std::string symbol;
   std::uint64_t size = 0;
+  std::uint64_t align = 1;
   bool externally_visible = false;
   bool export_from_shared_library = false;
 };

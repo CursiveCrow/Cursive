@@ -94,12 +94,11 @@ std::string MainProcSymForPath(const ast::ModulePath& module_path);
 inline IRPtr EmitClearPanicIR() { return MakeIR(IRClearPanic{}); }
 
 // (IRPanicCheck): Create IR to check and handle panic
-// Returns IR that checks the panic record and jumps to cleanup if set
+// Returns IR that checks the panic record and returns panic control if set.
 inline IRPtr EmitPanicCheckIR() { return MakeIR(IRPanicCheck{}); }
 
-// (IRPanicCheck with cleanup): Create IR to check panic with cleanup
-inline IRPtr EmitPanicCheckIR(IRPtr cleanup_ir) {
-  IRPanicCheck check;
+inline IRPtr EmitCleanupPanicCheckIR(IRPtr cleanup_ir) {
+  IRCleanupPanicCheck check;
   check.cleanup_ir = cleanup_ir;
   return MakeIR(std::move(check));
 }

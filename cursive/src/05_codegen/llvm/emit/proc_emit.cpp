@@ -10,7 +10,8 @@ using namespace emit_detail;
 
   void LLVMEmitter::EmitProc(const ProcIR &proc)
   {
-    if (emit_detail::IsGeneratedProcSymbol(proc.symbol))
+    const bool generated_proc = emit_detail::IsGeneratedProcSymbol(proc.symbol);
+    if (generated_proc)
     {
       SPEC_RULE("LowerIRDecl-Proc-Gen");
     }
@@ -368,6 +369,21 @@ using namespace emit_detail;
       const auto now = Clock::now();
       panic_slot_ms = ElapsedMs(phase_start, now);
       phase_start = now;
+    }
+
+    if (!generated_proc && !proc.defining_module_path.empty())
+    {
+      SPEC_RULE("LowerIRInstr-CheckPoison");
+      EmitPoisonCheck(core::StringOfPath(proc.defining_module_path));
+    }
+
+    const bool needs_entry_panic_clear =
+        current_ctx_ ? current_ctx_->NeedsPanicOutForSymbol(proc.symbol)
+                     : NeedsPanicOut(proc.symbol);
+    if (needs_entry_panic_clear)
+    {
+      SPEC_RULE("ClearPanic");
+      ClearPanicRecord(*this, builder);
     }
 
     AsyncEmitState async_state_storage;

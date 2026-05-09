@@ -33,6 +33,7 @@
 #include "04_analysis/typing/type_lower.h"
 #include "04_analysis/typing/types.h"
 #include "05_codegen/abi/abi.h"
+#include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/checks/panic.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/symbols/mangle.h"

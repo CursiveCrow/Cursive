@@ -120,6 +120,9 @@ IRPtr ClearPanic(LowerCtx& ctx);
 // §6.8 PanicCheck - emit IR to check if panic occurred after a call
 IRPtr PanicCheck(LowerCtx& ctx);
 
+// §24.7.13 CheckPoison - emit a module poison check.
+IRPtr CheckPoison(const std::string& module_path, LowerCtx& ctx);
+
 // §6.8 InitPanicHandle - emit IR for module init panic handling
 IRPtr InitPanicHandle(const std::string& module_path, LowerCtx& ctx);
 

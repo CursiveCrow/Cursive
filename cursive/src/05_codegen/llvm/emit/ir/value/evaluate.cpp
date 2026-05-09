@@ -4,6 +4,8 @@
 // =============================================================================
 #include "05_codegen/llvm/emit/llvm_emit_helpers.h"
 
+#include "04_analysis/layout/layout.h"
+
 namespace cursive::codegen {
 
 using namespace emit_detail;
@@ -296,6 +298,16 @@ using namespace emit_detail;
         {
           if (llvm::Type *symbol_ll = GetLLVMType(symbol_type))
           {
+            llvm::Align load_align(1);
+            if (const LowerCtx *ctx_for_align = GetCurrentCtx())
+            {
+              const analysis::ScopeContext &scope = BuildScope(ctx_for_align);
+              if (const auto align =
+                      ::cursive::analysis::layout::AlignOf(scope, symbol_type))
+              {
+                load_align = llvm::Align(*align);
+              }
+            }
             llvm::Value *typed_ptr =
                 GetHostedStatePtr(symbol, symbol_ll, global_var);
             if (!typed_ptr && HasHostedStateSlot(symbol) && !global_var)
@@ -308,7 +320,7 @@ using namespace emit_detail;
                   global_var, llvm::PointerType::get(symbol_ll, 0));
             }
             llvm::LoadInst *loaded = builder->CreateLoad(symbol_ll, typed_ptr);
-            loaded->setAlignment(llvm::Align(1));
+            loaded->setAlignment(load_align);
             return loaded;
           }
         }
@@ -318,7 +330,7 @@ using namespace emit_detail;
         {
           llvm::LoadInst *loaded =
               builder->CreateLoad(global_var->getValueType(), hosted_ptr);
-          loaded->setAlignment(llvm::Align(1));
+          loaded->setAlignment(global_var->getAlign().valueOrOne());
           return loaded;
         }
         if (HasHostedStateSlot(symbol) && !global_var)
@@ -326,7 +338,10 @@ using namespace emit_detail;
           return nullptr;
         }
 
-        return builder->CreateLoad(global_var->getValueType(), global_var);
+        llvm::LoadInst *loaded =
+            builder->CreateLoad(global_var->getValueType(), global_var);
+        loaded->setAlignment(global_var->getAlign().valueOrOne());
+        return loaded;
       };
 
       // Symbol can be a global variable or a function
@@ -672,6 +687,57 @@ using namespace emit_detail;
           return analysis::StripPerm(ptr->element);
         }
         return ResolveAliasTypeInScope(scope, current);
+      };
+      auto storage_matches_semantic_type = [&](analysis::TypeRef storage_type,
+                                               analysis::TypeRef semantic_type) -> bool
+      {
+        if (!storage_type || !semantic_type)
+        {
+          return true;
+        }
+        analysis::TypeRef lhs = analysis::StripPerm(storage_type);
+        if (!lhs)
+        {
+          lhs = storage_type;
+        }
+        analysis::TypeRef rhs = analysis::StripPerm(semantic_type);
+        if (!rhs)
+        {
+          rhs = semantic_type;
+        }
+        if (analysis::TypeRef resolved_lhs = ResolveAliasTypeInScope(scope, lhs))
+        {
+          lhs = analysis::StripPerm(resolved_lhs);
+          if (!lhs)
+          {
+            lhs = resolved_lhs;
+          }
+        }
+        if (analysis::TypeRef resolved_rhs = ResolveAliasTypeInScope(scope, rhs))
+        {
+          rhs = analysis::StripPerm(resolved_rhs);
+          if (!rhs)
+          {
+            rhs = resolved_rhs;
+          }
+        }
+        const auto equiv = analysis::TypeEquiv(lhs, rhs);
+        return equiv.ok && equiv.equiv;
+      };
+      auto can_use_addressable_storage_for_field = [&](const IRValue &base_value) -> bool
+      {
+        if (base_value.kind != IRValue::Kind::Local)
+        {
+          return true;
+        }
+        const auto storage_type_it = local_types_.find(base_value.name);
+        if (storage_type_it == local_types_.end())
+        {
+          return true;
+        }
+        return storage_matches_semantic_type(
+            storage_type_it->second,
+            lookup_value_type(base_value));
       };
       auto field_meta_for = [&](const IRValue &base_value,
                                 std::string_view field_name) -> std::optional<FieldAccessMeta>
@@ -1289,13 +1355,16 @@ using namespace emit_detail;
       struct ModalPayloadMemberInfo
       {
         analysis::TypeRef type;
+        llvm::Type *storage_type = nullptr;
         std::uint64_t offset = 0;
         std::uint64_t payload_size = 0;
         std::uint64_t payload_align = 1;
         bool tagged = true;
+        bool recursive_indirect = false;
         bool ok = false;
       };
       auto modal_payload_member_by_field = [&](const ast::ModalDecl &modal_decl,
+                                               const analysis::TypePath &modal_path,
                                                const std::vector<analysis::TypeRef> &modal_args,
                                                std::string_view state_name,
                                                std::string_view field_name)
@@ -1351,17 +1420,27 @@ using namespace emit_detail;
           field_names.push_back(field->name);
         }
 
-        const auto layout = ::cursive::analysis::layout::RecordLayoutOf(scope, field_types);
+        analysis::TypeRef aggregate_type = analysis::MakeTypeModalState(
+            modal_path,
+            std::string(state_name),
+            modal_args);
+        const auto layout = ComputeLayoutLLVMRecord(
+            *this,
+            scope,
+            aggregate_type,
+            field_types);
         if (!layout.has_value())
         {
           return out;
         }
-        for (std::size_t i = 0; i < field_names.size() && i < layout->offsets.size(); ++i)
+        for (std::size_t i = 0; i < field_names.size() && i < layout->fields.size(); ++i)
         {
           if (analysis::IdEq(field_names[i], std::string(field_name)))
           {
             out.type = field_types[i];
-            out.offset = layout->offsets[i];
+            out.storage_type = layout->fields[i].llvm_type;
+            out.offset = layout->fields[i].offset;
+            out.recursive_indirect = layout->fields[i].recursive_indirect;
             out.ok = true;
             break;
           }
@@ -1376,7 +1455,8 @@ using namespace emit_detail;
           return nullptr;
         }
         llvm::Type *member_ty = GetLLVMType(member.type);
-        if (!member_ty)
+        llvm::Type *storage_ty = member.storage_type ? member.storage_type : member_ty;
+        if (!member_ty || !storage_ty)
         {
           return nullptr;
         }
@@ -1425,9 +1505,18 @@ using namespace emit_detail;
             llvm::ConstantInt::get(i64_ty, member.offset));
         llvm::Value *field_ptr = builder->CreateBitCast(
             field_i8,
-            llvm::PointerType::get(member_ty, 0));
-        llvm::LoadInst *load = builder->CreateLoad(member_ty, field_ptr);
+            llvm::PointerType::get(storage_ty, 0));
+        llvm::LoadInst *load = builder->CreateLoad(storage_ty, field_ptr);
         load->setAlignment(llvm::Align(1));
+        if (member.recursive_indirect)
+        {
+          llvm::Value *target_ptr =
+              builder->CreateBitCast(load, llvm::PointerType::get(member_ty, 0));
+          llvm::LoadInst *target_load =
+              builder->CreateLoad(member_ty, target_ptr);
+          target_load->setAlignment(llvm::Align(1));
+          return target_load;
+        }
         return load;
       };
       switch (derived->kind)
@@ -1445,14 +1534,21 @@ using namespace emit_detail;
           {
             return nullptr;
           }
-          const auto layout = ::cursive::analysis::layout::RecordLayoutOf(
-              scope, field_meta.aggregate_fields, field_meta.layout_options);
-          if (!layout.has_value() || field_meta.index >= layout->offsets.size())
+          const auto layout = ComputeLayoutLLVMRecord(
+              *this,
+              scope,
+              field_meta.aggregate_type,
+              field_meta.aggregate_fields,
+              field_meta.layout_options);
+          if (!layout.has_value() || field_meta.index >= layout->fields.size())
           {
             return nullptr;
           }
+          const LayoutLLVMField &layout_field = layout->fields[field_meta.index];
+          llvm::Type *storage_ll = layout_field.llvm_type;
           llvm::Type *field_ll = GetLLVMType(field_meta.field_type);
-          if (!field_ll || field_ll->isVoidTy())
+          if (!storage_ll || storage_ll->isVoidTy() ||
+              !field_ll || field_ll->isVoidTy())
           {
             return nullptr;
           }
@@ -1464,11 +1560,20 @@ using namespace emit_detail;
               base_i8,
               llvm::ConstantInt::get(
                   llvm::Type::getInt64Ty(context_),
-                  layout->offsets[field_meta.index]));
+                  layout_field.offset));
           llvm::Value *field_ptr = builder->CreateBitCast(
-              field_i8, llvm::PointerType::get(field_ll, 0));
-          llvm::LoadInst *load = builder->CreateLoad(field_ll, field_ptr);
+              field_i8, llvm::PointerType::get(storage_ll, 0));
+          llvm::LoadInst *load = builder->CreateLoad(storage_ll, field_ptr);
           load->setAlignment(llvm::Align(1));
+          if (layout_field.recursive_indirect)
+          {
+            llvm::Value *target_ptr =
+                builder->CreateBitCast(load, llvm::PointerType::get(field_ll, 0));
+            llvm::LoadInst *target_load =
+                builder->CreateLoad(field_ll, target_ptr);
+            target_load->setAlignment(llvm::Align(1));
+            return target_load;
+          }
           return load;
         };
         auto load_field_by_offset = [&](llvm::Value *base_value,
@@ -1501,7 +1606,7 @@ using namespace emit_detail;
         // Field metadata provides semantic field order (excluding ABI padding).
         // Materialize by byte offset instead of aggregate index to avoid reading
         // synthetic padding members from LLVM struct representations.
-        if (meta.has_value())
+        if (meta.has_value() && can_use_addressable_storage_for_field(derived->base))
         {
           if (llvm::Value *base_storage = GetAddressableStorage(derived->base))
           {
@@ -2026,15 +2131,24 @@ using namespace emit_detail;
         auto meta = field_meta_for(derived->base, derived->field);
         std::optional<std::uint64_t> field_offset;
         analysis::TypeRef field_type = nullptr;
+        llvm::Type *field_storage_type = nullptr;
+        bool field_recursive_indirect = false;
         if (meta.has_value() && meta->index < meta->aggregate_fields.size())
         {
-          if (auto layout = ::cursive::analysis::layout::RecordLayoutOf(
-                  scope, meta->aggregate_fields, meta->layout_options))
+          if (auto layout = ComputeLayoutLLVMRecord(
+                  *this,
+                  scope,
+                  meta->aggregate_type,
+                  meta->aggregate_fields,
+                  meta->layout_options))
           {
-            if (meta->index < layout->offsets.size())
+            if (meta->index < layout->fields.size())
             {
-              field_offset = layout->offsets[meta->index];
+              field_offset = layout->fields[meta->index].offset;
               field_type = meta->field_type;
+              field_storage_type = layout->fields[meta->index].llvm_type;
+              field_recursive_indirect =
+                  layout->fields[meta->index].recursive_indirect;
             }
           }
         }
@@ -2065,6 +2179,23 @@ using namespace emit_detail;
             base_i8,
             llvm::ConstantInt::get(
                 llvm::Type::getInt64Ty(context_), *field_offset));
+        if (field_recursive_indirect)
+        {
+          llvm::Type *slot_ll = field_storage_type ? field_storage_type : GetOpaquePtr();
+          llvm::Value *slot_ptr =
+              builder->CreateBitCast(field_ptr, llvm::PointerType::get(slot_ll, 0));
+          llvm::Value *target_ptr = builder->CreateLoad(slot_ll, slot_ptr);
+          if (field_type)
+          {
+            if (llvm::Type *elem_ll = GetLLVMType(field_type))
+            {
+              target_ptr = builder->CreateBitCast(
+                  target_ptr, llvm::PointerType::get(elem_ll, 0));
+            }
+          }
+          materialized = target_ptr;
+          break;
+        }
         if (field_type)
         {
           if (llvm::Type *elem_ll = GetLLVMType(field_type))
@@ -2708,16 +2839,6 @@ using namespace emit_detail;
         }
         llvm::Value *base = EvaluateIRValue(derived->base);
         materialized = load_enum_payload_member(base, member);
-        if (core::IsDebugEnabled("obj") && DebugTargetEnumPath(enum_path))
-        {
-          std::cerr << "[enum-payload-index] path=" << core::StringOfPath(enum_path)
-                    << " variant=" << derived->variant
-                    << " index=" << derived->tuple_index
-                    << " base=" << LLVMValueRepr(base)
-                    << " member_ok=" << (member.ok ? "yes" : "no")
-                    << " materialized=" << LLVMValueRepr(materialized)
-                    << "\n";
-        }
         break;
       }
       case DerivedValueInfo::Kind::EnumPayloadField:
@@ -2759,16 +2880,6 @@ using namespace emit_detail;
         }
         llvm::Value *base = EvaluateIRValue(derived->base);
         materialized = load_enum_payload_member(base, member);
-        if (core::IsDebugEnabled("obj") && DebugTargetEnumPath(enum_path))
-        {
-          std::cerr << "[enum-payload-field] path=" << core::StringOfPath(enum_path)
-                    << " variant=" << derived->variant
-                    << " field=" << derived->field
-                    << " base=" << LLVMValueRepr(base)
-                    << " member_ok=" << (member.ok ? "yes" : "no")
-                    << " materialized=" << LLVMValueRepr(materialized)
-                    << "\n";
-        }
         break;
       }
       case DerivedValueInfo::Kind::ModalField:
@@ -2802,6 +2913,7 @@ using namespace emit_detail;
         {
           member = modal_payload_member_by_field(
               *modal_decl,
+              modal_path,
               base_modal_args,
               derived->modal_state,
               derived->field);
@@ -3185,6 +3297,8 @@ using namespace emit_detail;
         {
           std::uint64_t offset = 0;
           analysis::TypeRef field_type;
+          llvm::Type *field_llvm_type = nullptr;
+          bool recursive_indirect = false;
           IRValue value;
         };
         std::vector<RecordFieldStore> offset_fields;
@@ -3200,16 +3314,23 @@ using namespace emit_detail;
               can_use_offset_mode = false;
               break;
             }
-            const auto layout = ::cursive::analysis::layout::RecordLayoutOf(
-                scope, meta->aggregate_fields, meta->layout_options);
-            if (!layout.has_value() || meta->index >= layout->offsets.size())
+            const auto layout = ComputeLayoutLLVMRecord(
+                *this,
+                scope,
+                meta->aggregate_type,
+                meta->aggregate_fields,
+                meta->layout_options);
+            if (!layout.has_value() || meta->index >= layout->fields.size())
             {
               can_use_offset_mode = false;
               break;
             }
             RecordFieldStore store;
-            store.offset = layout->offsets[meta->index];
+            store.offset = layout->fields[meta->index].offset;
             store.field_type = meta->field_type;
+            store.field_llvm_type = layout->fields[meta->index].llvm_type;
+            store.recursive_indirect =
+                layout->fields[meta->index].recursive_indirect;
             store.value = field_value;
             offset_fields.push_back(std::move(store));
           }
@@ -3231,19 +3352,56 @@ using namespace emit_detail;
               agg_slot, llvm::PointerType::get(llvm::Type::getInt8Ty(context_), 0));
           for (const auto &field : offset_fields)
           {
-            llvm::Type *field_ll = GetLLVMType(field.field_type);
+            llvm::Type *field_ll = field.field_llvm_type
+                                       ? field.field_llvm_type
+                                       : GetLLVMType(field.field_type);
             if (!field_ll || field_ll->isVoidTy())
             {
               continue;
             }
-            llvm::Value *elem = EvaluateIRValue(field.value);
+            llvm::Value *elem = nullptr;
             analysis::TypeRef source_type = lookup_value_type(field.value);
-            elem = CoerceToTyped(*this,
-                                 builder,
-                                 elem,
-                                 field_ll,
-                                 source_type,
-                                 field.field_type);
+            if (field.recursive_indirect)
+            {
+              elem = GetAddressableStorage(field.value);
+              if (!elem)
+              {
+                llvm::Value *materialized = EvaluateIRValue(field.value);
+                llvm::Type *source_ll = GetLLVMType(field.field_type);
+                if (materialized && source_ll && !source_ll->isVoidTy())
+                {
+                  llvm::AllocaInst *field_slot =
+                      entry_builder.CreateAlloca(source_ll);
+                  llvm::Value *coerced = CoerceToTyped(*this,
+                                                       builder,
+                                                       materialized,
+                                                       source_ll,
+                                                       source_type,
+                                                       field.field_type);
+                  if (!coerced)
+                  {
+                    coerced = CoerceTo(builder, materialized, source_ll);
+                  }
+                  if (!coerced)
+                  {
+                    coerced = llvm::Constant::getNullValue(source_ll);
+                  }
+                  builder->CreateStore(coerced, field_slot);
+                  elem = field_slot;
+                }
+              }
+              elem = CoerceTo(builder, elem, field_ll);
+            }
+            else
+            {
+              elem = EvaluateIRValue(field.value);
+              elem = CoerceToTyped(*this,
+                                   builder,
+                                   elem,
+                                   field_ll,
+                                   source_type,
+                                   field.field_type);
+            }
             if (!elem)
             {
               elem = llvm::Constant::getNullValue(field_ll);

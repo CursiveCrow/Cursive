@@ -23,6 +23,67 @@ void IRInstructionVisitor::operator()(const IRCall &call) const
     {
       args.front() = storage;
     }
+    else if (llvm::Value *value = emitter.EvaluateIRValue(call.args.front()))
+    {
+      llvm::Type *storage_ty = value->getType();
+      if (const LowerCtx *ctx = emitter.GetCurrentCtx())
+      {
+        if (analysis::TypeRef source_type = ctx->LookupValueType(call.args.front()))
+        {
+          if (llvm::Type *expected_ty = emitter.GetLLVMType(source_type))
+          {
+            storage_ty = expected_ty;
+            if (value->getType() != expected_ty)
+            {
+              if (llvm::Value *coerced = CoerceTo(&builder, value, expected_ty))
+              {
+                value = coerced;
+              }
+            }
+          }
+        }
+      }
+
+      llvm::Function *func =
+          builder.GetInsertBlock() ? builder.GetInsertBlock()->getParent() : nullptr;
+      if (func && storage_ty && !storage_ty->isVoidTy())
+      {
+        llvm::IRBuilder<> entry_builder(
+            &func->getEntryBlock(),
+            func->getEntryBlock().begin());
+        llvm::AllocaInst *slot =
+            entry_builder.CreateAlloca(storage_ty, nullptr, "drop.arg");
+        if (value->getType() == storage_ty)
+        {
+          builder.CreateStore(value, slot);
+        }
+        else
+        {
+          builder.CreateStore(llvm::Constant::getNullValue(storage_ty), slot);
+          llvm::Type *i8_ty = llvm::Type::getInt8Ty(emitter.GetContext());
+          llvm::Type *i64_ty = llvm::Type::getInt64Ty(emitter.GetContext());
+          const llvm::DataLayout &dl = emitter.GetModule().getDataLayout();
+          const std::uint64_t src_size =
+              static_cast<std::uint64_t>(dl.getTypeAllocSize(value->getType()));
+          const std::uint64_t dst_size =
+              static_cast<std::uint64_t>(dl.getTypeAllocSize(storage_ty));
+          const std::uint64_t copy_size = std::min(src_size, dst_size);
+          if (copy_size > 0)
+          {
+            llvm::AllocaInst *src_slot =
+                entry_builder.CreateAlloca(value->getType(), nullptr, "drop.src");
+            builder.CreateStore(value, src_slot);
+            builder.CreateMemCpy(
+                builder.CreateBitCast(slot, llvm::PointerType::get(i8_ty, 0)),
+                llvm::Align(1),
+                builder.CreateBitCast(src_slot, llvm::PointerType::get(i8_ty, 0)),
+                llvm::Align(1),
+                llvm::ConstantInt::get(i64_ty, copy_size));
+          }
+        }
+        args.front() = slot;
+      }
+    }
   }
 
   if (call.callee.kind == IRValue::Kind::Symbol)

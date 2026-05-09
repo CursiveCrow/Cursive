@@ -148,6 +148,7 @@ void CollectVTableRefsFromIR(std::set<std::string>& refs, const IRPtr& ir) {
           AddVTableRef(refs, node.scrutinee);
           for (const auto& arm : node.arms) {
             CollectVTableRefsFromIR(refs, arm.body);
+            CollectVTableRefsFromIR(refs, arm.cleanup_ir);
             AddVTableRef(refs, arm.value);
           }
           AddVTableRef(refs, node.result);
@@ -166,12 +167,14 @@ void CollectVTableRefsFromIR(std::set<std::string>& refs, const IRPtr& ir) {
             AddVTableRef(refs, incoming.value);
           }
           AddVTableRef(refs, node.value);
-        } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+        } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           CollectVTableRefsFromIR(refs, node.cleanup_ir);
         } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
           CollectVTableRefsFromIR(refs, node.cleanup_ir);
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
           CollectVTableRefsFromIR(refs, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
+          return;
         } else if constexpr (std::is_same_v<T, IRParallel>) {
           AddVTableRef(refs, node.domain);
           CollectVTableRefsFromIR(refs, node.body);

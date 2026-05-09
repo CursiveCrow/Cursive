@@ -56,7 +56,6 @@
 
 #include "05_codegen/lower/lower_proc.h"
 
-#include <cstdlib>
 #include <map>
 #include <iostream>
 #include <string_view>
@@ -87,18 +86,6 @@ namespace cursive::codegen {
 using namespace ast;
 
 namespace {
-
-bool DebugProcedureParameterSignature(const std::string& symbol) {
-  return symbol.find("emptyDiagnosticStream") != std::string::npos ||
-         symbol.find("singleDiagnosticStream") != std::string::npos ||
-         symbol.find("singleErrorDiagnosticStream") != std::string::npos ||
-         symbol.find("parseManifestText") != std::string::npos ||
-         symbol.find("emptyPathComponentList") != std::string::npos;
-}
-
-bool ParamDebugEnabled() {
-  return std::getenv("CURSIVE_PARAM_DEBUG") != nullptr;
-}
 
 bool IsUnitType(const analysis::TypeRef& type) {
   if (!type) {
@@ -710,6 +697,7 @@ bool CollectUsesAfterSuspension(IRPtr& ir,
           bool seen_here = seen_suspension;
           for (auto& arm : node.arms) {
             seen_here = CollectUsesAfterSuspension(arm.body, seen_here, uses, info);
+            seen_here = CollectUsesAfterSuspension(arm.cleanup_ir, seen_here, uses, info);
           }
           return seen_here;
         } else if constexpr (std::is_same_v<T, IRRegion>) {
@@ -723,7 +711,11 @@ bool CollectUsesAfterSuspension(IRPtr& ir,
           }
           return CollectUsesAfterSuspension(node.body, seen_suspension, uses, info);
         } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+          return seen_suspension;
+        } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           return CollectUsesAfterSuspension(node.cleanup_ir, seen_suspension, uses, info);
+        } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
+          return seen_suspension;
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
           return CollectUsesAfterSuspension(node.cleanup_ir, seen_suspension, uses, info);
         } else if constexpr (std::is_same_v<T, IRParallel>) {
@@ -884,13 +876,18 @@ void CollectAsyncSlotsFromBindings(const IRPtr& ir,
         } else if constexpr (std::is_same_v<T, IRIfCase>) {
           for (const auto& arm : node.arms) {
             CollectAsyncSlotsFromBindings(arm.body, info, uses_after_suspension);
+            CollectAsyncSlotsFromBindings(arm.cleanup_ir, info, uses_after_suspension);
           }
         } else if constexpr (std::is_same_v<T, IRRegion>) {
           CollectAsyncSlotsFromBindings(node.body, info, uses_after_suspension);
         } else if constexpr (std::is_same_v<T, IRFrame>) {
           CollectAsyncSlotsFromBindings(node.body, info, uses_after_suspension);
         } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+          return;
+        } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           CollectAsyncSlotsFromBindings(node.cleanup_ir, info, uses_after_suspension);
+        } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
+          return;
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
           CollectAsyncSlotsFromBindings(node.cleanup_ir, info, uses_after_suspension);
         } else if constexpr (std::is_same_v<T, IRParallel>) {
@@ -965,6 +962,8 @@ void InstantiateIRTypes(IRPtr& ir,
           node.scrutinee_type = InstantiateTypeRef(node.scrutinee_type, type_subst);
           for (auto& arm : node.arms) {
             InstantiateIRTypes(arm.body, type_subst);
+            InstantiateIRTypes(arm.cleanup_ir, type_subst);
+            arm.value_type = InstantiateTypeRef(arm.value_type, type_subst);
           }
         } else if constexpr (std::is_same_v<T, IRRegion>) {
           InstantiateIRTypes(node.body, type_subst);
@@ -973,7 +972,11 @@ void InstantiateIRTypes(IRPtr& ir,
         } else if constexpr (std::is_same_v<T, IRPhi>) {
           node.type = InstantiateTypeRef(node.type, type_subst);
         } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
+          return;
+        } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           InstantiateIRTypes(node.cleanup_ir, type_subst);
+        } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
+          return;
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
           InstantiateIRTypes(node.cleanup_ir, type_subst);
         } else if constexpr (std::is_same_v<T, IRParallel>) {
@@ -1126,18 +1129,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
     p.stable_name = ctx.StableBindingName(param.name);
     ir.params.push_back(p);
   }
-  if (ParamDebugEnabled() && DebugProcedureParameterSignature(ir.symbol)) {
-    std::cerr << "[lower-proc-param-debug] symbol=" << ir.symbol
-              << " decl_params=" << decl.params.size()
-              << " ir_params=" << ir.params.size();
-    for (const auto& param : decl.params) {
-      std::cerr << " decl_param=" << param.name;
-    }
-    for (const auto& param : ir.params) {
-      std::cerr << " ir_param=" << param.name;
-    }
-    std::cerr << "\n";
-  }
   // Lower return type
   if (decl.return_type_opt && ctx.sigma) {
     const auto lowered = analysis::LowerType(scope, decl.return_type_opt);
@@ -1213,41 +1204,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
     precond_ir = EmitPreconditionCheck(contract_pre, ctx);
   }
 
-  ast::ExprPtr proc_region_opts = analysis::MakeDefaultRegionOptionsExpr();
-  auto proc_region_opts_res = LowerExpr(*proc_region_opts, ctx);
-  const std::string proc_region_alias = ctx.FreshRegionAlias();
-  const analysis::TypeRef proc_region_type = analysis::RegionActiveTypeRef();
-
-  ctx.RegisterVar(proc_region_alias,
-                  proc_region_type,
-                  false,
-                  true,
-                  analysis::ProvenanceKind::Region,
-                  proc_region_alias,
-                  false,
-                  proc_region_alias);
-  ctx.RegisterRegionRelease(proc_region_alias);
-  ctx.active_region_aliases.push_back(proc_region_alias);
-
-  IRValue proc_region_value = ctx.FreshTempValue("proc_region");
-  ctx.RegisterValueType(proc_region_value, proc_region_type);
-
-  IRCall proc_region_new;
-  proc_region_new.callee.kind = IRValue::Kind::Symbol;
-  proc_region_new.callee.name = BuiltinModalSymRegionNewScoped();
-  proc_region_new.args.push_back(proc_region_opts_res.value);
-  proc_region_new.result = proc_region_value;
-  IRPtr proc_region_new_ir = MakeIR(std::move(proc_region_new));
-
-  IRBindVar proc_region_bind;
-  proc_region_bind.name = proc_region_alias;
-  proc_region_bind.value = proc_region_value;
-  proc_region_bind.type = proc_region_type;
-  proc_region_bind.prov = analysis::ProvenanceKind::Region;
-  proc_region_bind.prov_region = proc_region_alias;
-  proc_region_bind.prov_region_tag = proc_region_alias;
-  IRPtr proc_region_bind_ir = MakeIR(std::move(proc_region_bind));
-
   // Capture all @entry(...) values once per invocation before body execution.
   IRPtr entry_capture_ir = nullptr;
   if (has_dynamic_contract && contract_post) {
@@ -1262,7 +1218,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   log_stage("lower-body-start");
   auto body_res = LowerBlock(*decl.body, ctx);
   log_stage("lower-body-finish");
-  ctx.active_region_aliases.pop_back();
 
   // Cleanup for parameters on fallthrough
   CleanupPlan cleanup_plan = ComputeCleanupPlanForCurrentScope(ctx);
@@ -1272,11 +1227,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
 
   std::vector<IRPtr> body_seq;
   body_seq.push_back(scope_enter_ir);
-  if (proc_region_opts_res.ir) {
-    body_seq.push_back(proc_region_opts_res.ir);
-  }
-  body_seq.push_back(proc_region_new_ir);
-  body_seq.push_back(proc_region_bind_ir);
   if (ctx.executable_project && decl.name == "main") {
     IRPtr init_ir = EmitInitPlan(ctx.init_order, ctx);
     if (init_ir && !std::holds_alternative<IROpaque>(init_ir->node)) {
