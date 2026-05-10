@@ -90,6 +90,7 @@
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/record_methods.h"
 #include "04_analysis/typing/types.h"
+#include "05_codegen/ir/ir_control_flow.h"
 
 namespace cursive::codegen {
 
@@ -103,13 +104,6 @@ bool IsUnitType(const analysis::TypeRef& type) {
     return prim->name == "()";
   }
   return false;
-}
-
-bool BlockEndsWithReturn(const ast::Block& block) {
-  if (block.stmts.empty()) {
-    return false;
-  }
-  return std::holds_alternative<ast::ReturnStmt>(block.stmts.back());
 }
 
 const analysis::ScopeContext& BuildScope(const ast::ModulePath& module_path,
@@ -656,14 +650,14 @@ ProcIR LowerProcLike(const std::string& symbol,
   if (body_res.ir) {
     body_seq.push_back(body_res.ir);
   }
-  const bool ends_with_return = BlockEndsWithReturn(body);
-  if (cleanup_ir && !ends_with_return) {
+  const bool body_may_fallthrough = IRFlowMayFallThrough(body_res.ir);
+  if (cleanup_ir && body_may_fallthrough) {
     body_seq.push_back(cleanup_ir);
   }
 
   const bool has_tail = body.tail_opt != nullptr;
   const bool ret_is_unit = IsUnitType(ir.ret);
-  if (has_tail || (!ends_with_return && ret_is_unit)) {
+  if (has_tail || (body_may_fallthrough && ret_is_unit)) {
     IRReturn ret;
     ret.value = body_res.value;
     body_seq.push_back(MakeIR(std::move(ret)));

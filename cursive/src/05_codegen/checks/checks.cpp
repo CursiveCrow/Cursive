@@ -489,9 +489,28 @@ std::string PanicSym() {
   return RuntimePanicSym();
 }
 
+static IRPtr LowerInitPanic(const std::string& module_path,
+                            LowerCtx& ctx,
+                            IRPtr cleanup_ir) {
+  IRInitPanicRaise panic_ir;
+  panic_ir.module = module_path;
+  panic_ir.poison_modules = PoisonSetFor(module_path, ctx);
+  panic_ir.cleanup_ir = std::move(cleanup_ir);
+  IRPtr trace_ir = EmitRuntimeTrace("InitPanicRaise", ctx);
+  IRPtr panic_node = MakeIR(std::move(panic_ir));
+  return SeqIR({trace_ir, panic_node});
+}
+
 // S6.8 LowerPanic - emit panic IR
 IRPtr LowerPanic(PanicReason reason, LowerCtx& ctx) {
   SPEC_RULE("LowerPanic");
+  if (ctx.active_static_init_module.has_value()) {
+    CleanupPlan cleanup_plan = ActiveStaticInitCleanupPlan(ctx);
+    return LowerInitPanic(*ctx.active_static_init_module,
+                          ctx,
+                          EmitCleanupOnPanic(cleanup_plan, ctx));
+  }
+
   IRLowerPanic panic_ir;
   panic_ir.reason = PanicReasonString(reason);
   CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
@@ -506,6 +525,13 @@ IRPtr LowerContractViolation(ContractKind kind,
                              const ast::Expr* predicate,
                              std::optional<core::Span> site_span) {
   SPEC_RULE("LowerPanic");
+  if (ctx.active_static_init_module.has_value()) {
+    CleanupPlan cleanup_plan = ActiveStaticInitCleanupPlan(ctx);
+    return LowerInitPanic(*ctx.active_static_init_module,
+                          ctx,
+                          EmitCleanupOnPanic(cleanup_plan, ctx));
+  }
+
   IRLowerPanic panic_ir;
   panic_ir.reason = ContractViolationReason(kind, predicate, site_span);
   CleanupPlan cleanup_plan = ComputeCleanupPlanToFunctionRoot(ctx);
@@ -526,6 +552,13 @@ IRPtr PanicCheck(LowerCtx& ctx) {
   SPEC_RULE("PanicCheck");
   IRPtr trace_ir = EmitRuntimeTrace("PanicCheck", ctx);
   return SeqIR({trace_ir, MakeIR(IRPanicCheck{})});
+}
+
+IRPtr PanicFollowup(LowerCtx& ctx) {
+  if (ctx.active_static_init_module.has_value()) {
+    return InitPanicHandle(*ctx.active_static_init_module, ctx);
+  }
+  return PanicCheck(ctx);
 }
 
 IRPtr CheckPoison(const std::string& module_path, LowerCtx& ctx) {
@@ -639,7 +672,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
     null_check.reason = PanicReasonString(PanicReason::NullDeref);
     null_check.lhs = ptr_value;
     seq.push_back(MakeIR(std::move(null_check)));
-    seq.push_back(PanicCheck(ctx));
+    seq.push_back(PanicFollowup(ctx));
 
     IRCall active_call;
     active_call.callee.kind = IRValue::Kind::Symbol;
@@ -655,7 +688,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
     active_check.reason = PanicReasonString(PanicReason::ExpiredDeref);
     active_check.lhs = active_value;
     seq.push_back(MakeIR(std::move(active_check)));
-    seq.push_back(PanicCheck(ctx));
+    seq.push_back(PanicFollowup(ctx));
 
     IRReadPtr read;
     read.ptr = ptr_value;
@@ -680,7 +713,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
             null_check.reason = PanicReasonString(PanicReason::NullDeref);
             null_check.lhs = ptr_value;
             seq.push_back(MakeIR(std::move(null_check)));
-            seq.push_back(PanicCheck(ctx));
+            seq.push_back(PanicFollowup(ctx));
 
             IRCall active_call;
             active_call.callee.kind = IRValue::Kind::Symbol;
@@ -696,7 +729,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
             active_check.reason = PanicReasonString(PanicReason::ExpiredDeref);
             active_check.lhs = active_value;
             seq.push_back(MakeIR(std::move(active_check)));
-            seq.push_back(PanicCheck(ctx));
+            seq.push_back(PanicFollowup(ctx));
 
             IRReadPtr read;
             read.ptr = ptr_value;
@@ -734,7 +767,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
     null_check.reason = PanicReasonString(PanicReason::NullDeref);
     null_check.lhs = ptr_value;
     seq.push_back(MakeIR(std::move(null_check)));
-    seq.push_back(PanicCheck(ctx));
+    seq.push_back(PanicFollowup(ctx));
 
     IRCall active_call;
     active_call.callee.kind = IRValue::Kind::Symbol;
@@ -750,7 +783,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
     active_check.reason = PanicReasonString(PanicReason::ExpiredDeref);
     active_check.lhs = active_value;
     seq.push_back(MakeIR(std::move(active_check)));
-    seq.push_back(PanicCheck(ctx));
+    seq.push_back(PanicFollowup(ctx));
 
     IRReadPtr read;
     read.ptr = ptr_value;
@@ -781,7 +814,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
       null_check.reason = PanicReasonString(PanicReason::NullDeref);
       null_check.lhs = ptr_value;
       seq.push_back(MakeIR(std::move(null_check)));
-      seq.push_back(PanicCheck(ctx));
+      seq.push_back(PanicFollowup(ctx));
 
       IRCall active_call;
       active_call.callee.kind = IRValue::Kind::Symbol;
@@ -797,7 +830,7 @@ LowerResult LowerRawDeref(const IRValue& ptr_value,
       active_check.reason = PanicReasonString(PanicReason::ExpiredDeref);
       active_check.lhs = active_value;
       seq.push_back(MakeIR(std::move(active_check)));
-      seq.push_back(PanicCheck(ctx));
+      seq.push_back(PanicFollowup(ctx));
 
       IRReadPtr read;
       read.ptr = ptr_value;

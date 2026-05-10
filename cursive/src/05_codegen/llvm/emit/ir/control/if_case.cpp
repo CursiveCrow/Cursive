@@ -1409,6 +1409,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     analysis::TypeRef source_type;
   };
   std::vector<IncomingValue> incoming;
+  bool has_fallthrough_arm = false;
   const LLVMEmitter::FlowStateSnapshot branch_state =
       emitter.SaveFlowState();
 
@@ -1509,20 +1510,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
           llvm::BasicBlock::Create(emitter.GetContext(), "ifcase.unmatched", func);
       builder.CreateCondBr(cond, arm_bb, unmatched_bb);
       builder.SetInsertPoint(unmatched_bb);
-      if (!result_ty)
-      {
-        result_ty = llvm::Type::getInt64Ty(emitter.GetContext());
-      }
-      if (aggregate_result && merged_storage)
-      {
-        builder.CreateStore(llvm::Constant::getNullValue(result_ty), merged_storage);
-      }
-      else if (!result_ty->isVoidTy())
-      {
-        incoming.push_back(
-            {unmatched_bb, llvm::Constant::getNullValue(result_ty), nullptr, result_type});
-      }
-      builder.CreateBr(merge_bb);
+      builder.CreateUnreachable();
     }
     else
     {
@@ -1550,6 +1538,7 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
       llvm::BasicBlock *arm_end = builder.GetInsertBlock();
       if (!arm_end->getTerminator())
       {
+        has_fallthrough_arm = true;
         builder.CreateBr(merge_bb);
         if (!aggregate_result || !merged_storage)
         {
@@ -1576,6 +1565,14 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     {
       result_ty = llvm::Type::getInt64Ty(emitter.GetContext());
     }
+  }
+  if (!has_fallthrough_arm)
+  {
+    if (!merge_bb->getTerminator())
+    {
+      builder.CreateUnreachable();
+    }
+    return;
   }
   if (!result_ty || result_ty->isVoidTy())
   {
@@ -1628,11 +1625,6 @@ void IRInstructionVisitor::operator()(const IRIfCase &if_case) const
     return coerced ? coerced : llvm::Constant::getNullValue(result_ty);
   };
 
-  if (incoming.empty())
-  {
-    emitter.SetTempValue(if_case.result, llvm::Constant::getNullValue(result_ty));
-    return;
-  }
   if (incoming.size() == 1)
   {
     emitter.SetTempValue(

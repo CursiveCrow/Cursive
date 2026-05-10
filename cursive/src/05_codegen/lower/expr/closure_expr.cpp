@@ -1181,7 +1181,7 @@ LowerResult LowerClosureCall(
     parts.push_back(std::move(part));
   }
   parts.push_back(MakeIR(std::move(call)));
-  parts.push_back(PanicCheck(ctx));
+  parts.push_back(PanicFollowup(ctx));
 
   if (closure_result_type) {
     IRValue closure_call_value;

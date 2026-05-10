@@ -9,7 +9,15 @@ namespace cursive::codegen::emit_detail {
 void IRInstructionVisitor::operator()(const IRBlock &block) const
 {
   emitter.EmitIR(block.setup);
+  if (builder.GetInsertBlock()->getTerminator())
+  {
+    return;
+  }
   emitter.EmitIR(block.body);
+  if (builder.GetInsertBlock()->getTerminator())
+  {
+    return;
+  }
   SetForwardedOrMaterializedResult(block.value);
 }
 

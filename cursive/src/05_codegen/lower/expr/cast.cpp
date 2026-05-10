@@ -132,7 +132,7 @@ LowerResult LowerCast(const ast::Expr& expr,
   parts.push_back(MakeIR(std::move(check)));
 
   // Check if panic occurred and handle it
-  parts.push_back(PanicCheck(ctx));
+  parts.push_back(PanicFollowup(ctx));
 
   // Emit the actual cast operation
   IRCast cast;

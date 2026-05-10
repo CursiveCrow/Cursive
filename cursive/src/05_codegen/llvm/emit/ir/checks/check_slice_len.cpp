@@ -179,7 +179,7 @@ void IRInstructionVisitor::operator()(const IRCheckSliceLen &check) const
   }
 
   llvm::Value *ok = builder.CreateICmpEQ(value_len, expected_len);
-  EmitPanicReturnIfFalse(emitter, &builder, ok, PanicCode(PanicReason::Bounds));
+  EmitPanicIfFalse(emitter, &builder, ok, PanicCode(PanicReason::Bounds));
 }
 
 } // namespace cursive::codegen::emit_detail

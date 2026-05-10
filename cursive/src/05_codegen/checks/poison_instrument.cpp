@@ -15,7 +15,7 @@
 //
 // SOURCE FILE: cursive-bootstrap/src/04_codegen/poison_instrument.cpp
 //   - LLVM emission of poison flags (GetOrCreatePoisonFlag)
-//   - EmitSetPoison, EmitClearPoison, EmitPoisonOnMove
+//   - EmitSetPoison
 //   - LLVMEmitter::EmitPoisonCheck
 //
 // DEPENDENCIES:
@@ -56,8 +56,6 @@
 // LLVM EMISSION (from poison_instrument.cpp):
 //   - GetOrCreatePoisonFlag: creates global bool for module poison state
 //   - EmitSetPoison: stores value to poison flag
-//   - EmitClearPoison: sets poison flag to false
-//   - EmitPoisonOnMove: sets poison flag to true
 //   - EmitPoisonCheck: branch on poison flag, panic if poisoned
 // =============================================================================
 
@@ -145,7 +143,7 @@ std::vector<std::string> PoisonSetFor(const std::string& module_path,
 }
 
 // T-LLVM-016: Poisoning Instrumentation
-// Implements poison flag tracking for detecting use of uninitialized/moved memory.
+// Implements module poison tracking for failed static initialization.
 
 // Set poison flag for a binding
 void EmitSetPoison(LLVMEmitter& emitter, const std::string& module_name, bool value) {
@@ -164,18 +162,6 @@ void EmitSetPoison(LLVMEmitter& emitter, const std::string& module_name, bool va
     return;
   }
   builder->CreateStore(val, flag);
-}
-
-// Clear poison flag after reassignment
-void EmitClearPoison(LLVMEmitter& emitter, const std::string& module_name) {
-  SPEC_RULE("PoisonFlag-Clear");
-  EmitSetPoison(emitter, module_name, false);
-}
-
-// Set poison flag on move
-void EmitPoisonOnMove(LLVMEmitter& emitter, const std::string& module_name) {
-  SPEC_RULE("PoisonFlag-OnMove");
-  EmitSetPoison(emitter, module_name, true);
 }
 
 // LLVMEmitter::EmitPoisonCheck is implemented in llvm_emit.cpp as it's a method

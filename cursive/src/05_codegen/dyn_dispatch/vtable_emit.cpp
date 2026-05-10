@@ -171,6 +171,8 @@ void CollectVTableRefsFromIR(std::set<std::string>& refs, const IRPtr& ir) {
           CollectVTableRefsFromIR(refs, node.cleanup_ir);
         } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
           CollectVTableRefsFromIR(refs, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRInitPanicRaise>) {
+          CollectVTableRefsFromIR(refs, node.cleanup_ir);
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
           CollectVTableRefsFromIR(refs, node.cleanup_ir);
         } else if constexpr (std::is_same_v<T, IRCheckPoison>) {

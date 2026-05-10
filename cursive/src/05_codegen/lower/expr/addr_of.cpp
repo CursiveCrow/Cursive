@@ -319,9 +319,9 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
 
             IRPtr poison_ir = CheckPoison(ModulePathString(full), ctx);
             if (poison_ir && !std::holds_alternative<IROpaque>(poison_ir->node)) {
-              SeedAddrRefSyms(addr, {poison_ir, PanicCheck(ctx)});
+              SeedAddrRefSyms(addr, {poison_ir, PanicFollowup(ctx)});
               return LowerResult{SeqIR(std::vector<IRPtr>{poison_ir,
-                                                          PanicCheck(ctx),
+                                                          PanicFollowup(ctx),
                                                           MakeIR(std::move(addr))}),
                                  ptr_value};
             }
@@ -452,10 +452,10 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             IRPtr tag_ir = tag_from(ptr_value, base_result.value);
             SeedAddrRefSyms(
                 addr,
-                {base_result.ir, range_result.ir, PanicCheck(ctx), tag_ir});
+                {base_result.ir, range_result.ir, PanicFollowup(ctx), tag_ir});
             return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, range_result.ir,
                                       MakeIR(std::move(check)),
-                                      PanicCheck(ctx),
+                                      PanicFollowup(ctx),
                                       MakeIR(std::move(addr)),
                                       tag_ir}),
                                ptr_value};
@@ -484,10 +484,10 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
             IRPtr tag_ir = tag_from(ptr_value, base_result.value);
             SeedAddrRefSyms(
                 addr,
-                {base_result.ir, range_result.ir, PanicCheck(ctx), tag_ir});
+                {base_result.ir, range_result.ir, PanicFollowup(ctx), tag_ir});
             return LowerResult{SeqIR(std::vector<IRPtr>{base_result.ir, range_result.ir,
                                       MakeIR(std::move(check)),
-                                      PanicCheck(ctx),
+                                      PanicFollowup(ctx),
                                       MakeIR(std::move(addr)),
                                       tag_ir}),
                                ptr_value};
@@ -511,7 +511,7 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
           seq.push_back(index_result.ir);
           if (needs_check) {
             seq.push_back(MakeIR(std::move(check)));
-            seq.push_back(PanicCheck(ctx));
+            seq.push_back(PanicFollowup(ctx));
           }
           {
             std::vector<IRPtr> prereq_ir = seq;
@@ -588,10 +588,10 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
                 check.lhs = active_value;
                 return LowerResult{SeqIR({ptr_result.ir,
                                           MakeIR(std::move(null_check)),
-                                          PanicCheck(ctx),
+                                          PanicFollowup(ctx),
                                           MakeIR(std::move(call)),
                                           MakeIR(std::move(check)),
-                                          PanicCheck(ctx)}),
+                                          PanicFollowup(ctx)}),
                                    ptr_result.value};
               }
               if (const auto* path = std::get_if<analysis::TypePathType>(&stripped->node)) {
@@ -618,10 +618,10 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
                   check.lhs = active_value;
                   return LowerResult{SeqIR({ptr_result.ir,
                                             MakeIR(std::move(null_check)),
-                                            PanicCheck(ctx),
+                                            PanicFollowup(ctx),
                                             MakeIR(std::move(call)),
                                             MakeIR(std::move(check)),
-                                            PanicCheck(ctx)}),
+                                            PanicFollowup(ctx)}),
                                      ptr_result.value};
                 }
               }
@@ -648,10 +648,10 @@ LowerResult LowerAddrOf(const ast::Expr& place, LowerCtx& ctx) {
 
           return LowerResult{SeqIR({ptr_result.ir,
                                     MakeIR(std::move(null_check)),
-                                    PanicCheck(ctx),
+                                    PanicFollowup(ctx),
                                     MakeIR(std::move(call)),
                                     MakeIR(std::move(check)),
-                                    PanicCheck(ctx)}),
+                                    PanicFollowup(ctx)}),
                              ptr_result.value};
         }
 

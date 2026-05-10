@@ -20,21 +20,14 @@
 #include "00_core/assert_spec.h"
 #include "04_analysis/caps/cap_concurrency.h"
 #include "04_analysis/typing/type_predicates.h"
+#include "04_analysis/typing/types.h"
 #include "05_codegen/cleanup/cleanup.h"
+#include "05_codegen/ir/ir_control_flow.h"
 #include "05_codegen/lower/lower_stmt.h"
 
 namespace cursive::codegen {
 
 namespace {
-
-// Check if the last statement in a block is a return statement.
-// This is used to avoid emitting cleanup code after a return.
-bool BlockEndsWithReturn(const ast::Block& block) {
-  if (block.stmts.empty()) {
-    return false;
-  }
-  return std::holds_alternative<ast::ReturnStmt>(block.stmts.back());
-}
 
 // RAII scope guard for parallel collect depth tracking.
 // Increments parallel_collect_depth on entry (if collection is active),
@@ -173,6 +166,7 @@ LowerResult LowerBlock(const ast::Block& block, LowerCtx& ctx) {
     SPEC_RULE("Lower-Block-Unit");
     // No tail expression - block produces unit
     result_value = ctx.FreshTempValue("unit");
+    ctx.RegisterValueType(result_value, analysis::MakeTypePrim("()"));
   }
 
   // Section 6.8: Emit cleanup for variables in this scope
@@ -182,10 +176,11 @@ LowerResult LowerBlock(const ast::Block& block, LowerCtx& ctx) {
   IRPtr cleanup_ir = EmitCleanupWithRemainder(cleanup_plan, remainder, ctx);
   ctx.PopScope();
 
-  const bool ends_with_return = BlockEndsWithReturn(block);
   IRBlock block_ir;
   block_ir.setup = SeqIR({scope_enter_ir, stmts_ir});
-  block_ir.body = ends_with_return ? tail_ir : SeqIR({tail_ir, cleanup_ir});
+  block_ir.body = IRFlowDefinitelyTerminates(tail_ir)
+                      ? tail_ir
+                      : SeqIR({tail_ir, cleanup_ir});
   block_ir.value = result_value;
 
   return LowerResult{MakeIR(std::move(block_ir)), result_value};

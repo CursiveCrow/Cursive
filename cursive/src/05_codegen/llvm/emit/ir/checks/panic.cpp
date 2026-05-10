@@ -117,6 +117,19 @@ void IRInstructionVisitor::operator()(const IRLowerPanic &panic) const
   }
 }
 
+void IRInstructionVisitor::operator()(const IRInitPanicRaise &raise) const
+{
+  StoreInitPanicRecord(emitter, &builder, &raise.poison_modules);
+  if (raise.cleanup_ir)
+  {
+    emitter.EmitIR(raise.cleanup_ir);
+  }
+  if (!builder.GetInsertBlock()->getTerminator())
+  {
+    EmitReturn(emitter, &builder);
+  }
+}
+
 void IRInstructionVisitor::operator()(const IRInitPanicHandle &handle) const
 {
   llvm::Value *panic_ptr = LoadPanicOutPtr(emitter, &builder);
@@ -154,16 +167,6 @@ void IRInstructionVisitor::operator()(const IRInitPanicHandle &handle) const
   }
 
   builder.SetInsertPoint(cont_bb);
-}
-
-void IRInstructionVisitor::operator()(const IRHandleDeinitPanic &) const
-{
-  HandleDeinitPanic(emitter, &builder);
-}
-
-void IRInstructionVisitor::operator()(const IRRestoreDeinitPanic &) const
-{
-  RestoreDeinitPanicIfAny(emitter, &builder);
 }
 
 } // namespace cursive::codegen::emit_detail

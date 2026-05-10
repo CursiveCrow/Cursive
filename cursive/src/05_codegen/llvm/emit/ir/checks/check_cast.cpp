@@ -29,7 +29,7 @@ void IRInstructionVisitor::operator()(const IRCheckCast &check) const
   llvm::Value *narrowed = builder.CreateIntCast(value, target_ty, signed_src);
   llvm::Value *widened = builder.CreateIntCast(narrowed, value->getType(), signed_src);
   llvm::Value *ok = builder.CreateICmpEQ(value, widened);
-  EmitPanicReturnIfFalse(emitter, &builder, ok, PanicCode(PanicReason::Cast));
+  EmitPanicIfFalse(emitter, &builder, ok, PanicCode(PanicReason::Cast));
 }
 
 } // namespace cursive::codegen::emit_detail

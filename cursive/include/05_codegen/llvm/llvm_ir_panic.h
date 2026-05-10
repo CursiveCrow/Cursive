@@ -60,7 +60,8 @@ void ClearPanicRecord(LLVMEmitter& emitter,
 // Emit a return instruction with default value
 void EmitReturn(LLVMEmitter& emitter, llvm::IRBuilder<>* builder);
 
-// Emit conditional panic (sets panic record if condition is false)
+// Emit conditional panic (sets panic record if condition is false, then
+// continues so the following PanicCheck/InitPanicHandle observes it)
 void EmitPanicIfFalse(LLVMEmitter& emitter,
                       llvm::IRBuilder<>* builder,
                       llvm::Value* ok,
@@ -94,14 +95,5 @@ std::vector<std::string> PoisonSetForInit(const LowerCtx& ctx);
 void StoreInitPanicRecord(LLVMEmitter& emitter,
                           llvm::IRBuilder<>* builder,
                           const std::vector<std::string>* poison_modules = nullptr);
-
-// Deinit must continue across cleanup panics, then surface the first panic
-// after the full deinit list completes.
-void HandleDeinitPanic(LLVMEmitter& emitter,
-                       llvm::IRBuilder<>* builder,
-                       llvm::Value* panic_ptr = nullptr);
-void RestoreDeinitPanicIfAny(LLVMEmitter& emitter,
-                             llvm::IRBuilder<>* builder,
-                             llvm::Value* panic_ptr = nullptr);
 
 }  // namespace cursive::codegen

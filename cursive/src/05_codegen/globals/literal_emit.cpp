@@ -357,6 +357,8 @@ void CollectLiteralRefsFromIR(const IRPtr& ir,
       CollectLiteralRefsFromIR(node.cleanup_ir, out);
     } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
       CollectLiteralRefsFromIR(node.cleanup_ir, out);
+    } else if constexpr (std::is_same_v<T, IRInitPanicRaise>) {
+      CollectLiteralRefsFromIR(node.cleanup_ir, out);
     } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
       CollectLiteralRefsFromIR(node.cleanup_ir, out);
     } else if constexpr (std::is_same_v<T, IRParallel>) {

@@ -1377,7 +1377,7 @@ static IRPtr EmitDropImpl(const analysis::TypeRef& type,
           body = EmitDropImpl(state_type,
                               state_value,
                               ctx,
-                              true,
+                              false,
                               panic_out);
         }
 

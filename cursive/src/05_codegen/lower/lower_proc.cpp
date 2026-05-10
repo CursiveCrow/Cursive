@@ -80,6 +80,7 @@
 #include "00_core/process_config.h"
 #include "04_analysis/memory/regions.h"
 #include "04_analysis/typing/types.h"
+#include "05_codegen/ir/ir_control_flow.h"
 
 namespace cursive::codegen {
 
@@ -101,23 +102,6 @@ bool IsUnitType(const analysis::TypeRef& type) {
 bool IsAsyncProc(const analysis::ScopeContext& scope,
                  const analysis::TypeRef& ret_type) {
   return analysis::AsyncSigOf(scope, ret_type).has_value();
-}
-
-bool BlockEndsWithReturn(const ast::Block& block) {
-  auto stmtHasExplicitReturn = [&](const auto& self, const ast::Stmt& stmt) -> bool {
-    return std::visit(
-        [&](const auto& node) -> bool {
-          using T = std::decay_t<decltype(node)>;
-          if constexpr (std::is_same_v<T, ast::ReturnStmt>) {
-            return true;
-          } else if constexpr (std::is_same_v<T, ast::KeyBlockStmt>) {
-            return node.body && BlockEndsWithReturn(*node.body);
-          }
-          return false;
-        },
-        stmt);
-  };
-  return !block.stmts.empty() && stmtHasExplicitReturn(stmtHasExplicitReturn, block.stmts.back());
 }
 
 // Check if [[dynamic]] attribute is present for runtime contract checks
@@ -714,6 +698,10 @@ bool CollectUsesAfterSuspension(IRPtr& ir,
           return seen_suspension;
         } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           return CollectUsesAfterSuspension(node.cleanup_ir, seen_suspension, uses, info);
+        } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
+          return CollectUsesAfterSuspension(node.cleanup_ir, seen_suspension, uses, info);
+        } else if constexpr (std::is_same_v<T, IRInitPanicRaise>) {
+          return CollectUsesAfterSuspension(node.cleanup_ir, seen_suspension, uses, info);
         } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
           return seen_suspension;
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
@@ -886,6 +874,10 @@ void CollectAsyncSlotsFromBindings(const IRPtr& ir,
           return;
         } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           CollectAsyncSlotsFromBindings(node.cleanup_ir, info, uses_after_suspension);
+        } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
+          CollectAsyncSlotsFromBindings(node.cleanup_ir, info, uses_after_suspension);
+        } else if constexpr (std::is_same_v<T, IRInitPanicRaise>) {
+          CollectAsyncSlotsFromBindings(node.cleanup_ir, info, uses_after_suspension);
         } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
           return;
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
@@ -974,6 +966,10 @@ void InstantiateIRTypes(IRPtr& ir,
         } else if constexpr (std::is_same_v<T, IRPanicCheck>) {
           return;
         } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
+          InstantiateIRTypes(node.cleanup_ir, type_subst);
+        } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
+          InstantiateIRTypes(node.cleanup_ir, type_subst);
+        } else if constexpr (std::is_same_v<T, IRInitPanicRaise>) {
           InstantiateIRTypes(node.cleanup_ir, type_subst);
         } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
           return;
@@ -1227,12 +1223,6 @@ ProcIR LowerProc(const ProcedureDecl& decl,
 
   std::vector<IRPtr> body_seq;
   body_seq.push_back(scope_enter_ir);
-  if (ctx.executable_project && decl.name == "main") {
-    IRPtr init_ir = EmitInitPlan(ctx.init_order, ctx);
-    if (init_ir && !std::holds_alternative<IROpaque>(init_ir->node)) {
-      body_seq.push_back(init_ir);
-    }
-  }
 
   // Add precondition check at procedure entry
   if (param_entry_snapshot_ir) {
@@ -1248,14 +1238,14 @@ ProcIR LowerProc(const ProcedureDecl& decl,
   if (body_res.ir) {
     body_seq.push_back(body_res.ir);
   }
-  const bool ends_with_return = decl.body && BlockEndsWithReturn(*decl.body);
-  if (cleanup_ir && !ends_with_return) {
+  const bool body_may_fallthrough = IRFlowMayFallThrough(body_res.ir);
+  if (cleanup_ir && body_may_fallthrough) {
     body_seq.push_back(cleanup_ir);
   }
 
   const bool has_tail = decl.body && decl.body->tail_opt;
   const bool ret_is_unit = IsUnitType(ir.ret);
-  if (has_tail || (!ends_with_return && ret_is_unit)) {
+  if (has_tail || (body_may_fallthrough && ret_is_unit)) {
     if (has_dynamic_contract && contract_post) {
       SPEC_RULE("Lower-Proc-ContractPost");
       if (IRPtr postcheck_ir =

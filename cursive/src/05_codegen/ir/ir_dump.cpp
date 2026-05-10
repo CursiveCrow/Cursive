@@ -780,9 +780,20 @@ struct Dumper {
     }
   }
 
-  void DumpNode(const IRHandleDeinitPanic&) { oss << "handle_deinit_panic"; }
-
-  void DumpNode(const IRRestoreDeinitPanic&) { oss << "restore_deinit_panic"; }
+  void DumpNode(const IRInitPanicRaise& h) {
+    oss << "init_panic_raise " << h.module;
+    if (!h.poison_modules.empty()) {
+      oss << " [";
+      for (std::size_t i = 0; i < h.poison_modules.size(); ++i) {
+        if (i) oss << ", ";
+        oss << h.poison_modules[i];
+      }
+      oss << "]";
+    }
+    if (h.cleanup_ir) {
+      oss << " cleanup";
+    }
+  }
 
   void DumpNode(const IRCheckPoison& c) {
     oss << "check_poison " << c.module;

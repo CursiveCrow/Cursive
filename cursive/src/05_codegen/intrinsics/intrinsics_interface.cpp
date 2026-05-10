@@ -377,6 +377,14 @@ void CollectRefSymsFromIR(std::set<std::string>& out, const IRPtr& ir) {
         } else if constexpr (std::is_same_v<T, IRCleanupPanicCheck>) {
           CollectRefSymsFromIR(out, node.cleanup_ir);
         } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
+          for (const auto& poison_module : node.poison_modules) {
+            AddRefSym(out, PoisonFlagSymForModule(poison_module));
+          }
+          CollectRefSymsFromIR(out, node.cleanup_ir);
+        } else if constexpr (std::is_same_v<T, IRInitPanicRaise>) {
+          for (const auto& poison_module : node.poison_modules) {
+            AddRefSym(out, PoisonFlagSymForModule(poison_module));
+          }
           CollectRefSymsFromIR(out, node.cleanup_ir);
         } else if constexpr (std::is_same_v<T, IRLowerPanic>) {
           CollectRefSymsFromIR(out, node.cleanup_ir);

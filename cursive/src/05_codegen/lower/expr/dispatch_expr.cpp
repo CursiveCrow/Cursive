@@ -833,7 +833,7 @@ LowerResult LowerDispatchExpr(const ast::DispatchExpr& node, LowerCtx& ctx) {
       ctx.RegisterValueType(call_reduce.result, body_type);
       IRValue reduce_result_val = call_reduce.result;
       parts.push_back(MakeIR(std::move(call_reduce)));
-      parts.push_back(PanicCheck(ctx));
+      parts.push_back(PanicFollowup(ctx));
 
       IRValue out_ptr_val;
       out_ptr_val.kind = IRValue::Kind::Local;

@@ -119,12 +119,11 @@ std::vector<const ast::Expr*> InitList(const ast::ASTModule& module);
 // Creates IR that checks panic state and marks dependent modules as poisoned
 IRPtr InitPanicHandle(const std::string& module_name, LowerCtx& ctx);
 
-// (DeinitPanicHandle): Generate IR to handle panic during deinit
-// Deinit continues despite panics but records the first panic
-IRPtr DeinitPanicHandle(const std::string& module_name, LowerCtx& ctx);
-
 // (PanicCheck): Generate IR to check panic flag and return early if set
 IRPtr PanicCheck(LowerCtx& ctx);
+
+// Generate context-specific panic followup after an operation that can set panic.
+IRPtr PanicFollowup(LowerCtx& ctx);
 
 // Emit cleanup actions for statics that finished initialization earlier in the
 // current module-init body.
@@ -137,10 +136,6 @@ CleanupPlan ActiveStaticInitCleanupPlan(const LowerCtx& ctx);
 // (CheckPoison): Generate IR to check if a module is poisoned
 // Used to skip deinitialization of poisoned modules
 IRPtr EmitCheckPoisonIR(const std::string& module_name);
-
-// (MarkPoison): Generate IR to mark a module as poisoned
-// Called when initialization fails
-IRPtr EmitMarkPoisonIR(const std::string& module_name);
 
 // ============================================================================
 // §6.7 Initialization Order Validation

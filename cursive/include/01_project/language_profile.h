@@ -54,8 +54,6 @@ struct LanguageProfile {
   std::string_view runtime_symbol_prefix;
   std::string_view concurrency_symbol_prefix;
 
-  std::string_view deinit_panic_seen_slot;
-  std::string_view deinit_panic_code_slot;
   std::string_view region_active_alias;
   std::string_view hosted_session_param_name;
   std::string_view incremental_dir_name;

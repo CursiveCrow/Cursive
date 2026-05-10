@@ -162,9 +162,7 @@ struct IRInstructionVisitor
 
   void operator()(const IRInitPanicHandle &handle) const;
 
-  void operator()(const IRHandleDeinitPanic &) const;
-
-  void operator()(const IRRestoreDeinitPanic &) const;
+  void operator()(const IRInitPanicRaise &raise) const;
 
   void operator()(const IRCheckPoison &check) const;
 

@@ -88,6 +88,10 @@ void IRInstructionVisitor::operator()(const IRIf &node) const
   emitter.RestoreFlowState(branch_state);
   if (incoming.empty())
   {
+    if (!merge_bb->getTerminator())
+    {
+      builder.CreateUnreachable();
+    }
     return;
   }
 

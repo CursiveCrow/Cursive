@@ -6,6 +6,78 @@
 
 namespace cursive::codegen::emit_detail {
 
+namespace {
+
+enum class BangKind {
+  Bool,
+  Integer,
+  Unknown,
+};
+
+analysis::TypeRef StripPermAndRefine(const analysis::TypeRef &type)
+{
+  analysis::TypeRef current = StripPermType(type);
+  while (current)
+  {
+    if (const auto *refine = std::get_if<analysis::TypeRefine>(&current->node))
+    {
+      current = StripPermType(refine->base);
+      continue;
+    }
+    return current;
+  }
+  return nullptr;
+}
+
+BangKind ClassifyBangType(const analysis::TypeRef &type)
+{
+  analysis::TypeRef stripped = StripPermAndRefine(type);
+  if (!stripped)
+  {
+    return BangKind::Unknown;
+  }
+  const auto *prim = std::get_if<analysis::TypePrim>(&stripped->node);
+  if (!prim)
+  {
+    return BangKind::Unknown;
+  }
+  if (prim->name == "bool")
+  {
+    return BangKind::Bool;
+  }
+  if (prim->name == "i8" || prim->name == "i16" || prim->name == "i32" ||
+      prim->name == "i64" || prim->name == "i128" || prim->name == "isize" ||
+      prim->name == "u8" || prim->name == "u16" || prim->name == "u32" ||
+      prim->name == "u64" || prim->name == "u128" || prim->name == "usize")
+  {
+    return BangKind::Integer;
+  }
+  return BangKind::Unknown;
+}
+
+BangKind MergeBangKind(BangKind lhs, BangKind rhs)
+{
+  if (lhs == BangKind::Bool || rhs == BangKind::Bool)
+  {
+    return BangKind::Bool;
+  }
+  if (lhs == BangKind::Integer || rhs == BangKind::Integer)
+  {
+    return BangKind::Integer;
+  }
+  return BangKind::Unknown;
+}
+
+void ReportUnaryCodegenFailure(const LowerCtx *ctx)
+{
+  if (ctx)
+  {
+    const_cast<LowerCtx *>(ctx)->ReportCodegenFailure();
+  }
+}
+
+} // namespace
+
 void IRInstructionVisitor::operator()(const IRUnaryOp &unary) const
 {
   llvm::Value *operand = EvaluateOrDefault(unary.operand);
@@ -25,25 +97,34 @@ void IRInstructionVisitor::operator()(const IRUnaryOp &unary) const
     if (!result_type) {
       result_type = ResolveAliasType(active_ctx, unary.result_type);
     }
-    const bool logical_not =
-        IsBoolType(operand_type) || IsBoolType(result_type) ||
-        operand->getType()->isIntegerTy(1);
+    BangKind bang_kind = MergeBangKind(
+        ClassifyBangType(operand_type),
+        ClassifyBangType(result_type));
+    if (bang_kind == BangKind::Unknown && operand->getType()->isIntegerTy(1))
+    {
+      bang_kind = BangKind::Bool;
+    }
 
-    if (logical_not)
+    if (bang_kind == BangKind::Bool)
     {
       // bool `!` must invert truthiness (0/1), not payload bits.
       // i8 bools require canonicalization through AsBool first.
       result = builder.CreateNot(AsBool(&builder, operand));
     }
-    else if (operand->getType()->isIntegerTy())
+    else if (bang_kind == BangKind::Integer && operand->getType()->isIntegerTy())
     {
       // Integer `!` is bitwise not per spec.
       result = builder.CreateNot(operand);
     }
+    else if (bang_kind == BangKind::Unknown)
+    {
+      ReportUnaryCodegenFailure(active_ctx);
+      result = DefaultFor(unary.result);
+    }
     else
     {
-      // Defensive fallback for non-integer truthy values.
-      result = builder.CreateNot(AsBool(&builder, operand));
+      ReportUnaryCodegenFailure(active_ctx);
+      result = DefaultFor(unary.result);
     }
   }
   else if (unary.op == "-" && operand->getType()->isIntegerTy())

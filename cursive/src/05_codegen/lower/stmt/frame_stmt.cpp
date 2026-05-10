@@ -25,6 +25,7 @@
 #include "04_analysis/typing/types.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/intrinsics/builtins.h"
+#include "05_codegen/ir/ir_control_flow.h"
 #include "05_codegen/ir/ir_model.h"
 #include "05_codegen/lower/lower_expr.h"
 #include "05_codegen/lower/lower_stmt.h"
@@ -33,14 +34,6 @@
 namespace cursive::codegen {
 
 namespace {
-
-// Check if a block ends with a return statement (local version to avoid ambiguity)
-bool LocalBlockEndsWithReturn(const ast::Block& block) {
-  if (block.stmts.empty()) {
-    return false;
-  }
-  return std::holds_alternative<ast::ReturnStmt>(block.stmts.back());
-}
 
 // Check if a dispatch expression has a reduce option
 bool DispatchHasReduce(const ast::DispatchExpr& expr) {
@@ -214,6 +207,7 @@ IRPtr LowerFrameStmt(const ast::FrameStmt& stmt, LowerCtx& ctx) {
   } else {
     SPEC_RULE("Lower-Block-Unit");
     result_value = ctx.FreshTempValue("unit");
+    ctx.RegisterValueType(result_value, analysis::MakeTypePrim("()"));
   }
 
   // Compute cleanup for this scope
@@ -225,10 +219,11 @@ IRPtr LowerFrameStmt(const ast::FrameStmt& stmt, LowerCtx& ctx) {
   ctx.PopScope();
 
   // Assemble the block IR
-  const bool ends_with_return = LocalBlockEndsWithReturn(*stmt.body);
   IRBlock block_ir;
   block_ir.setup = SeqIR({region_ir, scope_enter_ir, mark_ir, stmts_ir});
-  block_ir.body = ends_with_return ? tail_ir : SeqIR({tail_ir, cleanup_ir});
+  block_ir.body = IRFlowDefinitelyTerminates(tail_ir)
+                      ? tail_ir
+                      : SeqIR({tail_ir, cleanup_ir});
   block_ir.value = result_value;
 
   // Register result as temp if needed

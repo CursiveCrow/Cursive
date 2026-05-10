@@ -30,8 +30,10 @@
 #include <vector>
 
 #include "00_core/assert_spec.h"
+#include "04_analysis/typing/types.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/cleanup/unwind.h"
+#include "05_codegen/ir/ir_control_flow.h"
 
 namespace cursive::codegen {
 
@@ -53,53 +55,6 @@ LowerCtx MakeBranchCtx(LowerCtx& base) {
   branch.values.drop_glue_types.clear();
   branch.values.parent = &base;
   return branch;
-}
-
-// ---------------------------------------------------------------------------
-// Helper: EndsWithTerminator
-// ---------------------------------------------------------------------------
-// Check if an IR node ends with a terminator (return, break, continue, etc.)
-// Used to avoid emitting cleanup after terminator sequences.
-
-bool EndsWithTerminator(const IRPtr& ir) {
-  if (!ir) {
-    return false;
-  }
-  return std::visit(
-      [&](const auto& node) -> bool {
-        using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, IRReturn> ||
-                      std::is_same_v<T, IRBreak> ||
-                      std::is_same_v<T, IRContinue> ||
-                      std::is_same_v<T, IRResult> ||
-                      std::is_same_v<T, IRLowerPanic>) {
-          return true;
-        } else if constexpr (std::is_same_v<T, IRSeq>) {
-          for (auto it = node.items.rbegin(); it != node.items.rend(); ++it) {
-            if (!IsNoopIR(*it)) {
-              return EndsWithTerminator(*it);
-            }
-          }
-          return false;
-        } else if constexpr (std::is_same_v<T, IRBlock>) {
-          return EndsWithTerminator(node.body);
-        } else if constexpr (std::is_same_v<T, IRRegion>) {
-          return EndsWithTerminator(node.body);
-        } else if constexpr (std::is_same_v<T, IRFrame>) {
-          return EndsWithTerminator(node.body);
-        } else if constexpr (std::is_same_v<T, IRIf>) {
-          return EndsWithTerminator(node.then_ir) && EndsWithTerminator(node.else_ir);
-        } else if constexpr (std::is_same_v<T, IRIfCase>) {
-          for (const auto& arm : node.arms) {
-            if (!EndsWithTerminator(arm.body)) {
-              return false;
-            }
-          }
-          return !node.arms.empty();
-        }
-        return false;
-      },
-      ir->node);
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +222,7 @@ LowerResult LowerIfExpr(const ast::Expr& expr,
   auto then_result = LowerExpr(*if_expr.then_expr, then_ctx);
   then_ctx.suppress_temp_at_depth = then_prev_suppress;
   IRPtr then_cleanup = CleanupTemps(then_temps, then_ctx);
-  if (!IsNoopIR(then_cleanup) && !EndsWithTerminator(then_result.ir)) {
+  if (!IsNoopIR(then_cleanup) && IRFlowMayFallThrough(then_result.ir)) {
     then_result.ir = SeqIR({then_result.ir, then_cleanup});
   }
 
@@ -283,12 +238,13 @@ LowerResult LowerIfExpr(const ast::Expr& expr,
     else_result = LowerExpr(*if_expr.else_expr, else_ctx);
     else_ctx.suppress_temp_at_depth = else_prev_suppress;
     IRPtr else_cleanup = CleanupTemps(else_temps, else_ctx);
-    if (!IsNoopIR(else_cleanup) && !EndsWithTerminator(else_result.ir)) {
+    if (!IsNoopIR(else_cleanup) && IRFlowMayFallThrough(else_result.ir)) {
       else_result.ir = SeqIR({else_result.ir, else_cleanup});
     }
   } else {
     else_result.ir = EmptyIR();
     else_result.value = ctx.FreshTempValue("unit");
+    ctx.RegisterValueType(else_result.value, analysis::MakeTypePrim("()"));
   }
 
   MergeLowerCtxTemps(ctx, then_ctx);
@@ -299,10 +255,15 @@ LowerResult LowerIfExpr(const ast::Expr& expr,
 
   // Create if IR
   IRValue result_value = ctx.FreshTempValue("if");
+  analysis::TypeRef result_type;
   if (ctx.expr_type) {
-    if (analysis::TypeRef result_type = ctx.expr_type(expr)) {
-      ctx.RegisterValueType(result_value, result_type);
-    }
+    result_type = ctx.expr_type(expr);
+  }
+  if (!result_type && !if_expr.else_expr) {
+    result_type = analysis::MakeTypePrim("()");
+  }
+  if (result_type) {
+    ctx.RegisterValueType(result_value, result_type);
   }
 
   IRIf if_ir;

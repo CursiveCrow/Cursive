@@ -258,7 +258,7 @@ struct LowerCtx {
   bool hosted_library = false;
   std::optional<std::string> project_entry_module;
   std::unordered_set<std::string> dependency_assembly_names;
-  std::unordered_set<std::string> library_assembly_names;
+  std::unordered_set<std::string> shared_library_assembly_names;
   
   // Expression type lookup (populated by type checking phase)
   std::function<analysis::TypeRef(const ast::Expr&)> expr_type;
@@ -376,6 +376,7 @@ struct LowerCtx {
     analysis::TypeRef type;
   };
   std::vector<StaticInitCleanup> active_static_init_cleanup;
+  std::optional<std::string> active_static_init_module;
   std::unordered_set<std::string> hosted_explicit_env_procs;
   std::vector<ast::ModulePath> init_order;
   std::vector<ast::ModulePath> init_modules;

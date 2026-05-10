@@ -26,10 +26,10 @@ void IRInstructionVisitor::operator()(const IRReadPath &read) const
     if (ctx && !ctx->module_path.empty() && !module_path->empty()) {
       const std::string& current_root = ctx->module_path.front();
       const std::string& target_root = module_path->front();
-      const bool cross_library_boundary =
+      const bool cross_shared_library_boundary =
           current_root != target_root &&
-          ctx->library_assembly_names.contains(target_root);
-      if (cross_library_boundary) {
+          ctx->shared_library_assembly_names.contains(target_root);
+      if (cross_shared_library_boundary) {
         return;
       }
     }

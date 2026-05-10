@@ -132,10 +132,10 @@ LowerResult LowerReadPlaceDeref(const ast::DerefExpr& node,
       SeqIR(std::vector<IRPtr>{
           ptr_result.ir,
           MakeIR(std::move(null_check)),
-          PanicCheck(ctx),
+          PanicFollowup(ctx),
           MakeIR(std::move(active_call)),
           MakeIR(std::move(active_check)),
-          PanicCheck(ctx),
+          PanicFollowup(ctx),
           MakeIR(std::move(read)),
       }),
       value};
@@ -225,10 +225,10 @@ IRPtr LowerWritePlaceDeref(const ast::DerefExpr& node,
           return SeqIR(std::vector<IRPtr>{
               ptr_result.ir,
               MakeIR(std::move(null_check)),
-              PanicCheck(ctx),
+              PanicFollowup(ctx),
               MakeIR(std::move(active_call)),
               MakeIR(std::move(active_check)),
-              PanicCheck(ctx),
+              PanicFollowup(ctx),
               MakeIR(std::move(write)),
           });
         }
@@ -257,10 +257,10 @@ IRPtr LowerWritePlaceDeref(const ast::DerefExpr& node,
         return SeqIR(std::vector<IRPtr>{
             ptr_result.ir,
             MakeIR(std::move(null_check)),
-            PanicCheck(ctx),
+            PanicFollowup(ctx),
             MakeIR(std::move(active_call)),
             MakeIR(std::move(active_check)),
-            PanicCheck(ctx),
+            PanicFollowup(ctx),
             MakeIR(std::move(write)),
         });
       }
@@ -294,10 +294,10 @@ IRPtr LowerWritePlaceDeref(const ast::DerefExpr& node,
         return SeqIR(std::vector<IRPtr>{
             ptr_result.ir,
             MakeIR(std::move(null_check)),
-            PanicCheck(ctx),
+            PanicFollowup(ctx),
             MakeIR(std::move(active_call)),
             MakeIR(std::move(active_check)),
-            PanicCheck(ctx),
+            PanicFollowup(ctx),
             MakeIR(std::move(write)),
         });
       }
@@ -335,10 +335,10 @@ IRPtr LowerWritePlaceDeref(const ast::DerefExpr& node,
   return SeqIR(std::vector<IRPtr>{
       ptr_result.ir,
       MakeIR(std::move(null_check)),
-      PanicCheck(ctx),
+      PanicFollowup(ctx),
       MakeIR(std::move(active_call)),
       MakeIR(std::move(active_check)),
-      PanicCheck(ctx),
+      PanicFollowup(ctx),
       MakeIR(std::move(write)),
   });
 }

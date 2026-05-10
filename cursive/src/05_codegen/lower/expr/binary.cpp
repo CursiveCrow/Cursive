@@ -216,7 +216,7 @@ LowerResult LowerBinOp(const std::string& op,
     check.lhs = lhs_result.value;
     check.rhs = rhs_result.value;
     parts.push_back(MakeIR(std::move(check)));
-    parts.push_back(PanicCheck(ctx));
+    parts.push_back(PanicFollowup(ctx));
   }
 
   IRBinaryOp binop;

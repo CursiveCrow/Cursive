@@ -91,7 +91,19 @@ std::optional<std::string> ReadFile(const std::filesystem::path& path) {
 std::optional<std::string_view> FunctionBody(
     std::string_view module_ir,
     std::string_view signature) {
-  const std::size_t start = module_ir.find(signature);
+  std::size_t start = std::string_view::npos;
+  for (std::size_t pos = module_ir.find(signature);
+       pos != std::string_view::npos;
+       pos = module_ir.find(signature, pos + signature.size())) {
+    const std::size_t line_start =
+        module_ir.rfind('\n', pos) == std::string_view::npos
+            ? 0
+            : module_ir.rfind('\n', pos) + 1;
+    if (module_ir.substr(line_start, 7) == "define ") {
+      start = line_start;
+      break;
+    }
+  }
   if (start == std::string_view::npos) {
     return std::nullopt;
   }
@@ -118,6 +130,91 @@ bool ContainsAfterLast(std::string_view body,
     return false;
   }
   return body.find(needle, marker_pos + marker.size()) != std::string_view::npos;
+}
+
+std::size_t CountOccurrences(std::string_view body, std::string_view needle) {
+  std::size_t count = 0;
+  std::size_t pos = 0;
+  while (true) {
+    pos = body.find(needle, pos);
+    if (pos == std::string_view::npos) {
+      return count;
+    }
+    ++count;
+    pos += needle.size();
+  }
+}
+
+bool IsLlvmLabelLine(std::string_view line) {
+  if (line.empty() || line.front() == ' ' || line.front() == '\t' ||
+      line.front() == '}') {
+    return false;
+  }
+  const std::size_t colon = line.find(':');
+  if (colon == std::string_view::npos || colon == 0) {
+    return false;
+  }
+  const std::string_view label = line.substr(0, colon);
+  return label.find(' ') == std::string_view::npos &&
+         label.find('\t') == std::string_view::npos;
+}
+
+bool CheckFailBlocksDeferToPanicCheck(std::string_view body) {
+  bool saw_check_fail = false;
+  for (std::size_t pos = body.find("check_fail");
+       pos != std::string_view::npos;
+       pos = body.find("check_fail", pos + 10)) {
+    const std::size_t line_start =
+        body.rfind('\n', pos) == std::string_view::npos
+            ? 0
+            : body.rfind('\n', pos) + 1;
+    const std::size_t line_end = body.find('\n', pos);
+    const std::string_view label =
+        body.substr(line_start,
+                    (line_end == std::string_view::npos ? body.size() : line_end) -
+                        line_start);
+    if (!IsLlvmLabelLine(label) || label.substr(0, 10) != "check_fail") {
+      continue;
+    }
+
+    saw_check_fail = true;
+    bool branches_to_continuation = false;
+    std::size_t scan = line_end == std::string_view::npos ? body.size() : line_end + 1;
+    while (scan < body.size()) {
+      const std::size_t next_end = body.find('\n', scan);
+      const std::string_view line =
+          body.substr(scan,
+                      (next_end == std::string_view::npos ? body.size() : next_end) -
+                          scan);
+      if (IsLlvmLabelLine(line)) {
+        break;
+      }
+      if (line.find(" ret ") != std::string_view::npos ||
+          line.find("\tret ") != std::string_view::npos) {
+        return false;
+      }
+      if (line.find("br label %check_ok") != std::string_view::npos) {
+        branches_to_continuation = true;
+      }
+      if (next_end == std::string_view::npos) {
+        break;
+      }
+      scan = next_end + 1;
+    }
+    if (!branches_to_continuation) {
+      return false;
+    }
+  }
+
+  return saw_check_fail;
+}
+
+bool HasByteBitwiseNot(std::string_view body) {
+  return body.find("xor i8") != std::string_view::npos;
+}
+
+bool HasAtLeastBoolNots(std::string_view body, std::size_t expected) {
+  return CountOccurrences(body, "xor i1") >= expected;
 }
 
 int RunCommand(const std::string& command) {
@@ -198,7 +295,7 @@ std::string FixtureManifest() {
 }
 
 std::string FixtureSource() {
-  return R"cursive(public modal DiagnosticSeverity {
+  return std::string{R"cursive(public modal DiagnosticSeverity {
     @Error {
         public procedure isError(~) -> bool {
             return true
@@ -236,6 +333,8 @@ public let CODE_CLI_OUTPUT_WRITE_FAILED: string@View = "E-CLI-0003"
 
 public record SourceSpan {
     public file_path: string@View
+    public start_offset: usize
+    public end_offset: usize
     public start_line: usize
     public start_column: usize
     public end_line: usize
@@ -256,8 +355,8 @@ public type DiagnosticSourceValue =
 public record Diagnostic {
     public code: DiagnosticCodeOptionValue
     public severity: DiagnosticSeverityValue
-    public source: DiagnosticSourceValue
     public message: string@View
+    public source: DiagnosticSourceValue
 
     public procedure isError(~) -> bool {
         return diagnosticSeverityIsError(self.severity)
@@ -376,14 +475,14 @@ public procedure diagnosticSourceIsUnknown(source: DiagnosticSourceValue) -> boo
 public procedure diagnostic(
     code: DiagnosticCodeOptionValue,
     severity: DiagnosticSeverityValue,
-    source: DiagnosticSourceValue,
-    message: string@View
+    message: string@View,
+    source: DiagnosticSourceValue
 ) -> Diagnostic {
     return Diagnostic {
         code: code,
         severity: severity,
-        source: source,
-        message: message
+        message: message,
+        source: source
     }
 }
 
@@ -394,8 +493,8 @@ public procedure errorDiagnostic(
     return diagnostic(
         diagnosticCodeFromText(code),
         diagnosticSeverityError(),
-        unknownDiagnosticSource(),
-        message
+        message,
+        unknownDiagnosticSource()
     )
 }
 
@@ -430,6 +529,10 @@ public procedure singleErrorDiagnosticStream(
 
 public procedure diagnosticMessage(diagnostic: Diagnostic) -> string@View {
     return diagnostic.message
+}
+
+public procedure diagnosticHasMessage(diagnostic: Diagnostic) -> bool {
+    return !diagnosticTextEquals(diagnostic.message, "")
 }
 
 public procedure diagnosticCodeMatches(
@@ -542,6 +645,169 @@ public procedure diagnosticTextByte(text: string@View, index: usize) -> u8
     let view: bytes@View = bytes::view_string(text)
     let data: const [u8] = bytes::as_slice(view)
     return data[index]
+}
+
+public procedure diagnosticSeverityText(severity: DiagnosticSeverityValue) -> string@View {
+    return if severity is {
+        @Error {
+            "error"
+        }
+        @Info {
+            "info"
+        }
+    }
+}
+
+)cursive"} + R"cursive(
+public procedure writeStderrPart(fs: $FileSystem, text: string@View) -> bool {
+    let output: Outcome<(), IoError> = fs~>write_stderr(text)
+    return if output is {
+        @Value {
+            true
+        }
+        @Error {
+            false
+        }
+    }
+}
+
+public record DiagnosticDriverHost {
+    private _fs: $FileSystem
+    private _heap: $HeapAllocator
+    private _sys: System
+    private _executable_path: string@View
+    private _current_directory: string@View
+
+    public procedure executablePath(~) -> string@View {
+        return self._executable_path
+    }
+
+    public procedure currentDirectory(~) -> string@View {
+        return self._current_directory
+    }
+
+    public procedure fileSystem(~) -> $FileSystem {
+        return self._fs
+    }
+
+    public procedure heap(~) -> $HeapAllocator {
+        return self._heap
+    }
+
+    public procedure system(~) -> System {
+        return self._sys
+    }
+
+    public procedure writeStderr(~, text: string@View) -> Outcome<(), IoError> {
+        return self._fs~>write_stderr(text)
+    }
+
+    public procedure writeStderrPart(~, text: string@View) -> bool {
+        let output: Outcome<(), IoError> = self~>writeStderr(text)
+        return if output is {
+            @Value {
+                true
+            }
+            @Error {
+                false
+            }
+        }
+    }
+
+    public procedure writeDiagnostic(~, diagnostic: Diagnostic) -> bool {
+        if (!self~>writeDiagnosticHead(diagnostic)) {
+            return false
+        }
+        if (diagnosticHasMessage(diagnostic)) {
+            if (!self~>writeStderrPart(": ")) {
+                return false
+            }
+            if (!self~>writeStderrPart(diagnosticMessage(diagnostic))) {
+                return false
+            }
+        }
+        if (!self~>writeDiagnosticSpan(diagnostic.source)) {
+            return false
+        }
+        return self~>writeStderrPart("\n")
+    }
+
+    public procedure writeDiagnosticHead(~, diagnostic: Diagnostic) -> bool {
+        return if diagnostic.code is {
+            @Absent {
+                self~>writeStderrPart(diagnosticSeverityText(diagnostic.severity))
+            }
+            @Present { code } {
+                if (!self~>writeStderrPart(code.text)) {
+                    return false
+                }
+                if (!self~>writeStderrPart(" (")) {
+                    return false
+                }
+                if (!self~>writeStderrPart(diagnosticSeverityText(diagnostic.severity))) {
+                    return false
+                }
+                if (!self~>writeStderrPart(")")) {
+                    return false
+                }
+                true
+            }
+        }
+    }
+
+    public procedure writeDiagnosticSpan(~, diagnostic_source: DiagnosticSourceValue) -> bool {
+        return if diagnostic_source is {
+            @Unknown {
+                true
+            }
+            @Known { span } {
+                if (!self~>writeStderrPart(" @")) {
+                    return false
+                }
+                if (!self~>writeStderrPart(span.file_path)) {
+                    return false
+                }
+                true
+            }
+        }
+    }
+}
+
+public procedure writeDiagnosticHead(fs: $FileSystem, diagnostic: Diagnostic) -> bool {
+    return if diagnostic.code is {
+        @Absent {
+            writeStderrPart(fs, diagnosticSeverityText(diagnostic.severity))
+        }
+        @Present { code } {
+            if (!writeStderrPart(fs, code.text)) {
+                return false
+            }
+            if (!writeStderrPart(fs, " (")) {
+                return false
+            }
+            if (!writeStderrPart(fs, diagnosticSeverityText(diagnostic.severity))) {
+                return false
+            }
+            if (!writeStderrPart(fs, ")")) {
+                return false
+            }
+            true
+        }
+    }
+}
+
+public procedure writeFirstDiagnostic(
+    host: DiagnosticDriverHost,
+    stream: DiagnosticStreamValue
+) -> bool {
+    return if stream is {
+        @Empty {
+            false
+        }
+        @Entry {
+            host~>writeDiagnostic(stream~>currentDiagnostic())
+        }
+    }
 }
 
 public procedure isDigitText(text: string@View) -> bool {
@@ -668,7 +934,38 @@ public procedure classifyCommandResult(result: CommandResultValue) -> i32 {
 }
 
 public procedure main(move ctx: Context) -> i32 {
-    let _ = ctx
+    let first_write: Outcome<(), IoError> = ctx.fs~>write_stderr("diagnostic-")
+    let first_write_ok: bool = if first_write is {
+        @Value {
+            true
+        }
+        @Error {
+            false
+        }
+    }
+    if (!first_write_ok) {
+        return 11
+    }
+    let second_write: Outcome<(), IoError> = ctx.fs~>write_stderr("render\n")
+    let second_write_ok: bool = if second_write is {
+        @Value {
+            true
+        }
+        @Error {
+            false
+        }
+    }
+    if (!second_write_ok) {
+        return 12
+    }
+
+    let host: DiagnosticDriverHost = DiagnosticDriverHost {
+        _fs: ctx.fs,
+        _heap: ctx.heap,
+        _sys: ctx.sys,
+        _executable_path: ctx.sys~>executable_path(),
+        _current_directory: ctx.sys~>current_directory()
+    }
     region as diagnostics_region {
         let unknown: CommandResultValue =
             commandFailed(
@@ -678,6 +975,17 @@ public procedure main(move ctx: Context) -> i32 {
         let unknown_status: i32 = classifyCommandResult(unknown)
         if (unknown_status != 0) {
             return unknown_status
+        }
+        let diagnostic_written: bool = if unknown is {
+            @Succeeded {
+                false
+            }
+            @Failed {
+                writeFirstDiagnostic(host, unknown.diagnostics)
+            }
+        }
+        if (!diagnostic_written) {
+            return 13
         }
         let writer: DecimalWriter = DecimalWriter {
             marker: 0usize
@@ -763,6 +1071,21 @@ int main() {
     std::cerr << "fixture executable failed; see " << run_log << "\n";
     return 1;
   }
+  const auto run_text = ReadFile(run_log);
+  if (!run_text.has_value()) {
+    return 1;
+  }
+  if (run_text->find("diagnostic-render\n") == std::string::npos) {
+    std::cerr << "fixture stderr writes were not emitted in order; see "
+              << run_log << "\n";
+    return 1;
+  }
+  if (run_text->find("E-CLI-0001 (error): unknown command\n") ==
+      std::string::npos) {
+    std::cerr << "fixture diagnostic was not rendered completely; see "
+              << run_log << "\n";
+    return 1;
+  }
 
   const std::filesystem::path ir_file =
       out_root / "ir" / "diagnostic_x5fpath.ll";
@@ -770,6 +1093,41 @@ int main() {
   if (!ir_text.has_value()) {
     return 1;
   }
+
+  constexpr std::string_view entry_stub_signature = "define void @main()";
+  const auto entry_stub_body = FunctionBody(*ir_text, entry_stub_signature);
+  if (!entry_stub_body.has_value()) {
+    std::cerr << "executable entry stub was not emitted\n";
+    return 1;
+  }
+  constexpr std::string_view context_init_call =
+      "@cursive_x3a_x3aruntime_x3a_x3acontext_x5finit";
+  constexpr std::string_view module_init_call =
+      "@cursive_x3a_x3aruntime_x3a_x3ainit_x3a_x3adiagnostic_x5fpath";
+  constexpr std::string_view cursive_main_call =
+      "@diagnostic_x5fpath_x3a_x3amain";
+  constexpr std::string_view module_deinit_call =
+      "@cursive_x3a_x3aruntime_x3a_x3adeinit_x3a_x3adiagnostic_x5fpath";
+  if (!ContainsBefore(*entry_stub_body, context_init_call, module_init_call) ||
+      !ContainsBefore(*entry_stub_body, module_init_call, cursive_main_call) ||
+      !ContainsAfterLast(*entry_stub_body, module_deinit_call, cursive_main_call)) {
+    std::cerr << "entry stub does not lower ContextInitSigma -> Init(G_e) -> "
+                 "main -> Deinit in specification order\n";
+    return 1;
+  }
+  if (CountOccurrences(*entry_stub_body, module_init_call) != 1) {
+    std::cerr << "entry stub did not emit exactly one module init call\n";
+    return 1;
+  }
+  if (entry_stub_body->find("entry.deinit.panic.capture") ==
+          std::string_view::npos ||
+      entry_stub_body->find("entry.deinit.panic.restore") ==
+          std::string_view::npos) {
+    std::cerr << "entry stub deinit cleanup does not preserve panic-after-cleanup "
+                 "semantics\n";
+    return 1;
+  }
+
   constexpr std::string_view single_error_signature =
       "@diagnostic_x5fpath_x3a_x3asingleErrorDiagnosticStream";
   const auto single_error_body =
@@ -808,6 +1166,87 @@ int main() {
     return 1;
   }
 
+  constexpr std::string_view host_diagnostic_signature =
+      "@diagnostic_x5fpath_x3a_x3aDiagnosticDriverHost_x3a_x3awriteDiagnostic(";
+  const auto host_diagnostic_body =
+      FunctionBody(*ir_text, host_diagnostic_signature);
+  if (!host_diagnostic_body.has_value()) {
+    std::cerr << "DiagnosticDriverHost::writeDiagnostic was not emitted\n";
+    return 1;
+  }
+  if (HasByteBitwiseNot(*host_diagnostic_body) ||
+      !HasAtLeastBoolNots(*host_diagnostic_body, 4)) {
+    std::cerr << "DiagnosticDriverHost::writeDiagnostic does not lower "
+                 "!bool as logical not for write guards\n";
+    return 1;
+  }
+
+  constexpr std::string_view host_head_signature =
+      "@diagnostic_x5fpath_x3a_x3aDiagnosticDriverHost_x3a_x3awriteDiagnosticHead";
+  const auto host_head_body = FunctionBody(*ir_text, host_head_signature);
+  if (!host_head_body.has_value()) {
+    std::cerr << "DiagnosticDriverHost::writeDiagnosticHead was not emitted\n";
+    return 1;
+  }
+  if (CountOccurrences(*host_head_body, "writeStderrPart") < 4) {
+    std::cerr << "DiagnosticDriverHost::writeDiagnosticHead did not preserve "
+                 "the full Present arm write sequence\n";
+    return 1;
+  }
+  if (HasByteBitwiseNot(*host_head_body) ||
+      !HasAtLeastBoolNots(*host_head_body, 4)) {
+    std::cerr << "DiagnosticDriverHost::writeDiagnosticHead does not lower "
+                 "!bool as logical not for write guards\n";
+    return 1;
+  }
+
+  constexpr std::string_view host_span_signature =
+      "@diagnostic_x5fpath_x3a_x3aDiagnosticDriverHost_x3a_x3awriteDiagnosticSpan";
+  const auto host_span_body = FunctionBody(*ir_text, host_span_signature);
+  if (!host_span_body.has_value()) {
+    std::cerr << "DiagnosticDriverHost::writeDiagnosticSpan was not emitted\n";
+    return 1;
+  }
+  if (HasByteBitwiseNot(*host_span_body) ||
+      !HasAtLeastBoolNots(*host_span_body, 2)) {
+    std::cerr << "DiagnosticDriverHost::writeDiagnosticSpan does not lower "
+                 "!bool as logical not for write guards\n";
+    return 1;
+  }
+
+  constexpr std::string_view free_head_signature =
+      "@diagnostic_x5fpath_x3a_x3awriteDiagnosticHead";
+  const auto free_head_body = FunctionBody(*ir_text, free_head_signature);
+  if (!free_head_body.has_value()) {
+    std::cerr << "free writeDiagnosticHead was not emitted\n";
+    return 1;
+  }
+  if (CountOccurrences(*free_head_body, "writeStderrPart") < 4) {
+    std::cerr << "free writeDiagnosticHead did not preserve the full Present "
+                 "arm write sequence\n";
+    return 1;
+  }
+  if (HasByteBitwiseNot(*free_head_body) ||
+      !HasAtLeastBoolNots(*free_head_body, 4)) {
+    std::cerr << "free writeDiagnosticHead does not lower !bool as logical "
+                 "not for write guards\n";
+    return 1;
+  }
+
+  constexpr std::string_view text_byte_signature =
+      "@diagnostic_x5fpath_x3a_x3adiagnosticTextByte";
+  const auto text_byte_body = FunctionBody(*ir_text, text_byte_signature);
+  if (!text_byte_body.has_value()) {
+    std::cerr << "diagnosticTextByte was not emitted\n";
+    return 1;
+  }
+  if (!CheckFailBlocksDeferToPanicCheck(*text_byte_body) ||
+      text_byte_body->find("panic.take") == std::string_view::npos) {
+    std::cerr << "diagnosticTextByte checked-index failure path does not "
+                 "defer control to the following PanicCheck\n";
+    return 1;
+  }
+
   constexpr std::string_view main_signature =
       "@diagnostic_x5fpath_x3a_x3amain";
   const auto main_body = FunctionBody(*ir_text, main_signature);
@@ -817,6 +1256,16 @@ int main() {
   }
   if (main_body->find(region_new_scoped) == std::string_view::npos) {
     std::cerr << "explicit region statement did not emit Region::new_scoped\n";
+    return 1;
+  }
+  if (main_body->find(module_init_call) != std::string_view::npos) {
+    std::cerr << "source main body emitted project init; executable lifecycle "
+                 "init belongs to the entry stub\n";
+    return 1;
+  }
+  if (HasByteBitwiseNot(*main_body) || !HasAtLeastBoolNots(*main_body, 4)) {
+    std::cerr << "diagnostic_path main does not lower !bool as logical not "
+                 "for direct bool guards\n";
     return 1;
   }
 
@@ -853,6 +1302,15 @@ int main() {
   if (init_body->find("poison.take") != std::string_view::npos) {
     std::cerr << "string@View static cleanup emitted a module poison read "
                  "inside init panic handling\n";
+    return 1;
+  }
+  if (init_body->find("init.panic.take") == std::string_view::npos) {
+    std::cerr << "module static initializer did not emit InitPanicHandle\n";
+    return 1;
+  }
+  if (init_body->find("\npanic.take") != std::string_view::npos) {
+    std::cerr << "module init emitted ordinary PanicCheck handling where "
+                 "InitPanicHandle is required\n";
     return 1;
   }
 

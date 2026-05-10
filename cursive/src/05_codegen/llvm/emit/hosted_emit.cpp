@@ -1003,15 +1003,32 @@ using namespace emit_detail;
       llvm::Value *panic_ptr =
           build_env_slot_ptr(*builder, env_ptr, hosted_layout_.panic_offset, panic_record_ty);
       clear_panic_record(*builder, panic_ptr);
+      llvm::AllocaInst *had_panic_slot = builder->CreateAlloca(i1_ty);
+      builder->CreateStore(llvm::ConstantInt::getFalse(context_), had_panic_slot);
+      llvm::BasicBlock *deinit_panic_bb =
+          llvm::BasicBlock::Create(context_, "host.destroy.deinit.fail", destroy_fn);
+      llvm::BasicBlock *deinit_done_bb =
+          llvm::BasicBlock::Create(context_, "host.destroy.deinit.done", destroy_fn);
       for (auto it = current_ctx_->init_order.rbegin();
            it != current_ctx_->init_order.rend();
            ++it)
       {
         call_proc_with_panic(*builder, DeinitFn(*it), panic_ptr, env_ptr);
-        HandleDeinitPanic(*this, builder, panic_ptr);
+        llvm::BasicBlock *cont_bb =
+            llvm::BasicBlock::Create(context_, "host.destroy.deinit.cont", destroy_fn);
+        builder->CreateCondBr(LoadPanicFlag(*this, builder, panic_ptr),
+                              deinit_panic_bb,
+                              cont_bb);
+        builder->SetInsertPoint(cont_bb);
       }
-      RestoreDeinitPanicIfAny(*this, builder, panic_ptr);
-      llvm::Value *had_panic = LoadPanicFlag(*this, builder, panic_ptr);
+      builder->CreateBr(deinit_done_bb);
+
+      builder->SetInsertPoint(deinit_panic_bb);
+      builder->CreateStore(llvm::ConstantInt::getTrue(context_), had_panic_slot);
+      builder->CreateBr(deinit_done_bb);
+
+      builder->SetInsertPoint(deinit_done_bb);
+      llvm::Value *had_panic = builder->CreateLoad(i1_ty, had_panic_slot);
       llvm::Value *leave_ok =
           builder->CreateCall(leave_retired_fn, {handle_arg, owner_token});
       llvm::BasicBlock *leave_ok_bb =

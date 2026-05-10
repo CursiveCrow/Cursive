@@ -54,14 +54,6 @@ namespace {
 
 using emit_detail::BuildScope;
 
-const char* DeinitPanicSeenSlot() {
-  return project::ActiveLanguageProfile().deinit_panic_seen_slot.data();
-}
-
-const char* DeinitPanicCodeSlot() {
-  return project::ActiveLanguageProfile().deinit_panic_code_slot.data();
-}
-
 // Helper for byte-level GEP
 llvm::Value* ByteGEP(LLVMEmitter& emitter,
                      llvm::IRBuilder<>* builder,
@@ -128,54 +120,6 @@ std::optional<std::pair<std::uint64_t, std::uint64_t>> PanicRecordOffsets(
   }
   return std::pair<std::uint64_t, std::uint64_t>{
       layout->offsets[0], layout->offsets[1]};
-}
-
-std::pair<llvm::AllocaInst*, llvm::AllocaInst*> GetOrCreateDeinitPanicSlots(
-    LLVMEmitter& emitter,
-    llvm::IRBuilder<>* builder) {
-  if (!builder) {
-    return {nullptr, nullptr};
-  }
-
-  llvm::Function* func =
-      builder->GetInsertBlock() ? builder->GetInsertBlock()->getParent() : nullptr;
-  if (!func) {
-    return {nullptr, nullptr};
-  }
-
-  auto* seen_slot =
-      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(DeinitPanicSeenSlot()));
-  auto* code_slot =
-      llvm::dyn_cast_or_null<llvm::AllocaInst>(emitter.GetLocal(DeinitPanicCodeSlot()));
-  if (seen_slot && seen_slot->getFunction() != func) {
-    seen_slot = nullptr;
-  }
-  if (code_slot && code_slot->getFunction() != func) {
-    code_slot = nullptr;
-  }
-  if (seen_slot && code_slot) {
-    return {seen_slot, code_slot};
-  }
-
-  llvm::IRBuilder<> entry_builder(&func->getEntryBlock(),
-                                  func->getEntryBlock().begin());
-	if (!seen_slot) {
-	  seen_slot = entry_builder.CreateAlloca(
-	      llvm::Type::getInt1Ty(emitter.GetContext()), nullptr, DeinitPanicSeenSlot());
-    entry_builder.CreateStore(llvm::ConstantInt::getFalse(emitter.GetContext()),
-                              seen_slot);
-	    emitter.SetLocal(DeinitPanicSeenSlot(), seen_slot);
-  }
-  if (!code_slot) {
-	  code_slot = entry_builder.CreateAlloca(
-	      llvm::Type::getInt32Ty(emitter.GetContext()), nullptr, DeinitPanicCodeSlot());
-    entry_builder.CreateStore(
-        llvm::ConstantInt::get(llvm::Type::getInt32Ty(emitter.GetContext()), 0),
-        code_slot);
-	    emitter.SetLocal(DeinitPanicCodeSlot(), code_slot);
-  }
-
-  return {seen_slot, code_slot};
 }
 
 void ClearPanicRecordAt(LLVMEmitter& emitter,
@@ -402,16 +346,13 @@ llvm::GlobalVariable* GetOrCreatePoisonFlag(LLVMEmitter& emitter,
         const std::string& owner_root = module_path.front();
         const bool imported_shared_library_data =
             owner_root != current_root &&
-            ctx->library_assembly_names.contains(owner_root);
+            ctx->shared_library_assembly_names.contains(owner_root);
         if (!imported_shared_library_data) {
           return decl;
         }
         decl->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
         return decl;
       };
-  if (auto* existing = emitter.GetModule().getGlobalVariable(sym, true)) {
-    return define_flag ? existing : configure_imported_poison_decl(existing);
-  }
   auto* bool_ty = emitter.GetLLVMType(analysis::MakeTypePrim("bool"));
   if (!bool_ty) {
     SPEC_RULE("PoisonFlag-Err");
@@ -419,6 +360,23 @@ llvm::GlobalVariable* GetOrCreatePoisonFlag(LLVMEmitter& emitter,
       ctx->ReportCodegenFailure();
     }
     return nullptr;
+  }
+  auto define_poison_flag =
+      [&](llvm::GlobalVariable* flag) -> llvm::GlobalVariable* {
+        if (!flag) {
+          return nullptr;
+        }
+        if (!flag->hasInitializer()) {
+          flag->setInitializer(llvm::Constant::getNullValue(bool_ty));
+        }
+        flag->setConstant(false);
+        flag->setLinkage(llvm::GlobalValue::ExternalLinkage);
+        flag->setDLLStorageClass(llvm::GlobalValue::DefaultStorageClass);
+        return flag;
+      };
+  if (auto* existing = emitter.GetModule().getGlobalVariable(sym, true)) {
+    return define_flag ? define_poison_flag(existing)
+                       : configure_imported_poison_decl(existing);
   }
   auto* init = define_flag ? llvm::Constant::getNullValue(bool_ty) : nullptr;
   auto* flag = new llvm::GlobalVariable(
@@ -569,11 +527,6 @@ void StorePanicRecord(LLVMEmitter& emitter,
   if (!ctx) {
     return;
   }
-  llvm::Function* func = builder->GetInsertBlock()->getParent();
-  if (IsInitFunction(emitter, func)) {
-    StoreInitPanicRecord(emitter, builder);
-    return;
-  }
   llvm::Value* ptr = LoadPanicOutPtr(emitter, builder);
   if (!ptr) {
     return;
@@ -691,88 +644,6 @@ void EmitPanicReturnIfFalse(LLVMEmitter& emitter,
   EmitReturn(emitter, builder);
 
   builder->SetInsertPoint(ok_bb);
-}
-
-void HandleDeinitPanic(LLVMEmitter& emitter,
-                       llvm::IRBuilder<>* builder,
-                       llvm::Value* panic_ptr) {
-  if (!builder || !builder->GetInsertBlock() ||
-      builder->GetInsertBlock()->getTerminator()) {
-    return;
-  }
-
-  llvm::Value* has_panic = LoadPanicFlag(emitter, builder, panic_ptr);
-  if (!has_panic) {
-    return;
-  }
-
-  auto [seen_slot, code_slot] = GetOrCreateDeinitPanicSlots(emitter, builder);
-  if (!seen_slot || !code_slot) {
-    return;
-  }
-
-  llvm::Function* func = builder->GetInsertBlock()->getParent();
-  llvm::BasicBlock* capture_bb =
-      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.capture", func);
-  llvm::BasicBlock* cont_bb =
-      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.cont", func);
-  builder->CreateCondBr(has_panic, capture_bb, cont_bb);
-
-  builder->SetInsertPoint(capture_bb);
-  llvm::Value* seen =
-      builder->CreateLoad(llvm::Type::getInt1Ty(emitter.GetContext()), seen_slot);
-  llvm::Value* code = LoadPanicCodeValue(emitter, builder, panic_ptr);
-  if (!code) {
-    code = llvm::ConstantInt::get(llvm::Type::getInt32Ty(emitter.GetContext()), 0);
-  }
-
-  llvm::BasicBlock* store_bb =
-      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.store", func);
-  llvm::BasicBlock* clear_bb =
-      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.clear", func);
-  builder->CreateCondBr(seen, clear_bb, store_bb);
-
-  builder->SetInsertPoint(store_bb);
-  builder->CreateStore(llvm::ConstantInt::getTrue(emitter.GetContext()), seen_slot);
-  builder->CreateStore(code, code_slot);
-  builder->CreateBr(clear_bb);
-
-  builder->SetInsertPoint(clear_bb);
-  ClearPanicRecordAt(emitter, builder, panic_ptr);
-  builder->CreateBr(cont_bb);
-
-  builder->SetInsertPoint(cont_bb);
-}
-
-void RestoreDeinitPanicIfAny(LLVMEmitter& emitter,
-                             llvm::IRBuilder<>* builder,
-                             llvm::Value* panic_ptr) {
-  if (!builder || !builder->GetInsertBlock() ||
-      builder->GetInsertBlock()->getTerminator()) {
-    return;
-  }
-
-  auto [seen_slot, code_slot] = GetOrCreateDeinitPanicSlots(emitter, builder);
-  if (!seen_slot || !code_slot) {
-    return;
-  }
-
-  llvm::Function* func = builder->GetInsertBlock()->getParent();
-  llvm::Value* seen =
-      builder->CreateLoad(llvm::Type::getInt1Ty(emitter.GetContext()), seen_slot);
-  llvm::BasicBlock* restore_bb =
-      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.restore", func);
-  llvm::BasicBlock* cont_bb =
-      llvm::BasicBlock::Create(emitter.GetContext(), "deinit.panic.done", func);
-  builder->CreateCondBr(seen, restore_bb, cont_bb);
-
-  builder->SetInsertPoint(restore_bb);
-  llvm::Value* code =
-      builder->CreateLoad(llvm::Type::getInt32Ty(emitter.GetContext()), code_slot);
-  StorePanicRecordValue(emitter, builder, panic_ptr, code);
-  builder->CreateBr(cont_bb);
-
-  builder->SetInsertPoint(cont_bb);
 }
 
 using namespace emit_detail;

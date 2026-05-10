@@ -427,9 +427,11 @@ struct IRInitPanicHandle {
   IRPtr cleanup_ir;
 };
 
-struct IRHandleDeinitPanic {};
-
-struct IRRestoreDeinitPanic {};
+struct IRInitPanicRaise {
+  std::string module;
+  std::vector<std::string> poison_modules;
+  IRPtr cleanup_ir;
+};
 
 struct IRCheckPoison {
   std::string module;
@@ -661,8 +663,7 @@ struct IR {
                IRPanicCheck,
                IRCleanupPanicCheck,
                IRInitPanicHandle,
-               IRHandleDeinitPanic,
-               IRRestoreDeinitPanic,
+               IRInitPanicRaise,
                IRCheckPoison,
                IRLowerPanic,
                // C0X Extension: Structured Concurrency

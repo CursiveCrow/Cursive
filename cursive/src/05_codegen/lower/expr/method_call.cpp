@@ -31,12 +31,15 @@
 #include "04_analysis/caps/cap_system.h"
 #include "04_analysis/composite/classes.h"
 #include "04_analysis/composite/record_methods.h"
+#include "04_analysis/generics/monomorphize.h"
+#include "04_analysis/layout/layout.h"
 #include "04_analysis/modal/builtin_modal_intrinsics.h"
 #include "04_analysis/modal/modal.h"
 #include "04_analysis/modal/modal_transitions.h"
 #include "04_analysis/memory/string_bytes.h"
 #include "04_analysis/resolve/scopes_lookup.h"
 #include "04_analysis/typing/type_expr.h"
+#include "04_analysis/typing/type_lower.h"
 #include "04_analysis/typing/type_predicates.h"
 #include "04_analysis/typing/types.h"
 #include "04_analysis/memory/calls.h"
@@ -105,6 +108,41 @@ ParamTypeList ParamTypesFromParams(const analysis::ScopeContext& scope,
         types.push_back(param_type);
     }
     return types;
+}
+
+analysis::TypeRef InstantiateActiveGenericType(const analysis::TypeRef& type,
+                                               const LowerCtx& ctx) {
+    if (!type || !ctx.active_generic_type_subst.has_value() ||
+        ctx.active_generic_type_subst->empty()) {
+        return type;
+    }
+    return analysis::InstantiateType(type, *ctx.active_generic_type_subst);
+}
+
+analysis::TypeRef LowerMethodSourceType(
+    const analysis::ScopeContext& scope,
+    const std::shared_ptr<ast::Type>& type) {
+    if (!type) {
+        return analysis::MakeTypePrim("()");
+    }
+    if (const auto lowered =
+            ::cursive::analysis::layout::LowerTypeForLayout(scope, type)) {
+        return *lowered;
+    }
+    const auto fallback = analysis::LowerType(scope, type);
+    if (fallback.ok && fallback.type) {
+        return fallback.type;
+    }
+    return analysis::MakeTypePrim("()");
+}
+
+analysis::TypeRef LowerMethodReturnType(
+    const analysis::ScopeContext& scope,
+    const std::shared_ptr<ast::Type>& return_type,
+    const LowerCtx& ctx) {
+    return InstantiateActiveGenericType(
+        LowerMethodSourceType(scope, return_type),
+        ctx);
 }
 
 // Extract modal state info from a type
@@ -1004,6 +1042,7 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
     }
 
     // Static dispatch - look up method from type
+    analysis::TypeRef resolved_method_result_type;
     if (!dyn_type && ctx.sigma) {
         if (auto modal_info = ModalStateInfo(recv_type)) {
             analysis::TypePath modal_path = modal_info->first;
@@ -1013,6 +1052,8 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
                         analysis::LookupStateMethodDecl(*modal_decl, modal_info->second, expr.name)) {
                     param_modes = ParamModesFromParams(state_method->params);
                     param_types = ParamTypesFromParams(scope, state_method->params);
+                    resolved_method_result_type =
+                        LowerMethodReturnType(scope, state_method->return_type_opt, ctx);
                 } else if (const auto* transition =
                                analysis::LookupTransitionDecl(*modal_decl, modal_info->second, expr.name)) {
                     param_modes = ParamModesFromParams(transition->params);
@@ -1026,11 +1067,14 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
                     analysis::LookupStringBytesBuiltinMethodSig(stripped, expr.name)) {
                 param_modes = ParamModesFromFuncParams(builtin_sig->params);
                 param_types = ParamTypesFromFuncParams(builtin_sig->params);
+                resolved_method_result_type = builtin_sig->ret;
             }
             const auto lookup = analysis::LookupMethodStatic(scope, stripped, expr.name);
             if (lookup.record_method) {
                 param_modes = ParamModesFromParams(lookup.record_method->params);
                 param_types = ParamTypesFromParams(scope, lookup.record_method->params);
+                resolved_method_result_type =
+                    LowerMethodReturnType(scope, lookup.record_method->return_type_opt, ctx);
                 const auto recv_info = analysis::RecvTypeForReceiver(
                     scope, stripped, lookup.record_method->receiver, lower_type);
                 if (recv_info.ok && recv_info.type) {
@@ -1040,6 +1084,8 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
             } else if (lookup.class_method) {
                 param_modes = ParamModesFromParams(lookup.class_method->params);
                 param_types = ParamTypesFromParams(scope, lookup.class_method->params);
+                resolved_method_result_type =
+                    LowerMethodReturnType(scope, lookup.class_method->return_type_opt, ctx);
                 const auto recv_info = analysis::RecvTypeForReceiver(
                     scope, stripped, lookup.class_method->receiver, lower_type);
                 if (recv_info.ok && recv_info.type) {
@@ -1126,12 +1172,14 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
     }
 
     IRValue result_value = ctx.FreshTempValue("method_call");
-    analysis::TypeRef method_result_type;
+    analysis::TypeRef method_result_type = resolved_method_result_type;
     if (ctx.expr_type) {
         if (analysis::TypeRef result_type = ctx.expr_type(expr_wrapper)) {
             method_result_type = result_type;
-            ctx.RegisterValueType(result_value, result_type);
         }
+    }
+    if (method_result_type) {
+        ctx.RegisterValueType(result_value, method_result_type);
     }
     SyncRegionAliasForMethodResult(expr, method_result_type, ctx);
 
@@ -1170,7 +1218,7 @@ LowerResult LowerMethodCall(const ast::Expr& expr_wrapper,
     if (needs_panic_out) {
         return LowerResult{
             SeqIR({recv_key_ir, recv_result.ir, args_ir, MakeIR(std::move(call)),
-                   PanicCheck(ctx)}),
+                   PanicFollowup(ctx)}),
             result_value};
     }
 

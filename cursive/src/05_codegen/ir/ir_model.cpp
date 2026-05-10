@@ -315,13 +315,20 @@ bool ValidateIR(const IR& ir) {
           }
           return true;
         } else if constexpr (std::is_same_v<T, IRInitPanicHandle>) {
+          if (node.module.empty()) {
+            return false;
+          }
           if (node.cleanup_ir) {
             return ValidateIRPtr(node.cleanup_ir);
           }
           return true;
-        } else if constexpr (std::is_same_v<T, IRHandleDeinitPanic>) {
-          return true;
-        } else if constexpr (std::is_same_v<T, IRRestoreDeinitPanic>) {
+        } else if constexpr (std::is_same_v<T, IRInitPanicRaise>) {
+          if (node.module.empty()) {
+            return false;
+          }
+          if (node.cleanup_ir) {
+            return ValidateIRPtr(node.cleanup_ir);
+          }
           return true;
         } else if constexpr (std::is_same_v<T, IRCheckPoison>) {
           return true;

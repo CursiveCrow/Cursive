@@ -96,7 +96,7 @@ void IRInstructionVisitor::operator()(const IRCheckOp &check) const
     }
   }
 
-  EmitPanicReturnIfFalse(emitter, &builder, ok, code);
+  EmitPanicIfFalse(emitter, &builder, ok, code);
 }
 
 } // namespace cursive::codegen::emit_detail

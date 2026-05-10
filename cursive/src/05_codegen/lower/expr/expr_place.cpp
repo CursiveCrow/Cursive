@@ -216,7 +216,7 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
             IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
             return LowerResult{SeqIR({base_result.ir, range_result.ir, key_ir,
                                       MakeIR(std::move(check)),
-                                      PanicCheck(ctx)}),
+                                      PanicFollowup(ctx)}),
                                slice_value};
           }
 
@@ -248,7 +248,7 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
             IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx);
             return LowerResult{SeqIR({base_result.ir, range_result.ir, key_ir,
                                       MakeIR(std::move(check)),
-                                      PanicCheck(ctx)}),
+                                      PanicFollowup(ctx)}),
                                slice_value};
           }
 
@@ -275,7 +275,7 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
           seq.push_back(LowerImplicitKeyAccess(place, ast::KeyMode::Read, ctx));
           if (needs_check) {
             seq.push_back(MakeIR(std::move(check)));
-            seq.push_back(PanicCheck(ctx));
+            seq.push_back(PanicFollowup(ctx));
           }
           return LowerResult{SeqIR(std::move(seq)), elem_value};
         } else if constexpr (std::is_same_v<T, ast::DerefExpr>) {
@@ -338,10 +338,10 @@ LowerResult LowerReadPlace(const ast::Expr& place, LowerCtx& ctx) {
           return LowerResult{SeqIR({
                                  ptr_result.ir,
                                  MakeIR(std::move(null_check)),
-                                 PanicCheck(ctx),
+                                 PanicFollowup(ctx),
                                  MakeIR(std::move(active_call)),
                                  MakeIR(std::move(active_check)),
-                                 PanicCheck(ctx),
+                                 PanicFollowup(ctx),
                                  MakeIR(std::move(read)),
                              }),
                              value};
@@ -467,7 +467,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
     std::vector<IRPtr> parts;
     if (!is_noop(poison_ir)) {
       parts.push_back(poison_ir);
-      parts.push_back(PanicCheck(ctx));
+      parts.push_back(PanicFollowup(ctx));
     }
     if (!is_noop(drop_ir)) {
       parts.push_back(drop_ir);
@@ -660,7 +660,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
           std::vector<IRPtr> parts;
           if (!is_noop(poison_ir)) {
             parts.push_back(poison_ir);
-            parts.push_back(PanicCheck(ctx));
+            parts.push_back(PanicFollowup(ctx));
           }
           if (!is_noop(drop_ir)) {
             parts.push_back(drop_ir);
@@ -818,9 +818,9 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
             IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
             return SeqIR({base_addr.ir, base_read_ir, range_result.ir, key_ir,
                           MakeIR(std::move(check)),
-                          PanicCheck(ctx),
+                          PanicFollowup(ctx),
                           MakeIR(std::move(len_check)),
-                          PanicCheck(ctx),
+                          PanicFollowup(ctx),
                           MakeIR(std::move(addr_marker)),
                           MakeIR(std::move(write))});
           }
@@ -871,9 +871,9 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
             IRPtr key_ir = LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx);
             return SeqIR({base_addr.ir, base_read_ir, range_result.ir, key_ir,
                           MakeIR(std::move(check)),
-                          PanicCheck(ctx),
+                          PanicFollowup(ctx),
                           MakeIR(std::move(len_check)),
-                          PanicCheck(ctx),
+                          PanicFollowup(ctx),
                           MakeIR(std::move(addr_marker)),
                           MakeIR(std::move(write))});
           }
@@ -927,7 +927,7 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
           seq.push_back(LowerImplicitKeyAccess(place, ast::KeyMode::Write, ctx));
           if (needs_check) {
             seq.push_back(MakeIR(std::move(check)));
-            seq.push_back(PanicCheck(ctx));
+            seq.push_back(PanicFollowup(ctx));
           }
           seq.push_back(MakeIR(std::move(addr_marker)));
           seq.push_back(drop_ir);
@@ -995,10 +995,10 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
                   return SeqIR({
                       ptr_result.ir,
                       MakeIR(std::move(null_check)),
-                      PanicCheck(ctx),
+                      PanicFollowup(ctx),
                       MakeIR(std::move(active_call)),
                       MakeIR(std::move(active_check)),
-                      PanicCheck(ctx),
+                      PanicFollowup(ctx),
                       MakeIR(std::move(write)),
                   });
                 }
@@ -1027,10 +1027,10 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
                 return SeqIR({
                     ptr_result.ir,
                     MakeIR(std::move(null_check)),
-                    PanicCheck(ctx),
+                    PanicFollowup(ctx),
                     MakeIR(std::move(active_call)),
                     MakeIR(std::move(active_check)),
-                    PanicCheck(ctx),
+                    PanicFollowup(ctx),
                     MakeIR(std::move(write)),
                 });
               }
@@ -1064,10 +1064,10 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
                 return SeqIR({
                     ptr_result.ir,
                     MakeIR(std::move(null_check)),
-                    PanicCheck(ctx),
+                    PanicFollowup(ctx),
                     MakeIR(std::move(active_call)),
                     MakeIR(std::move(active_check)),
-                    PanicCheck(ctx),
+                    PanicFollowup(ctx),
                     MakeIR(std::move(write)),
                 });
               }
@@ -1097,10 +1097,10 @@ IRPtr LowerWritePlaceImpl(const ast::Expr& place,
           return SeqIR({
               ptr_result.ir,
               MakeIR(std::move(null_check)),
-              PanicCheck(ctx),
+              PanicFollowup(ctx),
               MakeIR(std::move(active_call)),
               MakeIR(std::move(active_check)),
-              PanicCheck(ctx),
+              PanicFollowup(ctx),
               MakeIR(std::move(write)),
           });
         }

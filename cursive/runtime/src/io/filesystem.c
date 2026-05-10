@@ -804,6 +804,10 @@ C0Union_Unit_IoError cursive_x3a_x3aruntime_x3a_x3afs_x3a_x3awrite_x5ffile(
     cursive_rt_u32_t chunk = 0;
     cursive_rt_u32_t to_write = (cursive_rt_u32_t)c0_min_u64(len - written, 0x7FFFFFFF);
     if (!cursive_rt_handle_write(h, data->data + written, to_write, &chunk)) {
+      if (chunk > 0) {
+        written += (uint64_t)chunk;
+        continue;
+      }
       cursive_rt_handle_release(h);
       C0Union_Unit_IoError out = c0_unit_err(c0_last_io_error());
       return out;
@@ -856,12 +860,20 @@ static C0Union_Unit_IoError c0_write_stream_utf8(cursive_rt_u32_t std_handle_id,
     cursive_rt_u32_t to_write = (cursive_rt_u32_t)c0_min_u64(len - written, 0x7FFFFFFF);
 
     if (!cursive_rt_handle_write(h, data->data + written, to_write, &chunk)) {
+      if (chunk > 0) {
+        written += (uint64_t)chunk;
+        continue;
+      }
       cursive_rt_u32_t mode = 0;
       if (cursive_rt_console_mode_get(h, &mode)) {
         if (!cursive_rt_console_write_utf8(h,
                            (const char*)(data->data + written),
                            to_write,
                            &chunk)) {
+          if (chunk > 0) {
+            written += (uint64_t)chunk;
+            continue;
+          }
           cursive_rt_u32_t err = cursive_rt_last_error_get();
           if (close_handle) {
             cursive_rt_handle_release(h);
@@ -1639,6 +1651,10 @@ static C0Union_Unit_IoError c0_file_write_handle(cursive_rt_handle_t h,
     cursive_rt_u32_t chunk = 0;
     cursive_rt_u32_t to_write = (cursive_rt_u32_t)c0_min_u64(len - written, 0x7FFFFFFF);
     if (!cursive_rt_handle_write(h, data->data + written, to_write, &chunk)) {
+      if (chunk > 0) {
+        written += (uint64_t)chunk;
+        continue;
+      }
       return c0_unit_err(c0_last_io_error());
     }
     if (chunk == 0) {

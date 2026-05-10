@@ -194,7 +194,7 @@ LowerResult LowerPipelineExpr(const ast::BinaryExpr& expr, LowerCtx& ctx) {
     panic_out.name = std::string(kPanicOutName);
     call.args.push_back(panic_out);
     call.result = result_value;
-    return LowerResult{SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call)), PanicCheck(ctx)}),
+    return LowerResult{SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call)), PanicFollowup(ctx)}),
                        result_value};
   }
 
@@ -223,7 +223,7 @@ LowerResult LowerPipelineExpr(const ast::BinaryExpr& expr, LowerCtx& ctx) {
 
     if (needs_panic_out) {
       return LowerResult{
-          SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call)), PanicCheck(ctx)}),
+          SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call)), PanicFollowup(ctx)}),
           result_value};
     }
     return LowerResult{SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call))}),
@@ -330,7 +330,7 @@ LowerResult LowerPipelineExpr(const ast::PipelineExpr& expr, LowerCtx& ctx) {
     panic_out.name = std::string(kPanicOutName);
     call.args.push_back(panic_out);
     call.result = result_value;
-    return LowerResult{SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call)), PanicCheck(ctx)}),
+    return LowerResult{SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call)), PanicFollowup(ctx)}),
                        result_value};
   }
 
@@ -357,7 +357,7 @@ LowerResult LowerPipelineExpr(const ast::PipelineExpr& expr, LowerCtx& ctx) {
 
     if (needs_panic_out) {
       return LowerResult{
-          SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call)), PanicCheck(ctx)}),
+          SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call)), PanicFollowup(ctx)}),
           result_value};
     }
     return LowerResult{SeqIR({lhs_ir, rhs_ir, MakeIR(std::move(call))}),

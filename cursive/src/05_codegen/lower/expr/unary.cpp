@@ -148,7 +148,7 @@ LowerResult LowerUnOp(const std::string& op,
     check.lhs = operand_result.value;
     // rhs is not set for unary operators (std::optional remains empty)
     parts.push_back(MakeIR(std::move(check)));
-    parts.push_back(PanicCheck(ctx));
+    parts.push_back(PanicFollowup(ctx));
   }
 
   // Emit the unary operation

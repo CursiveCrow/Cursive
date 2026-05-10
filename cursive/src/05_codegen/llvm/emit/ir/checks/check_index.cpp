@@ -60,7 +60,7 @@ void IRInstructionVisitor::operator()(const IRCheckIndex &check) const
   llvm::Value *ok = builder.CreateICmpULT(
       idx64,
       len64);
-  EmitPanicReturnIfFalse(emitter, &builder, ok, PanicCode(PanicReason::Bounds));
+  EmitPanicIfFalse(emitter, &builder, ok, PanicCode(PanicReason::Bounds));
 }
 
 } // namespace cursive::codegen::emit_detail

@@ -1542,40 +1542,6 @@ void IRInstructionVisitor::operator()(const IRCall &call) const
 
   llvm::Value *call_result = nullptr;
   llvm::Value *call_result_storage = nullptr;
-  llvm::Function *debug_current_fn =
-      builder.GetInsertBlock() ? builder.GetInsertBlock()->getParent() : nullptr;
-  const std::string debug_current_name =
-      debug_current_fn ? debug_current_fn->getName().str() : std::string();
-  const bool debug_primitives_fn =
-      debug_current_name.find("PrimitivesLiterals") != std::string::npos ||
-      debug_current_name.find("VerifyPrimitivesLiteralsItem") != std::string::npos;
-  const bool debug_string_bytes_call =
-      callee_symbol.find("string") != std::string::npos ||
-      callee_symbol.find("bytes") != std::string::npos;
-  const bool debug_call_trace =
-      core::IsDebugEnabled("obj") &&
-      (debug_primitives_fn || debug_string_bytes_call);
-  if (debug_call_trace)
-  {
-    std::fprintf(stderr, "[llvm-call-debug] caller=%s callee=%s sig=%d arg_count=%zu\n",
-                 debug_current_name.c_str(), callee_symbol.c_str(), sig ? 1 : 0, args.size());
-    for (std::size_t i = 0; i < args.size(); ++i)
-    {
-      llvm::Type *aty = args[i] ? args[i]->getType() : nullptr;
-      std::string aty_text;
-      if (aty)
-      {
-        llvm::raw_string_ostream os(aty_text);
-        aty->print(os);
-        os.flush();
-      }
-      else
-      {
-        aty_text = "<null>";
-      }
-      std::fprintf(stderr, "[llvm-call-debug]   arg[%zu] llvm=%s\n", i, aty_text.c_str());
-    }
-  }
   if (call.callee.kind == IRValue::Kind::Symbol && ctx)
   {
     if (const auto *proc_module = ctx->LookupProcModule(callee_symbol))
@@ -1586,17 +1552,6 @@ void IRInstructionVisitor::operator()(const IRCall &call) const
   }
   if (sig)
   {
-    if (debug_call_trace)
-    {
-      std::fprintf(stderr, "[llvm-call-debug]   sig_param_count=%zu\n", sig->params.size());
-      for (std::size_t i = 0; i < sig->params.size(); ++i)
-      {
-        const int mode_tag = sig->params[i].mode.has_value() ? static_cast<int>(*sig->params[i].mode) : -1;
-        std::fprintf(stderr, "[llvm-call-debug]   sig_param[%zu] mode=%d type=%s\n",
-                     i, mode_tag,
-                     sig->params[i].type ? analysis::TypeToString(sig->params[i].type).c_str() : "<null>");
-      }
-    }
     llvm::Value *preferred_result_storage =
         emitter.TakePreferredResultStorage(call.result);
     const bool ffi_import_boundary = sig->ffi_import;
@@ -1921,16 +1876,6 @@ void IRInstructionVisitor::operator()(const IRCall &call) const
   else if (call_result_type)
   {
     never_call = IsNeverType(call_result_type);
-  }
-
-  if (debug_call_trace)
-  {
-    const std::string sig_ret_text =
-        (sig && sig->ret) ? analysis::TypeToString(sig->ret) : std::string("<none>");
-    const std::string result_ty_text =
-        call_result_type ? analysis::TypeToString(call_result_type) : std::string("<none>");
-    std::fprintf(stderr, "[llvm-call-debug]   sig_ret=%s result_type=%s never=%d\n",
-                 sig_ret_text.c_str(), result_ty_text.c_str(), never_call ? 1 : 0);
   }
 
   if (call_result_storage)

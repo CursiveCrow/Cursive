@@ -201,7 +201,8 @@ void IRInstructionVisitor::operator()(const IRSeq &seq) const
       {
         if (std::holds_alternative<IROpaque>(seq.items[lookahead]->node) ||
             std::holds_alternative<IRPanicCheck>(seq.items[lookahead]->node) ||
-            std::holds_alternative<IRCleanupPanicCheck>(seq.items[lookahead]->node))
+            std::holds_alternative<IRCleanupPanicCheck>(seq.items[lookahead]->node) ||
+            std::holds_alternative<IRInitPanicHandle>(seq.items[lookahead]->node))
         {
           continue;
         }

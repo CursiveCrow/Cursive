@@ -263,7 +263,7 @@ using namespace emit_detail;
         const std::string &owner_root = owner_module->front();
         const bool imported_shared_library_data =
             owner_root != current_root &&
-            active_ctx->library_assembly_names.contains(owner_root);
+            active_ctx->shared_library_assembly_names.contains(owner_root);
         if (!imported_shared_library_data) {
           return decl;
         }
@@ -1705,7 +1705,7 @@ using namespace emit_detail;
           const std::string &owner_root = owner_module->front();
           const bool imported_shared_library_data =
               owner_root != current_root &&
-              ctx->library_assembly_names.contains(owner_root);
+              ctx->shared_library_assembly_names.contains(owner_root);
           if (!imported_shared_library_data) {
             return decl;
           }

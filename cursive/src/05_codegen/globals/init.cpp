@@ -533,7 +533,7 @@ IRPtr DeinitCallIR(const ast::ModulePath& module_path, LowerCtx& ctx) {
 
   std::vector<IRPtr> parts;
   parts.push_back(MakeIR(std::move(call)));
-  parts.push_back(DeinitPanicHandle(ModulePathString(module_path), ctx));
+  parts.push_back(PanicCheck(ctx));
 
   return SeqIR(std::move(parts));
 }
@@ -630,10 +630,6 @@ IRPtr EmitDeinitPlan(const std::vector<ast::ModulePath>& init_order,
   for (const auto& module_path : reversed_order) {
     ir_parts.push_back(DeinitCallIR(module_path, ctx));
   }
-  if (!reversed_order.empty()) {
-    ir_parts.push_back(MakeIR(IRRestoreDeinitPanic{}));
-  }
-
   return SeqIRList(ir_parts);
 }
 
@@ -656,9 +652,12 @@ ProcIR EmitModuleInitFn(const ast::ModulePath& module_path,
   proc.ret = analysis::MakeTypePrim("()");
 
   const auto saved_init_cleanup = std::move(ctx.active_static_init_cleanup);
+  const auto saved_active_init_module = std::move(ctx.active_static_init_module);
   ctx.active_static_init_cleanup.clear();
+  ctx.active_static_init_module = ModulePathString(module_path);
   proc.body = LowerStaticInit(module_path, module, ctx);
   ctx.active_static_init_cleanup = saved_init_cleanup;
+  ctx.active_static_init_module = saved_active_init_module;
 
   return proc;
 }
@@ -1070,17 +1069,6 @@ bool ModuleInitTracker::AllReady() const {
 }
 
 // ============================================================================
-// Section 6.7 Panic Handling During Init/Deinit
-// ============================================================================
-
-IRPtr DeinitPanicHandle(const std::string& module_name, LowerCtx& ctx) {
-  (void)module_name;
-  SPEC_RULE("Deinit-Panic");
-  IRPtr trace_ir = EmitRuntimeTrace("DeinitPanicHandle", ctx);
-  return SeqIR(std::vector<IRPtr>{trace_ir, MakeIR(IRHandleDeinitPanic{})});
-}
-
-// ============================================================================
 // Section 6.7 Poison Checking
 // ============================================================================
 
@@ -1088,13 +1076,6 @@ IRPtr EmitCheckPoisonIR(const std::string& module_name) {
   IRCheckPoison check;
   check.module = module_name;
   return MakeIR(std::move(check));
-}
-
-IRPtr EmitMarkPoisonIR(const std::string& module_name) {
-  // Mark poison is handled by IRInitPanicHandle
-  IRInitPanicHandle handle;
-  handle.module = module_name;
-  return MakeIR(std::move(handle));
 }
 
 // ============================================================================

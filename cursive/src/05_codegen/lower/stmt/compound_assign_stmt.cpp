@@ -86,7 +86,7 @@ IRPtr LowerCompoundAssignStmt(const ast::CompoundAssignStmt& stmt,
     check.lhs = lhs_result.value;
     check.rhs = rhs_result.value;
     op_parts.push_back(MakeIR(std::move(check)));
-    op_parts.push_back(PanicCheck(ctx));
+    op_parts.push_back(PanicFollowup(ctx));
   }
 
   // Emit the binary operation

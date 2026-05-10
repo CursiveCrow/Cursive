@@ -96,7 +96,7 @@ LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
 
         return LowerResult{
             SeqIR({base_result.ir, range_result.ir, key_ir,
-                   MakeIR(std::move(check)), PanicCheck(ctx)}),
+                   MakeIR(std::move(check)), PanicFollowup(ctx)}),
             slice_value
         };
     }
@@ -126,7 +126,7 @@ LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
 
         return LowerResult{
             SeqIR({base_result.ir, range_result.ir, key_ir,
-                   MakeIR(std::move(check)), PanicCheck(ctx)}),
+                   MakeIR(std::move(check)), PanicFollowup(ctx)}),
             slice_value
         };
     }
@@ -159,7 +159,7 @@ LowerResult LowerIndexAccess(const ast::IndexAccessExpr& expr, LowerCtx& ctx) {
     seq.push_back(key_ir);
     if (needs_check) {
       seq.push_back(MakeIR(std::move(check)));
-      seq.push_back(PanicCheck(ctx));
+      seq.push_back(PanicFollowup(ctx));
     }
 
     return LowerResult{SeqIR(std::move(seq)), elem_value};

@@ -470,7 +470,7 @@ LowerResult LowerDynCall(const IRValue& base_ptr,
   // Sequence: CallVTable + PanicCheck
   std::vector<IRPtr> parts;
   parts.push_back(MakeIR(std::move(call)));
-  parts.push_back(PanicCheck(ctx));
+  parts.push_back(PanicFollowup(ctx));
 
   return LowerResult{SeqIR(std::move(parts)), result_value};
 }

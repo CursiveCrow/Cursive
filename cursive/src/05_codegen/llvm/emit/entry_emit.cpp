@@ -321,6 +321,38 @@ using namespace emit_detail;
       return code;
     };
 
+    auto store_entry_panic_record = [&](llvm::Value *flag,
+                                        llvm::Value *code)
+    {
+      llvm::Value *flag_value = CoerceTo(builder, flag, i8_ty);
+      if (!flag_value)
+      {
+        flag_value = llvm::ConstantInt::get(i8_ty, 0);
+      }
+      llvm::Value *code_value = CoerceTo(builder, code, i32_ty);
+      if (!code_value)
+      {
+        code_value = llvm::ConstantInt::get(i32_ty, 0);
+      }
+      EmitStoreAtOffset(*this, builder, panic_ptr, panic_flag_offset, flag_value);
+      EmitStoreAtOffset(*this, builder, panic_ptr, panic_code_offset, code_value);
+    };
+
+    auto clear_entry_panic_record = [&]()
+    {
+      store_entry_panic_record(llvm::ConstantInt::get(i8_ty, 0),
+                               llvm::ConstantInt::get(i32_ty, 0));
+    };
+
+    auto restore_entry_panic_record = [&](llvm::Value *code)
+    {
+      if (!code)
+      {
+        code = llvm::ConstantInt::get(i32_ty, 1);
+      }
+      store_entry_panic_record(llvm::ConstantInt::get(i8_ty, 1), code);
+    };
+
     const std::string runtime_panic_sym = RuntimePanicSym();
     llvm::Function *runtime_panic_fn = module_->getFunction(runtime_panic_sym);
     if (!runtime_panic_fn)
@@ -334,6 +366,64 @@ using namespace emit_detail;
           module_.get());
       runtime_panic_fn->setCallingConv(llvm::CallingConv::C);
     }
+
+    llvm::BasicBlock *panic_bb =
+        llvm::BasicBlock::Create(context_, "entry.panic", main_fn);
+
+    auto get_lifecycle_fn = [&](const std::string &symbol) -> llvm::Function *
+    {
+      if (const auto fn_it = functions_.find(symbol); fn_it != functions_.end())
+      {
+        return fn_it->second;
+      }
+      if (llvm::Function *fn = module_->getFunction(symbol))
+      {
+        return fn;
+      }
+      llvm::FunctionType *fn_ty = llvm::FunctionType::get(
+          llvm::Type::getVoidTy(context_),
+          {GetOpaquePtr()},
+          false);
+      return llvm::Function::Create(fn_ty,
+                                    llvm::GlobalValue::ExternalLinkage,
+                                    symbol,
+                                    module_.get());
+    };
+
+    auto call_lifecycle_fn = [&](const std::string &symbol) -> bool
+    {
+      llvm::Function *fn = get_lifecycle_fn(symbol);
+      if (!fn)
+      {
+        if (current_ctx_)
+        {
+          current_ctx_->ReportCodegenFailure();
+        }
+        return false;
+      }
+
+      llvm::FunctionType *fn_ty = fn->getFunctionType();
+      std::vector<llvm::Value *> args;
+      args.reserve(fn_ty->getNumParams());
+      for (unsigned i = 0; i < fn_ty->getNumParams(); ++i)
+      {
+        llvm::Type *param_ty = fn_ty->getParamType(i);
+        llvm::Value *arg = nullptr;
+        if (i == 0)
+        {
+          arg = CoerceTo(builder, panic_ptr, param_ty);
+        }
+        if (!arg)
+        {
+          arg = llvm::Constant::getNullValue(param_ty);
+        }
+        args.push_back(arg);
+      }
+
+      llvm::CallInst *call = builder->CreateCall(fn_ty, fn, args);
+      call->setCallingConv(fn->getCallingConv());
+      return true;
+    };
 
     std::vector<llvm::Value *> call_args;
     llvm::FunctionType *callee_ty = cursive_main->getFunctionType();
@@ -453,6 +543,35 @@ using namespace emit_detail;
             builder->CreateCall(init_ty, context_init_fn, init_args);
         init_call->setCallingConv(context_init_fn->getCallingConv());
       }
+    }
+
+    const std::vector<ast::ModulePath> init_order =
+        ComputeEntryInitOrder(*current_ctx_);
+    for (std::size_t module_index = 0;
+         module_index < init_order.size();
+         ++module_index)
+    {
+      if (!call_lifecycle_fn(InitFn(init_order[module_index])))
+      {
+        return;
+      }
+
+      llvm::Value *has_panic = load_panic_flag();
+      if (!has_panic)
+      {
+        continue;
+      }
+
+      llvm::BasicBlock *init_fail_bb =
+          llvm::BasicBlock::Create(context_, "entry.init.fail", main_fn);
+      llvm::BasicBlock *init_cont_bb =
+          llvm::BasicBlock::Create(context_, "entry.init.cont", main_fn);
+      builder->CreateCondBr(has_panic, init_fail_bb, init_cont_bb);
+
+      builder->SetInsertPoint(init_fail_bb);
+      builder->CreateBr(panic_bb);
+
+      builder->SetInsertPoint(init_cont_bb);
     }
 
     const LowerCtx::ProcSigInfo *main_sig =
@@ -808,8 +927,13 @@ using namespace emit_detail;
       }
     }
 
-    llvm::BasicBlock *panic_bb =
-        llvm::BasicBlock::Create(context_, "entry.panic", main_fn);
+    llvm::AllocaInst *deinit_panic_seen =
+        builder->CreateAlloca(i8_ty, nullptr, "entry_deinit_panic_seen");
+    llvm::AllocaInst *deinit_panic_code =
+        builder->CreateAlloca(i32_ty, nullptr, "entry_deinit_panic_code");
+    builder->CreateStore(llvm::ConstantInt::get(i8_ty, 0), deinit_panic_seen);
+    builder->CreateStore(llvm::ConstantInt::get(i32_ty, 0), deinit_panic_code);
+
     llvm::BasicBlock *deinit_bb =
         llvm::BasicBlock::Create(context_, "entry.deinit", main_fn);
     if (llvm::Value *has_panic = load_panic_flag())
@@ -864,7 +988,53 @@ using namespace emit_detail;
     }
 
     builder->SetInsertPoint(deinit_bb);
-    std::vector<ast::ModulePath> init_order = ComputeEntryInitOrder(*current_ctx_);
+    auto capture_deinit_panic = [&]()
+    {
+      llvm::Value *has_panic = load_panic_flag();
+      if (!has_panic)
+      {
+        return;
+      }
+
+      llvm::BasicBlock *capture_bb =
+          llvm::BasicBlock::Create(context_, "entry.deinit.panic.capture", main_fn);
+      llvm::BasicBlock *cont_bb =
+          llvm::BasicBlock::Create(context_, "entry.deinit.panic.cont", main_fn);
+      builder->CreateCondBr(has_panic, capture_bb, cont_bb);
+
+      builder->SetInsertPoint(capture_bb);
+      llvm::Value *seen = builder->CreateLoad(i8_ty, deinit_panic_seen);
+      llvm::Value *already_seen =
+          builder->CreateICmpNE(seen, llvm::ConstantInt::get(i8_ty, 0));
+      llvm::Value *code = load_panic_code();
+      if (!code)
+      {
+        code = llvm::ConstantInt::get(i32_ty, 1);
+      }
+
+      llvm::BasicBlock *store_bb =
+          llvm::BasicBlock::Create(context_, "entry.deinit.panic.store", main_fn);
+      llvm::BasicBlock *clear_bb =
+          llvm::BasicBlock::Create(context_, "entry.deinit.panic.clear", main_fn);
+      builder->CreateCondBr(already_seen, clear_bb, store_bb);
+
+      builder->SetInsertPoint(store_bb);
+      builder->CreateStore(llvm::ConstantInt::get(i8_ty, 1), deinit_panic_seen);
+      llvm::Value *stored_code = CoerceTo(builder, code, i32_ty);
+      if (!stored_code)
+      {
+        stored_code = llvm::ConstantInt::get(i32_ty, 1);
+      }
+      builder->CreateStore(stored_code, deinit_panic_code);
+      builder->CreateBr(clear_bb);
+
+      builder->SetInsertPoint(clear_bb);
+      clear_entry_panic_record();
+      builder->CreateBr(cont_bb);
+
+      builder->SetInsertPoint(cont_bb);
+    };
+
     for (auto it = init_order.rbegin(); it != init_order.rend(); ++it)
     {
       const std::string deinit_sym = DeinitFn(*it);
@@ -912,7 +1082,7 @@ using namespace emit_detail;
         llvm::CallInst *deinit_call =
             builder->CreateCall(deinit_ty, deinit_fn, deinit_args);
         deinit_call->setCallingConv(deinit_fn->getCallingConv());
-        HandleDeinitPanic(*this, builder, panic_ptr);
+        capture_deinit_panic();
       }
       else if (current_ctx_)
       {
@@ -920,15 +1090,23 @@ using namespace emit_detail;
       }
     }
 
-    RestoreDeinitPanicIfAny(*this, builder, panic_ptr);
+    llvm::Value *deinit_seen =
+        builder->CreateLoad(i8_ty, deinit_panic_seen);
+    llvm::Value *deinit_had_panic =
+        builder->CreateICmpNE(deinit_seen, llvm::ConstantInt::get(i8_ty, 0));
+    llvm::BasicBlock *deinit_restore_bb =
+        llvm::BasicBlock::Create(context_, "entry.deinit.panic.restore", main_fn);
+    llvm::BasicBlock *ret_bb =
+        llvm::BasicBlock::Create(context_, "entry.ret", main_fn);
+    builder->CreateCondBr(deinit_had_panic, deinit_restore_bb, ret_bb);
 
-    if (llvm::Value *has_panic = load_panic_flag())
-    {
-      llvm::BasicBlock *ret_bb =
-          llvm::BasicBlock::Create(context_, "entry.ret", main_fn);
-      builder->CreateCondBr(has_panic, panic_bb, ret_bb);
-      builder->SetInsertPoint(ret_bb);
-    }
+    builder->SetInsertPoint(deinit_restore_bb);
+    llvm::Value *captured_deinit_code =
+        builder->CreateLoad(i32_ty, deinit_panic_code);
+    restore_entry_panic_record(captured_deinit_code);
+    builder->CreateBr(panic_bb);
+
+    builder->SetInsertPoint(ret_bb);
 
     if (returns_exit_code)
     {
@@ -1081,6 +1259,27 @@ using namespace emit_detail;
           llvm::ConstantInt::get(i8_ty, 0));
     };
 
+    auto load_panic_code = [&](llvm::IRBuilder<> &irb,
+                               llvm::Value *panic_ptr) -> llvm::Value * {
+      return irb.CreateLoad(
+          i32_ty,
+          panic_field_ptr(irb, panic_ptr, panic_offsets.second, i32_ty));
+    };
+
+    auto store_panic_record = [&](llvm::IRBuilder<> &irb,
+                                  llvm::Value *panic_ptr,
+                                  llvm::Value *code) {
+      llvm::Value *stored_code = CoerceTo(&irb, code, i32_ty);
+      if (!stored_code)
+      {
+        stored_code = llvm::ConstantInt::get(i32_ty, 1);
+      }
+      irb.CreateStore(llvm::ConstantInt::get(i8_ty, 1),
+                      panic_field_ptr(irb, panic_ptr, panic_offsets.first, i8_ty));
+      irb.CreateStore(stored_code,
+                      panic_field_ptr(irb, panic_ptr, panic_offsets.second, i32_ty));
+    };
+
     auto ensure_proc_fn = [&](const std::string &sym) -> llvm::Function * {
       const LowerCtx::ProcSigInfo *sig =
           current_ctx_ ? current_ctx_->LookupProcSig(sym) : nullptr;
@@ -1217,22 +1416,70 @@ using namespace emit_detail;
 
     builder->SetInsertPoint(detach_work_bb);
     clear_panic_record(*builder, panic_record_ptr);
+    llvm::AllocaInst *detach_panic_seen =
+        builder->CreateAlloca(i1_ty, nullptr, "dll_detach_panic_seen");
+    llvm::AllocaInst *detach_panic_code =
+        builder->CreateAlloca(i32_ty, nullptr, "dll_detach_panic_code");
+    builder->CreateStore(llvm::ConstantInt::getFalse(context_), detach_panic_seen);
+    builder->CreateStore(llvm::ConstantInt::get(i32_ty, 0), detach_panic_code);
+
+    auto capture_detach_panic = [&](llvm::IRBuilder<> &irb) {
+      llvm::BasicBlock *capture_bb =
+          llvm::BasicBlock::Create(context_, "dll.detach.panic.capture", entry_fn);
+      llvm::BasicBlock *cont_bb =
+          llvm::BasicBlock::Create(context_, "dll.detach.cont", entry_fn);
+      irb.CreateCondBr(load_panic_flag(irb, panic_record_ptr),
+                       capture_bb,
+                       cont_bb);
+
+      irb.SetInsertPoint(capture_bb);
+      llvm::Value *already_seen =
+          irb.CreateLoad(i1_ty, detach_panic_seen);
+      llvm::Value *panic_code = load_panic_code(irb, panic_record_ptr);
+      llvm::BasicBlock *store_bb =
+          llvm::BasicBlock::Create(context_, "dll.detach.panic.store", entry_fn);
+      llvm::BasicBlock *clear_bb =
+          llvm::BasicBlock::Create(context_, "dll.detach.panic.clear", entry_fn);
+      irb.CreateCondBr(already_seen, clear_bb, store_bb);
+
+      irb.SetInsertPoint(store_bb);
+      irb.CreateStore(llvm::ConstantInt::getTrue(context_), detach_panic_seen);
+      irb.CreateStore(panic_code ? panic_code : llvm::ConstantInt::get(i32_ty, 1),
+                      detach_panic_code);
+      irb.CreateBr(clear_bb);
+
+      irb.SetInsertPoint(clear_bb);
+      clear_panic_record(irb, panic_record_ptr);
+      irb.CreateBr(cont_bb);
+
+      irb.SetInsertPoint(cont_bb);
+    };
+
     for (auto it = current_ctx_->init_order.rbegin();
          it != current_ctx_->init_order.rend();
          ++it)
     {
       const auto &module_path = *it;
       call_proc_with_panic(*builder, DeinitFn(module_path), panic_record_ptr);
-      HandleDeinitPanic(*this, builder, panic_record_ptr);
+      capture_detach_panic(*builder);
     }
-    RestoreDeinitPanicIfAny(*this, builder, panic_record_ptr);
-    llvm::Value *detach_had_panic = load_panic_flag(*builder, panic_record_ptr);
     builder->CreateStore(llvm::ConstantInt::getFalse(context_), attached_gv);
-    llvm::Value *detach_ok = builder->CreateSelect(
-        detach_had_panic,
-        llvm::ConstantInt::get(i32_ty, 0),
-        llvm::ConstantInt::get(i32_ty, 1));
-    builder->CreateRet(detach_ok);
+    llvm::BasicBlock *detach_panic_bb =
+        llvm::BasicBlock::Create(context_, "dll.detach.fail", entry_fn);
+    llvm::BasicBlock *detach_success_bb =
+        llvm::BasicBlock::Create(context_, "dll.detach.success", entry_fn);
+    builder->CreateCondBr(builder->CreateLoad(i1_ty, detach_panic_seen),
+                          detach_panic_bb,
+                          detach_success_bb);
+
+    builder->SetInsertPoint(detach_panic_bb);
+    store_panic_record(*builder,
+                       panic_record_ptr,
+                       builder->CreateLoad(i32_ty, detach_panic_code));
+    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 0));
+
+    builder->SetInsertPoint(detach_success_bb);
+    builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));
 
     builder->SetInsertPoint(detach_done_bb);
     builder->CreateRet(llvm::ConstantInt::get(i32_ty, 1));

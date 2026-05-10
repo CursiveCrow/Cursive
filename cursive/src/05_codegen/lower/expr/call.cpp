@@ -1449,7 +1449,7 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
           parts.push_back(local_pre_ir);
         }
         parts.push_back(MakeIR(std::move(call)));
-        parts.push_back(PanicCheck(ctx));
+        parts.push_back(PanicFollowup(ctx));
         return LowerResult{SeqIR(std::move(parts)), result_value};
       }
 
@@ -1695,7 +1695,7 @@ LowerResult LowerCallExpr(const ast::Expr& expr_wrapper,
       parts.push_back(foreign_pre_ir);
     }
     parts.push_back(MakeIR(std::move(call)));
-    parts.push_back(PanicCheck(ctx));
+    parts.push_back(PanicFollowup(ctx));
     if (!is_noop(foreign_post_ir)) {
       parts.push_back(foreign_post_ir);
     }

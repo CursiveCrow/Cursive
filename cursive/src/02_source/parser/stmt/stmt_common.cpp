@@ -444,8 +444,7 @@ bool EndsWithBlock(const ExprPtr& expr);
 
 bool RequiresTerminator(const Stmt& stmt) {
   if (const auto* expr_stmt = std::get_if<ExprStmt>(&stmt)) {
-    (void)expr_stmt;
-    return true;
+    return !EndsWithBlock(expr_stmt->value);
   }
   // These statement types require terminators
   return std::holds_alternative<LetStmt>(stmt) ||

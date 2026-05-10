@@ -190,7 +190,7 @@ void IRInstructionVisitor::operator()(const IRCheckRange &check) const
     }
     }
   }
-  EmitPanicReturnIfFalse(emitter, &builder, ok, PanicCode(PanicReason::Bounds));
+  EmitPanicIfFalse(emitter, &builder, ok, PanicCode(PanicReason::Bounds));
 }
 
 } // namespace cursive::codegen::emit_detail

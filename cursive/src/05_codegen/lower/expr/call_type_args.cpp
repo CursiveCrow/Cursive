@@ -388,7 +388,7 @@ LowerResult LowerCallWithTypeArgs(const ast::CallExpr& expr, LowerCtx& ctx) {
       call.args.push_back(panic_out);
       return LowerResult{
           SeqIR({callee_result.ir, args_ir, MakeIR(std::move(call)),
-                 PanicCheck(ctx)}),
+                 PanicFollowup(ctx)}),
           result_value};
     }
 
@@ -442,7 +442,7 @@ LowerResult LowerCallWithTypeArgs(const ast::CallExpr& expr, LowerCtx& ctx) {
     panic_out.name = std::string(kPanicOutName);
     call.args.push_back(panic_out);
     return LowerResult{
-        SeqIR({args_ir, MakeIR(std::move(call)), PanicCheck(ctx)}),
+        SeqIR({args_ir, MakeIR(std::move(call)), PanicFollowup(ctx)}),
         result_value};
   }
 

@@ -490,12 +490,12 @@ void ConfigureCodegenContextForProjectImpl(CodegenCache& cache,
   cache.ctx.project_entry_module = SelectProjectEntryModule(project);
 
   cache.ctx.dependency_assembly_names.clear();
-  cache.ctx.library_assembly_names.clear();
+  cache.ctx.shared_library_assembly_names.clear();
   for (const auto& assembly : project.assemblies) {
     if (project::IsDependency(assembly)) {
       cache.ctx.dependency_assembly_names.insert(assembly.name);
-    } else if (project::IsLibrary(assembly)) {
-      cache.ctx.library_assembly_names.insert(assembly.name);
+    } else if (project::IsSharedLibrary(assembly)) {
+      cache.ctx.shared_library_assembly_names.insert(assembly.name);
     }
   }
 

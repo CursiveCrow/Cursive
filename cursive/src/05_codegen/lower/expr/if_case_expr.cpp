@@ -32,6 +32,7 @@
 #include "04_analysis/typing/type_predicates.h"
 #include "05_codegen/cleanup/cleanup.h"
 #include "05_codegen/cleanup/unwind.h"
+#include "05_codegen/ir/ir_control_flow.h"
 #include "05_codegen/lower/lower_pat.h"
 #include "05_codegen/lower/pattern/ir_pattern.h"
 
@@ -59,47 +60,6 @@ LowerCtx MakeBranchCtx(LowerCtx& base) {
   branch.values.drop_glue_types.clear();
   branch.values.parent = &base;
   return branch;
-}
-
-bool EndsWithTerminator(const IRPtr& ir) {
-  if (!ir) {
-    return false;
-  }
-  return std::visit(
-      [&](const auto& node) -> bool {
-        using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, IRReturn> ||
-                      std::is_same_v<T, IRBreak> ||
-                      std::is_same_v<T, IRContinue> ||
-                      std::is_same_v<T, IRResult> ||
-                      std::is_same_v<T, IRLowerPanic>) {
-          return true;
-        } else if constexpr (std::is_same_v<T, IRSeq>) {
-          for (auto it = node.items.rbegin(); it != node.items.rend(); ++it) {
-            if (!IsNoopIR(*it)) {
-              return EndsWithTerminator(*it);
-            }
-          }
-          return false;
-        } else if constexpr (std::is_same_v<T, IRBlock>) {
-          return EndsWithTerminator(node.setup) || EndsWithTerminator(node.body);
-        } else if constexpr (std::is_same_v<T, IRRegion>) {
-          return EndsWithTerminator(node.body);
-        } else if constexpr (std::is_same_v<T, IRFrame>) {
-          return EndsWithTerminator(node.body);
-        } else if constexpr (std::is_same_v<T, IRIf>) {
-          return EndsWithTerminator(node.then_ir) && EndsWithTerminator(node.else_ir);
-        } else if constexpr (std::is_same_v<T, IRIfCase>) {
-          for (const auto& arm : node.arms) {
-            if (!EndsWithTerminator(arm.body)) {
-              return false;
-            }
-          }
-          return !node.arms.empty();
-        }
-        return false;
-      },
-      ir->node);
 }
 
 IRPtr CleanupTemps(const std::vector<TempValue>& temps, LowerCtx& ctx) {
@@ -754,8 +714,8 @@ LowerResult LowerIfCases(const ast::Expr& scrutinee,
       else_result = LowerBlock(unit_block, else_ctx);
     }
 
-    const bool else_terminates = EndsWithTerminator(else_result.ir);
-    if (!else_terminates) {
+    const bool else_may_fallthrough = IRFlowMayFallThrough(else_result.ir);
+    if (else_may_fallthrough) {
       else_type = else_ctx.LookupValueType(else_result.value);
       if (!else_type && else_expr && ctx.expr_type) {
         else_type = ctx.expr_type(*else_expr);
@@ -910,12 +870,12 @@ LowerIfCaseClauseResult LowerIfCaseClauseImpl(
 
   IRValue arm_value = body_result.value;
   IRPtr capture_ir = EmptyIR();
-  const bool body_terminates = EndsWithTerminator(body_result.ir);
+  const bool body_may_fallthrough = IRFlowMayFallThrough(body_result.ir);
   analysis::TypeRef body_type = ctx.LookupValueType(body_result.value);
   if (!body_type && !arm.body) {
     body_type = analysis::MakeTypePrim("()");
   }
-  if (arm.body && !body_terminates) {
+  if (arm.body && body_may_fallthrough) {
     if (!body_type && ctx.expr_type) {
       body_type = ctx.expr_type(*arm.body);
     }
@@ -948,7 +908,7 @@ LowerIfCaseClauseResult LowerIfCaseClauseImpl(
   parts.push_back(scrutinee_bind_ir);
   parts.push_back(bind_ir);
   parts.push_back(body_result.ir);
-  if (!body_terminates) {
+  if (body_may_fallthrough) {
     parts.push_back(capture_ir);
   }
 
@@ -957,11 +917,11 @@ LowerIfCaseClauseResult LowerIfCaseClauseImpl(
 
   LowerIfCaseClauseResult result;
   result.result = LowerResult{SeqIR(std::move(parts)), arm_value};
-  result.cleanup_ir = body_terminates
-      ? EmptyIR()
-      : SeqIR({body_temp_cleanup, cleanup_ir});
-  result.value_type = body_terminates ? nullptr : body_type;
-  result.terminates = body_terminates;
+  result.cleanup_ir = body_may_fallthrough
+      ? SeqIR({body_temp_cleanup, cleanup_ir})
+      : EmptyIR();
+  result.value_type = body_may_fallthrough ? body_type : nullptr;
+  result.terminates = !body_may_fallthrough;
   return result;
 }
 
